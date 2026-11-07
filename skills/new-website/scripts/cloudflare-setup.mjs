@@ -1121,6 +1121,7 @@ const CHECK_SCRIPT = path.join(path.dirname(realpathSync(fileURLToPath(import.me
 export const LAUNCH_FAIL = {
   pages: 1, 'build-settings': null, domain: 1, 'fail-open': null, canonical: 'canonical', https: 'https', tls: null,
   hsts: null, nel: 'nel-rule', bot: 'bot', analytics: 0, email: 'email', hints: null, ai: null, robots: 1, build: 1, scripts: null,
+  'workers-dev': null, previews: null,
 };
 
 // The exit status a launch run takes from the check's JSON, in the plan's order: no answer or an item

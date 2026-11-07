@@ -5,16 +5,17 @@
 //   node cloudflare-check.mjs example.com [--project my-pages-project] [--hsts-on]
 //                                          [--build <sha>] [--json] [--timeout <seconds>]
 //                                          [--only <id>,<id>] [--nameserver <address>,<address>]
+//                                          [--site <folder>] [--config <file>] [--preview <link>,<link>]
 //
-// Read-only. It sends GET requests and nothing else: no token, no account, no change. It
-// needs Node 18 or newer and nothing from npm. What it prints, and what it cannot see, is
+// Read-only. It sends GET requests and nothing else: no token, no account, no change. With --site
+// it also reads the Wrangler files in the site's folder. It needs Node 18 or newer and nothing from npm. What it prints, and what it cannot see, is
 // in references/CLOUDFLARE_CHECK.md next to this folder.
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
 import { isIP } from 'node:net';
 import { Resolver } from 'node:dns';
-import { realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const UA = 'Mozilla/5.0 (compatible; croftweaver-cloudflare-check/1)';
@@ -65,6 +66,8 @@ export const ITEMS = [
     path: 'Workers & Pages → your project → Settings → Runtime → Fail open / closed',
     lookFor: 'it should say Fail open' },
   { id: 'canonical', section: 1, title: 'Send the `<project>.pages.dev` address to your live domain (301)' },
+  { id: 'workers-dev', section: 1, title: 'Keep the live `workers.dev` address off' },
+  { id: 'previews', section: 1, title: 'Preview links carry noindex' },
   { id: 'https', section: 2, title: 'Always Use HTTPS: On' },
   { id: 'tls', section: 2, title: 'Minimum TLS Version: TLS 1.2',
     path: 'Your domain → SSL/TLS → Edge Certificates → Minimum TLS Version',
@@ -100,6 +103,14 @@ const USAGE = `Usage: node cloudflare-check.mjs <domain> [options]
                       CLOUDFLARE_CHECK.md), and send only the requests they need
   --nameserver <ip>   look the domain up at this nameserver (an IP address, with :port if
                       not 53; several separated by commas), not at this computer's own
+  --site <folder>     the site's folder: reads its Wrangler files (wrangler.json, wrangler.jsonc,
+                      wrangler.toml) and whether it has a functions/ folder, to tell a Worker
+                      from a Pages site. Writes nothing.
+  --config <file>     a Workers config with another name, in the --site folder (only with --site)
+  --preview <link>    a Worker's Preview, deployment or version link, https://<prefix>-<worker>
+                      .<account>.workers.dev (several separated by commas; only for a Worker).
+                      Each must carry noindex; a live version link also lets the check judge
+                      the workers.dev address.
   -h, --help          this text
 
 Exit status: 0 nothing failed and everything was asked and judged; 1 something failed, did
@@ -107,7 +118,7 @@ not answer or could not be judged (the report says which); 2 the command was wro
 `;
 
 export function parseArgs(argv) {
-  const opts = { json: false, hstsOn: false, timeoutMs: 15000, project: null, build: null, only: null, nameservers: null, help: false };
+  const opts = { json: false, hstsOn: false, timeoutMs: 15000, project: null, build: null, only: null, nameservers: null, site: null, config: null, preview: null, help: false };
   const rest = [];
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -122,6 +133,9 @@ export function parseArgs(argv) {
     else if (a === '--build') opts.build = value();
     else if (a === '--only') opts.only = parseOnly(value());
     else if (a === '--nameserver') opts.nameservers = parseNameservers(value());
+    else if (a === '--site') opts.site = value();
+    else if (a === '--config') opts.config = value();
+    else if (a === '--preview') opts.preview = value();
     else if (a === '--timeout') {
       const n = Number(value());
       if (!(n >= 1 && n <= 120)) throw new UsageError('--timeout takes a number of seconds from 1 to 120');
@@ -134,6 +148,8 @@ export function parseArgs(argv) {
   if (opts.build !== null && !/^[0-9a-f]{7,40}$/i.test(opts.build)) {
     throw new UsageError('--build takes a commit id: 7 to 40 hexadecimal characters');
   }
+  if (opts.config !== null && opts.site === null) throw new UsageError('--config goes with --site: give the folder of the site the file is in');
+  if (opts.preview !== null && opts.site === null) throw new UsageError('--preview goes with --site: give the folder of the Worker the links belong to');
   if (rest.length === 0) throw new UsageError('give your domain, for example: example.com');
   if (rest.length > 1) throw new UsageError(`give one domain only (got ${rest.length})`);
   return { opts, domain: rest[0] };
@@ -234,12 +250,141 @@ export function parseProject(arg) {
   return { origin: `https://${name}.pages.dev`, host: `${name}.pages.dev`, pagesDev: true };
 }
 
+// ---------------------------------------------------------------- the site's folder
+
+// JSON that may hold // and /* */ comments and trailing commas, as a Wrangler .jsonc does. A string
+// is copied whole, so a // or a /* inside one is text. Throws SyntaxError.
+export function parseJsonc(text) {
+  const n = text.length;
+  let bare = ''; // the text without its comments
+  for (let i = text.charCodeAt(0) === 0xfeff ? 1 : 0; i < n;) {
+    const c = text[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < n && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
+      bare += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === '/' && text[i + 1] === '/') {
+      while (i < n && text[i] !== '\n') i++;
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      if (end === -1) throw new SyntaxError('a /* comment is never closed');
+      bare += ' ';
+      i = end + 2;
+    } else {
+      bare += c;
+      i++;
+    }
+  }
+  let json = ''; // ... and without a comma that stands before a closing } or ]
+  for (let i = 0; i < bare.length;) {
+    const c = bare[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < bare.length && bare[j] !== '"') j += bare[j] === '\\' ? 2 : 1;
+      json += bare.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === ',' && /^\s*[}\]]/.test(bare.slice(i + 1))) {
+      i++;
+    } else {
+      json += c;
+      i++;
+    }
+  }
+  return JSON.parse(json);
+}
+
+const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
+const isFolder = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
+// A Worker's name is a host label; it ends up in the addresses the check asks.
+const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,40}[a-z0-9])?$/i;
+
+// Wrangler's own config names, in its order. Wrangler reads the first it finds; the checker reads every one
+// that is there, so a Workers config beside a Pages config gets both sets of checks.
+const WRANGLER_FILES = ['wrangler.json', 'wrangler.jsonc', 'wrangler.toml'];
+export function readSite(folder, configArg = null) {
+  if (!isFolder(folder)) throw new UsageError(`--site "${folder}" is not a folder`);
+  const files = WRANGLER_FILES.filter((f) => isFile(path.join(folder, f)));
+  if (configArg !== null) {
+    const given = path.resolve(folder, configArg);
+    if (!isFile(given)) throw new UsageError(`--config "${configArg}" is not a file (a relative path is taken from the --site folder)`);
+    if (!files.some((f) => path.resolve(folder, f) === given)) files.push(configArg);
+  }
+  const workers = [];
+  const pages = [];
+  for (const file of files) {
+    let text;
+    try { text = readFileSync(path.resolve(folder, file), 'utf8'); } catch (e) { throw new UsageError(`${file} cannot be read: ${e.code ?? e.message}`); }
+    if (path.extname(file).toLowerCase() === '.toml') {
+      // No TOML reader here: a presence check, not a parse.
+      if (/pages_build_output_dir/.test(text)) pages.push(file);
+      else throw new UsageError(`${file} holds no pages_build_output_dir, and the check reads a Workers config only from a .json or .jsonc file`);
+      continue;
+    }
+    let conf;
+    try { conf = parseJsonc(text); } catch (e) { throw new UsageError(`${file} cannot be read as JSON: ${e.message}`); }
+    if (conf === null || typeof conf !== 'object' || Array.isArray(conf)) throw new UsageError(`${file} is not a JSON object`);
+    if ('pages_build_output_dir' in conf) { pages.push(file); continue; }
+    const hasAssets = conf.assets !== null && typeof conf.assets === 'object' && typeof conf.assets.directory === 'string';
+    if (typeof conf.name !== 'string' || !conf.name || !hasAssets) {
+      throw new UsageError(`${file} is neither a Pages config (pages_build_output_dir) nor a Workers config (a name and assets.directory): the check knows sites only`);
+    }
+    if (!WORKER_NAME.test(conf.name)) throw new UsageError(`${file}: "${conf.name}" is not a Worker name (letters, digits and hyphens)`);
+    workers.push({ file, name: conf.name.toLowerCase(), previewUrlsOff: conf.preview_urls === false });
+  }
+  if (new Set(workers.map((w) => w.name)).size > 1) {
+    throw new UsageError(`${workers.map((w) => `${w.file} names the Worker ${w.name}`).join(', ')}: one site, one Worker`);
+  }
+  const functions = isFolder(path.join(folder, 'functions'));
+  const pagesBy = [...pages, ...(functions ? ['functions/'] : [])];
+  const worker = workers[0] ?? null;
+  const platform = worker && pagesBy.length ? 'both' : worker ? 'workers' : 'pages';
+  const read = `Read ${folder}:`;
+  const note = platform === 'workers' ? `${read} ${worker.file} is a Workers config for ${worker.name}. Checked as a Workers site.`
+    : platform === 'both' ? `${read} ${worker.file} is a Workers config for ${worker.name}, and ${pagesBy.join(', ')} ${pagesBy.length === 1 ? 'is a Pages marker' : 'are Pages markers'}. Checked as a Workers site and a Pages site.`
+      : pagesBy.length ? `${read} ${pagesBy.join(', ')} ${pagesBy.length === 1 ? 'is a Pages marker' : 'are Pages markers'}, and there is no Workers config. Checked as a Pages site.`
+        : `${read} no Wrangler file and no functions/ folder was found, so it was checked as a Pages site. If this is not the site's own folder, give the right one with --site.`;
+  return { folder, worker, platform, note, neither: !worker && !pagesBy.length };
+}
+
+// --preview: Preview, deployment or version links of the Worker, https://<prefix>-<worker>.<account>.workers.dev
+// (a local test name ends in .workers.dev.test and is served over http). A link's first label ends in
+// -<worker> after a prefix; the prefix of a version link is the first 8 characters of its version id.
+export function parsePreview(arg, workerName, file = 'the Workers config') {
+  const given = String(arg).split(',').map((x) => x.trim()).filter(Boolean);
+  if (!given.length) throw new UsageError('--preview needs a link');
+  const name = workerName.toLowerCase();
+  const links = [];
+  let account = null;
+  for (const raw of given) {
+    const bad = (why) => new UsageError(`--preview "${raw}": ${why}`);
+    let u;
+    try { u = new URL(raw); } catch { throw bad('not a web address'); }
+    const host = /^([a-z0-9-]+)\.([a-z0-9-]+\.workers\.dev(?:\.test)?)$/.exec(u.hostname);
+    const kind = u.protocol === 'https:' && !u.port ? !u.hostname.endsWith('.test') : u.protocol === 'http:' && u.hostname.endsWith('.workers.dev.test');
+    if (!host || !kind || u.username || u.password || u.search || u.hash || u.pathname !== '/') {
+      throw bad('give a link of the form https://<prefix>-<worker>.<account>.workers.dev, with no path');
+    }
+    const label = host[1];
+    if (!label.endsWith(`-${name}`) || label.length === name.length + 1) {
+      throw bad(`its first label must be a prefix, a hyphen and the Worker's name (${name}, from ${file})`);
+    }
+    const here = `${u.protocol}//${host[2]}${u.port ? `:${u.port}` : ''}`;
+    if (account !== null && account !== here) throw new UsageError('the --preview links name two accounts');
+    account = here;
+    if (links.some((l) => l.origin === u.origin)) continue;
+    links.push({ url: `${u.origin}/`, origin: u.origin, version: label.length === name.length + 9 && /^[0-9a-f]{8}$/.test(label.slice(0, 8)) });
+  }
+  const { protocol, host: tail } = new URL(account);
+  return { links, address: `${protocol}//${name}.${tail}` };
+}
+
 // ---------------------------------------------------------------- asking
 
 // One GET, never followed, never rejected: an error is part of the answer. A body is read up
 // to MAX_BODY bytes (a page of the kit is a few hundred kilobytes); an answer that ends
-// early, or does not end in time, is an error, never a page.
-function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xml,*/*;q=0.8', lookup }) {
+// early, or does not end in time, is an error, never a page. `acceptEncoding: null` leaves the header out.
+function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xml,*/*;q=0.8', lookup, acceptEncoding = 'identity' }) {
   return new Promise((resolve) => {
     const signal = AbortSignal.timeout(timeoutMs);
     let done = false;
@@ -260,7 +405,7 @@ function get(url, { timeoutMs, ua = UA, accept = 'text/html,application/xhtml+xm
       signal,
       agent: false, // one connection per request, closed after it: nothing lingers
       ...(lookup ? { lookup } : {}),
-      headers: { 'user-agent': ua, accept, 'accept-encoding': 'identity' },
+      headers: { 'user-agent': ua, accept, ...(acceptEncoding === null ? {} : { 'accept-encoding': acceptEncoding }) },
     }, (res) => {
       const chunks = [];
       let size = 0;
@@ -329,11 +474,12 @@ async function getHome(url, t, stamp) {
 // others are not sent; they stand in the observation as "not asked", and count as no answer for
 // nothing.
 const NEEDS = { robots: ['robots'], ai: ['robots', 'crawlers'], https: ['httpProbe'], build: ['build'],
-  pages: ['alias'], canonical: ['alias', 'aliasProbe'], nel: ['alias'] };
+  pages: ['alias'], canonical: ['alias', 'aliasProbe'], nel: ['alias'],
+  'workers-dev': ['workersAddress', 'previewLinks'], previews: ['previewLinks'] };
 // The second request to the pages.dev address: a page with a query, which the forwarding must keep.
 export const PROBE_PATH = '/robots.txt';
 
-export async function observe(target, { timeoutMs, alias, only = null, nameservers = null }) {
+export async function observe(target, { timeoutMs, alias, only = null, nameservers = null, workers = null }) {
   const stamp = Math.floor(Date.now() / 1000);
   const lookup = nameservers ? lookupAt(nameservers) : undefined; // the domain's requests only
   const t = { timeoutMs, lookup };
@@ -342,24 +488,29 @@ export async function observe(target, { timeoutMs, alias, only = null, nameserve
   const asked = only ? new Set(only.flatMap((id) => NEEDS[id] ?? [])) : null;
   const ask = (name, url, fn) => (!asked || asked.has(name) ? fn() : Promise.resolve({ url, notAsked: true, error: { code: 'ENOTASKED', message: 'not asked' } }));
   const aliasProbeUrl = alias ? `${alias.origin}${PROBE_PATH}?cb=${stamp}` : null;
-  const [home, robots, httpProbe, build, aliasHome, aliasProbe, ...crawlers] = await Promise.all([
+  // The Worker's own address is asked with no accept-encoding header: with one, Cloudflare answers an
+  // address that is off with an HTML page instead of its error text.
+  const addressUrl = workers?.links.length ? `${workers.address}/` : null;
+  const [home, robots, httpProbe, build, aliasHome, aliasProbe, workersAddress, previewLinks, ...crawlers] = await Promise.all([
     getHome(homeUrl, t, stamp),
     ask('robots', `${target.origin}/robots.txt`, () => get(`${target.origin}/robots.txt`, text)),
     ask('httpProbe', target.httpProbe, () => get(target.httpProbe, t)),
     ask('build', `${target.origin}/build.txt?cb=${stamp}`, () => get(`${target.origin}/build.txt?cb=${stamp}`, text)),
     alias ? ask('alias', `${alias.origin}/?cb=${stamp}`, () => get(`${alias.origin}/?cb=${stamp}`, { timeoutMs })) : Promise.resolve(null),
     alias ? ask('aliasProbe', aliasProbeUrl, () => get(aliasProbeUrl, { timeoutMs })) : Promise.resolve(null),
+    addressUrl ? ask('workersAddress', addressUrl, () => get(addressUrl, { timeoutMs, acceptEncoding: null })) : Promise.resolve(null),
+    Promise.all((workers?.links ?? []).map((l) => ask('previewLinks', l.url, () => get(l.url, { timeoutMs })))),
     ...CRAWLERS.map(([, ua]) => ask('crawlers', homeUrl, () => get(homeUrl, { timeoutMs, ua, lookup }))),
   ]);
   return {
-    stamp, home, robots, httpProbe, build, alias: aliasHome, aliasProbe,
+    stamp, home, robots, httpProbe, build, alias: aliasHome, aliasProbe, workersAddress, previewLinks,
     crawlers: crawlers.map((r, i) => ({ name: CRAWLERS[i][0], ...r })),
   };
 }
 
 // Every request that was sent and got no answer at all.
 export function unanswered(obs) {
-  return [obs.home, obs.robots, obs.httpProbe, obs.build, obs.alias, obs.aliasProbe, ...obs.crawlers]
+  return [obs.home, obs.robots, obs.httpProbe, obs.build, obs.alias, obs.aliasProbe, obs.workersAddress, ...(obs.previewLinks ?? []), ...obs.crawlers]
     .filter((r) => r && r.error && !r.notAsked)
     .map((r) => (r.name ? `${r.name} ${bare(r.url)}` : bare(r.url)));
 }
@@ -728,6 +879,8 @@ export function evaluate(obs, target, opts) {
   const { home, robots, httpProbe, build, alias, crawlers } = obs;
   const noAnswer = (r) => `no answer from ${bare(r.url)}: ${whyNoAnswer(r.error, opts.timeoutMs)}`;
   const section = (n) => `See section ${n} of the Cloudflare checklist.`;
+  const site = opts.siteInfo ?? null; // the --site folder, read; null without --site
+  const workersOnly = site?.platform === 'workers';
 
   // 1. The domain answers, and the answer is the site's. Everything about the page hangs on it.
   const challenged = !home.error && header(home, 'cf-mitigated') === 'challenge';
@@ -926,18 +1079,23 @@ export function evaluate(obs, target, opts) {
   else if (build.truncated) put('build', 'look', 'build.txt is larger than 5 MB: that is not a build marker.');
   else if (build.status !== 200) put('build', 'look', `no build.txt (${build.status}). Sites made with the kit write one at build time, so this says nothing about which build is live.`);
   else {
-    const sha = build.body.trim();
+    // Line 1 is the commit. A later line is ignored; a platform= line is only named.
+    const lines = build.body.trim().split(/\r?\n/);
+    const sha = lines[0].trim();
+    const platformLine = lines.slice(1).map((l) => /^platform=[A-Za-z0-9._-]{1,40}$/.exec(l.trim())?.[0]).find(Boolean);
+    const also = platformLine ? ` build.txt also says ${platformLine}.` : '';
     if (sha === 'dev') put('build', 'look', 'build.txt says "dev": that build was not made by Cloudflare or from a git checkout.');
     else if (!/^[0-9a-f]{40}$/i.test(sha)) put('build', 'look', /^[0-9a-f]+$/i.test(sha) ? `build.txt holds ${sha.length} characters: the kit writes the full 40-character commit id.` : 'build.txt is not a build marker (the answer is not a commit id).');
-    else if (!opts.build) put('build', 'look', `serves build ${sha.slice(0, 12)}. Nothing was compared: pass --build <commit you deployed> to check that it is the live one.`);
-    else if (sha.toLowerCase().startsWith(opts.build.toLowerCase())) put('build', 'ok', `serves build ${sha.slice(0, 12)}, the one you expected.`);
-    else put('build', 'fail', `serves build ${sha.slice(0, 12)}, but you expected ${opts.build.toLowerCase().slice(0, 12)}: the live domain is on another build. Wait for the deploy, or look at Deployments.`, section(5));
+    else if (!opts.build) put('build', 'look', `serves build ${sha.slice(0, 12)}. Nothing was compared: pass --build <commit you deployed> to check that it is the live one.${also}`);
+    else if (sha.toLowerCase().startsWith(opts.build.toLowerCase())) put('build', 'ok', `serves build ${sha.slice(0, 12)}, the one you expected.${also}`);
+    else put('build', 'fail', `serves build ${sha.slice(0, 12)}, but you expected ${opts.build.toLowerCase().slice(0, 12)}: the live domain is on another build. Wait for the deploy, or look at Deployments.${also}`, section(5));
   }
 
   // 8. The pages.dev address (only when --project is given).
+  const NO_PAGES = 'not run: a Workers site, with no Pages project.';
   if (!alias) {
-    skip('pages', 'not checked: give --project <address> (the project\'s pages.dev address) to check that it answers (a Worker answers on workers.dev).', { couldNot: false });
-    skip('canonical', 'not checked: give --project <address> (the project\'s pages.dev address) to check that it forwards to your domain.', { couldNot: false });
+    skip('pages', workersOnly ? NO_PAGES : 'not checked: give --project <address> (the project\'s pages.dev address) to check that it answers (a Worker answers on workers.dev).', { couldNot: false });
+    skip('canonical', workersOnly ? NO_PAGES : 'not checked: give --project <address> (the project\'s pages.dev address) to check that it forwards to your domain.', { couldNot: false });
   } else if (alias.error) {
     const gone = alias.error.code === 'ENOTFOUND';
     put('pages', 'fail', `${noAnswer(alias)}${gone ? '. Check the project name: a Worker would answer on a workers.dev address, not pages.dev.' : ''}`, section(1));
@@ -965,8 +1123,53 @@ export function evaluate(obs, target, opts) {
     else put('canonical', 'fail', `answers ${alias.status}.`, section(1));
   }
 
+  // 9. A Worker's two items: its workers.dev address is off, and its Preview and version links say noindex.
+  const links = opts.links ?? [];
+  const answers = obs.previewLinks ?? [];
+  if (!site?.worker) {
+    const why = !site ? 'not run: this is not a Workers site as far as the check knows. Give --site <folder> to check a Worker.'
+      : site.neither ? `not run: ${site.note}` : 'not run: the site folder holds a Pages marker and no Workers config, so this is a Pages site.';
+    skip('workers-dev', why, { couldNot: false });
+    skip('previews', why, { couldNot: false });
+  } else {
+    const worker = site.worker.name;
+    const sources = 'A version link comes from `node move-to-workers.mjs check` (it prints the live version\'s link), from `wrangler versions upload` ("Version Preview URL"), or from the Worker\'s page in the dashboard.';
+    const noLink = `no --preview link was given. ${sources}`;
+    if (!links.length) skip('previews', `not checked: ${noLink}`);
+    else {
+      const judged = links.map((l, i) => {
+        const r = answers[i];
+        if (!r || r.error) return { state: 'fail', text: r ? `no answer from ${l.origin}: ${whyNoAnswer(r.error, opts.timeoutMs)}.` : `${l.origin} was not asked.` };
+        if (r.status < 400) {
+          return /noindex/i.test(header(r, 'x-robots-tag'))
+            ? { state: 'ok', text: `${l.origin} answers ${r.status} with noindex.` }
+            : { state: 'fail', text: `${l.origin} answers ${r.status} without noindex in x-robots-tag, so search engines may index it.` };
+        }
+        return r.status === 404 && header(r, 'x-preview-user-error') === 'true'
+          ? { state: 'look', text: `${l.origin} does not serve the site (404 from Cloudflare: the link was deleted, mistyped, or is gone for another reason).` }
+          : { state: 'look', text: `${l.origin} answers ${r.status}, which is not the site.` };
+      });
+      const worst = ['fail', 'look'].find((st) => judged.some((j) => j.state === st)) ?? 'ok';
+      const detail = worst === 'ok' ? judged.map((j) => j.text).join(' ') : judged.filter((j) => j.state !== 'ok').map((j) => j.text).join(' ');
+      put('previews', worst, detail, section(1));
+    }
+
+    const addr = obs.workersAddress;
+    const served = links.some((l, i) => l.version && answers[i] && !answers[i].error && answers[i].status < 400);
+    if (!links.length) skip('workers-dev', `not checked: the address's account part comes from a link, and ${noLink}`);
+    else if (!addr || addr.error) put('workers-dev', 'fail', addr ? noAnswer(addr) : 'the workers.dev address was not asked.', 'Set "workers_dev": false in the Worker\'s config and deploy again.');
+    else if (!(addr.status === 404 && addr.body.trim() === 'error code: 1042')) {
+      put('workers-dev', 'fail', `${bare(addr.url)} answers ${addr.status}${addr.status < 400 ? ' and serves something' : ''}, not 404 "error code: 1042": the address is on.`, 'Set "workers_dev": false in the Worker\'s config and deploy again.');
+    } else if (served) put('workers-dev', 'ok', `${bare(addr.url)} answers 404 "error code: 1042": the address is off, and a version link of ${worker} serves.`);
+    else {
+      const hint = site.worker.previewUrlsOff ? ' The config sets preview_urls: false, which may be why no link serves (the deployed setting may differ).' : '';
+      skip('workers-dev', `not checked: ${bare(addr.url)} answers 404 "error code: 1042", but Cloudflare answers a Worker that does not exist the same way, and no version link of ${worker} served (a version link is 8 hexadecimal characters, a hyphen and the Worker's name). Give a live version link.${hint} ${sources}`);
+    }
+  }
+
   // The items nothing from outside can see (the AI policy was settled above).
   for (const item of ITEMS.filter((i) => i.path && i.id !== 'ai')) {
+    if (workersOnly && item.id === 'build-settings') { skip(item.id, NO_PAGES, { couldNot: false }); continue; }
     const place = item.path.startsWith('your project') ? `Workers & Pages → ${item.path}` : item.path;
     put(item.id, 'hand', `${place}: ${item.lookFor}.`);
   }
@@ -989,8 +1192,9 @@ export function summarize(results) {
   return n;
 }
 
-export function render(results, target, when, silent = [], only = null) {
+export function render(results, target, when, silent = [], only = null, site = null) {
   const lines = [`Cloudflare check for ${target.host}`, `Looked from outside with plain GET requests, ${when}. Nothing was changed.`];
+  if (site) lines.push(site.note);
   if (only) lines.push(`Only these items were judged (--only): ${only.join(', ')}.`);
   let section = 0;
   for (const r of results) {
@@ -1025,26 +1229,35 @@ export async function main(argv, now = () => new Date()) {
   if (parsed.opts.help) return { code: 0, stdout: USAGE, stderr: '' };
   let target;
   let alias = null;
+  let site = null;
+  let preview = null;
   try {
     target = parseTarget(parsed.domain);
     if (parsed.opts.project) alias = parseProject(parsed.opts.project);
+    if (parsed.opts.site !== null) {
+      site = readSite(parsed.opts.site, parsed.opts.config);
+      if (parsed.opts.preview !== null) {
+        if (!site.worker) throw new UsageError(`--preview is for a Worker, and the site folder holds no Workers config. ${site.note}`);
+        preview = parsePreview(parsed.opts.preview, site.worker.name, site.worker.file);
+      }
+    }
   } catch (e) {
     if (!(e instanceof UsageError)) throw e;
     return fail(e);
   }
-  const obs = await observe(target, { timeoutMs: parsed.opts.timeoutMs, alias, only: parsed.opts.only, nameservers: parsed.opts.nameservers });
+  const obs = await observe(target, { timeoutMs: parsed.opts.timeoutMs, alias, only: parsed.opts.only, nameservers: parsed.opts.nameservers, workers: preview });
   obs.aliasIsPagesDev = alias?.pagesDev ?? false;
-  const results = evaluate(obs, target, parsed.opts);
+  const results = evaluate(obs, target, { ...parsed.opts, siteInfo: site, links: preview?.links ?? [] });
   const n = summarize(results);
   const silent = unanswered(obs);
   const stuck = results.filter((r) => r.blocked).map((r) => r.id);
   const code = n.fail || silent.length || stuck.length ? 1 : 0;
   const when = now().toISOString().replace(/\.\d+Z$/, 'Z');
   if (parsed.opts.json) {
-    const body = { domain: target.host, checkedAt: when, ...(parsed.opts.only ? { only: parsed.opts.only } : {}), summary: n, unanswered: silent, couldNotJudge: stuck, results };
+    const body = { domain: target.host, checkedAt: when, ...(parsed.opts.only ? { only: parsed.opts.only } : {}), ...(site ? { site: { folder: site.folder, platform: site.platform, note: site.note } } : {}), summary: n, unanswered: silent, couldNotJudge: stuck, results };
     return { code, stderr: '', stdout: `${JSON.stringify(body, null, 2)}\n` };
   }
-  return { code, stderr: '', stdout: render(results, target, when, silent, parsed.opts.only) };
+  return { code, stderr: '', stdout: render(results, target, when, silent, parsed.opts.only, site) };
 }
 
 // Run as a program. Skills are symlinked into place, so compare real paths; and if the

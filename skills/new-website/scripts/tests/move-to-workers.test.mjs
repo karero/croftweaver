@@ -206,6 +206,13 @@ describe('1: the gate', () => {
 });
 
 describe('1: the token', () => {
+  test('check prints the live version\'s link, which the Cloudflare check takes as --preview', async () => {
+    const s = scenario();
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.text.includes("Its link, for the Cloudflare check's --preview: https://abcdef12-lenas-backstube-site.lenas-backstube.workers.dev/\n"), r.text);
+  });
+
   test('a token whose DNS reaches two zones is refused, and names them', async () => {
     const s = scenario({ world: { extraZones: 1 } });
     const r = await s.go(['check']);
