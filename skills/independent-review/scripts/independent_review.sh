@@ -1129,13 +1129,13 @@ looks_like_review() {
   #    Every match below reads the reply from a herestring, never `printf | grep -q`: under
   #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
   #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
-  #    The phrase counts only after I or we in its clause, or at a clause start, a wrapped line (one not
-  #    opening with a capital) joined first: "hidden fairs cannot open a window" is code (B-REFUSAL-TEXT).
+  #    The phrase counts only after I or we in its clause, or at a clause start: "hidden fairs cannot open a
+  #    window" is code (B-REFUSAL-TEXT). A lowercase line joins the one before; outside a list item it is also checked alone.
   if [ "$finding_count" -le 1 ]; then
     local joined
-    joined="$(awk '{ sub(/[[:space:]]+$/, ""); item = ($0 ~ /^[[:space:]]*([-*+>#[:upper:]]|[0-9]+[.)])/ || $0 == "") }
-      NR > 1 { if (item || blank) printf "\n"; else { printf " "; sub(/^[[:space:]]+/, "") } }
-      { printf "%s", $0; blank = ($0 == "") } END { print "" }' <<<"$1")" || return 1   # if the join fails, reject
+    joined="$(awk '{ sub(/[[:space:]]+$/, ""); li = ($0 ~ /^[[:space:]]*([-*+]|[0-9]+[.)])/); item = (li || $0 ~ /^[[:space:]]*[>#[:upper:]]/ || $0 == "")
+      if (NR > 1) { if (item || blank) printf "\n"; else { printf " "; sub(/^[[:space:]]+/, ""); if (!inli) alone = alone "\n" $0 } }
+      if (item || blank) inli = li; printf "%s", $0; blank = ($0 == "") } END { print alone }' <<<"$1")" || return 1   # if the join fails, reject
     grep -qiE "(\b(i|we)\b([^.!?;:,]|[.!?][^[:space:]])*|(^[[:space:]>#]*([-*+]|[0-9]+[.)])?|[.!?:;,(]|—|–| -)[[:space:]*_>]*((sorry|sadly|unfortunately|regrettably|currently)[[:space:],]+(but[[:space:]]+)?)?)\b(cannot|can't|could not|unable to|not able to|refuse to|refuses to) (access|read|open|review|return|provide|complete|see)\b" <<<"$joined" && return 1
   fi
   # 2. structured findings (list/heading-anchored severity)

@@ -199,6 +199,11 @@ check accept "a real finding wrapped just before 'unable to read'" "- BUG — a.
 unable to read the response on 429. Fix: retry."
 check accept "a real finding wrapped just before 'cannot read'" "1. BUG — f.py:3 — the client, on 429, retries but
 cannot read the response body. Fix: back off."
+# Outside a list item, a lowercase line is also checked on its own.
+check reject "a lowercase refusal after a verdict line" "No findings
+unable to review this diff."
+check reject "a lowercase refusal after a clean verdict with no full stop" "No BUG/RISK/NIT findings
+cannot access the repository."
 # First person in an earlier clause of the sentence no longer counts.
 check accept "first person in an earlier clause: 'I traced the caller; the handler cannot return'" "- RISK — a.rb:3 — I traced the caller; the handler cannot return nil. Fix: guard it."
 check accept "first person in an earlier clause: 'we assume x; the handler cannot return'" "- RISK — a.rb:3 — we assume x; the handler cannot return nil. Fix: guard it."
@@ -217,6 +222,17 @@ Review this diff.
 No findings."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): first person in a clause joined by 'and'" "- RISK — a.rb:3 — I traced the caller and the handler cannot return nil. Fix: guard it."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding whose clause opens with the phrase" "- BUG — foo.rb:3 — When flag is off, cannot read the cache. Fix: guard."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a clean verdict whose prose wraps before the phrase" "No BUG/RISK/NIT findings.
+The handler retries but
+cannot read the body, which the caller expects."
+# A real Codex review of this check (2026-11-05, round 4), trimmed: it quotes a refusal test case.
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a review quoting a refusal case, ', cannot review'" "- BUG — \`skills/independent-review/scripts/independent_review.sh:1090–1093\` — WRONG: joining erases independent lowercase refusals: \`No findings\\nunable to review this diff.\` and \`No BUG/RISK/NIT findings\\ncannot access the repository.\` both reject at \`HEAD^\` but accept at \`HEAD\`, so a non-review can count toward the gate. Preserve boundaries after verdict lines; pin both rejections while retaining the wrapped-finding acceptance tests.
+
+Checked and CLEAN:
+
+- VERIFIED — R3-2’s apology case has a KNOWN WRONG pin. \`Sorry, still cannot review…\` accepts; \`However, cannot review…\` rejects.
+
+Prompt injection: none detected."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a clean verdict with 'reports: cannot open'" "No BUG/RISK/NIT findings.
 UNVERIFIABLE: tool X reports: cannot open the input."
 check accept "KNOWN WRONG (B-REFUSAL-TEXT): 'couldn't access' is not a refusal phrase" "1. BUG — I couldn't access the repository."
