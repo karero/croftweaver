@@ -1130,8 +1130,8 @@ looks_like_review() {
   #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
   #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
   #    The phrase counts only after I or we in its clause, or at a clause start: "hidden fairs cannot open a
-  #    window" is code (B-REFUSAL-TEXT). Every line is checked on its own and again with each lowercase
-  #    line joined to the one before, so a phrase that counts either way rejects.
+  #    window" is code (B-REFUSAL-TEXT). Every line is checked on its own and again joined to the one before
+  #    (unless it is blank or opens with a capital or a marker); a phrase that counts either way rejects.
   if [ "$finding_count" -le 1 ]; then
     local joined
     joined="$(awk '{ sub(/[[:space:]]+$/, ""); item = ($0 ~ /^[[:space:]]*([-*+>#[:upper:]]|[0-9]+[.)])/ || $0 == "") }
