@@ -217,7 +217,7 @@ test('CW2: the address left on, as Cloudflare answered it (capture), is FAIL, sa
 test('the address answers something other than the off answer: FAIL, each with its status, exit 1', async (t) => {
   const dir = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG });
   const cases = [
-    ['a 404 with another body', (res) => send(res, 404, 'text/plain', 'Not here'), /answers 404, not 404 "error code: 1042"/],
+    ['a 404 with another body', (res) => send(res, 404, 'text/plain', 'Not here'), /answers 404, not 404 "error code: 1042".*may be an address that is off/],
     ['a 503', (res) => send(res, 503, 'text/plain', 'error code: 1042'), /answers 503/],
     ['a 301', (res) => { res.writeHead(301, { location: '/elsewhere' }); res.end(); }, /answers 301 and serves something/],
     ['the site itself', (res) => send(res, 200, 'text/html', '<p>Hi</p>'), /answers 200 and serves something/],
@@ -277,15 +277,21 @@ test('no --preview: both Workers items are not checked, which counts as a failur
     assert.deepEqual(wd.asked, []);
   }));
 
-test('preview_urls: false in the config is a hint when no link serves, and does not replace the answers', async (t) => {
+test('preview_urls not true (false, or not set) in the config is a hint when no link serves, and does not replace the answers', async (t) => {
   const dir = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG.replace('"preview_urls": true', '"preview_urls": false') });
   await withBoth({}, async (live, wd) => {
     const r = await check(live.origin, '--site', dir, '--preview', wd.link(VERSION_HOST.replace('0a1b2c3d', '0a1b2c3e')));
     assert.equal(r.by.previews.state, 'look');
     assert.match(r.by.previews.detail, /0a1b2c3e-lenas-site\.example-sub\.workers\.dev\.test:\d+ does not serve the site/);
     assert.equal(r.by['workers-dev'].blocked, true);
-    assert.match(r.by['workers-dev'].detail, /preview_urls: false, which may be why no link serves/);
+    assert.match(r.by['workers-dev'].detail, /does not set "preview_urls": true.*which may be why no link serves/);
     assert.equal(r.code, 1);
+  });
+  // The key left out is the same hint.
+  const unset = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG.replace('  "preview_urls": true,\n', '') });
+  await withBoth({}, async (live, wd) => {
+    const r = await check(live.origin, '--site', unset, '--preview', wd.link(VERSION_HOST.replace('0a1b2c3d', '0a1b2c3e')));
+    assert.match(r.by['workers-dev'].detail, /does not set "preview_urls": true/);
   });
   // A version link that serves with noindex: the link and the address are both asked, and judged on the answers.
   await withBoth({}, async (live, wd) => {

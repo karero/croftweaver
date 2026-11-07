@@ -299,7 +299,7 @@ const isFolder = (p) => { try { return statSync(p).isDirectory(); } catch { retu
 // A Worker's name is a host label; it ends up in the addresses the check asks.
 const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
-// Wrangler's own config names, in its order. Wrangler reads the first it finds; the checker reads every one
+// Wrangler's own config names, in the order Wrangler 4.156.0 looks for them. It reads the first it finds; the checker reads every one
 // that is there, so a Workers config beside a Pages config gets both sets of checks.
 const WRANGLER_FILES = ['wrangler.json', 'wrangler.jsonc', 'wrangler.toml'];
 export function readSite(folder, configArg = null) {
@@ -330,7 +330,7 @@ export function readSite(folder, configArg = null) {
       throw new UsageError(`${file} is neither a Pages config (pages_build_output_dir) nor a Workers config (a name and assets.directory): the check knows sites only`);
     }
     if (!WORKER_NAME.test(conf.name)) throw new UsageError(`${file}: "${conf.name}" is not a Worker name (1 to 63 letters, digits and hyphens, none at the start or end)`);
-    workers.push({ file, name: conf.name.toLowerCase(), previewUrlsOff: conf.preview_urls === false });
+    workers.push({ file, name: conf.name.toLowerCase(), previewUrlsNotOn: conf.preview_urls !== true });
   }
   if (new Set(workers.map((w) => w.name)).size > 1) {
     throw new UsageError(`${workers.map((w) => `${w.file} names the Worker ${w.name}`).join(', ')}: one site, one Worker`);
@@ -1159,10 +1159,10 @@ export function evaluate(obs, target, opts) {
     if (!links.length) skip('workers-dev', `not checked: the address's account part comes from a link, and ${noLink}`);
     else if (!addr || addr.error) put('workers-dev', 'fail', addr ? noAnswer(addr) : 'the workers.dev address was not asked.');
     else if (!(addr.status === 404 && addr.body.trim() === 'error code: 1042')) {
-      put('workers-dev', 'fail', `${bare(addr.url)} answers ${addr.status}${addr.status < 400 ? ' and serves something' : ''}, not 404 "error code: 1042": the address is on.`, 'Set "workers_dev": false in the Worker\'s config and deploy again.');
+      put('workers-dev', 'fail', `${bare(addr.url)} answers ${addr.status}${addr.status < 400 ? ' and serves something' : ''}, not 404 "error code: 1042": the address is on.${addr.status === 404 ? ' (A 404 with another body may be an address that is off, if Cloudflare words its answer differently now.)' : ''}`, 'Set "workers_dev": false in the Worker\'s config and deploy again.');
     } else if (served) put('workers-dev', 'ok', `${bare(addr.url)} answers 404 "error code: 1042": the address is off, and a version link of ${worker} serves.`);
     else {
-      const hint = site.worker.previewUrlsOff ? ' The config sets preview_urls: false, which may be why no link serves (the deployed setting may differ).' : '';
+      const hint = site.worker.previewUrlsNotOn ? ` The config does not set "preview_urls": true (Wrangler's schema lists false as the default), which may be why no link serves; the deployed setting may differ.` : '';
       skip('workers-dev', `not checked: ${bare(addr.url)} answers 404 "error code: 1042", but Cloudflare answers a Worker that does not exist the same way, and no version link of ${worker} served (a version link is 8 hexadecimal characters, a hyphen and the Worker's name). Give a live version link.${hint} ${sources}`);
     }
   }

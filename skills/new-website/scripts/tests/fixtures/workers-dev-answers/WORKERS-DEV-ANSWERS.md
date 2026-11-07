@@ -22,3 +22,8 @@ setting was switched on for that one request and off again at once.
 
 A Worker name that does not exist gets the same 1042 answer as an address that is off. That is
 why the check asks for a served version link as well.
+
+The checker's own request (its User-Agent and Accept, no `accept-encoding`), sent by Node's
+`https.request` (v26.13.0) on 2026-11-06 about 23:50 UTC, got the same two answers: 404 `error code:
+1042` for an address that is off and for a Worker name never created, and the 404 HTML page when
+`accept-encoding: identity` was sent.
