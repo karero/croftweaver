@@ -155,11 +155,11 @@ in every file the footer is within the last three lines.
 ## How it is tested
 
 Captures: the reply text of each run's `melious.full` (wrapped into an SSE stream at test time)
-and the r3 `codex.err`, committed under `scripts/fixtures/`, named for the tool, model and date, trimmed by
+and two `codex.err` files (the r3 one, and f5jNZ6, whose footer is followed by the rollout ERROR line), committed under `scripts/fixtures/`, named for the tool, model and date, trimmed by
 cutting whole lines only (the reviews are about private plans; lines that name private code are
 cut). The cut keeps, in order: the first marker, the first finding line, at least one more finding
 line, the closing marker and the summary line. The real hex marker stays in the file. The codex
-capture keeps the quoted line at 317 and the footer pair. Expected values are written by hand.
+r3 capture keeps the quoted line at 317 and the footer pair; the f5jNZ6 capture keeps its last three lines (the footer pair and the ERROR line). Expected values are written by hand.
 
 | Id | Given | When | Then |
 |----|-------|------|------|
@@ -174,7 +174,7 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 | T9 | `test_round_checks.sh:330` (an old 14-column log: `add` appends a 16-field line) | the suite runs | changed to 17 fields, column 17 `-`; the old header still kept |
 | T10 | the trimmed r3 `codex.err` | `codex_tokens` | prints 72315 |
 | T11 | the same with the footer removed | `codex_tokens` | prints nothing |
-| T12 | a real `codex.err` whose footer is followed by the rollout ERROR line | `codex_tokens` | prints that footer's number, written by hand |
+| T12 | the trimmed f5jNZ6 `codex.err` | `codex_tokens` | prints 54161, its footer's number, written by hand |
 | T13 | `independent_review.sh` | a check in `test_round_checks.sh` lists every literal `outcome="` assignment | each one but `OK` holds " (". It catches a new branch written the way all nine are today; an outcome built any other way gets past it and would log reason `-` |
 | T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, naming `RIſK` or `RIS` + Kelvin sign, or reading `- éBUG:`, `- BUGé:`, `- xBUG:`, `- BUGx:`, `+ BUG:` or `- BUG`, NUL, `x:` (a JSON `\u0000`), each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
 
@@ -190,4 +190,5 @@ T10 must fail.
 The repo's own checks (`test_failed_tier_report.sh`, `test_looks_like_review.sh`,
 `test_round_checks.sh`, `test_base_check.sh`, `test_sweep_claims.sh`, and the two CI also runs,
 `check_prompt_sync.sh` and `check_perl_minimum.sh`, `.github/workflows/clean.yml:205,215`) run
-before each review round and after the last edit.
+before each review round and after the last edit. `check_perl_minimum.sh` skips here, where
+Perl::MinimumVersion is not installed, so only CI checks the Perl minimum.

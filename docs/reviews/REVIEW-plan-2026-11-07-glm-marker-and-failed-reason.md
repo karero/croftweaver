@@ -15,6 +15,7 @@ private captures, so it stays out of this public repo).
 | 4 | `c30648cc` | verify, `--earned-by finding-regex`: full plan, PRIOR round 3, evidence E1–E15 (23,025 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 186 s, 54,161 · melious 327 s, 44,410 | 2 / 2 / 1 (Codex 2/0/0, melious 0/2/1); 4 after dedup |
 | 5 | `e32d69a3` | verify, `--earned-by finding-regex --cut "line 112's copy of the grep replaced by a strict ASCII-only rule"`: full plan, PRIOR round 4, evidence E1–E16 (26,317 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 161 s, 54,161 · melious 312 s, 50,141 | 0 / 3 / 3 (Codex 0/2/0, melious 0/1/3); 5 after dedup |
 | 6 | `5430cc7e` | verify, `--earned-by finding-regex --cut "case folding removed"`: full plan, PRIOR round 5, evidence E1–E17 (29,741 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 166 s, 54,161 · melious 676 s, 92,624 | 0 / 1 / 3 (Codex 0/1/0, melious 0/0/3) |
+| 7 | `ab673cbb` | verify, `--earned-by finding-regex --cut "lookahead replaced by a whitelist of what may follow the label"`: full plan, PRIOR final full read, evidence E1–E19 (32,803 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 198 s, 54,161 · melious 327 s, 54,569 | 0 / 0 / 2 (Codex 0/0/0, melious 0/0/2) |
 
 ## Round 1 findings
 
@@ -156,3 +157,22 @@ feeds it. 200,755 tokens; seconds not recorded. 1 BUG, 1 RISK, 6 NIT.
 
 Round 7 is earned by G1 (`finding-regex`, cut: lookahead replaced by a whitelist of what may
 follow the label).
+
+## Round 7 findings
+
+No BUG, no RISK. Both seats confirmed G1–G8; Codex ran the NUL, `BUGé` and `BUGx` cases and their
+mutations through the reader and the check, and 420 more character probes with no line the rule
+counts that the grep does not.
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| H1 | NIT | melious | T12's input was "a real `codex.err`" with the ERROR line after the footer, but no committed fixture held one | fixed: a second capture, f5jNZ6's last three lines (footer pair, ERROR line); T12 expects 54161 |
+| H2 | NIT | melious | the check list credited `check_perl_minimum.sh` locally, where it skips (Perl::MinimumVersion not installed, E19) | fixed: the plan says it skips here and only CI checks the Perl minimum |
+
+Two claims melious could not check, checked here: bash 3.2.57 (`/bin/bash`) and 5.3.20 (the
+`bash` on `PATH`) both drop a NUL in `"$(cat …)"` rather than cutting the text at it
+(`a`, NUL, `b` comes back `ab`); and `.github/workflows/clean.yml` lines 205 and 215 run
+`check_prompt_sync.sh` and `check_perl_minimum.sh`.
+
+The rounds end here (stop condition (a2): no BUG, no earning RISK). H1 and H2 are
+`locally_verified`. Still due: the wording pass.
