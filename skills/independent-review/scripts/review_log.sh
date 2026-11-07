@@ -6,13 +6,14 @@
 #
 #   review_log.sh add --seat <name> [--model M] [--effort E] [--seconds S] [--tokens T]
 #                     [--gate plan|diff|content] [--depth light|normal|high] [--round N] [--outcome O]
-#                     [--earned-by KIND] [--cut TEXT]
+#                     [--earned-by KIND] [--cut TEXT] [--reason TEXT]
 #       Append one line. independent_review.sh calls this for codex, ollama, melious and agy; the host
 #       calls it for the seats it runs itself (fresh-eyes, code-review, double-knuth, owner).
 #       Repo, branch and head come from the current directory's git checkout, if any.
 #       --earned-by lists the kinds of finding (comma-separated) that earned a round past round 3,
 #       and --cut says what the fix since the last round removed or refused (SKILL.md step 6);
-#       independent_review.sh checks both before a round runs.
+#       independent_review.sh checks both before a round runs. --reason is the text inside the
+#       outcome's outer parentheses, word for word as the round's summary line shows it.
 #   review_log.sh new-gate
 #       Start a gate: mint an id and keep it in this worktree's git dir. independent_review.sh
 #       calls it for --round 1; every later line (its own seats and the host's) carries that id
@@ -38,15 +39,16 @@
 #       union of its lines' kinds; a cut on a round settles the kinds that round named. When it
 #       cannot tell (log off, missing or unreadable, no gate), it prints "?", a tab and why.
 #
-# Columns 15 and 16 (earned_by, cut) came after the log existed: an older line has 14 fields,
-# and an older log keeps its 14-column header (lines are appended, the file is never rewritten).
-# Every reader takes a missing field as "-".
+# Columns 15 to 17 (earned_by, cut, reason) came after the log existed: an older line has fewer
+# fields, and an older log keeps the header it was started with (lines are appended, the file is
+# never rewritten). Every reader takes a missing field as "-". To count why seats failed:
+#   awk -F'\t' '$13=="FAILED"{print ($17=="" ? "-" : $17)}' runs.tsv | sort | uniq -c
 #
 # Log file: $REVIEW_LOG, else ${XDG_STATE_HOME:-$HOME/.local/state}/independent-review/runs.tsv.
 # REVIEW_LOG=off turns logging off. A failure to log warns and exits 0: bookkeeping never fails
 # a review.
 set -u
-HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut'
+HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason'
 log_path() {   # empty when logging is off
   if [ "${REVIEW_LOG:-}" = off ]; then return 0
   elif [ -n "${REVIEW_LOG:-}" ]; then printf '%s' "$REVIEW_LOG"
@@ -79,10 +81,10 @@ new_gate() {
 
 add() {
   local seat="" model="" effort="" seconds="" tokens="" gate="" depth="" round="" outcome="OK" gate_id=""
-  local earned_by="" cut=""
+  local earned_by="" cut="" reason=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --seat|--model|--effort|--seconds|--tokens|--gate|--depth|--round|--outcome|--gate-id|--earned-by|--cut)
+      --seat|--model|--effort|--seconds|--tokens|--gate|--depth|--round|--outcome|--gate-id|--earned-by|--cut|--reason)
         [ $# -ge 2 ] || { echo "review_log.sh: $1 needs a value" >&2; return 2; }
         local k="${1#--}"; k="${k//-/_}"; printf -v "$k" '%s' "$2"; shift 2 ;;
       *) echo "review_log.sh: unknown argument: $1" >&2; return 2 ;;
@@ -107,11 +109,11 @@ add() {
   # which summary skips as it skips the first (by its content).
   { mkdir -p -- "$(dirname -- "$f")" &&
     { [ -s "$f" ] || printf '%s\n' "$HEADER" >>"$f"; } &&
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(clean "$repo")" "$(clean "$branch")" "$(clean "$head")" \
       "$(clean "$gate")" "$(clean "$depth")" "$(clean "$round")" "$(clean "$seat")" \
       "$(clean "$model")" "$(clean "$effort")" "$(clean "$seconds")" "$(clean "$tokens")" \
-      "$(clean "$outcome")" "$(clean "$gate_id")" "$(clean "$earned_by")" "$(clean "$cut")" >>"$f"; } 2>/dev/null \
+      "$(clean "$outcome")" "$(clean "$gate_id")" "$(clean "$earned_by")" "$(clean "$cut")" "$(clean "$reason")" >>"$f"; } 2>/dev/null \
     || echo "note: could not write the review cost log ($f) — the review itself is unaffected." >&2
   return 0
 }

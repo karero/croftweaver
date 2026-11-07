@@ -1,0 +1,7 @@
+=== FINAL REVIEW bee6cc68 ===
+
+Findings (verification round: prior dispositions checked against the evidence; changed sections re-read).
+
+- NIT — Script-identity check, "each widget script carries a version marker (a date string in a comment)": a single static date protects this migration but not later changes — a future freeze of a file that already carries the marker passes it, recreating the July incident. Fix: require the marker be bumped on every widget-code change (the sync script can stamp it).
+=== FINAL REVIEW bee6cc68 ===
+(Findings above: 1 BUG, 5 RISK, 6 NIT; scope 1 re-check of prior dispositions and scope 2 new problems in the changed sections, as labelled.)
