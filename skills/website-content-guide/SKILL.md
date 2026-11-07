@@ -58,12 +58,13 @@ truth; the guide explains the *why*.
 
 - **No em dashes (—).** Comma, period, or colon instead.
 - Active voice; proof over claims.
-- Where a page calls the reader by a role (owner, client, user), say once, before the page first
-  uses the word to say who does what, that it means the reader. Call the people behind the site by
-  name or "we", not by the same role word.
 - **Exempt:** genuinely quoted customer/human voice — wrap in `<blockquote>`,
   `<q>`, or add `data-tov-exempt`. Do not use this to smuggle brand copy past the
   rules.
+
+One writing rule the test does not check: where a page calls the reader by a role (owner, client,
+user), say once, before the page first uses the word to say who does what, that it means the
+reader. Call the people behind the site by name or "we", not by the same role word.
 
 The rules below are lexical (specific words/mechanisms to avoid) and differ by
 language — apply the subsection that matches the site's content language.
