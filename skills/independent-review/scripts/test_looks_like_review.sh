@@ -226,9 +226,15 @@ Review this diff.
 No findings."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): first person in a clause joined by 'and'" "- RISK — a.rb:3 — I traced the caller and the handler cannot return nil. Fix: guard it."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding whose clause opens with the phrase" "- BUG — foo.rb:3 — When flag is off, cannot read the cache. Fix: guard."
-check accept "KNOWN WRONG (B-REFUSAL-TEXT): one finding and a refusal split across quoted lines" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
+check reject "one finding and a refusal split across quoted lines" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
 > I cannot
 > read the diff."
+check reject "one finding and a refusal split across list lines" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
+- I cannot
+- access the repository."
+check reject "one finding and a refusal split across a numbered list" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
+1. We are unable to
+2. review this diff."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding wrapped just before 'unable to read'" "- BUG — a.rb:3 — The handler is
 unable to read the response on 429. Fix: retry."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding wrapped just before 'cannot read'" "1. BUG — f.py:3 — the client, on 429, retries but

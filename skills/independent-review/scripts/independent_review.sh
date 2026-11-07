@@ -1130,11 +1130,13 @@ looks_like_review() {
   #    pipefail, grep -q's early exit on a reply past the pipe buffer (~64 KiB) fails the
   #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
   #    The phrase counts only after I or we in its clause, or at a clause start: "hidden fairs cannot open a
-  #    window" is code (B-REFUSAL-TEXT). Every line is checked on its own and again joined to the one before
-  #    (unless it is blank or opens with a capital or a marker); a phrase that counts either way rejects.
+  #    window" is code (B-REFUSAL-TEXT). Every line is checked on its own, and again with its quote, heading
+  #    and list markers cut and joined to the one before (unless it is blank or then opens with a capital);
+  #    a phrase that counts either way rejects.
   if [ "$finding_count" -le 1 ]; then
     local joined
-    joined="$(awk '{ sub(/[[:space:]]+$/, ""); item = ($0 ~ /^[[:space:]]*([-*+>#[:upper:]]|[0-9]+[.)])/ || $0 == "") }
+    joined="$(awk '{ sub(/[[:space:]]+$/, ""); while (sub(/^[[:space:]]*([>#]+|[-*+][[:space:]]|[0-9]+[.)])[[:space:]]*/, "")) ;
+      item = ($0 ~ /^[[:upper:]]/ || $0 == "") }
       NR > 1 { if (item || blank) printf "\n"; else { printf " "; sub(/^[[:space:]]+/, "") } }
       { printf "%s", $0; blank = ($0 == "") } END { print "" }' <<<"$1")" || return 1   # if the join fails, reject
     joined="$1"$'\n'"$joined"
