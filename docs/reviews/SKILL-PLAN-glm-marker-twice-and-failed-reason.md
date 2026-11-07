@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
-| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–6 done; final full read and wording pass next; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
+| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–6 and the final full read done (1 BUG, fixed by a cut); round 7 and the wording pass next; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
 
@@ -42,28 +42,38 @@ counted NEL-led lines (round 3) and `RIſK` or the Kelvin sign (round 4) that th
 each of those making a marker usable whose section the check then rejects. So line 112 becomes a strict rule that counts a
 line only in a shape the grep surely counts too:
 
-`my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?![A-Za-z0-9_\x{80}-\x{10FFFF}])|No BUG\/RISK\/NIT findings/m;`
+`my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?=[\t\r\x20-\x2F\x3A-\x40\x5B-\x5E\x60\x7B-\x7E]|$)|No BUG\/RISK\/NIT findings/m;`
 
 In words: ASCII whitespace, then `#`, `*`, `-` or a number and a dot, then only tabs and printable ASCII, up
 to the label BUG, RISK or NIT, each letter ASCII upper or lower case, with no ASCII word character
-before it and neither a word character nor any non-ASCII character after it. There is no `/i`, so no
+before it, and after it only the end of the line, a tab, a carriage return, a space or ASCII
+punctuation. The lookahead lists what may follow the label, not what may not (the final full read):
+bash drops a NUL when it reads the section (`"$(cat "$RAW_DIR/melious.out")"`, line 1608), so
+`BUG`, NUL, `x` reaches the grep as `BUGx`, which it does not count; a list of exclusions must
+name every character like that, a list of what is allowed need not. There is no `/i`, so no
 Unicode case folding, and only regex features Perl 5.10 documents, the version the transports require (round 5): its
 perlre (https://perldoc.perl.org/5.10.0/perlre) has the fixed-width negative lookbehind, the
-negative lookahead, `*?`, `/m` and `\x{…}` (inside a class only by its `\R` example), and no `/a`. Not run on Perl 5.10 itself. Each piece is ASCII and is
-inside what the grep takes, so the reader never counts a line the check does not. The clean
+positive lookahead, `*?`, `/m` and `\x{…}` (inside a class only by its `\R` example), and no `/a`. Not run on Perl 5.10 itself. Each piece is ASCII and is
+inside what the grep takes, NULs dropped or not, so the reader never counts a line the check does
+not. On the full read's 218,400 built lines (every mix of a lead, a bullet, a middle, a label and
+what follows it, NUL, NEL, no-break space, `ſ`, Kelvin sign, `İ`, `ı`, `é`, U+2028 and DEL among
+them), it counts none that the grep, given the line with its NULs dropped, does not; round 5's
+rule counted 1,470, each a label, a NUL and a word character. The clean
 verdict "No BUG/RISK/NIT findings" still counts anywhere, as now.
 
 What the strict rule does not count, the grep may: a finding-shaped line with a non-ASCII character
 before its label ("1. Dash guard — codex BUG …"). On the decoded text of every `codex.out`,
-`melious.out`, `ollama.out` and `melious.full` under `$TMPDIR` (1,786 files), the rule counts no
-line the grep does not, and misses 970 lines the grep counts, in 609 files; the ones sampled are
+`melious.out`, `ollama.out` and `melious.full` under `$TMPDIR` (1,810 files, measured with this
+spelling after the full read), the rule counts no line the grep does not, and misses 984 lines
+the grep counts, in 619 files; the ones sampled with the rule after round 4 are
 prose that names a label after a dash or a curly quote. That costs nothing in practice: replaying
 every real `melious.resp` there through the reader with its run's own marker (525 runs), the
 section is byte-identical to the regex this plan held after round 3 (the ASCII class, then
 `(?i:.*\b(?:BUG|RISK|NIT)\b)`) in every run; the 19 runs whose prompt holds more
 than one marker give the same section under each of them (42 run and marker pairs). The final spelling
 of the labels gives the same section as round 4's `(?aai:BUG|RISK|NIT)` in all 572 run and marker
-pairs there now. Had it mattered, the
+pairs there then, and the lookahead's list gives the same section as round 5's exclusions in all 577
+there after the full read. Had it mattered, the
 loss goes the loud way: the walk tries the earlier markers, and only when none qualifies is the
 reply kept whole with the no-marker warning.
 
@@ -78,7 +88,8 @@ worktree, `test_failed_tier_report.sh` passed all 696 checks, the same count as 
 
 
 **What it gives up.** A reply whose findings are in no line the strict rule counts (a table, a
-bare `RISK 1 — …`, a `> - NIT` quote, a label after a non-ASCII character) no longer makes its
+bare `RISK 1 — …`, a `> - NIT` quote, a label with a non-ASCII character just before or after it,
+as in `BUG—`) no longer makes its
 marker usable. The walk then tries the earlier markers; when none qualifies, the reply is kept
 whole with the no-marker warning, as any reply without a usable marker is today, and the review
 check decides. **Still wrong after
@@ -115,6 +126,9 @@ lowercase `ok`, which it does not count, as now). `HEADER` gains
 it did when columns 15 and 16 came. Older lines have no column 17: awk reads it as empty, so the
 usage text's counting command maps empty to `-`:
 `awk -F'\t' '$13=="FAILED"{print ($17=="" ? "-" : $17)}' runs.tsv | sort | uniq -c`. No new report.
+The text that names the columns changes with it: `review_log.sh`'s usage (lines 7–9 gain
+`--reason`) and its note on columns 15 and 16 (lines 41–43), and `test_round_checks.sh`'s
+`NEW_HEADER` (line 66).
 
 ## 3. `codex_tokens()` reads a quoted count, not Codex's own
 
@@ -132,14 +146,16 @@ footer. No file's last five lines hold a count on the `tokens used` line itself.
 
 **Fix.** Read the LAST `tokens used` line that is alone on its line and whose next line holds only
 digits and commas; nothing else counts, so a quoted `tokens used: N` never does. No such pair: no
-figure, as now. Against today's code on the same 698 folders, this changes exactly the three
+figure, as now. The rule as the survey ran it, and as the build writes it:
+`awk '/^[[:space:]]*tokens used[[:space:]]*$/ { if ((getline nxt) > 0 && nxt ~ /^[[:space:]]*[0-9][0-9,]*[[:space:]]*$/) { gsub(/[^0-9]/, "", nxt); last = nxt } } END { if (last != "") print last }'`. Against today's code on the same 698 folders, this changes exactly the three
 quoted-count runs above and keeps every other figure. Still wrong after the fix: a quoted bare
 pair logs the quote when it comes after Codex's footer, or when the run has no footer. Not seen:
 in every file the footer is within the last three lines.
 
 ## How it is tested
 
-Captures: committed under `scripts/fixtures/`, named for the tool, model and date, trimmed by
+Captures: the reply text of each run's `melious.full` (wrapped into an SSE stream at test time)
+and the r3 `codex.err`, committed under `scripts/fixtures/`, named for the tool, model and date, trimmed by
 cutting whole lines only (the reviews are about private plans; lines that name private code are
 cut). The cut keeps, in order: the first marker, the first finding line, at least one more finding
 line, the closing marker and the summary line. The real hex marker stays in the file. The codex
@@ -147,7 +163,7 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 
 | Id | Given | When | Then |
 |----|-------|------|------|
-| T1 | the trimmed ctiPcY reply, as an SSE stream, with its own hex marker | `melious_stream.pl` reads it, given that marker | exit 0; the section's first non-blank line is the capture's first line after its first marker; its first finding line and its summary line are in it; neither the "marker came 2 times" note, the dropped-text note nor the no-marker warning is in it |
+| T1 | the trimmed ctiPcY reply, as an SSE stream, with its own hex marker | `melious_stream.pl` reads it, given that marker | exit 0; the section's first non-blank line is the capture's first non-blank line after its first marker; its first finding line and its summary line are in it; neither the "marker came 2 times" note, the dropped-text note nor the no-marker warning is in it |
 | T2 | the same for hsNCTK | the same | the same, with that capture's lines |
 | T3 | the T1 reply served by the curl stub, its hex marker replaced at serve time by the marker the run asked for | `independent_review.sh` with `SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3` (the pair as REVIEW-RULES.md runs it) | the summary reads `melious OK`; the section holds the first finding line; no no-marker warning |
 | T4 | two markers, two finding lines between them, then a closing summary that starts like a finding (`- Totals: 1 BUG, 1 RISK`) | `melious_stream.pl` | labelled KNOWN WRONG: exit 0; the section is the note "(text before the final-review marker dropped, … the marker came 2 times …)", a blank line and the summary; neither finding line is in it |
@@ -160,16 +176,18 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 | T11 | the same with the footer removed | `codex_tokens` | prints nothing |
 | T12 | a real `codex.err` whose footer is followed by the rollout ERROR line | `codex_tokens` | prints that footer's number, written by hand |
 | T13 | `independent_review.sh` | a check in `test_round_checks.sh` lists every literal `outcome="` assignment | each one but `OK` holds " (". It catches a new branch written the way all nine are today; an outcome built any other way gets past it and would log reason `-` |
-| T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, naming `RIſK` or `RIS` + Kelvin sign, or reading `- éBUG:`, `- BUGé:`, `- xBUG:`, `- BUGx:` or `+ BUG:`, each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
+| T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, naming `RIſK` or `RIS` + Kelvin sign, or reading `- éBUG:`, `- BUGé:`, `- xBUG:`, `- BUGx:`, `+ BUG:` or `- BUG`, NUL, `x:` (a JSON `\u0000`), each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
 
 Mutation check (the `mutation-check` skill): revert the regex and T1–T3 must fail; put back round 3's regex (`(?i:.*\b(?:BUG|RISK|NIT)\b)` after the ASCII class) and T14's `RIſK` and Kelvin cases must fail;
 widen the printable-ASCII middle to `.*?` and T14's `éBUG` case must fail; drop the lookbehind and its
-`xBUG` case must fail; drop the non-ASCII range from the lookahead and its `BUGé` case must fail; drop the ASCII word
-characters from the lookahead and its `BUGx` case must fail; add `+` to the bullets and its `+ BUG`
-case must fail; drop
+`xBUG` case must fail; add the non-ASCII range `\x{80}-\x{10FFFF}` to the lookahead's list and its
+`BUGé` case must fail; add the ASCII letters to it and its `BUGx` case must fail; put back round 5's
+lookahead (`(?![A-Za-z0-9_\x{80}-\x{10FFFF}])`) and its NUL case must fail; add `+` to the bullets
+and its `+ BUG` case must fail; drop
 `--reason` from `log_seat` and T6–T7 must fail; restore the first-match read in `codex_tokens` and
 T10 must fail.
 
 The repo's own checks (`test_failed_tier_report.sh`, `test_looks_like_review.sh`,
-`test_round_checks.sh`, `test_base_check.sh`, `test_sweep_claims.sh`) run before each review round
-and after the last edit.
+`test_round_checks.sh`, `test_base_check.sh`, `test_sweep_claims.sh`, and the two CI also runs,
+`check_prompt_sync.sh` and `check_perl_minimum.sh`, `.github/workflows/clean.yml:205,215`) run
+before each review round and after the last edit.

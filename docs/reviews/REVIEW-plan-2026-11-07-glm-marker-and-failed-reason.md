@@ -136,3 +136,23 @@ through the reader and the check.
 The rounds end here (stop condition (a2): no BUG, no earning RISK). F1–F4 are `locally_verified`,
 closing edits not externally re-verified. Still due: the final full read (a PLAN gate), then the
 wording pass (rounds 1–5 found substantive BUGs).
+
+## Final full read
+
+On `a49c8ab5`, by a fresh Opus 5.5 subagent new to the plan: the plan, the evidence and the
+scripts, with its own fuzz of 218,400 built lines through the rule and through the check as bash
+feeds it. 200,755 tokens; seconds not recorded. 1 BUG, 1 RISK, 6 NIT.
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| G1 | BUG | full read | a footer `- BUG`, NUL, `x: footer` passes round 5's lookahead (NUL is not in its list); bash drops the NUL in `"$(cat …)"` (line 1608), so the grep sees `- BUGx:` and does not count it; the second marker wins, the section holds no finding and the seat is rejected. The fuzz found 1,470 such lines, all a label, a NUL and a word character | fixed by a cut: the lookahead now lists what may follow the label (end of line, tab, CR, space, ASCII punctuation) instead of what may not. The fuzz finds 0; captures, probes, corpus and replay as E19; T14 gains the NUL case and three mutations. Same kind as rounds 4–6 (`finding-regex`), so round 7 runs with `--cut` |
+| G2 | RISK | full read | the plan's check list leaves out `check_prompt_sync.sh` and `check_perl_minimum.sh`, which CI runs (`.github/workflows/clean.yml:205,215`) | fixed as wording: both added to the list. Not an earning RISK: nothing that runs changed |
+| G3 | NIT | full read | T1's "first line after its first marker" may be a blank line | fixed: "first non-blank line" |
+| G4 | NIT | full read | the plan did not say the fixture is the reply text of `melious.full`, wrapped into SSE at test time | fixed: said under "Captures" |
+| G5 | NIT | full read | the 970 / 609 corpus figures were measured on candidate 5, not the spelling the plan shows | fixed: re-measured with the new spelling, 1,810 files, 0 extra, 984 lost in 619 (E19) |
+| G6 | NIT | full read | §3 described the codex rule in words only | fixed: §3 quotes the awk the survey ran (E11) |
+| G7 | NIT | full read | "What it gives up" named a non-ASCII character before the label, not after it | fixed: both, with `BUG—` |
+| G8 | NIT | full read | §2 did not name the text that states the column count: `review_log.sh` usage (7–9) and column note (41–43), `test_round_checks.sh:66` `NEW_HEADER` | fixed: named in §2 |
+
+Round 7 is earned by G1 (`finding-regex`, cut: lookahead replaced by a whitelist of what may
+follow the label).
