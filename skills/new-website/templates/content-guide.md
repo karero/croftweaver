@@ -23,6 +23,9 @@ page-level content that hangs off that positioning.
 
 Write like [persona, e.g. "a senior practitioner talking to a smart peer"]:
 [3–5 adjectives]. Proof over claims. Active voice.
+**Role words (not checked by the tone test):** where a page calls the reader by a role (owner,
+user, client or member), say once, before the page first uses the word to say who does what, that
+it means the reader. Call the people behind the site by name or "we", not by the same role word.
 
 **Content language:** [English / German / other] — the hard rules below are
 lexical (specific words/mechanisms) and differ by language; fill in only the
