@@ -18,6 +18,10 @@ Who runs it:
 Whatever the reviewer returns is a list of findings, not an order. The author fixes each one or
 lists it for the owner to accept or reject in the go (SKILL.md, steps 4 and 5).
 
+The review does not check whom a role word means. Read words such as owner, user, client or
+member yourself: does the page say whether each means the reader, the people behind the page or
+someone else, and does it keep that one meaning?
+
 ## The content review prompt
 
 > You are an adversarial content reviewer. Below is a page document: a brief and the full draft
