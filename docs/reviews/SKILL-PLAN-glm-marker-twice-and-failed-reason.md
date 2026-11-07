@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
-| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–5 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
+| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–6 done; final full read and wording pass next; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
 
@@ -36,18 +36,20 @@ run's `melious.out`, so the fault is reproduced and is in the reader, not the mo
 check would also count as a finding. That check is `finding_count` in `looks_like_review`
 (`independent_review.sh:1102`): grep `'^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b'` with
 `-i`. The reader does not copy that pattern, because it matches the DECODED reply, where Perl's
-whitespace, word and case rules are Unicode's and grep's are not: rounds 2–4 found three ways the
-copy counted a line the grep does not (form feed, NEL, `RIſK` / the Kelvin sign), each making a
-marker usable whose section the check then rejects. So line 112 becomes a strict rule that counts a
+whitespace, word and case rules are Unicode's and grep's are not. Rounds 2–4 found the copy and the
+grep apart three times: the copy missed form-feed-led lines the grep counts (round 2), and it
+counted NEL-led lines (round 3) and `RIſK` or the Kelvin sign (round 4) that the grep does not,
+each of those making a marker usable whose section the check then rejects. So line 112 becomes a strict rule that counts a
 line only in a shape the grep surely counts too:
 
 `my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?![A-Za-z0-9_\x{80}-\x{10FFFF}])|No BUG\/RISK\/NIT findings/m;`
 
-In words: ASCII whitespace, then `#`, `*`, `-` or a number and a dot, then printable ASCII only, up
+In words: ASCII whitespace, then `#`, `*`, `-` or a number and a dot, then only tabs and printable ASCII, up
 to the label BUG, RISK or NIT, each letter ASCII upper or lower case, with no ASCII word character
 before it and neither a word character nor any non-ASCII character after it. There is no `/i`, so no
-Unicode case folding, and only regex features Perl 5.10 has, the version the transports require (round 5; not run on
-5.10 itself). Each piece is ASCII and is
+Unicode case folding, and only regex features Perl 5.10 documents, the version the transports require (round 5): its
+perlre (https://perldoc.perl.org/5.10.0/perlre) has the fixed-width negative lookbehind, the
+negative lookahead, `*?`, `/m` and `\x{…}` (inside a class only by its `\R` example), and no `/a`. Not run on Perl 5.10 itself. Each piece is ASCII and is
 inside what the grep takes, so the reader never counts a line the check does not. The clean
 verdict "No BUG/RISK/NIT findings" still counts anywhere, as now.
 
@@ -158,11 +160,13 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 | T11 | the same with the footer removed | `codex_tokens` | prints nothing |
 | T12 | a real `codex.err` whose footer is followed by the rollout ERROR line | `codex_tokens` | prints that footer's number, written by hand |
 | T13 | `independent_review.sh` | a check in `test_round_checks.sh` lists every literal `outcome="` assignment | each one but `OK` holds " (". It catches a new branch written the way all nine are today; an outcome built any other way gets past it and would log reason `-` |
-| T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, naming `RIſK` or `RIS` + Kelvin sign, or reading `- éBUG:`, `- BUGé:` or `- xBUG:`, each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
+| T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, naming `RIſK` or `RIS` + Kelvin sign, or reading `- éBUG:`, `- BUGé:`, `- xBUG:`, `- BUGx:` or `+ BUG:`, each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
 
 Mutation check (the `mutation-check` skill): revert the regex and T1–T3 must fail; put back round 3's regex (`(?i:.*\b(?:BUG|RISK|NIT)\b)` after the ASCII class) and T14's `RIſK` and Kelvin cases must fail;
 widen the printable-ASCII middle to `.*?` and T14's `éBUG` case must fail; drop the lookbehind and its
-`xBUG` case must fail; drop the non-ASCII range from the lookahead and its `BUGé` case must fail; drop
+`xBUG` case must fail; drop the non-ASCII range from the lookahead and its `BUGé` case must fail; drop the ASCII word
+characters from the lookahead and its `BUGx` case must fail; add `+` to the bullets and its `+ BUG`
+case must fail; drop
 `--reason` from `log_seat` and T6–T7 must fail; restore the first-match read in `codex_tokens` and
 T10 must fail.
 
