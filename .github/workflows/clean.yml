@@ -499,7 +499,7 @@ jobs:
           node-version: ${{ matrix.node }}
       - name: Run the Cloudflare check's, setup script's and move script's tests (stubs on 127.0.0.1, no real requests)
         shell: bash
-        run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs skills/new-website/scripts/tests/move-to-workers.test.mjs
+        run: node --test skills/new-website/scripts/tests/cloudflare-check.test.mjs skills/new-website/scripts/tests/cloudflare-check-workers.test.mjs skills/new-website/scripts/tests/cloudflare-setup.test.mjs skills/new-website/scripts/tests/move-to-workers.test.mjs
   create-croftweaver-tests:
     # The installer calls no other program, so that it runs in a Windows terminal, where the
     # shell installers need Git Bash or WSL. Only a run on Windows shows that, so it runs on

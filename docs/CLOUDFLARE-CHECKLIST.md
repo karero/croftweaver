@@ -81,6 +81,21 @@ shows the current build):
   file). Preview deployments keep answering 200 with `noindex`. That is meant.
   *Check:* the last command in section 5.
 
+**If your site is a Worker** (it answers on a `.workers.dev` address, not `.pages.dev`; the two
+items below are the ones your assistant checks with `--site`):
+
+- [ ] **Keep the live `workers.dev` address off.**
+  In the Worker's `wrangler.jsonc`, `"workers_dev": false`. Then the address
+  `<worker>.<your-subdomain>.workers.dev` answers 404 and does not show the site, and the site has one home: your own
+  domain. Your assistant needs a live version link to check it, because Cloudflare gives the same
+  empty answer for a Worker that is off and for one that does not exist. `node move-to-workers.mjs check`
+  prints the link.
+  *Why:* a second address that serves the same site is how search engines and AI assistants end up
+  citing the wrong one.
+- [ ] **Preview links carry noindex.**
+  Version and Preview links of the Worker answer with `x-robots-tag: noindex`, which Cloudflare adds.
+  Your assistant opens each link you give it and tells you the one that does not.
+
 Moving an existing domain, with its mail, to Cloudflare is a bigger job: see "Going live"
 in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).
 

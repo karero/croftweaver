@@ -129,7 +129,7 @@ test('the plain-text report names every item and ends with a result line', () =>
     const r = await run([s.origin, '--timeout', '5']);
     assert.equal(r.code, 0);
     for (const item of ITEMS) assert.ok(r.stdout.includes(item.title.replace(/`/g, '')), `missing: ${item.title}`);
-    assert.match(r.stdout, /Result: \d+ ok, 0 FAIL, \d+ look, 5 by hand, 2 not run\./);
+    assert.match(r.stdout, /Result: \d+ ok, 0 FAIL, \d+ look, 5 by hand, 4 not run\./);
     assert.match(r.stdout, /Nothing was changed\./);
   }));
 

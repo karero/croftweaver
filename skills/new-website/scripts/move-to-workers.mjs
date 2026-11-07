@@ -1160,6 +1160,7 @@ async function cmdCheck(ctx, run) {
   const r = await ctx.siteFetch(`https://${v.host}/build.txt`);
   const served = r.body.toString('utf8').split('\n')[0].trim();
   say(`The Worker's live version ${v.id.slice(0, 8)} serves ${r.status === 200 ? short(served) : `nothing at https://${v.host}/build.txt (${r.status || r.error})`}: ${served === ctx.tip ? 'the live branch\'s commit.' : 'not the live branch\'s commit; stage 1 of the move section is not finished.'}`);
+  say(`Its link, for the Cloudflare check's --preview: https://${v.host}/`);
   note(run, served === ctx.tip, `The Worker's live version serves ${r.status === 200 ? short(served) : 'nothing'}, GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
   say('Nothing was changed.');
   if (ctx.open) { // an open move waits for after only when every host is where the move ends

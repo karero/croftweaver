@@ -529,6 +529,8 @@ in this order, and nothing else:
 | `robots` | the site's own file | 1: the site is now public and its `robots.txt` keeps crawlers out |
 | `build` | `launch` checks it first (script step 11) | 1 |
 | `scripts` | nobody | never `fail` (another path is a `look`) |
+| `workers-dev` | nobody: `launch` gives no `--site` | never `fail`: a Worker's item, not run here |
+| `previews` | nobody: `launch` gives no `--site` | never `fail`: a Worker's item, not run here |
 
 The ids are the check script's (`CLOUDFLARE_CHECK.md`, "For an assistant"); a test fails
 when its list and this table differ. `launch` accepts every `--skip` id `setup` does, plus
