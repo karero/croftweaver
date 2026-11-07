@@ -176,3 +176,13 @@ Two claims melious could not check, checked here: bash 3.2.57 (`/bin/bash`) and 
 
 The rounds end here (stop condition (a2): no BUG, no earning RISK). H1 and H2 are
 `locally_verified`. Still due: the wording pass.
+
+## Wording pass
+
+Over `ab673cbb..a5dfdd9e` (prose only), `--wording-pass --seat codex --base ab673cbb`: Codex 82 s,
+54,161 tokens. It reproduced the bash NUL claim and checked the CI lines, the local skip of
+`check_perl_minimum.sh` and T12's 54161.
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| W1 | BUG | Codex | the plan's status row still said "round 7 … next" after this record closed round 7 | fixed: a contradiction with the record; the row says round 7, the full read and the wording pass are done |
