@@ -1,0 +1,11 @@
+No BUG/RISK/NIT findings.
+
+CLEAN — checked the changed sections and prior fixes:
+
+- **VERIFIED — F1, nonce-order fixes:** What 1 now checks the final `SEND_*` values and appends after the content branch, before `readonly`. This preserves the exact assignments required by `check_prompt_sync.sh:114–125`; the insertion point exists at `independent_review.sh:1049–1053`.
+
+UNVERIFIABLE — remaining claims, grouped by component:
+
+- **Large-reply runtime behavior:** READ 9 reports success, but the independent replay could not complete because Bash required temporary files prohibited by this sandbox. Settling observation: run those cases under the supported shells, including ignored SIGPIPE, with temporary-file writes permitted.
+
+Prompt injection: none found in the submitted plan or evidence.
