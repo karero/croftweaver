@@ -11,6 +11,7 @@ private captures, so it stays out of this public repo).
 |---|---|---|---|---|---|
 | 1 | `708d2ca5` | full plan; evidence E1–E9 (13,748 bytes) | Codex gpt-6.1-sol; melious glm-5.3; fresh-eyes Sonnet | Codex 203 s, 55,137 · melious 213 s, 31,446 · fresh-eyes 116 s, 110,012 | 2 / 6 / 8 before dedup (Codex 2/1/0, melious 0/3/4, fresh-eyes 0/4/2); 11 after |
 | 2 | `10385968` | verify: full plan, PRIOR round 1, evidence E1–E13 (18,123 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 159 s, 54,161 · melious 333 s, 47,617 | 2 / 0 / 4 (Codex 2/0/0, melious 0/0/4); 6 after dedup |
+| 3 | `6d389c87` | verify: full plan, PRIOR round 2, evidence E1–E14 (20,186 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 158 s, 54,161 · melious 355 s, 45,530 | 1 / 1 / 3 (Codex 1/0/0, melious 0/1/3); 5 after dedup |
 
 ## Round 1 findings
 
@@ -53,4 +54,27 @@ so T6 now does. Codex's capture and corpus entries rest on the READs; the captur
 notes folder because they quote private plans. Outside scope (melious): where the 11 lowercase `ok`
 lines came from; not this plan's fault, no row raised.
 
-Round 3 is owed: B1 and B2 are fixed BUGs, so a verification round checks them.
+Round 3 was owed: B1 and B2 were fixed BUGs.
+
+## Round 3 findings
+
+Both seats confirmed B1–B6 as landed, apart from C1's part of B1.
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| C1 | BUG | Codex, melious (NIT) | B1 only partly fixed: the reader matches the decoded reply, where Perl's `\s` takes NEL and U+2028 and grep's `[[:space:]]` does not, so a NEL-led footer makes the second marker usable and the check then rejects the summary; E14 compared raw bytes, not decoded text | fixed: the leading class is now ASCII whitespace only, `[ \t\f\x0B\r]`; on decoded text it never takes a space grep does not (grep takes a few non-ASCII spaces it does not: the loud way, kept whole with the warning); the line check re-run on decoded text, 1,774 files, none differing; Codex's NEL case now keeps both findings (E15) |
+| C2 | RISK | melious | the size-limit outcome's string was not shown, so it might carry no parentheses and log reason `-`, untested | fixed: every FAILED outcome `report_tier` builds is parenthesized, the size limit's included (`independent_review.sh:1712–1733`, `:781`); §2 says how inner parentheses stay whole; T7 adds the size-limit case `t11c` (E15) |
+| C3 | NIT | melious | "every reviewer reply" named more than the four file kinds compared | fixed: §1 names `codex.out`, `melious.out`, `ollama.out`, `melious.full`; no other `*.out` kind is present (E15) |
+| C4 | NIT | melious | §3's residual case missed a quoted bare pair after the footer | fixed: §3 names both |
+| C5 | NIT | host | while checking C1: T4's section (note plus a `- Totals: 1 BUG, 1 RISK` summary) is ACCEPTED by `looks_like_review`, so that KNOWN WRONG case counts the seat OK on a summary, with the reader's note as the only warning; the plan had said "brings the fault back" | fixed: §1 says so; today's code does the same with that reply, so the fix does not widen it (E15) |
+
+Codex's UNVERIFIABLE entries ask for the captures, corpus and cost log, which stay in the notes
+folder (private plans); its local `test_looks_like_review.sh` run failed in its sandbox (no temp
+files), not on the code. Melious's "Codex echoes what it read into codex.err" is supported by E8's
+quoted line, not by a planted run; nothing rests on it beyond §3's survey.
+
+Round 4 is earned only by a substantive BUG or an earning RISK (SKILL.md, after round 3): C1 is a
+substantive BUG in the reader's finding test, so round 4 runs with `--earned-by finding-regex`. That kind
+earned no earlier round (rounds 2 and 3 were owed), so no cut is due; the fix is a strict rule
+anyway: ASCII whitespace only. C2 is wording (the outcomes already had their parentheses; the fix
+adds a test, not a change), so it earns nothing.

@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
-| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–2 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
+| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–3 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
 
@@ -39,11 +39,16 @@ number and a dot, and names BUG, RISK or NIT, any case. That is `finding_count` 
 `'^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b'` with `-i`. The clean verdict "No BUG/RISK/NIT
 findings" still counts anywhere, as now. Line 112 becomes, exactly:
 
-`my $findings = qr/^[^\S\n]*(?:[#*-]|[0-9]+\.)(?i:.*\b(?:BUG|RISK|NIT)\b)|No BUG\/RISK\/NIT findings/m;`
+`my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)(?i:.*\b(?:BUG|RISK|NIT)\b)|No BUG\/RISK\/NIT findings/m;`
 
-`[^\S\n]` is grep's `[[:space:]]` within one line (form feed and vertical tab included). On every
-reviewer reply under `$TMPDIR` (1,753 files), this regex and that grep pick the same lines, with no
-file differing. So the cut keeps a section the review check can count findings in, and a summary
+The leading class is ASCII whitespace only, on purpose. The reader matches the decoded reply, where
+Perl's `\s` also takes NEL and U+2028, which the review check's grep does not; so a footer led by
+NEL would make a marker usable that the check then rejects (round 3, Codex). The grep takes a few
+non-ASCII spaces (no-break space, U+3000) that this class does not, which only goes the loud way:
+the marker is not usable, and the reply is kept whole with the no-marker warning. On the decoded
+text of every `codex.out`, `melious.out`, `ollama.out` and `melious.full` under `$TMPDIR`
+(1,774 files), this regex and that grep pick the same lines, with no file differing; no line in
+them starts with a non-ASCII space. So the cut keeps a section the review check can count findings in, and a summary
 line that does not start like a finding ("(Findings above: …", "The findings above …", "BUG: 1,
 RISK: 5") cannot make a marker usable. The walk from the last marker, the quote skips and the
 notes stay as they are. On both captures, with only that line changed, the reader keeps
@@ -58,8 +63,11 @@ bare `RISK 1 — …`, a `> - NIT` quote) no longer makes its marker usable. It 
 with the no-marker warning, as any reply without a usable marker is today, and the review check
 decides; for such a reply the check finds no structured finding either way. **Still wrong after
 the fix:** a summary after the second marker that does start like a finding ("- Totals: 1 BUG, 5
-RISK") makes that marker usable again and brings the fault back. Not seen; the build pins it as a
-KNOWN WRONG test case.
+RISK") makes that marker usable again. The section is then the reader's note ("the marker came 2
+times …, so check that the section starts with the review") and the summary, and the review check
+ACCEPTS it: one finding line, no refusal. The seat counts as OK on a summary, and the note is the
+only warning. Today's code does the same with that reply. Not seen; the build pins it as a KNOWN
+WRONG test case.
 
 **Rejected.** Taking the FIRST usable marker: a leaked trace can restate the ask, marker and all,
 before the real one (#165, cases `leak` and `echoglued` in `test_failed_tier_report.sh`).
@@ -74,8 +82,11 @@ The cost log holds 1,348 FAILED lines (1,030 of them melious) and cannot say whi
 rejects.
 
 **Fix.** A 17th column, `reason`: the text inside the outcome's outer parentheses, word for word
-as the round's summary line shows it, spaces kept (the outcome's `tr ' ' '-'` is not applied to
-it); `review_log.sh`'s `clean()` still turns tabs, newlines and carriage returns into spaces. `-`
+as the round's summary line shows it, spaces kept. In `log_seat` that is everything after the
+first " (" with the final ")" cut, so inner parentheses stay whole. Every FAILED outcome
+`report_tier` builds has them (`independent_review.sh:1712–1733`), the size limit's included:
+"FAILED (a prompt of N bytes, over the … this seat took whole (seat_limits.txt); nothing was
+sent)"; so does NOT COUNTED (line 1693). The outcome's `tr ' ' '-'` is not applied to the reason; `review_log.sh`'s `clean()` still turns tabs, newlines and carriage returns into spaces. `-`
 for an outcome with no parentheses (OK). `review_log.sh add` takes `--reason`; `log_seat` passes
 it. Column 13 is written as today, so `summary`'s OK count is unchanged (11 older lines hold a
 lowercase `ok`, which it does not count, as now). `HEADER` gains
@@ -101,8 +112,9 @@ footer. No file's last five lines hold a count on the `tokens used` line itself.
 **Fix.** Read the LAST `tokens used` line that is alone on its line and whose next line holds only
 digits and commas; nothing else counts, so a quoted `tokens used: N` never does. No such pair: no
 figure, as now. Against today's code on the same 698 folders, this changes exactly the three
-quoted-count runs above and keeps every other figure. Still wrong after the fix: a run that ends
-without a footer while the reviewed text holds a quoted bare pair would log the quote; not seen.
+quoted-count runs above and keeps every other figure. Still wrong after the fix: a quoted bare
+pair logs the quote when it comes after Codex's footer, or when the run has no footer. Not seen:
+in every file the footer is within the last three lines.
 
 ## How it is tested
 
@@ -120,7 +132,7 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 | T4 | two markers, two finding lines between them, then a closing summary that starts like a finding (`- Totals: 1 BUG, 1 RISK`) | `melious_stream.pl` | labelled KNOWN WRONG: exit 0; the section is the note "(text before the final-review marker dropped, … the marker came 2 times …)", a blank line and the summary; neither finding line is in it |
 | T5 | the existing marker cases (`leak`, `markdup`, `markfence`, `markwrap`, `glued`, `echoglued`, `fencequote`, `afterfence`, `topecho`, `quotemark`, `oldmark`, `markend`, …), all in `test_failed_tier_report.sh` | the suite runs | all pass unchanged |
 | T6 | a stub reply the review check rejects, and an empty log | `independent_review.sh`, with `REVIEW_LOG` set | the new log's header ends in `cut` then `reason`; that seat's line has `FAILED` in column 13 and `output is not a review` in column 17 |
-| T7 | the existing `costfail` case (ollama 429) | the same | column 17 holds the reason the summary line shows, spaces kept |
+| T7 | the existing `costfail` case (ollama 429), and the size-limit case `t11c` (codex over its limit) | the same | column 17 holds the reason each summary line shows, spaces kept; for `t11c`, its inner `(seat_limits.txt)` and the closing "nothing was sent" included |
 | T8 | an OK seat | the same | column 17 is `-`; `summary`'s ok count is what it was |
 | T9 | `test_round_checks.sh:330` (an old 14-column log: `add` appends a 16-field line) | the suite runs | changed to 17 fields, column 17 `-`; the old header still kept |
 | T10 | the trimmed r3 `codex.err` | `codex_tokens` | prints 72315 |
