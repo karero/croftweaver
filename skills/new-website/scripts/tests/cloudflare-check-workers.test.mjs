@@ -6,7 +6,7 @@
 // 127.0.0.1: the domain (a site behind Cloudflare, as in cloudflare-check.test.mjs) and one that plays
 // Cloudflare's workers.dev: it answers by Host, with the answers Cloudflare gave (fixtures/workers-dev-answers).
 // The Worker's address and its links are names ending in .workers.dev.test, which a preloaded module
-// (resolve-test-names.mjs) maps to this machine. The expected results are written by hand.
+// (resolve-test-names.cjs) maps to this machine. The expected results are written by hand.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -14,12 +14,12 @@ import { execFile } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { parseJsonc, parsePreview, UsageError } from '../cloudflare-check.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'cloudflare-check.mjs');
-const PRELOAD = ['--import', pathToFileURL(path.join(HERE, 'resolve-test-names.mjs')).href];
+const PRELOAD = ['--require', path.join(HERE, 'resolve-test-names.cjs')];
 const SHA = '85ca07f1bb53b7078587bce136ef95288fe5115a';
 const CAP = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'workers-dev-answers', 'answers-2026-11-06.json'), 'utf8'));
 const KIT_301 = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'pages-vs-worker-headers', 'redirect-old-page-2026-11-05.json'), 'utf8')).version_url_of_the_worker;
@@ -309,7 +309,8 @@ test('a link without noindex is FAIL, named; a version link whose home page redi
     assert.doesNotMatch(r.by.previews.detail, /0a1b2c3d/, 'the link that is fine is not in the failure');
     assert.equal(r.code, 1);
   });
-  // The kit's captured 301 with noindex on the version link; where it leads answers 200 without noindex.
+  // The kit's earlier capture of a version link's 301 with noindex, replayed on the home page here (the real
+  // redirect led from /old-page); where it leads answers 200 without noindex.
   const seen = [];
   await withBoth({ rules: (host, req, res) => {
     if (host !== VERSION_HOST) return false;
@@ -323,6 +324,23 @@ test('a link without noindex is FAIL, named; a version link whose home page redi
     assert.deepEqual(seen, ['/'], 'the redirect is not followed');
     assert.equal(r.code, 0, r.stdout);
   });
+});
+
+test('noindex counts as a directive of x-robots-tag, not as a piece of another word', async (t) => {
+  const dir = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG });
+  const want = { 'noindex, nofollow': 'ok', 'NOINDEX': 'ok', 'nofollow,noindex': 'ok', noindexing: 'fail', 'notnoindex': 'fail', 'nofollow': 'fail' };
+  for (const [value, state] of Object.entries(want)) {
+    const rules = (host, req, res) => host === VERSION_HOST && (answerWith(res, CAP.version_link_live, { 'x-robots-tag': value }), true);
+    await withBoth({ rules }, async (live, wd) => {
+      const r = await check(live.origin, '--site', dir, '--preview', wd.link(VERSION_HOST));
+      assert.equal(r.by.previews.state, state, `x-robots-tag: ${value}`);
+    });
+  }
+});
+
+test('a Worker name that was never created answers as an address that is off does (capture)', () => {
+  assert.equal(CAP.address_never_created_no_accept_encoding.status, CAP.address_off_no_accept_encoding.status);
+  assert.equal(CAP.address_never_created_no_accept_encoding.body, CAP.address_off_no_accept_encoding.body);
 });
 
 test('three links in three states: previews takes the worst, and the link with no answer is named in both places', async (t) => {
@@ -441,6 +459,8 @@ test('wrangler.toml: with pages_build_output_dir it is a Pages config; without i
     assert.match(pages.parsed.site.note, /wrangler\.toml is a Pages marker/);
     const vars = await check(live.origin, '--site', folder(t, { 'wrangler.toml': 'pages_build_output_dir = "dist"\n[vars]\nname = "lenas-site"\n' }));
     assert.equal(vars.parsed.site.platform, 'pages', 'a presence check, not a parse');
+    const commented = await run([live.origin, '--site', folder(t, { 'wrangler.toml': '# pages_build_output_dir = "dist"\nname = "lenas-site"\n' })]);
+    assert.equal(commented.code, 2, 'a commented-out key is not a Pages marker');
     const refused = await run([live.origin, '--site', folder(t, { 'wrangler.toml': 'name = "lenas-site"\n[assets]\ndirectory = "./dist"\n' })]);
     assert.equal(refused.code, 2);
     assert.match(refused.stderr, /wrangler\.toml holds no pages_build_output_dir, and the check reads a Workers config only from a \.json or \.jsonc file/);
@@ -477,6 +497,7 @@ test('the run is refused with exit 2, and no request is sent, for each wrong com
     const cases = [
       ['--site names a folder that does not exist', ['--site', path.join(dir, 'nope')], /is not a folder/],
       ['--site names a file', ['--site', file], /is not a folder/],
+      ['a Worker name over 63 characters', ['--site', folder(t, { 'wrangler.jsonc': WORKERS_CONFIG.replace(`"${WORKER}"`, `"${'a'.repeat(64)}"`) })], /is not a Worker name \(1 to 63 letters/],
       ['--config names no file', ['--site', dir, '--config', 'nope.jsonc'], /--config "nope\.jsonc" is not a file/],
       ['--config without --site', ['--config', 'wrangler.jsonc'], /--config goes with --site/],
       ['--preview without --site', ['--preview', ok], /--preview goes with --site/],

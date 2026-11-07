@@ -1,76 +1,88 @@
 {
-  "about": "Answers of Cloudflare to plain GETs of /, curl 8.7.1, 2026-11-06 about 23:00 UTC. Hosts are replaced in the test (made-up names); the date, alt-svc, etag, cache and security headers are cut, cf-ray and the NEL report signature replaced; long bodies are cut to their first 100 characters (body_bytes_in_capture is the full length). See WORKERS-DEV-ANSWERS.md.",
-  "address_off_no_accept_encoding": {
-    "status": 404,
-    "headers": {
-      "content-type": "text/plain; charset=UTF-8",
-      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
-      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
-      "server": "cloudflare",
-      "cf-ray": "0123456789abcdef-FRA"
-    },
-    "body": "error code: 1042\n",
-    "body_bytes_in_capture": 17
+ "about": "Answers of Cloudflare to plain GETs of /, curl 8.7.1, 2026-11-06 about 23:00 UTC. Hosts are replaced in the test (made-up names); the date, alt-svc, etag, cache and security headers are cut, cf-ray and the NEL report signature replaced; long bodies are cut to their first 100 characters (body_bytes_in_capture is the full length). See WORKERS-DEV-ANSWERS.md.",
+ "address_off_no_accept_encoding": {
+  "status": 404,
+  "headers": {
+   "content-type": "text/plain; charset=UTF-8",
+   "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
+   "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+   "server": "cloudflare",
+   "cf-ray": "0123456789abcdef-FRA"
   },
-  "preview_alias_live": {
-    "status": 200,
-    "headers": {
-      "content-type": "text/html",
-      "x-robots-tag": "noindex",
-      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
-      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
-      "server": "cloudflare",
-      "cf-ray": "0123456789abcdef-FRA"
-    },
-    "body": "<!DOCTYPE html><html lang=\"en\"> <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=dev",
-    "body_bytes_in_capture": 8783
+  "body": "error code: 1042\n",
+  "body_bytes_in_capture": 17
+ },
+ "preview_alias_live": {
+  "status": 200,
+  "headers": {
+   "content-type": "text/html",
+   "x-robots-tag": "noindex",
+   "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
+   "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+   "server": "cloudflare",
+   "cf-ray": "0123456789abcdef-FRA"
   },
-  "preview_alias_dead": {
-    "status": 404,
-    "headers": {
-      "content-type": "text/html",
-      "x-preview-user-error": "true",
-      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
-      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
-      "server": "cloudflare",
-      "cf-ray": "0123456789abcdef-FRA"
-    },
-    "body": "\n<!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if ",
-    "body_bytes_in_capture": 19986
+  "body": "<!DOCTYPE html><html lang=\"en\"> <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=dev",
+  "body_bytes_in_capture": 8783
+ },
+ "preview_alias_dead": {
+  "status": 404,
+  "headers": {
+   "content-type": "text/html",
+   "x-preview-user-error": "true",
+   "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
+   "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+   "server": "cloudflare",
+   "cf-ray": "0123456789abcdef-FRA"
   },
-  "version_link_live": {
-    "status": 200,
-    "headers": {
-      "content-type": "text/html",
-      "x-robots-tag": "noindex",
-      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
-      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
-      "server": "cloudflare",
-      "cf-ray": "0123456789abcdef-FRA"
-    },
-    "body": "<!DOCTYPE html><html lang=\"en\"> <head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=dev",
-    "body_bytes_in_capture": 36286
+  "body": "\n<!DOCTYPE html>\n<!--[if lt IE 7]> <html class=\"no-js ie6 oldie\" lang=\"en-US\"> <![endif]-->\n<!--[if ",
+  "body_bytes_in_capture": 19986
+ },
+ "version_link_live": {
+  "status": 200,
+  "headers": {
+   "content-type": "text/html",
+   "x-robots-tag": "noindex",
+   "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
+   "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+   "server": "cloudflare",
+   "cf-ray": "0123456789abcdef-FRA"
   },
-  "address_off_accept_encoding_identity": {
-    "status": 404,
-    "headers": {
-      "content-type": "text/html; charset=UTF-8"
-    },
-    "body": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html ",
-    "body_bytes_in_capture": 19984
+  "body": "<!DOCTYPE html><html lang=\"en\"> <head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=dev",
+  "body_bytes_in_capture": 36286
+ },
+ "address_off_accept_encoding_identity": {
+  "status": 404,
+  "headers": {
+   "content-type": "text/html; charset=UTF-8"
   },
-  "address_on_no_accept_encoding": {
-    "status": 200,
-    "headers": {
-      "content-type": "text/html",
-      "x-robots-tag": "noindex",
-      "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
-      "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
-      "server": "cloudflare",
-      "cf-ray": "0123456789abcdef-FRA"
-    },
-    "body": "<!DOCTYPE html><html lang=\"en\"> <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=dev",
-    "body_bytes_in_capture": 8783,
-    "taken": "2026-11-07 09:29 UTC, the trial Worker with workers_dev true, no accept-encoding header, the checker's user agent and Accept"
-  }
+  "body": "<!DOCTYPE html>\n<!--[if lt IE 7]> <html ",
+  "body_bytes_in_capture": 19984
+ },
+ "address_on_no_accept_encoding": {
+  "status": 200,
+  "headers": {
+   "content-type": "text/html",
+   "x-robots-tag": "noindex",
+   "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
+   "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+   "server": "cloudflare",
+   "cf-ray": "0123456789abcdef-FRA"
+  },
+  "body": "<!DOCTYPE html><html lang=\"en\"> <head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=dev",
+  "body_bytes_in_capture": 8783,
+  "taken": "2026-11-07 09:29 UTC, the trial Worker with workers_dev true, no accept-encoding header, the checker's user agent and Accept"
+ },
+ "address_never_created_no_accept_encoding": {
+  "status": 404,
+  "headers": {
+   "content-type": "text/plain; charset=UTF-8",
+   "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=REDACTED\"}]}",
+   "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+   "server": "cloudflare",
+   "cf-ray": "0123456789abcdef-FRA"
+  },
+  "body": "error code: 1042\n",
+  "body_bytes_in_capture": 17
+ }
 }

@@ -1,7 +1,7 @@
-// Preloaded into the checker's process by cloudflare-check-workers.test.mjs (node --import): names
+// Preloaded into the checker's process by cloudflare-check-workers.test.mjs (node --require, which every supported Node reads): names
 // ending in .workers.dev.test resolve to this machine, so one local server can play a Worker's
 // workers.dev address and its version links, which differ in their first label only.
-import dns from 'node:dns';
+const dns = require('node:dns');
 
 const lookup = dns.lookup;
 dns.lookup = function (hostname, options, callback) {

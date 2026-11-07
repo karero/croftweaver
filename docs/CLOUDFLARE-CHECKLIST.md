@@ -86,7 +86,7 @@ items below are the ones your assistant checks with `--site`):
 
 - [ ] **Keep the live `workers.dev` address off.**
   In the Worker's `wrangler.jsonc`, `"workers_dev": false`. Then the address
-  `<worker>.<your-subdomain>.workers.dev` answers nothing, and the site has one home: your own
+  `<worker>.<your-subdomain>.workers.dev` answers 404 and does not show the site, and the site has one home: your own
   domain. Your assistant needs a live version link to check it, because Cloudflare gives the same
   empty answer for a Worker that is off and for one that does not exist. `node move-to-workers.mjs check`
   prints the link.

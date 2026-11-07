@@ -15,7 +15,7 @@ import https from 'node:https';
 import path from 'node:path';
 import { isIP } from 'node:net';
 import { Resolver } from 'node:dns';
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const UA = 'Mozilla/5.0 (compatible; croftweaver-cloudflare-check/1)';
@@ -106,7 +106,7 @@ const USAGE = `Usage: node cloudflare-check.mjs <domain> [options]
   --site <folder>     the site's folder: reads its Wrangler files (wrangler.json, wrangler.jsonc,
                       wrangler.toml) and whether it has a functions/ folder, to tell a Worker
                       from a Pages site. Writes nothing.
-  --config <file>     a Workers config with another name, in the --site folder (only with --site)
+  --config <file>     a Workers config with another name (only with --site; a relative path is taken from the --site folder)
   --preview <link>    a Worker's Preview, deployment or version link, https://<prefix>-<worker>
                       .<account>.workers.dev (several separated by commas; only for a Worker).
                       Each must carry noindex; a live version link also lets the check judge
@@ -297,7 +297,7 @@ export function parseJsonc(text) {
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const isFolder = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 // A Worker's name is a host label; it ends up in the addresses the check asks.
-const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,40}[a-z0-9])?$/i;
+const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
 // Wrangler's own config names, in its order. Wrangler reads the first it finds; the checker reads every one
 // that is there, so a Workers config beside a Pages config gets both sets of checks.
@@ -317,7 +317,7 @@ export function readSite(folder, configArg = null) {
     try { text = readFileSync(path.resolve(folder, file), 'utf8'); } catch (e) { throw new UsageError(`${file} cannot be read: ${e.code ?? e.message}`); }
     if (path.extname(file).toLowerCase() === '.toml') {
       // No TOML reader here: a presence check, not a parse.
-      if (/pages_build_output_dir/.test(text)) pages.push(file);
+      if (/^\s*pages_build_output_dir\s*=/m.test(text)) pages.push(file);
       else throw new UsageError(`${file} holds no pages_build_output_dir, and the check reads a Workers config only from a .json or .jsonc file`);
       continue;
     }
@@ -329,7 +329,7 @@ export function readSite(folder, configArg = null) {
     if (typeof conf.name !== 'string' || !conf.name || !hasAssets) {
       throw new UsageError(`${file} is neither a Pages config (pages_build_output_dir) nor a Workers config (a name and assets.directory): the check knows sites only`);
     }
-    if (!WORKER_NAME.test(conf.name)) throw new UsageError(`${file}: "${conf.name}" is not a Worker name (letters, digits and hyphens)`);
+    if (!WORKER_NAME.test(conf.name)) throw new UsageError(`${file}: "${conf.name}" is not a Worker name (1 to 63 letters, digits and hyphens, none at the start or end)`);
     workers.push({ file, name: conf.name.toLowerCase(), previewUrlsOff: conf.preview_urls === false });
   }
   if (new Set(workers.map((w) => w.name)).size > 1) {
@@ -1141,7 +1141,7 @@ export function evaluate(obs, target, opts) {
         const r = answers[i];
         if (!r || r.error) return { state: 'fail', text: r ? `no answer from ${l.origin}: ${whyNoAnswer(r.error, opts.timeoutMs)}.` : `${l.origin} was not asked.` };
         if (r.status < 400) {
-          return /noindex/i.test(header(r, 'x-robots-tag'))
+          return /(?:^|,)\s*noindex\s*(?:,|$)/i.test(header(r, 'x-robots-tag'))
             ? { state: 'ok', text: `${l.origin} answers ${r.status} with noindex.` }
             : { state: 'fail', text: `${l.origin} answers ${r.status} without noindex in x-robots-tag, so search engines may index it.` };
         }
@@ -1157,7 +1157,7 @@ export function evaluate(obs, target, opts) {
     const addr = obs.workersAddress;
     const served = links.some((l, i) => l.version && answers[i] && !answers[i].error && answers[i].status < 400);
     if (!links.length) skip('workers-dev', `not checked: the address's account part comes from a link, and ${noLink}`);
-    else if (!addr || addr.error) put('workers-dev', 'fail', addr ? noAnswer(addr) : 'the workers.dev address was not asked.', 'Set "workers_dev": false in the Worker\'s config and deploy again.');
+    else if (!addr || addr.error) put('workers-dev', 'fail', addr ? noAnswer(addr) : 'the workers.dev address was not asked.');
     else if (!(addr.status === 404 && addr.body.trim() === 'error code: 1042')) {
       put('workers-dev', 'fail', `${bare(addr.url)} answers ${addr.status}${addr.status < 400 ? ' and serves something' : ''}, not 404 "error code: 1042": the address is on.`, 'Set "workers_dev": false in the Worker\'s config and deploy again.');
     } else if (served) put('workers-dev', 'ok', `${bare(addr.url)} answers 404 "error code: 1042": the address is off, and a version link of ${worker} serves.`);
