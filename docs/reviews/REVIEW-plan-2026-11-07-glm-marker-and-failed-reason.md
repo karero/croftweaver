@@ -186,3 +186,12 @@ Over `ab673cbb..a5dfdd9e` (prose only), `--wording-pass --seat codex --base ab67
 | Id | Sev | From | Finding | Status |
 |---|---|---|---|---|
 | W1 | BUG | Codex | the plan's status row still said "round 7 … next" after this record closed round 7 | fixed: a contradiction with the record; the row says round 7, the full read and the wording pass are done |
+
+Confirmation over `a5dfdd9e..45abb125`, `--wording-pass --seat codex --verify`: Codex 58 s,
+29,428 tokens, no findings; W1 verified.
+
+## Gate closed
+
+At `45abb125`: no BUG, RISK or NIT open. Cost: 940,041 tokens logged over 17 seat runs (the gate
+line), plus fresh-eyes in round 1 (110,012) and the final full read (200,755), which the log does
+not hold; the fixes and the host's own work are not counted. The plan said 300–500k.
