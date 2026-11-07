@@ -1143,7 +1143,7 @@ export function evaluate(obs, target, opts) {
         if (r.status < 400) {
           return /(?:^|,)\s*noindex\s*(?:,|$)/i.test(header(r, 'x-robots-tag'))
             ? { state: 'ok', text: `${l.origin} answers ${r.status} with noindex.` }
-            : { state: 'fail', text: `${l.origin} answers ${r.status} without noindex in x-robots-tag, so search engines may index it.` };
+            : { state: 'fail', text: `${l.origin} answers ${r.status} without noindex in x-robots-tag (a noindex for one named crawler does not count), so search engines may index it.` };
         }
         return r.status === 404 && header(r, 'x-preview-user-error') === 'true'
           ? { state: 'look', text: `${l.origin} does not serve the site (404 from Cloudflare: the link was deleted, mistyped, or is gone for another reason).` }

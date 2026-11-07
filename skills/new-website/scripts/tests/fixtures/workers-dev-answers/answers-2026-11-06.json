@@ -83,6 +83,7 @@
    "cf-ray": "0123456789abcdef-FRA"
   },
   "body": "error code: 1042\n",
-  "body_bytes_in_capture": 17
+  "body_bytes_in_capture": 17,
+  "taken": "2026-11-06 about 23:50 UTC with Node v26.13.0 https.request, the checker's User-Agent and Accept, no accept-encoding header"
  }
 }
