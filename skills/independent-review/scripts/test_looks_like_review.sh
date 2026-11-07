@@ -194,19 +194,20 @@ No findings."
 check reject "a refusal wrapped after a markdown hard break" "I am unable to  
 review this diff.
 No findings."
-# A line that does not open with a capital continues the one before it.
-check accept "a real finding wrapped just before 'unable to read'" "- BUG — a.rb:3 — The handler is
-unable to read the response on 429. Fix: retry."
-check accept "a real finding wrapped just before 'cannot read'" "1. BUG — f.py:3 — the client, on 429, retries but
-cannot read the response body. Fix: back off."
 # Real Codex reviews the old whole-reply scan threw away (fixtures/, trimmed): each must count as a review.
 check accept "a real review: one BUG, and 'an enabled address cannot return 1042'" "$(cat "$here/fixtures/codex-cli-0.167.0_2026-11-06_plan-review-cannot-return.txt")"
 check accept "a real clean review: 'the independent replay could not complete'" "$(cat "$here/fixtures/codex-cli-0.167.0_2026-11-07_plan-review-could-not-complete.txt")"
-# Outside a list item, a lowercase line is also checked on its own.
+# Every line is also checked on its own, whatever the line before it is.
 check reject "a lowercase refusal after a verdict line" "No findings
 unable to review this diff."
 check reject "a lowercase refusal after a clean verdict with no full stop" "No BUG/RISK/NIT findings
 cannot access the repository."
+check reject "a lowercase refusal after a verdict in a list item" "- No findings
+unable to review this diff."
+check reject "a lowercase refusal after a bold verdict" "**No findings**
+unable to review this diff."
+check reject "a lowercase refusal continuing a finding line" "1. BUG — checked the parser and
+cannot see the attachments."
 # First person in an earlier clause of the sentence no longer counts.
 check accept "first person in an earlier clause: 'I traced the caller; the handler cannot return'" "- RISK — a.rb:3 — I traced the caller; the handler cannot return nil. Fix: guard it."
 check accept "first person in an earlier clause: 'we assume x; the handler cannot return'" "- RISK — a.rb:3 — we assume x; the handler cannot return nil. Fix: guard it."
@@ -225,6 +226,10 @@ Review this diff.
 No findings."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): first person in a clause joined by 'and'" "- RISK — a.rb:3 — I traced the caller and the handler cannot return nil. Fix: guard it."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding whose clause opens with the phrase" "- BUG — foo.rb:3 — When flag is off, cannot read the cache. Fix: guard."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding wrapped just before 'unable to read'" "- BUG — a.rb:3 — The handler is
+unable to read the response on 429. Fix: retry."
+check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding wrapped just before 'cannot read'" "1. BUG — f.py:3 — the client, on 429, retries but
+cannot read the response body. Fix: back off."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a clean verdict whose prose wraps before the phrase" "No BUG/RISK/NIT findings.
 The handler retries but
 cannot read the body, which the caller expects."
