@@ -199,6 +199,9 @@ check accept "a real finding wrapped just before 'unable to read'" "- BUG — a.
 unable to read the response on 429. Fix: retry."
 check accept "a real finding wrapped just before 'cannot read'" "1. BUG — f.py:3 — the client, on 429, retries but
 cannot read the response body. Fix: back off."
+# Real Codex reviews the old whole-reply scan threw away (fixtures/, trimmed): each must count as a review.
+check accept "a real review: one BUG, and 'an enabled address cannot return 1042'" "$(cat "$here/fixtures/codex-cli-0.167.0_2026-11-06_plan-review-cannot-return.txt")"
+check accept "a real clean review: 'the independent replay could not complete'" "$(cat "$here/fixtures/codex-cli-0.167.0_2026-11-07_plan-review-could-not-complete.txt")"
 # Outside a list item, a lowercase line is also checked on its own.
 check reject "a lowercase refusal after a verdict line" "No findings
 unable to review this diff."
