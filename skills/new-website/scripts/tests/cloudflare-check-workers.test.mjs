@@ -332,9 +332,9 @@ test('a link without noindex is FAIL, named; a version link whose home page redi
   });
 });
 
-test('noindex counts as a directive of x-robots-tag, not as a piece of another word', async (t) => {
+test('noindex counts as a bare directive of x-robots-tag, not as a piece of another word or a value for one crawler', async (t) => {
   const dir = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG });
-  const want = { 'noindex, nofollow': 'ok', 'NOINDEX': 'ok', 'nofollow,noindex': 'ok', noindexing: 'fail', 'notnoindex': 'fail', 'nofollow': 'fail' };
+  const want = { 'noindex, nofollow': 'ok', 'NOINDEX': 'ok', 'nofollow,noindex': 'ok', noindexing: 'fail', 'notnoindex': 'fail', 'nofollow': 'fail', 'googlebot: noindex': 'fail', 'googlebot: nofollow, noindex': 'fail' };
   for (const [value, state] of Object.entries(want)) {
     const rules = (host, req, res) => host === VERSION_HOST && (answerWith(res, CAP.version_link_live, { 'x-robots-tag': value }), true);
     await withBoth({ rules }, async (live, wd) => {

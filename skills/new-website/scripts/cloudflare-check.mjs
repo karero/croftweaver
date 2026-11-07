@@ -296,6 +296,8 @@ export function parseJsonc(text) {
 
 const isFile = (p) => { try { return statSync(p).isFile(); } catch { return false; } };
 const isFolder = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
+// x-robots-tag holds noindex as a bare directive: a list of words, not a value for one named crawler.
+const isPlainNoindex = (v) => /^\s*[a-z-]+(?:\s*,\s*[a-z-]+)*\s*$/i.test(v) && /(?:^|,)\s*noindex\s*(?:,|$)/i.test(v);
 // A Worker's name is a host label; it ends up in the addresses the check asks.
 const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
@@ -1141,9 +1143,9 @@ export function evaluate(obs, target, opts) {
         const r = answers[i];
         if (!r || r.error) return { state: 'fail', text: r ? `no answer from ${l.origin}: ${whyNoAnswer(r.error, opts.timeoutMs)}.` : `${l.origin} was not asked.` };
         if (r.status < 400) {
-          return /(?:^|,)\s*noindex\s*(?:,|$)/i.test(header(r, 'x-robots-tag'))
+          return isPlainNoindex(header(r, 'x-robots-tag'))
             ? { state: 'ok', text: `${l.origin} answers ${r.status} with noindex.` }
-            : { state: 'fail', text: `${l.origin} answers ${r.status} without noindex in x-robots-tag (a noindex for one named crawler does not count), so search engines may index it.` };
+            : { state: 'fail', text: `${l.origin} answers ${r.status} without noindex in x-robots-tag (only a plain list of directives counts; a noindex for one named crawler does not), so search engines may index it.` };
         }
         return r.status === 404 && header(r, 'x-preview-user-error') === 'true'
           ? { state: 'look', text: `${l.origin} does not serve the site (404 from Cloudflare: the link was deleted, mistyped, or is gone for another reason).` }

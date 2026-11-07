@@ -11,7 +11,7 @@ body is cut to its first 100 characters, and `body_bytes_in_capture` is the full
 | `address_off_accept_encoding_identity` | the same, with `accept-encoding: identity` | 404, an HTML page of 19,984 bytes |
 | `address_on_no_accept_encoding` | the same address with `workers_dev` on, no `accept-encoding` header | 200, the site, `x-robots-tag: noindex` |
 | `version_link_live` | a live version link of the Worker | 200, the site, `x-robots-tag: noindex` |
-| `address_never_created_no_accept_encoding` | the address of a Worker name that was never created, no `accept-encoding` header | 404, text/plain, `error code: 1042`, the same as `address_off_no_accept_encoding` |
+| `address_never_created_no_accept_encoding` | the address of a Worker name that was never created, no `accept-encoding` header | the same answer as `address_off_no_accept_encoding` |
 | `preview_alias_live` | a live Preview (alias) link | 200, the site, `x-robots-tag: noindex` |
 | `preview_alias_dead` | an alias that does not exist | 404, HTML, `x-preview-user-error: true` |
 
