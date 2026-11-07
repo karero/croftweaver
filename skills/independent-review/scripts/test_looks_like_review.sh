@@ -235,6 +235,14 @@ check reject "one finding and a refusal split across list lines" "- BUG — a.rb
 check reject "one finding and a refusal split across a numbered list" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
 1. We are unable to
 2. review this diff."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): one finding and a refusal split by a blank line" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
+I cannot
+
+read the diff."
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): one finding and a refusal inside quotes, '\"Cannot review'" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
+\"Cannot review this file.\""
+check accept "KNOWN WRONG (B-REFUSAL-TEXT): one finding and a refusal in a code span, '\`cannot review'" "- BUG — a.rb:1 — the handler swallows the error. Fix: raise.
+\`cannot review the diff.\`"
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding wrapped just before 'unable to read'" "- BUG — a.rb:3 — The handler is
 unable to read the response on 429. Fix: retry."
 check reject "KNOWN WRONG (B-REFUSAL-TEXT): a real finding wrapped just before 'cannot read'" "1. BUG — f.py:3 — the client, on 429, retries but

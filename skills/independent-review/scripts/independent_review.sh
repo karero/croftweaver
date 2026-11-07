@@ -1131,8 +1131,8 @@ looks_like_review() {
   #    printf, and the pipeline's status flips — a refusal accepted, a clean review rejected.
   #    The phrase counts only after I or we in its clause, or at a clause start: "hidden fairs cannot open a
   #    window" is code (B-REFUSAL-TEXT). Every line is checked on its own, and again with its quote, heading
-  #    and list markers cut and joined to the one before (unless it is blank or then opens with a capital);
-  #    a phrase that counts either way rejects.
+  #    and list markers cut and joined to the one before (unless either is blank, or it then opens with a
+  #    capital); a phrase that counts either way rejects.
   if [ "$finding_count" -le 1 ]; then
     local joined
     joined="$(awk '{ sub(/[[:space:]]+$/, ""); while (sub(/^[[:space:]]*([>#]+|[-*+][[:space:]]|[0-9]+[.)])[[:space:]]*/, "")) ;
