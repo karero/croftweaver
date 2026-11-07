@@ -4,8 +4,8 @@
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
 | 2 | Plan review gate (Normal: a tooling fix, no red team) | ✅ gate closed at `45abb125`: 7 rounds, the final full read and the wording pass, no BUG or RISK open; the owner's go for the gate and to build, 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
-| 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
-| 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
+| 3 | Build, tests, DIFF gate, one pull request | ✅ built and reviewed (2 rounds, Codex + GLM 5.3, no BUG the change introduced open); pull request opened from this branch | commits `5aaf2ed2`, `21710f92`, `7e0718e0`; `REVIEW-diff-2026-11-07-glm-marker-and-failed-reason.md` |
+| 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ✅ written 2026-11-07 | the 2026-11-07 "keeps GLM's review" entry in `~/.claude/HARNESS-CHANGES.md` |
 
 Raised by the session that fixed the refusal check (karero/croftweaver#476). Scope 3 was added by
 the owner on 2026-11-07 ("Same PR"), so the three fixes ship as one pull request.
