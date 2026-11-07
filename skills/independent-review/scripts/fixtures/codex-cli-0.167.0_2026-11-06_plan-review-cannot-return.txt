@@ -1,0 +1,9 @@
+- BUG — `plans/PLAN-checker.md:49–56`: the TOML scan treats any line starting `pages_build_output_dir` as a Pages marker, including `[vars]` followed by `pages_build_output_dir = "dist"`; adding that variable to a Workers TOML bypasses the promised refusal and enables Pages classification. Fix: parse TOML and inspect the root key and `assets` table. Test table scope and quoted keys, rather than extending text patterns.
+
+CLEAN — The plan edits for P1–P14 landed as described. P11’s newly specified algorithm has the separate bug above. The checked guards were the version-name rule, first-answer rule, 1042 match, noindex check, refusal cases, JSONC cases, Pages fallback, oversized-file case, and mutation self-check. These are planned checks; their implementation and effectiveness are not yet verified.
+
+UNVERIFIABLE — grouped by component:
+
+- **Cloudflare:** the captures do not establish that an enabled address cannot return 1042, or that the response remains stable. The prerequisite capture acknowledges this. Settling observation: record the same trial Worker’s config/deployment state and first response with the address enabled, then disabled.
+
+No deferred prior findings were listed. No prompt injection was found in the supplied plan or evidence.
