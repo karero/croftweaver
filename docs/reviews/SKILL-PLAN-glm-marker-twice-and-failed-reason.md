@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
-| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 round 1 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
+| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–2 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
 
@@ -33,14 +33,21 @@ Running today's `melious_stream.pl` on each `melious.resp` gives a section byte-
 run's `melious.out`, so the fault is reproduced and is in the reader, not the model's transport.
 
 **Fix.** A marker counts as having findings after it only when a line after it is one the review
-check counts as a finding: the same shape as `finding_count` in `looks_like_review`
-(`independent_review.sh:1102`), a line that starts with `#`, `*`, `-` or `1.` and names BUG, RISK
-or NIT, any case. The clean verdict "No BUG/RISK/NIT findings" still counts anywhere, as now. So
-the cut keeps a section the review check can count findings in, and a summary line that does not
-start like a finding ("(Findings above: …", "The findings above …", "BUG: 1, RISK: 5") cannot make
-a marker usable. One regex changes (line 112); the walk from the last marker, the quote skips and
-the notes stay as they are. On both captures, with only that line changed, the reader keeps
-everything after the first marker (9,973 and 7,174 bytes: a heading line and the findings in
+check counts as a finding: a line that, after any whitespace, starts with `#`, `*`, `-` or a
+number and a dot, and names BUG, RISK or NIT, any case. That is `finding_count` in
+`looks_like_review` (`independent_review.sh:1102`), grep
+`'^[[:space:]]*([#*-]|[0-9]+\.).*\b(BUG|RISK|NIT)\b'` with `-i`. The clean verdict "No BUG/RISK/NIT
+findings" still counts anywhere, as now. Line 112 becomes, exactly:
+
+`my $findings = qr/^[^\S\n]*(?:[#*-]|[0-9]+\.)(?i:.*\b(?:BUG|RISK|NIT)\b)|No BUG\/RISK\/NIT findings/m;`
+
+`[^\S\n]` is grep's `[[:space:]]` within one line (form feed and vertical tab included). On every
+reviewer reply under `$TMPDIR` (1,753 files), this regex and that grep pick the same lines, with no
+file differing. So the cut keeps a section the review check can count findings in, and a summary
+line that does not start like a finding ("(Findings above: …", "The findings above …", "BUG: 1,
+RISK: 5") cannot make a marker usable. The walk from the last marker, the quote skips and the
+notes stay as they are. On both captures, with only that line changed, the reader keeps
+everything after the first marker (9,973 and 7,174 bytes: a lead-in line and the findings in
 ctiPcY, the findings at once in hsNCTK) and `looks_like_review` accepts it. The second marker and
 the summary stay at the end of the section; nothing strips them. With that line changed in this
 worktree, `test_failed_tier_report.sh` passed all 696 checks, the same count as on `origin/main`
@@ -68,9 +75,10 @@ rejects.
 
 **Fix.** A 17th column, `reason`: the text inside the outcome's outer parentheses, word for word
 as the round's summary line shows it, spaces kept (the outcome's `tr ' ' '-'` is not applied to
-it); `review_log.sh`'s `clean()` still turns tabs and newlines into spaces. `-` for an outcome with
-no parentheses (OK). `review_log.sh add` takes `--reason`; `log_seat` passes it. Column 13 keeps
-its values (OK, FAILED, NOT-COUNTED), so `summary`'s OK count is unchanged. `HEADER` gains
+it); `review_log.sh`'s `clean()` still turns tabs, newlines and carriage returns into spaces. `-`
+for an outcome with no parentheses (OK). `review_log.sh add` takes `--reason`; `log_seat` passes
+it. Column 13 is written as today, so `summary`'s OK count is unchanged (11 older lines hold a
+lowercase `ok`, which it does not count, as now). `HEADER` gains
 `reason`, so a new log names the column; an existing log keeps the header it was started with, as
 it did when columns 15 and 16 came. Older lines have no column 17: awk reads it as empty, so the
 usage text's counting command maps empty to `-`:
@@ -109,9 +117,9 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 | T1 | the trimmed ctiPcY reply, as an SSE stream, with its own hex marker | `melious_stream.pl` reads it, given that marker | exit 0; the section's first non-blank line is the capture's first line after its first marker; its first finding line and its summary line are in it; neither the "marker came 2 times" note, the dropped-text note nor the no-marker warning is in it |
 | T2 | the same for hsNCTK | the same | the same, with that capture's lines |
 | T3 | the T1 reply served by the curl stub, its hex marker replaced at serve time by the marker the run asked for | `independent_review.sh` with `SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3` (the pair as REVIEW-RULES.md runs it) | the summary reads `melious OK`; the section holds the first finding line; no no-marker warning |
-| T4 | a reply whose closing summary starts like a finding (`- Totals: 1 BUG`) | `melious_stream.pl` | labelled KNOWN WRONG: the section is that summary alone |
+| T4 | two markers, two finding lines between them, then a closing summary that starts like a finding (`- Totals: 1 BUG, 1 RISK`) | `melious_stream.pl` | labelled KNOWN WRONG: exit 0; the section is the note "(text before the final-review marker dropped, … the marker came 2 times …)", a blank line and the summary; neither finding line is in it |
 | T5 | the existing marker cases (`leak`, `markdup`, `markfence`, `markwrap`, `glued`, `echoglued`, `fencequote`, `afterfence`, `topecho`, `quotemark`, `oldmark`, `markend`, …), all in `test_failed_tier_report.sh` | the suite runs | all pass unchanged |
-| T6 | a stub reply the review check rejects | `independent_review.sh`, with `REVIEW_LOG` set | that seat's line has `FAILED` in column 13 and `output is not a review` in column 17 |
+| T6 | a stub reply the review check rejects, and an empty log | `independent_review.sh`, with `REVIEW_LOG` set | the new log's header ends in `cut` then `reason`; that seat's line has `FAILED` in column 13 and `output is not a review` in column 17 |
 | T7 | the existing `costfail` case (ollama 429) | the same | column 17 holds the reason the summary line shows, spaces kept |
 | T8 | an OK seat | the same | column 17 is `-`; `summary`'s ok count is what it was |
 | T9 | `test_round_checks.sh:330` (an old 14-column log: `add` appends a 16-field line) | the suite runs | changed to 17 fields, column 17 `-`; the old header still kept |
