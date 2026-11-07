@@ -2113,8 +2113,8 @@ check "content, refusals: no seat ran" sh -c '[ ! -e "$1/codex-ran" ] && [ ! -e 
 #     is Codex's own. The two captures are the real replies (whole lines cut, nothing edited); the
 #     expected lines below are typed from the captures, not from what the reader printed.
 FX="$HERE/fixtures"
-CAP_A="$FX/melious-glm-5.3_2026-11-06_final-review-marker-twice-a.txt"
-CAP_B="$FX/melious-glm-5.3_2026-11-07_final-review-marker-twice-b.txt"
+CAP_A="$FX/melious-glm_2026-11-06_final-review-marker-twice-a.txt"
+CAP_B="$FX/melious-glm_2026-11-07_final-review-marker-twice-b.txt"
 reader() {   # reader <name> <reply file> <marker>: melious_stream.pl on the reply, sent as a stream
   perl -MJSON::PP -e 'open my $fh, "<:encoding(UTF-8)", $ARGV[0] or die; local $/; my $t = <$fh>; my $j = JSON::PP->new->utf8->encode({choices => [{index => 0, delta => {content => $t}, finish_reason => "stop"}]}); print "data: $j\n\ndata: [DONE]\n\n"' "$2" >"$T/$1.resp"
   perl "$HERE/perl/melious_stream.pl" "$T/$1.resp" 200 "$T/$1.tok" "$3" "$T/$1.full" >"$T/$1.out" 2>"$T/$1.err"

@@ -3,12 +3,12 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
-| 2 | Plan review gate (Normal: a tooling fix, no red team) | ✅ gate closed at `45abb125`: 7 rounds, the final full read and the wording pass, no BUG or RISK open; waiting on Daniel's go to build; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
+| 2 | Plan review gate (Normal: a tooling fix, no red team) | ✅ gate closed at `45abb125`: 7 rounds, the final full read and the wording pass, no BUG or RISK open; the owner's go for the gate and to build, 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
 
 Raised by the session that fixed the refusal check (karero/croftweaver#476). Scope 3 was added by
-Daniel on 2026-11-07 ("Same PR"), so the three fixes ship as one pull request.
+the owner on 2026-11-07 ("Same PR"), so the three fixes ship as one pull request.
 
 ## 1. GLM's marker written twice
 

@@ -2,7 +2,7 @@
 
 Artifact: `docs/reviews/SKILL-PLAN-glm-marker-twice-and-failed-reason.md`. Base `2275e756` · depth:
 Normal (a tooling fix to the review script and its cost log; no box, user data, login, money,
-deletion or schema, so no red team) · Daniel's go for the gate 2026-11-07. Seats: Codex and GLM 5.3
+deletion or schema, so no red team) · the owner's go for the gate 2026-11-07. Seats: Codex and GLM 5.3
 on melious in one command (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`), fresh-eyes Sonnet in round
 1. Evidence: `EVIDENCE-glm-marker-plan.txt` in the session group's shared notes folder (it quotes
 private captures, so it stays out of this public repo).
