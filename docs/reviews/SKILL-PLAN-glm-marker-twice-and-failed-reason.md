@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-07 | this file |
-| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–4 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
+| 2 | Plan review gate (Normal: a tooling fix, no red team) | 🔄 rounds 1–5 done; Daniel's go for the gate 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ⬜ | — |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ⬜ | — |
 
@@ -41,11 +41,13 @@ copy counted a line the grep does not (form feed, NEL, `RIſK` / the Kelvin sign
 marker usable whose section the check then rejects. So line 112 becomes a strict rule that counts a
 line only in a shape the grep surely counts too:
 
-`my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?aai:BUG|RISK|NIT)(?![A-Za-z0-9_\x{80}-\x{10FFFF}])|No BUG\/RISK\/NIT findings/m;`
+`my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?![A-Za-z0-9_\x{80}-\x{10FFFF}])|No BUG\/RISK\/NIT findings/m;`
 
 In words: ASCII whitespace, then `#`, `*`, `-` or a number and a dot, then printable ASCII only, up
-to the label BUG, RISK or NIT in ASCII letters, any case, with no ASCII word character before it
-and neither a word character nor any non-ASCII character after it. Each piece is ASCII and is
+to the label BUG, RISK or NIT, each letter ASCII upper or lower case, with no ASCII word character
+before it and neither a word character nor any non-ASCII character after it. There is no `/i`, so no
+Unicode case folding, and only regex features Perl 5.10 has, the version the transports require (round 5; not run on
+5.10 itself). Each piece is ASCII and is
 inside what the grep takes, so the reader never counts a line the check does not. The clean
 verdict "No BUG/RISK/NIT findings" still counts anywhere, as now.
 
@@ -55,8 +57,11 @@ before its label ("1. Dash guard — codex BUG …"). On the decoded text of eve
 line the grep does not, and misses 970 lines the grep counts, in 609 files; the ones sampled are
 prose that names a label after a dash or a curly quote. That costs nothing in practice: replaying
 every real `melious.resp` there through the reader with its run's own marker (525 runs), the
-section is byte-identical to round 3's regex in every run; the 19 runs whose prompt holds more
-than one marker give the same section under each of them (42 run and marker pairs). Had it mattered, the
+section is byte-identical to the regex this plan held after round 3 (the ASCII class, then
+`(?i:.*\b(?:BUG|RISK|NIT)\b)`) in every run; the 19 runs whose prompt holds more
+than one marker give the same section under each of them (42 run and marker pairs). The final spelling
+of the labels gives the same section as round 4's `(?aai:BUG|RISK|NIT)` in all 572 run and marker
+pairs there now. Had it mattered, the
 loss goes the loud way: the walk tries the earlier markers, and only when none qualifies is the
 reply kept whole with the no-marker warning.
 
@@ -79,8 +84,9 @@ the fix:** a summary after the second marker that does start like a finding ("- 
 RISK") makes that marker usable again. The section is then the reader's note ("the marker came 2
 times …, so check that the section starts with the review") and the summary, and the review check
 ACCEPTS it: one finding line, no refusal. The seat counts as OK on a summary, and the note is the
-only warning. Today's code does the same with that reply. Not seen; the build pins it as a KNOWN
-WRONG test case.
+only warning. Today's code does the same with that reply. The same goes for a summary that quotes the clean
+verdict ("(No BUG/RISK/NIT findings above)"), which still counts anywhere. Neither seen; the build
+pins the first as a KNOWN WRONG test case.
 
 **Rejected.** Taking the FIRST usable marker: a leaked trace can restate the ask, marker and all,
 before the real one (#165, cases `leak` and `echoglued` in `test_failed_tier_report.sh`).
@@ -151,10 +157,12 @@ capture keeps the quoted line at 317 and the footer pair. Expected values are wr
 | T10 | the trimmed r3 `codex.err` | `codex_tokens` | prints 72315 |
 | T11 | the same with the footer removed | `codex_tokens` | prints nothing |
 | T12 | a real `codex.err` whose footer is followed by the rollout ERROR line | `codex_tokens` | prints that footer's number, written by hand |
-| T13 | `independent_review.sh` | a check in `test_round_checks.sh` lists every `outcome="` assignment | each one but `OK` holds " (", so no outcome can reach `log_seat` without a reason; a new branch without one fails the suite |
-| T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, or naming `RIſK` or `RIS` + Kelvin sign, each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
+| T13 | `independent_review.sh` | a check in `test_round_checks.sh` lists every literal `outcome="` assignment | each one but `OK` holds " (". It catches a new branch written the way all nine are today; an outcome built any other way gets past it and would log reason `-` |
+| T14 | two real findings, a second marker, then a footer led by NEL, by a no-break space, naming `RIſK` or `RIS` + Kelvin sign, or reading `- éBUG:`, `- BUGé:` or `- xBUG:`, each served by the curl stub with the run's own marker | `independent_review.sh` with the melious seat | `melious OK`; both findings in the section, every case |
 
-Mutation check (the `mutation-check` skill): revert the regex and T1–T3 must fail; put back round 3's regex (`(?i:.*\b(?:BUG|RISK|NIT)\b)` after the ASCII class) and T14's `RIſK` and Kelvin cases must fail; drop
+Mutation check (the `mutation-check` skill): revert the regex and T1–T3 must fail; put back round 3's regex (`(?i:.*\b(?:BUG|RISK|NIT)\b)` after the ASCII class) and T14's `RIſK` and Kelvin cases must fail;
+widen the printable-ASCII middle to `.*?` and T14's `éBUG` case must fail; drop the lookbehind and its
+`xBUG` case must fail; drop the non-ASCII range from the lookahead and its `BUGé` case must fail; drop
 `--reason` from `log_seat` and T6–T7 must fail; restore the first-match read in `codex_tokens` and
 T10 must fail.
 

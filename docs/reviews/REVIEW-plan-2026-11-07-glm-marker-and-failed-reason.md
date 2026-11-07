@@ -13,6 +13,7 @@ private captures, so it stays out of this public repo).
 | 2 | `10385968` | verify: full plan, PRIOR round 1, evidence E1–E13 (18,123 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 159 s, 54,161 · melious 333 s, 47,617 | 2 / 0 / 4 (Codex 2/0/0, melious 0/0/4); 6 after dedup |
 | 3 | `6d389c87` | verify: full plan, PRIOR round 2, evidence E1–E14 (20,186 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 158 s, 54,161 · melious 355 s, 45,530 | 1 / 1 / 3 (Codex 1/0/0, melious 0/1/3); 5 after dedup |
 | 4 | `c30648cc` | verify, `--earned-by finding-regex`: full plan, PRIOR round 3, evidence E1–E15 (23,025 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 186 s, 54,161 · melious 327 s, 44,410 | 2 / 2 / 1 (Codex 2/0/0, melious 0/2/1); 4 after dedup |
+| 5 | `e32d69a3` | verify, `--earned-by finding-regex --cut "line 112's copy of the grep replaced by a strict ASCII-only rule"`: full plan, PRIOR round 4, evidence E1–E16 (26,317 bytes) | Codex gpt-6.1-sol; melious glm-5.3 | Codex 161 s, 54,161 · melious 312 s, 50,141 | 0 / 3 / 3 (Codex 0/2/0, melious 0/1/3); 5 after dedup |
 
 ## Round 1 findings
 
@@ -100,3 +101,21 @@ Round 5 is earned: D1 is a substantive BUG of the kind `finding-regex`, which ea
 round 5 runs with `--earned-by finding-regex --cut "line 112's copy of the review check's grep
 replaced by a strict ASCII-only rule that counts only lines the grep counts"`. D3 is a RISK whose
 fix adds a check and changes nothing that runs, so it earns nothing.
+
+## Round 5 findings
+
+No BUG. Both seats confirmed D1, D2 and D4 as landed, and Codex's replay reproduced D1's fix on
+`RIſK` and the Kelvin sign; D3 only in part (E1).
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| E1 | RISK | Codex, melious | T13 reads only literal `outcome="` assignments, so an outcome built any other way gets past it; the plan credited it with "no outcome can reach `log_seat` without a reason" | fixed as wording: T13's claim narrowed to what it reads; the cost of a miss is a visible `-` in the count, and all nine assignments today are literal |
+| E2 | RISK | Codex | `(?aai:…)` needs Perl 5.14; the script requires 5.10 (`independent_review.sh:1371`), and its Perl files say so (`ollama_stream.pl:23`: "the API transports need Perl 5.10, not 5.14") | fixed by a cut: case folding taken out; the labels are spelled `[Bb][Uu][Gg]`, `[Rr][Ii][Ss][Kk]`, `[Nn][Ii][Tt]`, no `/i` at all; probes, the replay of every real reply and the suite give the same results as round 4's spelling (E17). Not run on Perl 5.10 itself. An earning RISK (it changed what runs), so round 6 runs |
+| E3 | NIT | melious | the unanchored clean verdict "No BUG/RISK/NIT findings" in a summary makes a second marker usable too | fixed: named beside the `- Totals` case in §1's "Still wrong" |
+| E4 | NIT | melious | T14 pinned only the whitespace and case-folding ways in; widening the middle, or dropping the lookbehind or the lookahead's non-ASCII range, passed it | fixed: T14 adds `- éBUG:`, `- BUGé:`, `- xBUG:`; each of the three mutations is caught by exactly one of them (E17) |
+| E5 | NIT | melious (outside scope) | D3's row cites 1689–1733, but 1689 is "a test invocation" | refuted: `independent_review.sh:1689` is `outcome="OK"` (E17) |
+
+Codex's "byte-identical to round 3's regex" UNVERIFIABLE entry read round 3 as candidate 3; §1
+now names the regex compared (the one this plan held after round 3, candidate 4).
+
+Round 6 is earned by E2 (`finding-regex`, cut: case folding removed).
