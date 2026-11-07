@@ -73,9 +73,10 @@ The standard pair (1 + 2) is the default for both gates and runs in parallel. `-
 stops at the first reviewer that counts — a conscious choice, honored for a plan too. The script
 flags any round with fewer than 2 counted reviewers: degraded unless that was the choice; say which.
 An empty Melious balance is the owner's standing choice (2026-10-27): with Melious as the second
-seat, that round counts on Codex alone, and no rerun is owed; the script says so. There is no
-balance check before round 1: Melious has no balance route an API key can read (checked
-2026-11-07), and Codex alone is the accepted outcome.
+seat, that round counts on Codex alone, and no rerun is owed; the script says so. It learns of
+the empty balance from the review call's own error; nothing checks the balance before round 1,
+since no balance route an API key can read was found (on 2026-11-07, `/v1/billing/balance`
+answered a working key with 401 "Please log in").
 
 **Independence rule.** The tier of the HOST's own model family is the fresh-eyes seat, never
 cross-model. The gate needs at least one successful cross-model reviewer; same-family only is
