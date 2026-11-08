@@ -111,6 +111,31 @@ settings".
   the `_headers` rules, HTTPS and the 404 status show only on a deployed site: at the
   baseline and pre-launch runs they read "not checked yet: not deployed", and the live run
   checks them.
+- The legal pages' answer (`README.md` in the folder that holds `package.json`): quote, in the
+  report's Imprint / privacy row, every line in one of the three forms `AGENTS.md` §5 gives
+  (`legal pages: reviewed by a lawyer (<date>)`, `legal pages: own texts (<date>)`, `legal pages:
+  published as drafted (owner's decision, <date>)`). Each line is confirmed with the owner at
+  every pre-launch run, as below.
+  - No such line: a blocker (🔴): the owner's answer is not recorded; `AGENTS.md` §5 asks for it.
+    Do not ask here. Claim no test failure: the site's tests pass a legal page still listed in
+    `UNFILLED_UNTIL_LAUNCH` whose draft notice shows.
+  - `reviewed by a lawyer` or `own texts`: at each pre-launch run, quote the line and ask the
+    owner whether it is still true for the pages it was recorded for, one question per line. The
+    README names no pages, so the owner, who gave the answer, says which. "Yes" goes in the
+    report as "owner confirmed, <date>". "No" or "don't know" is a blocker that points at
+    `AGENTS.md` §5: record a true answer, then launch.
+  - `published as drafted`: no question. Report it as 🟡: "The legal pages are the kit's drafts,
+    published on your decision of <date>; a lawyer's review is still open to you."
+  - A legal page added after the newest line: at every pre-launch run, for each legal page in
+    `tests/_helpers.ts` `PAGES` (last path segment `privacy`, `datenschutz` or `impressum`), run
+    `git log --diff-filter=A --format=%cs -- <its file under src/pages/>`, one file per call, and
+    take the first line: the date it last entered git under that name. Not `--follow`, which
+    dates a renamed file (the `/datenschutz` swap) by the file it came from. A date after the
+    newest line's date is a blocker naming that page: `AGENTS.md` §5 asks again for it and adds
+    a dated line. The newest line's own day counts as covered. No date (no output: the file is
+    not committed; or an error: not a git repo) is a blocker of its own: commit the page, then
+    run the check again. This holds whatever the answer, `published as drafted` included. Claim
+    no test failure: the tests compare no dates.
 
 **Business in Germany:**
 - **Impressum** per § 5 DDG (the Digitale-Dienste-Gesetz replaced the TMG in May 2024): name,

@@ -39,7 +39,7 @@ test skipped, filtered out or missing].
 
 | Area | Result | Finding |
 |---|---|---|
-| Imprint / privacy / consent | [✅ / ⚠️ / ❌ / not checked] | [one line] |
+| Imprint / privacy / consent | [✅ / ⚠️ / ❌ / not checked] | [each `legal pages:` line quoted, with its state: "owner confirmed, <date>", a blocker, or 🟡 published as drafted; then one line] |
 | Titles and descriptions unique across pages | | |
 | The starter's example values, `llms.txt` slots, the 404 page's text | | |
 | [Story layer / blog / testimonials / contact form, as the settings say] | | |
