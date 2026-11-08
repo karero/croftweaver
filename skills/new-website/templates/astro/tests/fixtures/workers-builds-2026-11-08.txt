@@ -1,5 +1,5 @@
-# What real Cloudflare Workers Builds builds saw, 2026-11-08. check_analytics_gate.sh reads the
-# ENV-NAMES lines: the branch variable src/config.ts reads must be in each. A build step wrote
+# What real Cloudflare Workers Builds builds saw, read 2026-11-08. check_analytics_gate.sh reads
+# the ENV-NAMES lines: the branch variable src/config.ts reads must be in each. A build step wrote
 # public/ci-env-build.txt (variable NAMES only, never values, plus the branch and commit); it was
 # read back with curl. Throwaway repos and Workers; account and address left out.
 

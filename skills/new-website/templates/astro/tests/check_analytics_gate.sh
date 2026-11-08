@@ -111,9 +111,9 @@ export ANALYTICS_SRC
 preview=main
 [ "$prod" != main ] || preview=preview
 
-# Workers Builds' branch variable, as the enabled: line names it beside CF_PAGES_BRANCH. With
-# analytics on, it must be named there once and appear in a real Workers Builds capture
-# (tests/fixtures/workers-builds-*.txt), so a name misspelt in config.ts cannot pass.
+# Workers Builds' branch variable. With analytics on, the enabled: line must read it beside
+# CF_PAGES_BRANCH, and every real Workers Builds capture (tests/fixtures/workers-builds-*.txt)
+# must list it; the builds below set it, so another name in config.ts would pass them unchecked.
 wvar=WORKERS_CI_BRANCH
 if [ "$use" != false ]; then
   wvar_fail() {
@@ -121,10 +121,9 @@ if [ "$use" != false ]; then
     echo "  A site on Workers Builds needs the enabled: line of the 0.35 release notes in src/config.ts."
     exit 1
   }
-  [ "$(grep -cE '^[[:space:]]*enabled:' src/config.ts)" = 1 ] || wvar_fail "src/config.ts needs exactly one enabled: line."
-  names="$(grep -E '^[[:space:]]*enabled:' src/config.ts | grep -oE 'process\.env\.[A-Za-z_][A-Za-z0-9_]*' | sed 's/^process\.env\.//' | grep -vx CF_PAGES_BRANCH | sort -u || true)"
-  [ -n "$names" ] && [ "$(printf '%s\n' "$names" | wc -l | tr -d ' ')" = 1 ] || wvar_fail "the enabled: line in src/config.ts names no Workers Builds branch variable beside CF_PAGES_BRANCH, or more than one."
-  wvar="$names"
+  [ "$(grep -cE '^[[:space:]]*enabled:.*USE_ANALYTICS' src/config.ts)" = 1 ] || wvar_fail "src/config.ts needs exactly one enabled: line reading USE_ANALYTICS."
+  names="$(grep -E '^[[:space:]]*enabled:.*USE_ANALYTICS' src/config.ts | grep -oE 'process\.env\.[A-Za-z_][A-Za-z0-9_]*' | sed 's/^process\.env\.//' | grep -vx CF_PAGES_BRANCH | sort -u || true)"
+  [ "$names" = "$wvar" ] || wvar_fail "the enabled: line in src/config.ts must read process.env.$wvar beside CF_PAGES_BRANCH, and no other variable; it reads: ${names:-none}."
   captures=(tests/fixtures/workers-builds-*.txt)
   [ -f "${captures[0]}" ] || wvar_fail "no Workers Builds capture tests/fixtures/workers-builds-*.txt to check the name against."
   for capture in "${captures[@]}"; do

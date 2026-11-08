@@ -890,7 +890,7 @@ if [ -z "$site" ]; then
   fi
   exit 0
 fi
-# Checks 10 s apart; a Workers build took about 300 s, so the wait is about 6 minutes.
+# Checks 10 s apart; the slowest Workers build seen took about 300 s, so wait about 6 minutes.
 wait_min=6
 echo "→ Verifying the live site serves this exact build (about $wait_min min)…"
 for i in $(seq 1 $((wait_min * 6))); do
@@ -945,8 +945,8 @@ echo "      re-connect the GitHub integration, then 'Create deployment' from 'pr
 echo "    • On a Worker, Deployments → View build history: a failed build → 'Retry build'."
 echo "      NO build for it → Settings → Build: the Git repository and its branch control."
 echo "      A Worker deployed by command builds nothing on a push: run its deploy command."
-echo "  (Brand-new Pages site whose domain isn't connected yet? Then this is expected —"
-echo "  verify via the project's *.pages.dev URL instead.)"
+echo "  (Brand-new site whose domain isn't connected yet? Then this is expected — verify via"
+echo "  the project's *.pages.dev URL, or a Worker's *.workers.dev URL if it has one, instead.)"
 exit 1
 }
 
