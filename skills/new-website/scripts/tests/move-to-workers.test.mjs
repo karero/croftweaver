@@ -315,7 +315,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.notEqual(text, TEMPLATE_CONFIG, "the template's SITE.url line was not found");
     return { 'src/config.ts': text };
   };
-  const run = async (url, zones, files = {}) => scenario({ site: makeSite({ files: { ...config(url), ...files } }), world: { zones } }).go(['check']);
+  const run = async (url, zones, files = {}, cmd = 'check') => scenario({ site: makeSite({ files: { ...(url ? config(url) : {}), ...files } }), world: { zones } }).go([cmd]);
   // No Workers config, and a Pages Function: two of stage 1's four gaps.
   const unfinished = { 'workers.jsonc': null, 'functions/go/email.ts': 'export const onRequest = () => new Response("");\n' };
 
@@ -332,6 +332,18 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     const r = await run('https://www.lenas-backstube.example', zones);
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to lenas-backstube.example.\n'), r.text);
+  });
+  test("S1c: the template's own example.com is no address: the refusal keeps today's words", async () => {
+    const r = await run('', withoutSite(), { 'src/config.ts': TEMPLATE_CONFIG });
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+  });
+  test('S1d: a src/config.ts with CRLF line ends and the url on the brace line is still read', async () => {
+    const files = config('https://lenas-backstube.example');
+    files['src/config.ts'] = files['src/config.ts'].replace('export const SITE = {\n  url:', 'export const SITE = { url:').replace(/\n/g, '\r\n');
+    const r = await run('', withoutSite(), files);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('src/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
   });
   test('S2: a pages.dev address is not a domain of its own, and the site launches first', async () => {
     const r = await run('https://lenas-backstube.pages.dev', withoutSite());
@@ -353,6 +365,12 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     const at = r.text.indexOf('If no move is open, stage 1 is not done either:\n- No Workers config at ');
     assert.ok(at > r.text.indexOf('may not be on Cloudflare yet') && r.text.indexOf('may not be on Cloudflare yet') > 0, r.text);
     assert.match(r.text.slice(at), /\n- [0-9a-f]{7} holds functions\/go\/email\.ts in functions\/\./);
+  });
+  test('S4b: record with the same token stops at the token alone: the gaps are listed by check only', async () => {
+    const r = await run('https://lenas-backstube.example', withoutSite(), unfinished, 'record');
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('may not be on Cloudflare yet'), r.text);
+    assert.ok(!r.text.includes('stage 1 is not done') && !r.text.includes('No Workers config'), r.text);
   });
   test('S5: with the recipe\'s token, check lists both gaps in one stop', async () => {
     const r = await run('https://lenas-backstube.example', recipe(), unfinished);

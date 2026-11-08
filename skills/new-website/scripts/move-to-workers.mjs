@@ -673,8 +673,9 @@ async function prepare(opts, io, run) {
   if (ctx.sha !== ctx.tip) await ctx.haveCommit(ctx.sha, 'the frozen commit');
   let wc;
   try { wc = await readWorkersConfig(git, ctx.sha); } catch (e) {
-    if (!(e instanceof Stop)) throw e;
-    throw gapsStop(ctx.sha, await stageOneGaps(git, ctx.sha));
+    if (!(e instanceof Stop) || ctx.open) throw e; // an open move's checks are lifted: only this one stops it
+    const gaps = await stageOneGaps(git, ctx.sha);
+    throw gaps.length ? gapsStop(ctx.sha, gaps) : e;
   }
   ctx.worker = wc.cfg.name;
   ctx.configFile = wc.file;
@@ -720,10 +721,11 @@ async function prepare(opts, io, run) {
 async function siteAddress(git) {
   const r = await git('show', 'HEAD:src/config.ts');
   if (r.code !== 0) return null;
-  const site = /^export const SITE = \{\n([^]*?)^\}/m.exec(r.stdout)?.[1] ?? '';
+  const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(r.stdout.replace(/\r/g, ''))?.[1] ?? '';
   const url = /^\s*url:\s*['"]([^'"\n]+)['"]/m.exec(site)?.[1];
-  if (!url || url === 'https://example.com') return null;
-  try { return { url, host: new URL(url).hostname.toLowerCase() }; } catch { return null; }
+  let host;
+  try { host = new URL(url).hostname.toLowerCase().replace(/\.$/, ''); } catch { return null; }
+  return host && host !== 'example.com' ? { host } : null;
 }
 
 // A refused token: what was found, the permissions that reach (when more than one zone does), and
@@ -737,7 +739,7 @@ async function zoneRefusal(ctx, zones, reaching) {
   const a = await siteAddress(ctx.git);
   const own = a && zones.map((z) => z.name).filter((n) => a.host === n || a.host.endsWith(`.${n}`)).sort((x, y) => y.length - x.length)[0];
   if (a && !own && /\.(pages|workers)\.dev$/.test(a.host)) {
-    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address ${a.url}, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says (the kit has no guide yet for launching straight onto a Worker); if it has one, put it in SITE.url.`);
+    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address https://${a.host}, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says (the kit has no guide yet for launching straight onto a Worker); if it has one, put it in SITE.url.`);
   } else if (a && !own) {
     lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address ${a.host}, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet, or it is in an account this token cannot see. If it is not on Cloudflare yet, put it there first. Then make the token with Zone Read and DNS Edit, Zone Resources set to it.`);
   } else if (reaching.length) {

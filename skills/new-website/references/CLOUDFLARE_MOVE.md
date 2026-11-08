@@ -59,9 +59,10 @@ whose DNS reaches more than one zone or none, one with no end date or an end dat
 out, and one that is not active. When more than one zone is reached, the refusal shows the DNS
 and zone-settings permissions Cloudflare lists there: a token made with account permissions only
 was listed with DNS Edit in every zone of its account (read on 2026-11-08; which permission gave
-that is not known). The refusal names the site's address as `SITE.url` in `src/config.ts` gives it:
-when no zone the token lists is that domain or a parent of it, the domain may not be on Cloudflare
-yet; when it is a `pages.dev` or `workers.dev` address, the site has no domain of its own yet. A first `move` and a first `undo` also refuse
+that is not known). When `SITE.url` in `src/config.ts` gives an address, the refusal names it: if
+no zone the token lists is that domain or a parent of it, the domain may not be on Cloudflare yet;
+if it is a `pages.dev` or `workers.dev` address, the refusal says to launch first when the site has
+no domain, and else to put the domain in `SITE.url`. A first `move` and a first `undo` also refuse
 a token with less than an hour left; any other run only warns. If the token ends mid-move, make
 a new one the same way and run the same command again.
 
@@ -84,10 +85,10 @@ never gives it to a program it starts (the build, `git`).
 **`check` refuses** (and each refusal says what to do): a Pages project made by direct upload, or
 none found for this repository; a Worker that already has a domain; more than one Workers
 config; a `functions/` folder holding anything but `_middleware.ts`, or a `public/_worker.js`;
-and a site in analytics server mode. The Workers config, `functions/`, `public/_worker.js` and
-server mode are listed together, after a refused token too, so one run shows what stage 1 still
-lacks. These checks are for a first move; while a move is open
-they are lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
+and a site in analytics server mode. Once the Worker's domain is checked, the other four (the
+Workers config, `functions/`, `public/_worker.js` and server mode) are listed together, and after a
+refused token too, so one run shows what stage 1 still lacks. Every run reads the Workers config; the other
+checks are for a first move, and while a move is open they are lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
 GitHub has a branch `production`; `check` then also shows whether `main` is on the live branch's
 commit, and `record` refuses until it is. `check` first verifies the token and reads the branches with `git ls-remote`; of its GitHub reads, the repository's answer
 comes first, and it names a private repository (and, when `gh` is missing, says where to get it); while a move is open it says which commit `after` waits for
@@ -164,7 +165,8 @@ answers it (`/build.txt`); a host that Cloudflare lists on the Worker but Pages 
 fails. The serving wait (two good answers in a row) belongs to `move` and `undo`, not to `after`.
 `after` compares the live site with the recording. Differences the platforms are known to make are
 listed as known; every difference between the live domain and the recording that the script does
-not know fails `after`, among them a `noindex` or an `x-robots-tag` the recording did not have. It also checks that `http://` redirects to `https://`, on the host the recording went to.
+not know fails `after`, among them a `noindex` or an `x-robots-tag` the recording did not have. It
+also checks that `http://` redirects to `https://`, on the host the recording went to.
 It keeps its answers in the state file, so a large site is finished over several runs; an address
 that did not answer is asked for again (exit 4, up to three runs) before it counts as a difference.
 `record` does the same.
