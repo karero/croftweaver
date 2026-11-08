@@ -6,7 +6,7 @@
 | 2 | Plan review gate (Normal: a tooling fix, no red team) | ✅ gate closed at `45abb125`: 7 rounds, the final full read and the wording pass, no BUG or RISK open; the owner's go for the gate and to build, 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ✅ built and reviewed (2 rounds, Codex + GLM 5.3, no BUG the change introduced open); pull request opened from this branch | commits `5aaf2ed2`, `21710f92`, `7e0718e0`; `REVIEW-diff-2026-11-07-glm-marker-and-failed-reason.md` |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ✅ written 2026-11-07 | the 2026-11-07 "keeps GLM's review" entry in `~/.claude/HARNESS-CHANGES.md` |
-| 5 | A1: a closing tally no longer wins the walk (section 1), its own pull request after #481 | 🔄 built; DIFF rounds 3 to 5 done, round 5's fixes made, round 6 next | #482, branch `fix/a1-closing-tally` |
+| 5 | A1: a closing tally no longer wins the walk (section 1), its own pull request after #481 | 🔄 built; DIFF rounds 3 to 6 done, no BUG open; waits for the owner's merge word | #482, branch `fix/a1-closing-tally` |
 
 Raised by the session that fixed the refusal check (karero/croftweaver#476). Scope 3 was added by
 the owner on 2026-11-07 ("Same PR"), so the three fixes ship as one pull request.
@@ -184,7 +184,7 @@ r3 capture keeps the quoted line at 317 and the footer pair; the f5jNZ6 capture 
 | T4 | two markers, two finding lines between them, then a closing tally after the second: `- Totals: 1 BUG, 1 RISK`, the same in bold, `- BUG: 1, RISK: 5`, `- **BUG:** 1, **RISK:** 5`, and one line per label; the first reply also through `independent_review.sh` | `melious_stream.pl`, `independent_review.sh` | exit 0; the section holds both finding lines and says the marker came 2 times; the pair reads `codex OK, melious OK` |
 | T17 | two finding-shaped lines, a marker, one draft finding, a marker, two final ones | `melious_stream.pl` | the section is the final answer, without the draft |
 | T18 | a marker, a draft finding that says "I cannot review", a marker, the clean verdict; also through `independent_review.sh` | `melious_stream.pl`, `independent_review.sh` | the section is the clean verdict alone; the pair reads `codex OK, melious OK` |
-| T19 | a marker, a draft line naming the clean verdict twice, a marker, two final finding lines | `melious_stream.pl` | the section is the final answer, without the draft |
+| T19 | a marker, a draft list line naming the clean verdict twice, a marker, two final finding lines | `melious_stream.pl` | the section is the final answer, without the draft |
 | T20 | reasoning, a marker, `- BUG: 1,000 requests exhaust the pool` and `- BUG: 3.11 crashes at startup` | `melious_stream.pl` | both findings kept, the reasoning cut, no no-marker warning |
 | T5 | the existing marker cases (`leak`, `markdup`, `markfence`, `markwrap`, `glued`, `echoglued`, `fencequote`, `afterfence`, `topecho`, `quotemark`, `oldmark`, `markend`, …), all in `test_failed_tier_report.sh` | the suite runs | all pass unchanged |
 | T6 | a stub reply the review check rejects, and an empty log | `independent_review.sh`, with `REVIEW_LOG` set | the new log's header ends in `cut` then `reason`; that seat's line has `FAILED` in column 13 and `output is not a review` in column 17 |

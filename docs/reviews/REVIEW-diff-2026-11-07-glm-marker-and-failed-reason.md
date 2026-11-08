@@ -37,8 +37,9 @@ copy of `5aaf2ed2`, the mutation applied, the suite read for FAIL lines. All KIL
 | 3 | `202ef297` (#482) | verify: the A1 fix against `6859448c` (8,297 bytes), PRIOR | Codex; melious | Codex 171 s, 42,968 · melious 249 s, 27,635 | 4 / 0 / 1 (Codex 3/0/0, melious 2/0/1; one BUG from both) |
 | 4 | `5a16cc90` (#482) | verify: round 3's fixes (8,688 bytes), PRIOR; earned by `tally-cut` | Codex; melious | Codex 211 s, 164,582 · melious 160 s, 22,435 | 2 / 0 / 1 (Codex 2/0/0, melious 0/0/1) |
 | 5 | `6f4c54d9` (#482) | verify: the cut (124 lines), PRIOR; earned by `tally-cut`, with `--cut` | Codex; melious | Codex 230 s, 55,436 · melious 306 s, 36,401 | 3 / 1 / 3 (Codex 2/0/1, melious 1/1/2) |
+| 6 | `81b207a0` (#482) | verify: round 5's fixes (60 lines), PRIOR; earned by `gate-input`, `count-unit` | Codex; melious | Codex 241 s, 44,475 · melious 229 s, 20,747 | 0 / 1 / 1 (Codex 0/0/0, melious 0/1/1) |
 
-Gate total, reviewer seat runs: 696,253 tokens, rounds 1 to 5 summed from the rows above (fresh-eyes included).
+Gate total, reviewer seat runs: 761,475 tokens, rounds 1 to 6 summed from the rows above (fresh-eyes included).
 
 ## Round 1 findings
 
@@ -175,6 +176,18 @@ E1 and E2 are new kinds (`gate-input`, `count-unit`), so round 6 is earned by th
 
 The replay at this fix: 592 of 598 pairs give #481's section and exit code. The 6 others are the
 six above, with the same output as at `6f4c54d9`.
+
+## Round 6 findings
+
+Codex: no findings; it checked E1 to E7, the two-line claim against `looks_like_review`, and the
+mutations.
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| F1 | RISK | melious | The comment's claim that a widened section cannot be newly rejected rests on `looks_like_review`, which the diff does not show | Refuted: `looks_like_review` (`independent_review.sh`, `finding_count`) counts every list line with BUG, RISK or NIT, with no quote skip, and runs its refusal test only at one line or fewer; Codex checked both against each other this round |
+| F2 | NIT | melious | T19's draft line has no list lead, so counting matches only in list lines would still pass it | Fixed: the draft line is now a list line. M29 (that count) fails T19 |
+
+No BUG is open.
 
 ## State at the end
 

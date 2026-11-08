@@ -2176,9 +2176,9 @@ reader cleanlast "$T/cleanlast.reply" "=== FINAL REVIEW 0123abcd ==="
 check "T18: the section is the clean verdict alone" sh -c 'grep -qF "No BUG/RISK/NIT findings." "$1" && ! grep -qF "cannot review" "$1"' _ "$T/cleanlast.out"
 run cleanlastpair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$T/cleanlast.reply" bash "$SCRIPT" "$T/change.diff" --base none
 check "T18, as the pair runs it: melious OK" has cleanlastpair.out "reviewers: codex OK, melious OK"
-# T19 (round 5): a line is counted once, and only a list line: a draft line naming the clean verdict
-# twice does not outweigh a two-line final answer.
-printf '%s\n' '=== FINAL REVIEW 0123abcd ===' 'Draft: No BUG/RISK/NIT findings in A, No BUG/RISK/NIT findings in B.' '=== FINAL REVIEW 0123abcd ===' '- BUG: final one' '- RISK: final two' >"$T/twice.reply"
+# T19 (rounds 5 and 6): a line is counted once: a draft list line naming the clean verdict twice
+# does not outweigh a two-line final answer.
+printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '- NIT: No BUG/RISK/NIT findings in A, No BUG/RISK/NIT findings in B.' '=== FINAL REVIEW 0123abcd ===' '- BUG: final one' '- RISK: final two' >"$T/twice.reply"
 reader twice "$T/twice.reply" "=== FINAL REVIEW 0123abcd ==="
 check "T19: the section is the final answer" sh -c 'grep -qF "final two" "$1" && ! grep -qF "findings in A" "$1"' _ "$T/twice.out"
 # T20 (D2, round 4): a finding whose label is followed by a number still counts, so its marker is used.
