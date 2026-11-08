@@ -51,10 +51,13 @@ call, after a site call and before a program starts.
 Fresh-eyes: no findings. Its one UNVERIFIABLE entry (no run of the whole test file with the new
 tests in it) is settled by the full run on `7fd0aff3`: 188 tests, 187 pass.
 
-## The one failing test, not this change's
+## The one test that failed in full runs
 
 "an undo whose added domain is missing from the project's own list for a while finishes without
-adding it twice" failed in both full runs (on `1ecdd4d7` before the new tests, on `7fd0aff3`) and
-passed alone. It runs against the real clock; another program held the machine's load average near
-400 through both runs. The first failure said "Reading what the move needs took 11 seconds of this
-run's 55"; the second was a `move --confirm` that ended with 1 inside `movedAndPassed`.
+adding it twice" failed in both full runs (on `1ecdd4d7` before the new tests, on `7fd0aff3`). It
+runs against the real clock, and another program held the machine's load average near 400 through
+both runs. The first failure said "Reading what the move needs took 11 seconds of this run's 55";
+the second was a `move --confirm` that ended with 1 inside `movedAndPassed`. Neither path makes a
+`Deadline` or calls `fetchAll`. Run alone, it passed once on `1ecdd4d7`, then 3 of 3 times on
+`7fd0aff3` and 3 of 3 on main, the two run side by side (load 56 to 94). Not shown: whether main
+fails a full run under the same load.
