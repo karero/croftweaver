@@ -241,7 +241,7 @@ the feeder's wait too: past the limit it sends a terminate to the group and to `
 `kill -0` on both for up to 5 seconds, then kills what is left outright, the group and `script`
 (util-linux `script` outlives a terminate, READ 13; BSD's exits on it), waits for `script`
 (ship.sh is not the test shell's child, so it is polled, not waited for), and returns 124. A
-broken case cannot hang the file. `run_tty` sets no `fail` itself: T1 to T7 count 124 as a fail,
+broken case cannot hang the file. `run_tty` sets `fail` only for a misuse of its own options: T1 to T7 count 124 as a fail,
 and T8 expects it. Output comes back with `\r\n`; the helper strips
 `\r` before any check. The T cases run only when `SHIP_TEST_TTY=1` is set, and there a missing
 `script` fails the file with one line naming the T cases and `SHIP_TEST_TTY`, as S10 (e) does for

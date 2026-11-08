@@ -1191,7 +1191,7 @@ GATE
   # 'exec cmd' /dev/null` (told apart by `script --version`). A feeder waits until the question is
   # in the log, writes the answer (or ends the input, or sends a terminate) and holds the input
   # open until the run ends; a watchdog ends a run past the limit and run_tty returns 124 in rc.
-  # It sets no `fail` itself. The wrapper writes down its pid outside the clone, then becomes
+  # It sets `fail` only for a misuse of its own options. The wrapper writes down its pid outside the clone, then becomes
   # ship.sh, which leads its own process group under `script` (util-linux runs it through sh -c,
   # hence the exec).
   run_tty() {
