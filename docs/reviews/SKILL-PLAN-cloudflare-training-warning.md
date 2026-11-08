@@ -179,7 +179,7 @@ read-back fails, and test 13b's read-back that differs. S9b gets a test with the
 
 ## Not covered
 
-- Launch day (see Design).
+- Launch day (see Design). Since the BUGLOG row of 2026-10-30 was fixed (branch `fix/launch-day-rows-035`), the launch stage prints these notes from one read.
 - The starter's pages get no `noarchive` tag; the prose names it as Bing's own tool.
 
 ## Review trail

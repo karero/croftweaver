@@ -1316,7 +1316,7 @@ test('36 and 37: the report of a finished launch: two-stage names main\'s previe
   await launchScenario((h) => finished(h), async ({ api, launch }) => {
     const r = await launch();
     assert.equal(r.code, 0, r.out);
-    assert.ok(!api.log.some((e) => /\/settings\//.test(e.path)), 'launch reads no zone setting, so its report claims no read');
+    assert.ok(!api.log.some((e) => /\/settings\//.test(e.path)), 'launch reads no /settings/, and Bot Management once, by GET, for the notes');
     assert.deepEqual(api.log.filter((e) => /bot_management/.test(e.path)).map((e) => e.method), ['GET'], 'Bot Management: one read, for the AI notes');
     assert.match(r.out, /main is the live site \(main\); each pull request gets a preview of its own/);
     assert.doesNotMatch(r.out, /preview of main/);
