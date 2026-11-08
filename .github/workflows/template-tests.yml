@@ -84,13 +84,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # The template's publish classifier. It needs no build, no browser and no
-      # network, so it runs first and fails within a minute or so. In THIS repo it runs here,
+      # network, so it runs first. In THIS repo it runs here,
       # on the macOS leg of prepare-any-shell, and in verify-windows, whose pushes go through
       # a copied site's pre-push hook (there its real-git half skips itself, on Git Bash). The
       # copy wired into the template's own ci.yml and pre-push hook otherwise executes inside a
       # scaffolded site, never here — so without these, a regression in scripts/ship.sh would
       # reach recipients with CI green.
       - name: Publish classifier (scripts/ship.sh)
+        env:
+          SHIP_TEST_TTY: 1
         run: bash tests/check_ship_push.sh
       - uses: actions/setup-node@v7
         with:
@@ -305,6 +307,7 @@ jobs:
         shell: bash
         env:
           SHIP_TEST_REQUIRE_BASH32: 1
+          SHIP_TEST_TTY: 1
         run: |
           PATH="/bin:$PATH"
           echo "bash for every case: $(command -v bash), $(bash -c 'echo "$BASH_VERSION"')"
