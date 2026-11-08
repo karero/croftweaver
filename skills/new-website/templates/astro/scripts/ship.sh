@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.24
+# template-version: 0.25
 #   The website-builder release this revision ships in. Sites get their copy at
 #   scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -56,6 +56,34 @@ looks_like_network_failure() { # <git's output, as text>
 # "  | ", for one of its own failing cases. That test runs inside the pre-push gate, and its nested
 # runs of this script print gate, refusal, login and port lines that are not this publish's.
 log_view() { grep -v '^  | ' "$1" 2>/dev/null || true; }
+
+# The `site:` address in <folder>/astro.config.mjs, one trailing slash removed; empty if none.
+# A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
+# NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
+# follows such redirects, but keep the normalization.
+site_of() { # <folder>
+  local s
+  s="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" "$1/astro.config.mjs" 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
+  printf '%s\n' "${s%/}"
+}
+
+# none, one or many `site:` addresses in <folder>/astro.config.mjs, counting every match, so an
+# old address kept in a comment counts. With many, site_of may return the commented one.
+site_count() { # <folder>
+  local h
+  h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" "$1/astro.config.mjs" 2>/dev/null || true)"
+  case "$h" in '') echo none ;; *$'\n'*) echo many ;; *) echo one ;; esac
+}
+
+# owner/name of the address `git push origin` uses; empty when there is none, when it has
+# several, or when it carries a query or fragment (which can hold a token) or no plain owner/name.
+repo_of_origin() {
+  local url
+  url="$(git remote get-url --push --all origin 2>/dev/null || true)"
+  case "$url" in ''|*$'\n'*|*\?*|*'#'*) return 0 ;; esac
+  url="${url%/}"; url="${url%.git}"
+  sed -nE 's#^.*[:/]([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)$#\1#p' <<<"$url"
+}
 
 # A process's start time as `ps` gives it, spaces trimmed; empty where ps cannot say (Windows'
 # Git Bash has no `-o lstart`) or the process is gone. With the id it tells a running process
@@ -160,7 +188,8 @@ take_lock() {
     echo "  It names process $pid${host:+ on $host}, started $start (UTC)."
   fi
   if [ "$state" = running ]; then
-    echo "  That process is still running, so a publish is under way. Let it finish, and run"
+    echo "  That process is still running, so a publish is under way (it may be waiting for a yes"
+    echo "  in another window: answer or stop it there). Let it finish, and run"
     echo "  npm run ship again afterwards if you still need to."
   else
     if [ "$state" = gone ]; then
@@ -359,6 +388,22 @@ set -euo pipefail
 # meanwhile could pass for the one running.
 self_blob="$(git hash-object -- "${BASH_SOURCE[0]}" 2>/dev/null)" || self_blob=""
 
+# The first line names the site and the GitHub repo, before any check, fetch or lock, so a run in
+# the wrong folder shows it at once. It reads this folder's astro.config.mjs; with no address or
+# several, or no plain owner/name push address, it says so rather than name a guess.
+case "$(site_count .)" in
+  one) site_a="$(site_of .)"; site_p="$site_a" ;;
+  many) site_a="more than one site: address in astro.config.mjs — check which one is live"; site_p="($site_a)" ;;
+  *) site_a="no site: address in astro.config.mjs"; site_p="($site_a)" ;;
+esac
+repo_a="$(repo_of_origin)"
+if [ -n "$repo_a" ]; then
+  repo_p="$repo_a"
+else
+  repo_a="no 'origin' remote with a plain owner/name address"; repo_p="($repo_a)"
+fi
+echo "→ Site: $site_p · GitHub repo: $repo_p"
+
 # Read from this clone's own config only (--local): a value in someone's global config must not
 # switch a fresh clone (a beginner's, a new owner's) out of the folder checks below.
 from_github=0
@@ -528,7 +573,7 @@ if [ "$from_github" = 0 ]; then
   id="$(git rev-parse @)"
   echo "→ Publishing main → production. This goes LIVE."
 else
-  # GitHub's main as of the fetch, read once; `main` may move on during the run, so the first
+  # GitHub's main as of the fetch, read once; `main` may move on during the run, so the mode line
   # and the last line name the commit. "Main is pushed" holds by construction: the commit came
   # from GitHub. So the branch and upstream checks above are skipped, and this folder's unsaved
   # files and unpushed commits are listed below instead.
@@ -598,6 +643,27 @@ else
     echo "    $live_all commits in all: the merges in this range bring in the rest."
   fi
   echo ""
+fi
+
+# The question, before the temporary copy, the packages, the gate and the push. Only where input
+# and output are both a terminal: with output in a file the question would be invisible and the
+# run would sit silent. A waiting `read` ignores a noted stop, so for the wait the trap itself
+# stops the run (set first, so no stop can land unseen), then goes back to noting.
+if [ -t 0 ] && [ -t 1 ]; then
+  trap 'stop_asked=1; stop_point "Nothing was published and $here."' INT TERM HUP QUIT
+  stop_point "Nothing was published and $here."
+  printf 'Publish to %s (%s)? Type y and press Enter to go on, anything else stops: ' "$site_a" "$repo_a"
+  if read -r answer; then :; else answer=""; fi
+  trap 'stop_asked=1' INT TERM HUP QUIT
+  case "$answer" in
+    [yY]|[yY][eE][sS]) ;;
+    *)
+      echo ""
+      echo "✗ Publish stopped — you did not answer y. Nothing was published and $here."
+      exit 1 ;;
+  esac
+else
+  echo "→ No terminal to answer a question here (input or output is not a terminal window), so this run does not ask."
 fi
 
 if [ "$from_github" = 1 ]; then
@@ -750,12 +816,7 @@ for attempt in $(seq 1 "$push_tries"); do
   if [ "$stop_asked" = 1 ]; then break; fi
 done
 
-site="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" "${wt:-.}/astro.config.mjs" 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
-# Strip a trailing slash: a misconfigured SITE.url ('https://x.com/') would build
-# 'https://x.com//build.txt' — NOT reliably safe (varies by host; some hosts
-# 307-redirect a double slash). curl -L below now follows such redirects, but keep
-# the normalization: same as the llms-coverage guard applies to SITE.url.
-site="${site%/}"
+site="$(site_of "${wt:-.}")"
 build_txt="${site:-your live site}/build.txt"
 # A *.pages.dev address is Cloudflare's own address for the project: serving the build there
 # does not show the site is live on its own domain, so the success line must not say LIVE.

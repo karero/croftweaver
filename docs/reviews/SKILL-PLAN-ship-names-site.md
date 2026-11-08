@@ -272,7 +272,7 @@ The toolkit's CI tests the same `ship.sh` every site gets through `whats-new`.
   script under `$G` (outside the clone) that ignores terminate and hang-up, starts a child that
   sleeps and writes the child's pid to `$G/t8-child.pid`, and sleeps, both through `$SHIP_T_REAL_SLEEP` (the stub `sleep` first on `PATH` returns at
   once, line 896); the watchdog times with the real `sleep` too: `run_tty` returns 124
-  within 15 seconds, and both the stand-in and its child are gone.
+  within 30 seconds, and both the stand-in and its child are gone.
 - Under `SHIP_GATE_SKIP_WORDING` the T cases cannot find the question by its text, so they print
   that they are skipped; no CI step sets it.
 - Every T case also passes `run_ship`'s checks (folder unchanged, nothing left behind).
