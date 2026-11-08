@@ -490,11 +490,12 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    lacks the lines keeping `.env.*`, `.dev.vars` and sign-in files out of git):
    ```bash
    npm create --yes astro@latest . -- --template minimal --no-install --no-git --yes --skip-houston
-   git checkout -- .gitignore
+   cp "$SKILLS_ROOT"/new-website/templates/.gitignore .
    ```
    (The first `--yes` answers npm's own "Ok to proceed?", the second create-astro's
    questions; checked with npm 11.20.0 and create-astro 5.3.1, run fresh with no keyboard input. `minimal` is Empty, with TypeScript strict.
-   `git checkout` restores the file step 0 committed. Nothing is installed yet:
+   The `cp` copies step 0's file again, with no git command, so it works where an assistant's
+   `git checkout` is refused. Nothing is installed yet:
    `templates/astro/README.md` step 3 runs `npm install` after the overlay.) Then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
    `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, `CROFTWEAVER-LICENSE.md` (the licence of
