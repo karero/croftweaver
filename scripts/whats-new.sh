@@ -344,10 +344,13 @@ site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, o
 
 # The first ./ or ../ specifier of each one-line static import on stdin. A helper, not a
 # parser: other import forms are not read, and the report says so.
+# Quotes are made double first (no octal escape for awk to differ on); /* */ comments go.
 spec_imports() {
-  awk '/^[[:space:]]*import[[:space:]]*["\047]/ || (/^[[:space:]]*import[[:space:]{*]/ && /from[[:space:]]*["\047]/) {
-    if (match($0, /["\047]\.\.?\/[^"\047]*["\047]/)) print substr($0, RSTART + 1, RLENGTH - 2)
-  }'
+  awk '{ gsub(/'\''/, "\""); gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, "") }
+    /^[[:space:]]*import[[:space:]]*"\.\.?\// { match($0, /"[^"]*"/); print substr($0, RSTART + 1, RLENGTH - 2); next }
+    /^[[:space:]]*import[[:space:]{*]/ && match($0, /from[[:space:]]*"\.\.?\/[^"]*"/) {
+      s = substr($0, RSTART, RLENGTH); sub(/^from[[:space:]]*"/, "", s); print substr(s, 1, length(s) - 1)
+    }'
 }
 
 # $1 = the spec's folder in the site, $2 = specifier; prints the site-relative path, or
@@ -485,8 +488,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
           spec_site="${f#skills/new-website/templates/astro/}"
           while IFS= read -r spec; do
             [ -n "$spec" ] || continue
-            if ! path="$(resolve_import "$(dirname "$spec_site")" "$spec")"; then
-              echo "    IMPORT NOT CHECKED: $spec points outside the site"
+            if ! path="$(resolve_import "$(dirname "$spec_site")" "$spec")" || [ -z "$path" ]; then
+              echo "    IMPORT NOT CHECKED: $spec points outside the site or at its top folder"
             elif ! site_has_module "$site_root/$path"; then
               echo "    IMPORT NOT FOUND: $path (this spec imports it)"
               lacking="$lacking  $spec_site → $path

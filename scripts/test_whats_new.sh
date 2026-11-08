@@ -159,6 +159,8 @@ spec t8.spec.ts  "import a from '../m/a';" "import b from '../m/b';" "import c f
 spec sub/n.spec.ts "import { h } from '../_helpers';"
 spec t12.spec.ts "import { e } from './_extra';"
 spec t14.spec.ts "// was: import theme from '../v1/theme'" "import x from'../x14';"
+spec t15.spec.ts 'import x /* was "../src/config" */ from "../missing-module";' "import { read } from 'node:fs'; load('../fixture');"
+spec t16.spec.ts "import r from '../';"
 $git -C "$IS" add -A && $git -C "$IS" commit -qm later
 mkdir -p "$IP/.claude/skills" "$IP/tests" "$IP/src/lib" "$IP/m/d"
 stamp "$IP/.claude/skills/SUITE-VERSION" "$IBASE"
@@ -181,13 +183,16 @@ has   "T4 a double-quoted import is read"                     "$(nf dq/a)"
 has   "T4 a bare import is read"                              "$(nf bare/b)"
 hasnt "T5 a spec deleted upstream is not checked"             "gone/thing"
 if grep -q '^fatal:' "$T/out"; then echo "FAIL T5 git printed an error"; fails=$((fails+1)); else echo "ok   T5 no git error"; fi
-has   "T6 an import leaving the site is said, not skipped"    "    IMPORT NOT CHECKED: ../../outside points outside the site"
+has   "T6 an import leaving the site is said, not skipped"    "    IMPORT NOT CHECKED: ../../outside points outside the site or at its top folder"
+has   "T6 an import of the site's top folder is said too"     "    IMPORT NOT CHECKED: ../ points outside the site or at its top folder"
 hasnt "T7 an unchanged spec is not checked"                   "never/there"
 hasnt "T8 every lookup form counts as present"                "NOT FOUND: m/"
 has   "T10 a nested spec resolves from its own folder"        "$(nf tests/_helpers)"
 has   "T12 a sibling import is checked"                       "$(nf tests/_extra)"
 hasnt "T14 a commented-out import is not read"                "v1/theme"
 has   "T14 an import with no blank before its quote is read"  "$(nf x14)"
+has   "T15 the path after from is read, not one in a comment" "$(nf missing-module)"
+hasnt "T15 a relative string after a package import is not"   "fixture"
 # Every IMPORT line follows the spec's git log lines (or another IMPORT line), so the pairing
 # check above never reads one as a drift line's MISSING line.
 if awk '/^    IMPORT / && prev !~ /^    ([0-9a-f]+ |IMPORT )/ { bad = 1 } { prev = $0 } END { exit !bad }' "$T/out"; then
@@ -246,6 +251,10 @@ stamp "$P4/tests/TESTS-VERSION" "$BASE4"
 report "$S4" "$P4" "T11 the real specs against the starter"
 has   "T11 the real specs were checked"                       "$NOTICE"
 hasnt "T11 no false alarm on the real imports"                "IMPORT NOT"
+# And the check really read them: a file the starter's specs import, removed, is named.
+rm "$P4/src/lib/obfuscate.ts"
+report "$S4" "$P4" "T11 the starter without src/lib/obfuscate.ts"
+has   "T11 a real spec's import is read and resolved"         "$(nf src/lib/obfuscate)"
 
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed" >&2; exit 1; }
 echo "all whats-new missing-file and import tests passed"
