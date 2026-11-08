@@ -18,8 +18,8 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 
 On 2026-11-07 the owner ran `npm run ship` in the wrong site's folder, typed by hand at a terminal
 (the output pasted into the session shows the shell prompt in that folder). This time it did no
-harm: that site's live branch already held its `main` (GitHub's record shows the last push to it 90
-minutes earlier), so the push printed `Everything up-to-date`. Had that `main` held unpublished
+harm: that site's live branch already held its `main` (GitHub's record shows its last push came at least 85
+minutes before the run), so the push printed `Everything up-to-date`. Had that `main` held unpublished
 work, the run would have taken it live. The script printed the site's address only at the end, in
 the live-site check. That is one incident, with no damage, and the question below would have
 stopped it. Anyone with
