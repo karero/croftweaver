@@ -36,8 +36,9 @@ copy of `5aaf2ed2`, the mutation applied, the suite read for FAIL lines. All KIL
 | 2 | `7e0718e0` | verify: delta since round 1 (5,810 bytes), PRIOR round 1 | Codex; melious | Codex 170 s, 59,960 · melious 202 s, 23,850 | 2 / 0 / 1 (Codex 0/0/0, melious 2/0/1) |
 | 3 | `202ef297` (#482) | verify: the A1 fix against `6859448c` (8,297 bytes), PRIOR | Codex; melious | Codex 171 s, 42,968 · melious 249 s, 27,635 | 4 / 0 / 1 (Codex 3/0/0, melious 2/0/1; one BUG from both) |
 | 4 | `5a16cc90` (#482) | verify: round 3's fixes (8,688 bytes), PRIOR; earned by `tally-cut` | Codex; melious | Codex 211 s, 164,582 · melious 160 s, 22,435 | 2 / 0 / 1 (Codex 2/0/0, melious 0/0/1) |
+| 5 | `6f4c54d9` (#482) | verify: the cut (124 lines), PRIOR; earned by `tally-cut`, with `--cut` | Codex; melious | Codex 230 s, 55,436 · melious 306 s, 36,401 | 3 / 1 / 3 (Codex 2/0/1, melious 1/1/2) |
 
-Gate total, reviewer seat runs: 346,796 tokens (the script's line, fresh-eyes included).
+Gate total, reviewer seat runs: 696,253 tokens, rounds 1 to 5 summed from the rows above (fresh-eyes included).
 
 ## Round 1 findings
 
@@ -149,8 +150,31 @@ prompt: the round-3 reader gave the same section and exit code in 554 of 554 pai
 561 of 567 (more runs had been kept by then). In the 6 others GLM wrote its review after one marker
 and a shorter copy of it after a second, and the earlier review has as many finding lines or more.
 The cut steps back: in each, the section #481 printed is kept whole at the end, the fuller review
-comes before it, and the "came N times" note was already printed. The plan names this case. Only
-the review check counts finding lines in a section, and more lines can only pass it.
+comes before it, and the "came N times" note was already printed. The plan names this case. The
+claim that more lines could only pass the review check was wrong (round 5, E1).
+
+## Round 5 findings
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| E1 | BUG | Codex | Stepping back can make the review check reject a valid reply: marker, `- BUG: I cannot review this file…`, marker, clean verdict. Widened, the section holds one finding line and the refusal phrase | Fixed: step back only when the text after the later marker has a finding line; the section then holds two or more lines the check counts. T18, also through the pair |
+| E2 | BUG | Codex | `$count` counted matches, not lines: one draft line naming the clean verdict twice outweighed a two-line final answer | Fixed: count list lines the strict rule matches, each once. T19 |
+| E3 | BUG | melious | The `@ok` loop reads a stale `$_` | Refuted: line 120 reads `$end`; the `$_->[1]` quoted is in the `grep` on line 115, where `$_` is set |
+| E4 | RISK | melious | A summary with more finding lines still wins; keep the "came N times" note on every path | Refuted: the note prints whenever `$usable` > 1, on both paths; the case itself is named in the plan |
+| E5 | NIT | melious | With T16 gone, nothing tests that `- BUG: 1,000 requests …` still counts (D2) | Fixed: T20 |
+| E6 | NIT | melious | `$start` unused | Fixed |
+| E7 | NIT | Codex | The comment's "whatever its wording" overclaims | Fixed: the comment states the count condition |
+
+E1 and E2 are new kinds (`gate-input`, `count-unit`), so round 6 is earned by them.
+
+| Id | Mutation | Killed by |
+|---|---|---|
+| M26 | step back even when the text after the later marker has no finding line | T18, alone and through the pair |
+| M27 | count matches, not lines (round 4's `$count`) | T18, T19 |
+| M28 | count any line `$findings` matches, not only list lines | T18, alone and through the pair |
+
+The replay at this fix: 592 of 598 pairs give #481's section and exit code. The 6 others are the
+six above, with the same output as at `6f4c54d9`.
 
 ## State at the end
 

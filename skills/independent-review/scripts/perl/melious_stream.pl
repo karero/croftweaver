@@ -128,15 +128,20 @@ for my $m (@at) {
   }
   push @ok, [$start, $end, $glued];
 }
-# The last such marker wins unless the stretch from the one before it holds at least as many
-# finding lines as what follows it: then the earlier one wins, so a closing tally after a repeated
-# marker cannot stand in for the review (A1), whatever its wording. Moving back never drops the
-# text after the later marker; the "came N times" note says to check where the review starts.
-my $count = sub { my $n = () = $_[0] =~ /$findings/g; $n };
+# The last such marker wins unless what follows it has a finding line and the stretch from the
+# one before it has at least as many: then the earlier one wins, so a closing tally with no more
+# finding lines than the review above it cannot stand in for it (A1). A finding line is a list
+# line $findings matches, counted once. Moving back keeps the text after the later marker, and the
+# section then holds two or more lines the review check counts, so that check cannot newly reject it.
+my $count = sub { scalar grep { /$findings/ && /\A[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)/ } split /\n/, $_[0] };
 my $i = $#ok;
-$i-- while $i > 0 && $count->(substr($c, $ok[$i-1][1], $ok[$i][0] - $ok[$i-1][1])) >= $count->(substr($c, $ok[$i][1]));
+while ($i > 0) {
+  my $n = $count->(substr($c, $ok[$i][1]));
+  last unless $n && $count->(substr($c, $ok[$i-1][1], $ok[$i][0] - $ok[$i-1][1])) >= $n;
+  $i--;
+}
 if (@ok) {
-  my ($start, $end, $glued) = @{$ok[$i]};
+  my (undef, $end, $glued) = @{$ok[$i]};
   my $after = substr($c, $end); $after =~ s/\A\r?\n//;
   my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
   if ($before =~ /\S/) {

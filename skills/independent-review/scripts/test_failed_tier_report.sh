@@ -2169,6 +2169,23 @@ check "T4, as the pair runs it: melious OK, and the section holds the first find
 printf '%s\n' '- BUG: musing one' '- RISK: musing two' '=== FINAL REVIEW 0123abcd ===' '- BUG: draft line' 'More thinking.' '=== FINAL REVIEW 0123abcd ===' '- BUG: final one' '- RISK: final two' >"$T/longer.reply"
 reader longer "$T/longer.reply" "=== FINAL REVIEW 0123abcd ==="
 check "T17: the section is the final answer" sh -c 'grep -qF "final two" "$1" && ! grep -qF "draft line" "$1"' _ "$T/longer.out"
+# T18 (round 5): a clean final answer is never widened to a draft above it. Widened, the section
+# would hold one finding line and the draft's "I cannot review", and the review check rejects that.
+printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '- BUG: I cannot review this file until I inspect it.' '=== FINAL REVIEW 0123abcd ===' 'No BUG/RISK/NIT findings.' >"$T/cleanlast.reply"
+reader cleanlast "$T/cleanlast.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T18: the section is the clean verdict alone" sh -c 'grep -qF "No BUG/RISK/NIT findings." "$1" && ! grep -qF "cannot review" "$1"' _ "$T/cleanlast.out"
+run cleanlastpair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$T/cleanlast.reply" bash "$SCRIPT" "$T/change.diff" --base none
+check "T18, as the pair runs it: melious OK" has cleanlastpair.out "reviewers: codex OK, melious OK"
+# T19 (round 5): a line is counted once, and only a list line: a draft line naming the clean verdict
+# twice does not outweigh a two-line final answer.
+printf '%s\n' '=== FINAL REVIEW 0123abcd ===' 'Draft: No BUG/RISK/NIT findings in A, No BUG/RISK/NIT findings in B.' '=== FINAL REVIEW 0123abcd ===' '- BUG: final one' '- RISK: final two' >"$T/twice.reply"
+reader twice "$T/twice.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T19: the section is the final answer" sh -c 'grep -qF "final two" "$1" && ! grep -qF "findings in A" "$1"' _ "$T/twice.out"
+# T20 (D2, round 4): a finding whose label is followed by a number still counts, so its marker is used.
+printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' '- BUG: 1,000 requests exhaust the pool' '- BUG: 3.11 crashes at startup' >"$T/numbers.reply"
+reader numbers "$T/numbers.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T20: both findings kept, the reasoning cut, no warning" \
+  sh -c 'grep -qF "1,000 requests" "$1" && grep -qF "3.11 crashes" "$1" && ! grep -qF "Reasoning line." "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/numbers.out"
 # T15 (added in review): a clean verdict after the marker is findings-shaped, so the marker is usable (the second branch of $findings).
 printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' 'No BUG/RISK/NIT findings.' >"$T/clean.reply"
 reader clean "$T/clean.reply" "=== FINAL REVIEW 0123abcd ==="
