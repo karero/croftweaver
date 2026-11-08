@@ -1,7 +1,7 @@
 # PLAN review — branch `claude/peaceful-gates-cde640` — `npm run ship` names the site and asks at a terminal
 
 Artifact: `docs/reviews/SKILL-PLAN-ship-names-site.md`. Base `6859448c` · depth: High (the
-starter's publish script; the High row names deploy code) · verdict: stopped after round 8 (the skill's limit), fixes of round 8 not yet confirmed; waiting on the owner · authority used:
+starter's publish script; the High row names deploy code) · verdict: in progress; round 9 granted by the owner ("Yes, round 9", 2026-11-08), one round only · authority used:
 WORKTREE-WRITE and BRANCH-COMMIT (the app made this worktree and branch for this session). No PR.
 Seats: Codex and GLM 5.3 on melious in one command (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`,
 `CODEX_EFFORT=config`), fresh-eyes Opus 5.5 in rounds 1 to 3.
@@ -111,7 +111,7 @@ Seats: Codex and GLM 5.3 on melious in one command (`SECOND_SEAT=melious MELIOUS
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
-| H1 | BUG | Codex | 8 | the G5 rewording puts the leftovers warning before the mode line, but `report_leftovers` runs after it | fixed `c0d61833`: leftovers named as still after it (line 538) | `ship.sh` 537–539 |
+| H1 | BUG | Codex | 8 | the G5 rewording puts the leftovers warning before the mode line, but `report_leftovers` runs after it | fixed `c0d61833`: leftovers named as still after it (line 539 since round 9) | `ship.sh` 537–539 |
 | H2 | RISK | Codex | 8 | with the stub `bin` first on `PATH`, T8's `sleep 40` returns at once, so the stand-in ends before the watchdog fires | fixed `c0d61833`: the stand-in and the watchdog sleep through `$SHIP_T_REAL_SLEEP`, exported for every run (line 870) | `check_ship_push.sh` 893–898, 870 |
 | H3 | RISK | GLM | 8 | `ubuntu-latest` having `script` is not shown; if it lacks one the whole file goes red with no clue why | fixed `c0d61833`: the failure is one line naming the T cases and `SHIP_TEST_TTY`, as S10 (e) does (line 841); the build PR's own CI shows it before any merge | `check_ship_push.sh` 840–841 |
 | H4 | NIT | GLM | 8 | "the answer rests on what goes" is half wrong in worktree mode: the address is this folder's copy | fixed `c0d61833`: the repo and the commits are what goes; the address is this folder's copy | plan §B |

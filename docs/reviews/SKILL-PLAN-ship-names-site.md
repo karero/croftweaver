@@ -235,7 +235,7 @@ and T8 expects it. Output comes back with `\r\n`; the helper strips
 `SHIP_TEST_REQUIRE_BASH32` (line 841). The build PR's own CI run shows whether `ubuntu-latest` has
 `script` (not checked here) before anything merges. The build changes `.github/workflows/template-tests.yml` so that the two
 steps that run the file directly set it: the playwright job's (line 94, Linux; its comment's
-"fails within a minute or so" changes to "fails within a few minutes") and the Mac bash 3.2
+"fails within a minute or so" is dropped, since each hung T case takes its 60-second limit) and the Mac bash 3.2
 step (lines 303–311, in prepare-any-shell's macOS leg). Everywhere else the file runs, the T cases
 print one line saying they are skipped and run nothing: a copied site's pre-push hook
 (verify-windows' pushes and each owner's own pushes) and each site's own CI
