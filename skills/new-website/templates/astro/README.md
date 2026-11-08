@@ -54,7 +54,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    (this starter's floor, never below Astro's own); keep Node current: SETUP.md lists the fixed version of
    each line. The committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 3. Copy this overlay over the scaffold (the files above, `package.json` included: it carries `engines`,
-   which makes npm warn when Node is older than the fixed version of its line) + `tests/`, then:
+   which makes npm warn when Node is older than the fixed version of its line) + `tests/`, but not this
+   `README.md` (the site's own holds the owner's answers), then:
    ```bash
    npm install
    npx playwright install chromium
