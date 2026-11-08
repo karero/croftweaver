@@ -2121,7 +2121,7 @@ reader() {   # reader <name> <reply file> <marker>: melious_stream.pl on the rep
   echo $? >"$T/$1.rc"
 }
 no_notes() {   # no note of the reader's in <name>.out
-  ! grep -qF "the marker came" "$T/$1.out" && ! grep -qF "text before the final-review marker dropped" "$T/$1.out" \
+  ! grep -qF "marker came" "$T/$1.out" && ! grep -qF "text before the final-review marker dropped" "$T/$1.out" \
     && ! grep -qF "no usable final-review marker" "$T/$1.out"
 }
 # T1, T2: the reader keeps everything after the first marker.
@@ -2148,14 +2148,44 @@ for c in a b; do
   check "T3 ($c): ... the section holds the first finding line" grep -qE "$first" "$T/glm$c.out"
   check "T3 ($c): ... and no note of the reader's" no_notes glm$c
 done
-# T4, KNOWN WRONG: a summary after the second marker that starts like a finding makes that marker usable again.
-printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '' '- BUG: first finding line' '- RISK: second finding line' '=== FINAL REVIEW 0123abcd ===' '- Totals: 1 BUG, 1 RISK' >"$T/known.reply"
-reader known "$T/known.reply" "=== FINAL REVIEW 0123abcd ==="
-check "T4 KNOWN WRONG: exit 0" rc_is known 0
-check "T4 KNOWN WRONG: the section is the reader's note and the summary" \
-  sh -c 'grep -qF "the marker came 2 times with findings after it, so check that the section starts with the review" "$1" && grep -qF -- "- Totals: 1 BUG, 1 RISK" "$1"' _ "$T/known.out"
-check "T4 KNOWN WRONG: ... neither finding line is in it" \
-  sh -c '! grep -qF "first finding line" "$1" && ! grep -qF "second finding line" "$1"' _ "$T/known.out"
+# T4 (A1): a closing tally after the second marker that starts like a finding does not stand in for
+# the review, whatever its wording: the stretch before the marker holds at least as many finding
+# lines, so the first marker wins and the review is kept, tally and all, with the "came 2 times" note.
+for v in 'plain|- Totals: 1 BUG, 1 RISK' 'bold|- Totals: 1 **BUG**, 1 **RISK**' 'labelfirst|- BUG: 1, RISK: 5' \
+         'boldcolon|- **BUG:** 1, **RISK:** 5' 'twolines|- BUG: 1\n- RISK: 5'; do
+  n=${v%%|*}; tally=$(printf '%b' "${v#*|}")   # %b: a format starting with "-" is an option to bash's printf
+  printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '' '- BUG: first finding line' '- RISK: second finding line' '=== FINAL REVIEW 0123abcd ===' "$tally" >"$T/tally$n.reply"
+  reader tally$n "$T/tally$n.reply" "=== FINAL REVIEW 0123abcd ==="
+  check "T4 ($n): exit 0" rc_is tally$n 0
+  check "T4 ($n): the section holds both finding lines and the tally" \
+    sh -c 'grep -qF "first finding line" "$1" && grep -qF "second finding line" "$1" && grep -qF -- "$2" "$1"' _ "$T/tally$n.out" "${tally##*$'\n'}"
+  check "T4 ($n): ... and says the marker came twice" has tally$n.out "the final-review marker came 2 times with findings after it"
+done
+run tallypair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$T/tallyplain.reply" bash "$SCRIPT" "$T/change.diff" --base none
+check "T4, as the pair runs it: melious OK, and the section holds the first finding line" \
+  sh -c 'grep -qF "reviewers: codex OK, melious OK" "$1" && grep -qF "first finding line" "$1"' _ "$T/tallypair.out"
+# T17 (A1): a final answer with more finding lines than the draft since the marker before it still
+# wins, however many finding-shaped lines the reasoning above that marker holds.
+printf '%s\n' '- BUG: musing one' '- RISK: musing two' '=== FINAL REVIEW 0123abcd ===' '- BUG: draft line' 'More thinking.' '=== FINAL REVIEW 0123abcd ===' '- BUG: final one' '- RISK: final two' >"$T/longer.reply"
+reader longer "$T/longer.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T17: the section is the final answer" sh -c 'grep -qF "final two" "$1" && ! grep -qF "draft line" "$1"' _ "$T/longer.out"
+# T18 (round 5): a clean final answer is never widened to a draft above it. Widened, the section
+# would hold one finding line and the draft's "I cannot review", and the review check rejects that.
+printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '- BUG: I cannot review this file until I inspect it.' '=== FINAL REVIEW 0123abcd ===' 'No BUG/RISK/NIT findings.' >"$T/cleanlast.reply"
+reader cleanlast "$T/cleanlast.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T18: the section is the clean verdict alone" sh -c 'grep -qF "No BUG/RISK/NIT findings." "$1" && ! grep -qF "cannot review" "$1"' _ "$T/cleanlast.out"
+run cleanlastpair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$T/cleanlast.reply" bash "$SCRIPT" "$T/change.diff" --base none
+check "T18, as the pair runs it: melious OK" has cleanlastpair.out "reviewers: codex OK, melious OK"
+# T19 (rounds 5 and 6): a line is counted once: a draft list line naming the clean verdict twice
+# does not outweigh a two-line final answer.
+printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '- NIT: No BUG/RISK/NIT findings in A, No BUG/RISK/NIT findings in B.' '=== FINAL REVIEW 0123abcd ===' '- BUG: final one' '- RISK: final two' >"$T/twice.reply"
+reader twice "$T/twice.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T19: the section is the final answer" sh -c 'grep -qF "final two" "$1" && ! grep -qF "findings in A" "$1"' _ "$T/twice.out"
+# T20 (D2, round 4): a finding whose label is followed by a number still counts, so its marker is used.
+printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' '- BUG: 1,000 requests exhaust the pool' '- BUG: 3.11 crashes at startup' >"$T/numbers.reply"
+reader numbers "$T/numbers.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T20: both findings kept, the reasoning cut, no warning" \
+  sh -c 'grep -qF "1,000 requests" "$1" && grep -qF "3.11 crashes" "$1" && ! grep -qF "Reasoning line." "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/numbers.out"
 # T15 (added in review): a clean verdict after the marker is findings-shaped, so the marker is usable (the second branch of $findings).
 printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' 'No BUG/RISK/NIT findings.' >"$T/clean.reply"
 reader clean "$T/clean.reply" "=== FINAL REVIEW 0123abcd ==="
