@@ -90,13 +90,15 @@ prints it too, with `owner/name`, on the owner's own screen or log; nothing else
 
 The mode line ("→ Publishing main → production." or "→ Publishing GitHub's main as of the fetch
 (<id>) …") now follows the first line, with anything that prints before it today (a lock
-refusal, a leftovers warning, a fetch retry) still before it; `mode_has` already finds it as the
+refusal, a fetch retry) still before it, and the leftovers report still after it (line 538);
+`mode_has` already finds it as the
 first line starting `→ Publishing`, wherever it sits. The comment at lines 531–532 ("so the first and the last line
 name the commit") changes to "the mode line and the last line".
 
 **C. The question.** It goes after the "Going live" list and its blank line (line 602), before
 worktree mode makes its temporary copy, so before `npm ci`, the gate and the push, in both modes.
-The answer rests on what goes: the site in the first line and the commits in the list. With nothing
+The answer rests on the repo in the first line and the commits in the list, which are what goes;
+the site address is this folder's copy of it, which in worktree mode may differ (B). With nothing
 new (`live_n` 0) it still asks, because the checks and the push still run; one rule is simpler.
 
 - `stop_point "Nothing was published and $here."` first, as before every step.
@@ -227,7 +229,9 @@ the feeder's wait too: past the limit it sends a terminate to the group and to `
 broken case cannot hang the file. `run_tty` sets no `fail` itself: T1 to T7 count 124 as a fail,
 and T8 expects it. Output comes back with `\r\n`; the helper strips
 `\r` before any check. The T cases run only when `SHIP_TEST_TTY=1` is set, and there a missing
-`script` fails the file. The build changes `.github/workflows/template-tests.yml` so that the two
+`script` fails the file with one line naming the T cases and `SHIP_TEST_TTY`, as S10 (e) does for
+`SHIP_TEST_REQUIRE_BASH32` (line 841). The build PR's own CI run shows whether `ubuntu-latest` has
+`script` (not checked here) before anything merges. The build changes `.github/workflows/template-tests.yml` so that the two
 steps that run the file directly set it: the playwright job's (line 94, Linux) and the Mac bash 3.2
 step (lines 303–311, in prepare-any-shell's macOS leg). Everywhere else the file runs, the T cases
 print one line saying they are skipped and run nothing: a copied site's pre-push hook
@@ -254,7 +258,8 @@ The toolkit's CI tests the same `ship.sh` every site gets through `whats-new`.
   only holds the input open. No question, the no-terminal line in the file, the run goes on.
 - T8, the watchdog itself: `run_tty t8 --none --prog "$G/t8-stand.sh" --limit 3`, the stand-in a
   script under `$G` (outside the clone) that ignores terminate and hang-up, starts a child that
-  sleeps, and sleeps: `run_tty` returns 124
+  sleeps, and sleeps, both through `$SHIP_T_REAL_SLEEP` (the stub `sleep` first on `PATH` returns at
+  once, line 896); the watchdog times with the real `sleep` too: `run_tty` returns 124
   within 15 seconds, and both the stand-in and its child are gone.
 - Under `SHIP_GATE_SKIP_WORDING` the T cases cannot find the question by its text, so they print
   that they are skipped; no CI step sets it.
