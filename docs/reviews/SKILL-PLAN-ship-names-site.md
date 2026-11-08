@@ -90,8 +90,8 @@ prints it too, with `owner/name`, on the owner's own screen or log; nothing else
 
 The mode line ("→ Publishing main → production." or "→ Publishing GitHub's main as of the fetch
 (<id>) …") now follows the first line, with anything that prints before it today (a lock
-refusal, a fetch retry) still before it, and the leftovers report still after it (line 538);
-`mode_has` already finds it as the
+refusal, a fetch retry) still before it, and the leftovers report still after it (line 539);
+the new `mode_has` helper (below) finds it as the
 first line starting `→ Publishing`, wherever it sits. The comment at lines 531–532 ("so the first and the last line
 name the commit") changes to "the mode line and the last line".
 
@@ -213,7 +213,9 @@ under `script`: macOS's BSD form `script -q /dev/null <command>`, util-linux's f
 BSD prints "illegal option", measured). Measured: both forms pass their input to the program, and the
 program reads an end of input once `script`'s own input ends (BSD on macOS, READ 1; util-linux
 2.38.1 on Debian 12, READ 13). So a feeder waits, with a limit,
-until the question is in the log, writes the answer, then holds its input open until ship.sh exits.
+until the question is in the log, writes the answer, then holds its input open until ship.sh exits;
+its waits use `$SHIP_T_REAL_SLEEP`, since the stub `sleep` first on `PATH` returns at once (an
+answer written before the read is lost under BSD `script`, READ 1).
 ship.sh is started through the same pattern as `expect`'s wrapper (line 236), with the pid file
 passed as an argument so it lands outside the clone: `bash -c 'echo "$$" > "$1"; exec bash "$0"'
 scripts/ship.sh "$G/<case>.pid"` (`--prog FILE` puts another script in place of
@@ -232,7 +234,8 @@ and T8 expects it. Output comes back with `\r\n`; the helper strips
 `script` fails the file with one line naming the T cases and `SHIP_TEST_TTY`, as S10 (e) does for
 `SHIP_TEST_REQUIRE_BASH32` (line 841). The build PR's own CI run shows whether `ubuntu-latest` has
 `script` (not checked here) before anything merges. The build changes `.github/workflows/template-tests.yml` so that the two
-steps that run the file directly set it: the playwright job's (line 94, Linux) and the Mac bash 3.2
+steps that run the file directly set it: the playwright job's (line 94, Linux; its comment's
+"fails within a minute or so" changes to "fails within a few minutes") and the Mac bash 3.2
 step (lines 303–311, in prepare-any-shell's macOS leg). Everywhere else the file runs, the T cases
 print one line saying they are skipped and run nothing: a copied site's pre-push hook
 (verify-windows' pushes and each owner's own pushes) and each site's own CI
