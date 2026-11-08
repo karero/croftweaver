@@ -17,10 +17,12 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 ## What and why
 
 On 2026-11-07 the owner ran `npm run ship` in the wrong site's folder, typed at his own terminal
-(the output he pasted into the session shows his shell prompt in that folder). It published that
-site's `main`, which took a merged pull request live (only hidden attributes changed). The script
-printed the site's address only after the push, in the live-site check. That is one incident, and
-the question below would have stopped it. Anyone with
+(the output he pasted into the session shows his shell prompt in that folder). This time it did no
+harm: that site's live branch already held its `main` (GitHub's record shows the last push to it 90
+minutes earlier), so the push printed `Everything up-to-date`. Had that `main` held unpublished
+work, the run would have taken it live. The script printed the site's address only at the end, in
+the live-site check. That is one incident, with no damage, and the question below would have
+stopped it. Anyone with
 more than one site folder can do the same, so the change is right for every owner, not only this
 one.
 
