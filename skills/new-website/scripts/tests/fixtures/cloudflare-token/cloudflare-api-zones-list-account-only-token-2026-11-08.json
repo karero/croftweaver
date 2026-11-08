@@ -1,0 +1,215 @@
+{
+  "result": [
+    {
+      "id": "c0ffee00000000000000000000000201",
+      "name": "other-1.example",
+      "status": "active",
+      "paused": false,
+      "type": "full",
+      "development_mode": -124402097,
+      "name_servers": [
+        "ada.ns.example",
+        "bert.ns.example"
+      ],
+      "original_name_servers": [
+        "dns1.registrar.example",
+        "dns2.registrar.example"
+      ],
+      "original_registrar": null,
+      "original_dnshost": null,
+      "modified_on": "2024-02-01T01:48:35.473657Z",
+      "created_on": "2016-07-02T20:26:31.007846Z",
+      "activated_on": "2016-07-04T20:43:18.365511Z",
+      "vanity_name_servers": [],
+      "vanity_name_servers_ips": null,
+      "meta": {
+        "step": 4,
+        "custom_certificate_quota": 0,
+        "page_rule_quota": 30,
+        "phishing_detected": false
+      },
+      "owner": {
+        "id": null,
+        "type": "user",
+        "email": null
+      },
+      "account": {
+        "id": "c0ffee00000000000000000000000023",
+        "name": "Lena's Account"
+      },
+      "tenant": {
+        "id": null,
+        "name": null
+      },
+      "tenant_unit": {
+        "id": null
+      },
+      "permissions": [
+        "#domain:read",
+        "#zone:read",
+        "#organization:read",
+        "#dns_records:edit",
+        "#dns_records:read",
+        "#worker:edit",
+        "#worker:read",
+        "#analytics:read",
+        "#organization:edit"
+      ],
+      "plan": {
+        "id": "c0ffee00000000000000000000000024",
+        "name": "Free Website",
+        "price": 0,
+        "currency": "USD",
+        "frequency": "",
+        "is_subscribed": false,
+        "can_subscribe": false,
+        "legacy_id": "free",
+        "legacy_discount": false,
+        "externally_managed": false
+      }
+    },
+    {
+      "id": "c0ffee00000000000000000000000202",
+      "name": "other-2.example",
+      "status": "active",
+      "paused": false,
+      "type": "full",
+      "development_mode": 0,
+      "name_servers": [
+        "ada.ns.example",
+        "bert.ns.example"
+      ],
+      "original_name_servers": null,
+      "original_registrar": null,
+      "original_dnshost": null,
+      "modified_on": "2026-10-12T07:38:04.200697Z",
+      "created_on": "2026-10-07T10:09:14.002574Z",
+      "activated_on": "2026-10-07T10:09:14.415805Z",
+      "vanity_name_servers": [],
+      "vanity_name_servers_ips": null,
+      "meta": {
+        "step": 4,
+        "custom_certificate_quota": 0,
+        "page_rule_quota": 3,
+        "phishing_detected": false
+      },
+      "owner": {
+        "id": null,
+        "type": "user",
+        "email": null
+      },
+      "account": {
+        "id": "c0ffee00000000000000000000000023",
+        "name": "Lena's Account"
+      },
+      "tenant": {
+        "id": null,
+        "name": null
+      },
+      "tenant_unit": {
+        "id": null
+      },
+      "permissions": [
+        "#domain:read",
+        "#zone:read",
+        "#organization:read",
+        "#dns_records:edit",
+        "#dns_records:read",
+        "#worker:edit",
+        "#worker:read",
+        "#analytics:read",
+        "#organization:edit"
+      ],
+      "plan": {
+        "id": "c0ffee00000000000000000000000024",
+        "name": "Free Website",
+        "price": 0,
+        "currency": "USD",
+        "frequency": "",
+        "is_subscribed": false,
+        "can_subscribe": false,
+        "legacy_id": "free",
+        "legacy_discount": false,
+        "externally_managed": false
+      }
+    },
+    {
+      "id": "c0ffee00000000000000000000000203",
+      "name": "other-3.example",
+      "status": "active",
+      "paused": false,
+      "type": "full",
+      "development_mode": 0,
+      "name_servers": [
+        "ada.ns.example",
+        "bert.ns.example"
+      ],
+      "original_name_servers": [
+        "dns1.registrar.example",
+        "dns2.registrar.example"
+      ],
+      "original_registrar": "registrar.example",
+      "original_dnshost": null,
+      "modified_on": "2026-10-30T11:16:16.602450Z",
+      "created_on": "2023-12-21T15:20:39.459930Z",
+      "activated_on": "2023-12-21T15:47:26.754500Z",
+      "vanity_name_servers": [],
+      "vanity_name_servers_ips": null,
+      "meta": {
+        "step": 2,
+        "custom_certificate_quota": 0,
+        "page_rule_quota": 3,
+        "phishing_detected": false
+      },
+      "owner": {
+        "id": null,
+        "type": "user",
+        "email": null
+      },
+      "account": {
+        "id": "c0ffee00000000000000000000000023",
+        "name": "Lena's Account"
+      },
+      "tenant": {
+        "id": null,
+        "name": null
+      },
+      "tenant_unit": {
+        "id": null
+      },
+      "permissions": [
+        "#domain:read",
+        "#zone:read",
+        "#organization:read",
+        "#dns_records:edit",
+        "#dns_records:read",
+        "#worker:edit",
+        "#worker:read",
+        "#analytics:read",
+        "#organization:edit"
+      ],
+      "plan": {
+        "id": "c0ffee00000000000000000000000024",
+        "name": "Free Website",
+        "price": 0,
+        "currency": "USD",
+        "frequency": "",
+        "is_subscribed": false,
+        "can_subscribe": false,
+        "legacy_id": "free",
+        "legacy_discount": false,
+        "externally_managed": false
+      }
+    }
+  ],
+  "result_info": {
+    "page": 1,
+    "per_page": 50,
+    "total_pages": 1,
+    "count": 3,
+    "total_count": 3
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

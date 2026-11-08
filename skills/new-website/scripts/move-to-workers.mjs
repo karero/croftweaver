@@ -649,50 +649,12 @@ async function prepare(opts, io, run) {
 
   const lsStarted = ctx.gitNet('ls-remote', '--heads', 'origin'); // beside the token check: neither needs the other
   lsStarted.catch(() => {}); // awaited below; a stop before that must not leave it unhandled
-  // The token: verified, a week away at most, with DNS reach in one zone.
-  const verify = await ctx.api('GET', '/user/tokens/verify');
-  if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
-  if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
-  const ends = Date.parse(verify.body.result.expires_on ?? '');
-  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date a week out, and delete this one.');
-  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. A week at most: make one that ends within the week, and delete this one.`);
-  ctx.tokenLeftMs = ends - ctx.now();
-  if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
-  const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
-  if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
-  // The Workers permission lists every zone of the account, so the zone count says nothing. The site's
-  // zone is the one whose `permissions` reach DNS or zone settings; it must be exactly one, with DNS Edit.
-  for (const z of zones.items) if (!Array.isArray(z.permissions)) throw new Stop(1, `Cloudflare did not say what this token may do in the zone ${z.name}. Make a new token from the link.`);
-  const reaching = zones.items.filter((z) => z.permissions.some((p) => /^#(dns_records|zone_settings):/.test(p)));
-  if (reaching.length > 1) throw new Stop(1, `This token can reach the DNS or settings of ${reaching.length} zones (${reaching.map((z) => z.name).join(', ')}). Make one limited to the site's own zone (Zone Resources: your one domain). A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
-  const zone = reaching[0];
-  if (!zone?.permissions.includes('#dns_records:edit')) throw new Stop(1, `This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.`);
-  if (zone.status !== 'active') throw new Stop(1, `The zone ${zone.name} is ${zone.status} on Cloudflare, not active.`);
-  if (!zone.account?.id) throw new Stop(1, 'Cloudflare did not say which account the zone belongs to.');
-  if (!/^[a-z0-9.-]+$/.test(zone.name)) throw new Stop(1, `The zone name "${zone.name}" is not one this script handles.`);
-  ctx.zone = zone;
-  ctx.account = { id: zone.account.id, name: zone.account.name ?? zone.account.id };
-  Object.assign(ctx.gate, { accountId: ctx.account.id, zoneId: zone.id, zoneName: zone.name });
-
-  // The branches on GitHub and the publish model, as the setup script reads them.
-  const lsAll = await lsStarted;
-  if (lsAll.code !== 0) throw new Stop(1, `git could not read the branches of ${ctx.repository} on GitHub. Check that this computer can reach it, then run again.`);
-  const heads = new Map(lsAll.stdout.split('\n').map((l) => l.split('\t')).filter((p) => p.length === 2).map(([s, r]) => [r.replace(/^refs\/heads\//, ''), s]));
-  const mainSha = heads.get('main');
-  if (!mainSha) throw new Stop(1, `${ctx.repository} has no branch main on GitHub.`);
-  ctx.haveCommit = async (sha, where) => {
-    if ((await git('cat-file', '-e', `${sha}^{commit}`)).code !== 0) throw new Stop(1, `The head of ${where} on GitHub (${short(sha)}) is not in this folder yet. Run git fetch origin, then run this again.`);
-  };
-  await ctx.haveCommit(mainSha, 'main');
-  const { prodBranch } = await readSiteConfig(git, mainSha);
-  if (prodBranch === 'main' && !heads.has('production')) ctx.twoStage = false;
-  else if (prodBranch === 'production' && heads.has('production')) ctx.twoStage = true;
-  else throw new Stop(1, `The two signs of the publish model disagree: src/config.ts says PROD_BRANCH is "${prodBranch}", and GitHub has ${heads.has('production') ? 'a' : 'no'} branch production.`);
-  ctx.prodBranch = prodBranch;
-  ctx.tip = heads.get(prodBranch);
-  ctx.mainSha = mainSha;
-  await ctx.haveCommit(ctx.tip, prodBranch);
-  if (ctx.twoStage && ctx.mainSha !== ctx.tip) ctx.mainDiffers = true;
+  let zone;
+  try { zone = await checkToken(ctx); } catch (e) {
+    if (!(e instanceof Stop) || opts.cmd !== 'check') throw e;
+    throw await withStageOne(ctx, e, lsStarted); // a refused token would hide the stage 1 gaps
+  }
+  await readBranches(ctx, lsStarted);
 
   // The state file: only the one for this zone and repository, and the same site.
   ctx.stateDir = stateDir(io, zone.name, ctx.repository);
@@ -709,7 +671,12 @@ async function prepare(opts, io, run) {
   // The Worker's config: at the frozen commit of an open move or a recorded one, else at the live tip.
   ctx.sha = st && (st.open || st.recording?.status === 'done') && !['record', 'check'].includes(opts.cmd) ? st.frozen : ctx.tip;
   if (ctx.sha !== ctx.tip) await ctx.haveCommit(ctx.sha, 'the frozen commit');
-  const wc = await readWorkersConfig(git, ctx.sha);
+  let wc;
+  try { wc = await readWorkersConfig(git, ctx.sha); } catch (e) {
+    if (!(e instanceof Stop) || ctx.open) throw e; // an open move's checks are lifted: only this one stops it
+    const gaps = await stageOneGaps(git, ctx.sha);
+    throw gaps.length ? gapsStop(ctx.sha, gaps) : e;
+  }
   ctx.worker = wc.cfg.name;
   ctx.configFile = wc.file;
   ctx.workerConfig = wc;
@@ -747,6 +714,105 @@ async function prepare(opts, io, run) {
   for (const h of ctx.hosts) { ctx.gate.hosts.add(h); ctx.allowed.add(h); }
   if (!ctx.hosts.length) throw new Stop(1, `The Pages project ${ctx.project.name} has no custom domain in ${zone.name}: there is nothing to move.`);
   return ctx;
+}
+
+// SITE.url in src/config.ts at the local HEAD, or null (missing, unreadable, the template's own).
+// It chooses the words of a zone refusal only, never the zone.
+async function siteAddress(git) {
+  const r = await git('show', 'HEAD:src/config.ts');
+  if (r.code !== 0) return null;
+  const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(r.stdout)?.[1];
+  if (site === undefined || /[{}`]/.test(site)) return null; // only the template's flat form; a nested or one-line SITE, or a template string, gives the old words
+  const url = /^[ \t]*url:[ \t]*['"]([^'"\n]+)['"]/m.exec(site)?.[1];
+  let host;
+  try { host = new URL(url).hostname.toLowerCase().replace(/\.$/, ''); } catch { return null; }
+  return host && host !== 'example.com' ? { host } : null;
+}
+
+// A refused token: what was found, the permissions that reach (when more than one zone does), and
+// what to make, by the address src/config.ts gives. `reaching` is empty when no zone has DNS Edit.
+async function zoneRefusal(ctx, zones, reaching) {
+  const lines = reaching.length
+    ? [`This token can reach the DNS or settings of ${reaching.length} zones (${reaching.map((z) => z.name).join(', ')}).`,
+      `Cloudflare lists these permissions in them: ${[...new Set(reaching.flatMap((z) => z.permissions.filter((p) => /^#(dns_records|zone_settings):/.test(p))
+        .map((p) => (/^[a-z0-9_:#.-]+$/.test(p) ? p : '(a permission this script does not show)'))))].join(', ')}.`]
+    : [];
+  const a = await siteAddress(ctx.git);
+  const own = a && zones.map((z) => z.name).filter((n) => a.host === n || a.host.endsWith(`.${n}`)).sort((x, y) => y.length - x.length)[0];
+  if (a && !own && /\.(pages|workers)\.dev$/.test(a.host)) {
+    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address https://${a.host}, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says (the kit has no guide yet for launching straight onto a Worker); if it has one, put it in SITE.url.`);
+  } else if (a && !own) {
+    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address ${a.host}, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet, or it is in an account this token cannot see. If it is not on Cloudflare yet, put it there first. Then make the token with Zone Read and DNS Edit, Zone Resources set to it.`);
+  } else if (reaching.length) {
+    lines.push(`Make one limited to ${own ?? "the site's own zone"} (Zone Resources: ${own ? 'that one domain' : 'your one domain'}). A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
+  } else {
+    lines.push(`This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to ${own ?? "the site's own domain"}.`);
+  }
+  return new Stop(1, ...lines);
+}
+
+// The token: verified, a week away at most, with DNS reach in one zone. Returns that zone.
+async function checkToken(ctx) {
+  const verify = await ctx.api('GET', '/user/tokens/verify');
+  if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
+  if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
+  const ends = Date.parse(verify.body.result.expires_on ?? '');
+  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date a week out, and delete this one.');
+  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. A week at most: make one that ends within the week, and delete this one.`);
+  ctx.tokenLeftMs = ends - ctx.now();
+  if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
+  const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
+  if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
+  // The Workers permission lists every zone of the account, so the zone count says nothing. The site's
+  // zone is the one whose `permissions` reach DNS or zone settings; it must be exactly one, with DNS Edit.
+  for (const z of zones.items) if (!Array.isArray(z.permissions)) throw new Stop(1, `Cloudflare did not say what this token may do in the zone ${z.name}. Make a new token from the link.`);
+  const reaching = zones.items.filter((z) => z.permissions.some((p) => /^#(dns_records|zone_settings):/.test(p)));
+  if (reaching.length > 1) throw await zoneRefusal(ctx, zones.items, reaching);
+  const zone = reaching[0];
+  if (!zone?.permissions.includes('#dns_records:edit')) throw await zoneRefusal(ctx, zones.items, []);
+  if (zone.status !== 'active') throw new Stop(1, `The zone ${zone.name} is ${zone.status} on Cloudflare, not active.`);
+  if (!zone.account?.id) throw new Stop(1, 'Cloudflare did not say which account the zone belongs to.');
+  if (!/^[a-z0-9.-]+$/.test(zone.name)) throw new Stop(1, `The zone name "${zone.name}" is not one this script handles.`);
+  ctx.zone = zone;
+  ctx.account = { id: zone.account.id, name: zone.account.name ?? zone.account.id };
+  Object.assign(ctx.gate, { accountId: ctx.account.id, zoneId: zone.id, zoneName: zone.name });
+  return zone;
+}
+
+// The branches on GitHub and the publish model, as the setup script reads them.
+async function readBranches(ctx, lsStarted) {
+  const { git } = ctx;
+  const lsAll = await lsStarted;
+  if (lsAll.code !== 0) throw new Stop(1, `git could not read the branches of ${ctx.repository} on GitHub. Check that this computer can reach it, then run again.`);
+  const heads = new Map(lsAll.stdout.split('\n').map((l) => l.split('\t')).filter((p) => p.length === 2).map(([s, r]) => [r.replace(/^refs\/heads\//, ''), s]));
+  const mainSha = heads.get('main');
+  if (!mainSha) throw new Stop(1, `${ctx.repository} has no branch main on GitHub.`);
+  ctx.haveCommit = async (sha, where) => {
+    if ((await git('cat-file', '-e', `${sha}^{commit}`)).code !== 0) throw new Stop(1, `The head of ${where} on GitHub (${short(sha)}) is not in this folder yet. Run git fetch origin, then run this again.`);
+  };
+  await ctx.haveCommit(mainSha, 'main');
+  const { prodBranch } = await readSiteConfig(git, mainSha);
+  if (prodBranch === 'main' && !heads.has('production')) ctx.twoStage = false;
+  else if (prodBranch === 'production' && heads.has('production')) ctx.twoStage = true;
+  else throw new Stop(1, `The two signs of the publish model disagree: src/config.ts says PROD_BRANCH is "${prodBranch}", and GitHub has ${heads.has('production') ? 'a' : 'no'} branch production.`);
+  ctx.prodBranch = prodBranch;
+  ctx.tip = heads.get(prodBranch);
+  ctx.mainSha = mainSha;
+  await ctx.haveCommit(ctx.tip, prodBranch);
+  if (ctx.twoStage && ctx.mainSha !== ctx.tip) ctx.mainDiffers = true;
+}
+
+// check only: a refused token comes with the stage 1 gaps at the live tip, which it would hide.
+async function withStageOne(ctx, stop, lsStarted) {
+  let gaps;
+  try {
+    await readBranches(ctx, lsStarted);
+    gaps = await stageOneGaps(ctx.git, ctx.tip);
+  } catch (e) {
+    if (!(e instanceof Stop)) throw e;
+    return new Stop(stop.code, ...stop.lines, 'Stage 1 could not be checked:', ...e.lines);
+  }
+  return gaps.length ? new Stop(stop.code, ...stop.lines, 'If no move is open, stage 1 is not done either:', ...gaps.map((g) => `- ${g}`)) : stop;
 }
 
 // What Cloudflare says now, for the hosts: the project's domains, the Worker's domains, and each
@@ -825,15 +891,30 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 
 // ---------------------------------------------------------------- the refusals of a first move
 
+// What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
+// and analytics server mode. Read from git only, so a run lists all of them at once.
+async function stageOneGaps(git, sha) {
+  const gaps = [];
+  const asLines = async (fn) => { try { await fn(); } catch (e) { if (!(e instanceof Stop)) throw e; gaps.push(...e.lines); } };
+  await asLines(() => readWorkersConfig(git, sha));
+  const tree = await git('ls-tree', '-r', '--name-only', sha);
+  if (tree.code !== 0) throw new Stop(1, `git could not list ${short(sha)}.`);
+  const files = tree.stdout.split('\n');
+  const fns = files.filter((f) => f.startsWith('functions/') && f !== 'functions/_middleware.ts');
+  if (fns.length) gaps.push(`${short(sha)} holds ${fns.slice(0, 3).join(', ')}${fns.length > 3 ? ' and more' : ''} in functions/. The Worker would not run that code. Stage 1 of the move section takes functions/go/ out.`);
+  if (files.includes('public/_worker.js')) gaps.push(`${short(sha)} holds public/_worker.js: code the Worker would not run.`);
+  await asLines(async () => { if ((await readSiteConfig(git, sha)).serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.'); });
+  return gaps;
+}
+// One gap stops as it always has; more are listed under one line.
+const gapsStop = (sha, gaps) => (gaps.length === 1 ? new Stop(1, gaps[0])
+  : new Stop(1, `Stage 1 of the move section is not done at ${short(sha)}:`, ...gaps.map((g) => `- ${g}`)));
+
 async function firstMoveRefusals(ctx, live) {
   const mineOnWorker = live.mineWd;
   if (mineOnWorker.length) throw new Stop(1, `The Worker ${ctx.worker} already has a domain (${mineOnWorker.map((d) => d.hostname).join(', ')}). A first move needs a Worker with none: take it off by hand or finish the move it belongs to.`);
-  const sha = ctx.sha;
-  const files = (await ctx.gitOut('ls-tree', '-r', '--name-only', sha)).split('\n');
-  const fns = files.filter((f) => f.startsWith('functions/') && f !== 'functions/_middleware.ts');
-  if (fns.length) throw new Stop(1, `${short(sha)} holds ${fns.slice(0, 3).join(', ')}${fns.length > 3 ? ' and more' : ''} in functions/. The Worker would not run that code. Stage 1 of the move section takes functions/go/ out.`);
-  if (files.includes('public/_worker.js')) throw new Stop(1, `${short(sha)} holds public/_worker.js: code the Worker would not run.`);
-  if ((await readSiteConfig(ctx.git, sha)).serverMode) throw new Stop(1, 'This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
+  const gaps = await stageOneGaps(ctx.git, ctx.sha);
+  if (gaps.length) throw gapsStop(ctx.sha, gaps);
 }
 
 // ---------------------------------------------------------------- GitHub and builds

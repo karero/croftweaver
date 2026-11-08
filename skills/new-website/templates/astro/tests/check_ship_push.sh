@@ -1720,7 +1720,7 @@ GATE
   # --- L2c: the live site never shows the new build: the stall message says what was done --
   fixture l2c; advance 1
   run_ship l2c SHIP_T_STALE=1; exits 1
-  want "a push with news says it pushed" has "⚠ Pushed OK, but after 4 minutes"
+  want "a push with news says it pushed" has "⚠ Pushed OK, but after 6 minutes"
 
   # --- L3: production already has this commit ----------------------------------------------
   fixture l3; p0="$(gh production)"
@@ -1737,7 +1737,7 @@ GATE
   fixture l3b
   run_ship l3b SHIP_T_STALE=1; exits 1
   want "the stall message does not say a push happened" lacks "Pushed OK"
-  want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 4 minutes the"
+  want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 6 minutes the"
 
   # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
   # The clone asks for colour, decorations, the long format and signature lines; one subject holds

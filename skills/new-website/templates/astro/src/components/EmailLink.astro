@@ -14,6 +14,7 @@
 // The address stays encoded in that link, and the link works without JavaScript too.
 // Elsewhere (previews, `astro dev`, `astro preview`, where no Function runs) it stays
 // the plain mailto: link set below.
+import { existsSync } from 'node:fs';
 import { encodeEmail, emailHint } from '../lib/obfuscate';
 import { SITE, ANALYTICS, USE_ANALYTICS } from '../config';
 
@@ -29,6 +30,11 @@ const data = encodeEmail(address);
 const subj = subject ? encodeURIComponent(subject) : '';
 const label = text ?? emailHint(address, lang);
 const viaServer = ANALYTICS.enabled && ANALYTICS.mode === 'server';
+// /go/email is a Pages Function. Workers runs none, and a moved site has deleted functions/go/,
+// so there the build fails rather than ship email links that 404.
+if (viaServer && (process.env.WORKERS_CI || !existsSync('functions/go/email.ts'))) {
+  throw new Error("EmailLink: server mode needs Cloudflare Pages Functions (functions/go/email.ts), which Workers does not run. Set ANALYTICS.mode to 'script' in src/config.ts.");
+}
 // functions/go/email.ts refuses a longer subject (MAX_SUBJECT, in lockstep): fail every
 // build in server mode, previews, local builds and a site whose variables are not set yet
 // included, rather than the visitor's click on the live site.
