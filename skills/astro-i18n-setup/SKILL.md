@@ -167,6 +167,9 @@ Remove `SITE.locale`. In `Base.astro`'s Props destructure, `lang = SITE.locale,`
 `lang: langProp,`: the layout derives the page's language from `Astro.currentLocale`
 (step 3), and an explicit `lang` prop still wins. Keeping the old default breaks the build;
 deleting the line leaves `lang` undefined for `inLanguage` and `og:locale`.
+`src/components/EmailLink.astro` reads `SITE.locale` too: its import of `SITE` becomes
+`DEFAULT_LOCALE`, and its default `lang = SITE.locale` becomes
+`lang = Astro.currentLocale ?? DEFAULT_LOCALE`, so a `/de` page's email hint reads "[punkt]".
 Everything else reads `DEFAULT_LOCALE` / `Astro.currentLocale`.
 
 ### 3. `src/layouts/Base.astro` — locale-aware (VERIFIED build output)
