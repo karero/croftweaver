@@ -273,8 +273,8 @@ consult it), so `/de/privacy` inherits `/privacy`'s exemption. `/de/impressum` i
 the exemption of its neutral path `/impressum`, which the starter does not list: add
 `'/impressum'` to `OWN_CARD_EXEMPT`. The HOME route
 must NOT inherit: `/` is exempt only because the default card IS the home
-card — a rationale that does not transfer to `/de`, which needs its own
-translated card in `generate_og_cards.py` like any content page:
+card — a rationale that does not transfer to the other language's home (`/de`, or `/en`
+with German as the default), which needs its own translated card in `generate_og_cards.py` like any content page:
 ```ts
 const isCardExempt = (p: string) =>
   OWN_CARD_EXEMPT.has(p) || (neutralPath(p) !== '/' && OWN_CARD_EXEMPT.has(neutralPath(p)));

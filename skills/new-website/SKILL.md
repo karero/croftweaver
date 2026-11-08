@@ -818,8 +818,8 @@ hold Search Console Request Indexing until then.
       the German privacy page) and `src/pages/_impressum.astro` (same underscore rule;
       German-only sites serve it at `/impressum` REPLACING `/legal-notice`, an
       English site routes it beside `/legal-notice`, multilingual sites use its
-      text for the German Impressum). The German Impressum is offered to an owner
-      based in Germany, and only to them: a US owner gets no German page.
+      text for the German Impressum). On an English site the German Impressum is
+      offered to an owner based in Germany, and only to them: a US owner gets no German page.
       **Ask the owner about the drafts, once, before the deploy item below**, as
       `AGENTS.md` §5 says (the site carries it; the text is not repeated here), and in the
       same message ask whether the business is based in Germany. The
