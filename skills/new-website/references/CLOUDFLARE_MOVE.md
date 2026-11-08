@@ -31,14 +31,22 @@ computer, and a second computer would not know the move had begun.
    text is true on both platforms (it names Cloudflare, not Pages); and the site has exactly one
    Workers config (a `.json` or `.jsonc` that holds `assets` and no `pages_build_output_dir`) with
    `workers_dev: false`, `preview_urls: true`, `not_found_handling: "404-page"` and no domain
-   routes. With analytics on (`USE_ANALYTICS = true`), the `enabled:` line in `src/config.ts`
-   has the 0.35 form, `(process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) ===
-   PROD_BRANCH`: Workers Builds sets `WORKERS_CI_BRANCH` and not `CF_PAGES_BRANCH` (real runs,
+   routes. All of it is merged to the live branch.
+
+   With analytics on (`USE_ANALYTICS = true` in `src/config.ts`), stage 1 has one more step.
+   The `enabled:` line in `src/config.ts` must read as the 0.35 starter's does, on one line:
+
+   ```ts
+   enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,
+   ```
+
+   Workers Builds sets `WORKERS_CI_BRANCH`, not `CF_PAGES_BRANCH` (seen on real runs:
    `templates/astro/tests/fixtures/workers-builds-2026-11-08.txt`). A site made before 0.35
-   reads `CF_PAGES_BRANCH` only. `src/config.ts` is the site's own file, so an update leaves the
-   line alone: change it by hand (the 0.35 `tests/check_analytics_gate.sh` fails until it is
-   changed). Left as it is, a Worker that Workers Builds builds has no analytics, and `record`
-   stops on a body difference on every page. All of it is merged to the live branch.
+   reads `CF_PAGES_BRANCH` only. `src/config.ts` is the site's own file, so an update does not
+   change the line: change it by hand and ship it with the rest of stage 1. The 0.35
+   `tests/check_analytics_gate.sh` fails until it is changed. Left as it is, a Worker that
+   Workers Builds builds serves its pages without analytics, so `record` stops on their body
+   difference. With analytics off, leave the line alone.
 2. **Freeze and record.** `check`, then `record`. Nothing is merged or shipped from here until
    `after` passes, except the commit the script writes.
 3. **Switch.** `move`, and `undo` if you want to go back.
@@ -86,7 +94,7 @@ never gives it to a program it starts (the build, `git`).
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
 | 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. |
 | 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote and nothing has changed since step 3 (below): it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
-| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). The push runs the site's own tests first (a couple of minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did, on the User's own Cloudflare login, not the move token. On a kit site, from the pushed commit: `CF_PAGES_BRANCH=<the live branch> npm run build` (without it, a site with analytics on has its analytics and email-tap tracking switched off; the `enabled:` line reads it in both its old and its 0.35 form), then `npx wrangler deploy --config <the Workers config file>` (the root `.json` or `.jsonc` file with `assets` that stage 1 deployed with; its name is not always `wrangler.jsonc`). `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit. |
+| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). The push runs the site's own tests first (a couple of minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did, on the User's own Cloudflare login, not the move token. On a kit site, from the pushed commit: `CF_PAGES_BRANCH=<the live branch> npm run build` (without it, a site with analytics on has its analytics and email-tap tracking switched off; this build sets `CF_PAGES_BRANCH`, which the old `enabled:` line and the 0.35 one both read), then `npx wrangler deploy --config <the Workers config file>` (the root `.json` or `.jsonc` file with `assets` that stage 1 deployed with; its name is not always `wrangler.jsonc`). `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit. |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
 
 **`check` refuses** (and each refusal says what to do): a Pages project made by direct upload, or
