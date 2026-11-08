@@ -21,9 +21,8 @@ On 2026-11-07 the owner ran `npm run ship` in the wrong site's folder, typed by 
 harm: that site's live branch already held its `main` (GitHub's record shows its last push came at least 85
 minutes before the run), so the push printed `Everything up-to-date`. Had that `main` held unpublished
 work, the run would have taken it live. The script printed the site's address only at the end, in
-the live-site check. That is one incident, with no damage, and the question below would have
-stopped it. Anyone with
-more than one site folder can do the same, so the change is right for every owner, not only this
+the live-site check. That is one incident, with no damage; the question below would have
+named that site and waited for a yes. Anyone with more than one site folder can do the same, so the change is right for every owner, not only this
 one.
 
 Two changes, both in `skills/new-website/templates/astro/scripts/ship.sh`:
@@ -46,33 +45,38 @@ every run at a terminal. The owner decided it on 2026-11-08 ("Start it and add i
   empty if none. It is today's read at line 753, moved into the function word for word, so the
   `check_pipefail_pipes.sh` allow-list entry for its `| head -1 || true)"` still matches its one
   site. Line 753 becomes `site="$(site_of "${wt:-.}")"`; the live check is unchanged.
-- `site_lines <folder>`: how many lines of that file match the same pattern
-  (`grep -cE … 2>/dev/null || true`, no pipe). The starter has one. When an owner keeps an old
-  address in a comment there are two, and `site_of` may return the commented one, so the first
-  line and the question name no address then (fallback below) rather than a possibly wrong one.
+- `site_count <folder>`: `none`, `one` or `many`, from every match of the same pattern in that
+  file (`h="$(grep -oE … 2>/dev/null || true)"`, no pipe), read with
+  `case "$h" in '') none;; *$'\n'*) many;; *) one;; esac`. It counts matches, not lines, so an old
+  address kept in a comment counts whether it sits on its own line or beside the live one. The
+  starter has one. With `many`, `site_of` may return the commented one, so the first line and the
+  question name no address then (fallback below) rather than a possibly wrong one.
 - `repo_of_origin`: the address `git push origin` uses, which is `origin`'s push address when one is
   set: `git remote get-url --push --all origin 2>/dev/null || true`. More than one line (several
-  push addresses) gives a fallback. Otherwise a trailing `/` is removed, then `.git`, then the end
+  push addresses) gives a fallback, and so does an address holding `?` or `#` (a query or fragment
+  can carry a token, and a token can hold `/`). Otherwise a trailing `/` is removed, then `.git`,
+  then the end
   is matched with `sed -nE 's#^.*[:/]([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)$#\1#p' <<<"$url"` (a
   here-string, not a pipe). Only `owner/name` made of those characters is printed, so
   `git@github.com:owner/site.git`, `ssh://git@github.com/owner/site.git` and an `https` address
   with a user name and token before the host all give `owner/site`. Anything else gives the
-  fallback and prints nothing of the address: a token in a query string, a user part with no
-  owner after the host, no `owner/name` at the end, or no `origin`.
+  fallback and prints nothing of the address: a query or fragment, a user part with no owner after
+  the host, no `owner/name` at the end, or no `origin`.
 
 **B. The first line** goes right after `self_blob` is read (that read must stay first, line 360),
 before the `ship.fromGitHub` check, in both modes:
 
     → Site: https://example.com · GitHub repo: owner/site
 
-With no address: `Site: (no site: address in astro.config.mjs)`. With more than one `site:` line:
-`Site: (more than one site: line in astro.config.mjs — check which one is live)`. With no usable
+With no address: `Site: (no site: address in astro.config.mjs)`. With more than one `site:` address:
+`Site: (more than one site: address in astro.config.mjs — check which one is live)`. With no usable
 push address: `GitHub repo: (no 'origin' remote with a plain owner/name address)`. The run goes on either way, as it
 does today: a missing `origin` still stops at the fetch with that step's own message.
 
-It reads this folder's `astro.config.mjs`. In worktree mode the published copy may differ (only if
-the address itself changed on GitHub's `main` and not here); that copy is still what the live check
-reads at line 753. What goes live is decided by the push address, which the line names; the site
+It reads this folder's `astro.config.mjs`, and says only that. In worktree mode the published copy
+differs when the `site:` line differs between this folder and GitHub's `main` (an unsaved edit
+here, or a change on GitHub not yet pulled into this folder); the live check at line 753 still
+reads the published copy. What goes live is decided by the push address, which the line names; the site
 address is the name a person recognises. The address is already
 printed today, unfiltered, by every run that reaches the live check, so the line adds no new
 exposure.
@@ -116,7 +120,7 @@ new (`live_n` 0) it still asks, because the checks and the push still run; one r
 - In worktree mode the run holds the clone's lock while it waits, so another run in that clone
   meanwhile stops with "another publish holds this clone's lock". Its line "That process is still
   running, so a publish is under way. Let it finish" (line 163) gains "(it may be waiting for a yes
-  in another window)". `on_exit` removes the lock and the empty temp folder after a "no", as after
+  in another window: answer or stop it there)". `on_exit` removes the lock and the empty temp folder after a "no", as after
   any early stop.
 
 **D. Markers:** `template-version: 0.25` in `ship.sh` and in `tests/check_ship_push.sh`. The 0.24
@@ -126,10 +130,11 @@ release-notes row (BUGLOG, 2026-11-02) is still open; if no release comes betwee
 **Also, at build:**
 - `skills/new-website/templates/PUBLISHING.md`, after "Before it uploads, it lists the commits that
   go live, newest first." (line 61): "It names the site first. Run in a terminal window with its
-  output on screen, it then asks you to type y before it uploads; run by an assistant, or with its
-  output sent to a file, it says it is not asking and goes on."
+  output on screen, it then asks you to type y before it uploads. Where it has no terminal window
+  to ask in, or its output goes to a file, it says it is not asking and goes on."
 - `docs/BUGLOG.md`: a "Next release notes" row: both files are 0.25 and go together; what the first
-  line and the question do; an assistant's run is not asked and says so; `PUBLISHING.md` gained one
+  line and the question do; a run with no terminal window, or with its output in a file, is not
+  asked and says so; `PUBLISHING.md` gained one
   sentence.
 - `scripts/whats-new.sh` needs no change: `TEMPLATE_TRACKED` (line 80) already names `ship.sh`, the
   tests folder and `PUBLISHING.md`. Each site takes 0.25 through `whats-new`, in its own pull
@@ -137,7 +142,7 @@ release-notes row (BUGLOG, 2026-11-02) is still open; if no release comes betwee
 
 **Not in this change:** a setting to skip the question, a timeout, or a check that the folder is
 the one the owner meant. `AGENTS.md` needs nothing: an assistant still runs `npm run ship` only when
-asked, and its run says it was not asked.
+asked, and a run without a terminal says it was not asked.
 
 ## How it is tested
 
@@ -154,7 +159,8 @@ which is now the site line. A `mode_has` helper reads the first line that starts
 `→ Publishing`, and the three checks use it; `first_has` stays for the new line-1 checks.
 
 **Stub half.** The stub learns `remote get-url --push --all origin`, answering
-`git@github.com:owner/site.git` (a `noorigin` marker makes it and the fetch fail as a missing remote
+`git@github.com:owner/site.git`, and refuses any other `remote` form loudly, as it already refuses
+commands it does not know (a `noorigin` marker makes it and the fetch fail as a missing remote
 does; an `originurl` file replaces the answer, one address per line). `expect` takes the case's
 expected line 1 as an argument, default
 `→ Site: (no site: address in astro.config.mjs) · GitHub repo: owner/site` (the scratch folder has
@@ -165,11 +171,17 @@ live" or "Nothing new goes live" also printed the no-terminal line, and no "Publ
   line 1 ends `owner/site`; no line of the output holds `s3cret`.
 - `tokenurl2`: the user part with `s3cret` and only `site.git` after the host: the fallback, no
   `s3cret`.
-- `queryurl`: `https://example.invalid/owner/site.git?token=s3cret`: the fallback, no `s3cret`.
+- `queryurl`: `https://example.invalid/owner/site.git?token=/s3cret/value`: the fallback, no
+  `s3cret`.
+- `fragurl`: the same with `#` in place of `?token=`: the fallback, no `s3cret`.
 - `twopush`: two addresses in `originurl`: the fallback.
 - `oddurl`: `https://example.invalid`: the fallback, and `example.invalid` in no line.
-- `twosite`: a scratch `astro.config.mjs` holding `// site: 'https://old.example.invalid',` and then
-  `site: 'https://new.example.invalid',`: the more-than-one fallback, and `old.example` in no line.
+- `twosite1`, `twosite2`: an `astro.config.mjs` holding an old address in a comment and the live
+  one, on two lines and on one line (`/* site: '…old…' */ export default { site: '…new…' };`). Each
+  also carries the `noorigin` marker, so it stops at the fetch and never reaches the live check,
+  which would read the old address; the file is written for the case and removed after it, since
+  the other cases rely on the folder having none. Line 1 is both fallbacks; `old.example` in no
+  line.
 
 **Real-git half.** The fixtures already hold `site: 'https://ship-test.example.invalid'` (line 949)
 and `origin` at `$D/origin.git`, so line 1 is
@@ -184,10 +196,11 @@ under `script`: macOS's BSD form `script -q /dev/null bash scripts/ship.sh`, uti
 BSD prints "illegal option", measured). Measured on macOS: BSD `script` passes its input to the
 program, and sends an end of input the moment its own input ends. So a feeder waits, with a limit,
 until the question is in the log, writes the answer, then holds its input open until ship.sh exits.
-ship.sh is started through the wrapper `start_bg` already uses (`bash -c 'echo "$$" > pid; exec
-bash "$0"'`), so the helper knows its pid. A watchdog gives each case 60 seconds: past that it sends
-a terminate to that pid and to `script`, waits for both, and fails the case as timed out, so a
-broken case neither hangs nor leaves a run behind. Output comes back with `\r\n`; the helper strips
+ship.sh is started through the wrapper `expect` already uses (line 236: `bash -c 'echo "$$" > pid;
+exec bash "$0"'`), so the helper knows its pid. A watchdog gives each case 60 seconds: past that it
+sends a terminate to that pid and to `script`, polls `kill -0` on both for up to 5 seconds, then
+kills what is left outright, waits for `script` (ship.sh is not the test shell's child, so it is
+polled, not waited for), and fails the case as timed out. A broken case cannot hang the file. Output comes back with `\r\n`; the helper strips
 `\r` before any check. Where `script` is missing the T cases are skipped with a
 printed line; the CI steps that run this file (the playwright job and the Mac bash 3.2 step) set
 `SHIP_TEST_REQUIRE_TTY=1`, so a skip fails there, as `SHIP_TEST_REQUIRE_BASH32` does for S10 (e).
@@ -203,33 +216,43 @@ On Windows' Git Bash the real-git half already skips itself.
 - T5 `--stop`: once the question is in the log, a terminate to ship.sh's bash (the pid from the
   wrapper, then polled with `kill -0` until it is gone). Exit 1 within the
   limit, the stop message, `Nothing was published`, and no `you did not answer y` (without the
-  prompt-time trap the run waits until the feeder closes its input, then prints that line).
+  prompt-time trap the run keeps waiting, and the case fails as timed out).
 - T6 (folder mode) answers ` YES `: goes on, ends on the LIVE line.
-- T7: a terminal on standard input, output sent to a file outside the clone (`script … bash -c
-  'bash scripts/ship.sh > "$G/t7.out"'`); its feeder waits for no question and only holds the input
-  open: no question, the no-terminal line in the file, the run goes on.
+- T7: a terminal on standard input, output sent to a file outside the clone, the path passed as an
+  argument since `G` is not exported (`script … bash -c 'echo "$$" > pid; exec bash "$0" > "$1"'
+  scripts/ship.sh "$G/t7.out"`); its feeder waits for no question and only holds the input open:
+  no question, the no-terminal line in the file, the run goes on.
+- T8, the watchdog itself: `run_tty` on a stand-in program that ignores terminate and hang-up and
+  sleeps, with a 3-second limit: the case reports timed out within 10 seconds and the stand-in is
+  gone.
 - Every T case also passes `run_ship`'s checks (folder unchanged, nothing left behind).
 - The file's last line names the new checks.
 
-**Mutation check** (the `mutation-check` skill, on the built commit); each must fail a case:
+**Mutation check**, on the built commit, as the 0.24 build ran it: a small script applies each
+mutation to a copy and runs this file under a time limit (the `mutation-check` skill has no runner
+for a bash test file). Each must fail a case:
 always take the no-terminal branch (T1, T2); ask on `[ -t 0 ]` alone (T7); accept any answer (T2);
 accept only lower case (T6); drop the prompt-time trap (T5); move the question after `npm ci` (T2)
 or after the push (T2); move the first line after the fetch (`noorigin`, which stops there); read
-the fetch address, not the push address (a stub case whose push and fetch addresses differ, added
-with this mutation); print the raw address (`tokenurl1`, `queryurl`); widen the class to `[^/:]`
-(`tokenurl2`, `queryurl`); drop `-n`/`p` from the `sed` (`oddurl`); drop the line count
-(`twosite`); drop the lock message's addition (the "under way" cases at lines 1169 and 1209, which
+the fetch address, not the push address (every stub case: the stub refuses that form); accept
+several push addresses (`twopush`); drop the `?`/`#` refusal (`queryurl`, `fragurl`); print the raw address (`tokenurl1`, `queryurl`); widen the class to `[^/:]`
+(`tokenurl2`, `queryurl`); drop `-n`/`p` from the `sed` (`oddurl`); count lines, not matches (`twosite2`); drop the count
+(`twosite1`, `twosite2`); drop the watchdog's outright kill (T8 then hangs, and only for this mutation the time limit
+counts as a fail); drop the lock message's addition (the "under way" cases at lines 1169 and 1209, which
 gain a check for the new words).
 
 ## Not covered, said plainly
 
 - An assistant whose shell does have a terminal (Codex's interactive app may run commands in one;
   not checked) is asked. It may type `y` itself, or it may not be able to type and wait until its
-  tool's time limit stops the run, which the prompt-time trap ends with "Nothing was published".
-  Both are safe. The question guards against a person in the wrong folder, not against an
+  tool stops the run. Stopped with a signal, the prompt-time trap ends it with "Nothing was
+  published"; killed outright, it leaves the worktree-mode lock, which the next run reports as
+  stopped hard. Either way the question comes before the push, so nothing is published; how each
+  assistant stops a command was not checked. The question guards against a person in the wrong folder, not against an
   assistant.
-- A config whose only `site:` line is a comment gives that commented address; Astro then has no
-  `site`, and the live check at line 753 already reads the same line today.
+- A config whose only matching `site:` text is a comment (the live address set from a variable,
+  or none) gives that commented address; the live check at line 753 already reads the same text
+  today.
 - Ctrl-C from a real keyboard through `npm` was not measured; the measurement sent the signal to
   bash's own process. The script's existing stops rely on the same delivery.
 - util-linux `script`'s handling of its input was not measured on Linux; the feeder's design does not
