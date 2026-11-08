@@ -73,10 +73,10 @@ With no address: `Site: (no site: address in astro.config.mjs)`. With more than 
 push address: `GitHub repo: (no 'origin' remote with a plain owner/name address)`. The run goes on either way, as it
 does today: a missing `origin` still stops at the fetch with that step's own message.
 
-It reads this folder's `astro.config.mjs`, and says only that. In worktree mode the published copy
-differs when the `site:` line differs between this folder and GitHub's `main` (an unsaved edit
-here, or a change on GitHub not yet pulled into this folder); the live check at line 753 still
-reads the published copy. What goes live is decided by the push address, which the line names; the site
+It reads this folder's `astro.config.mjs`; the line does not say which copy it read. In worktree
+mode the published copy differs whenever the `site:` line differs between this folder and GitHub's
+`main` (for example an edit here, committed or not, that is not on GitHub's `main`, or a change on
+GitHub not yet pulled here); the live check at line 753 still reads the published copy. What goes live is decided by the push address, which the line names; the site
 address is the name a person recognises. The address is already
 printed today, unfiltered, by every run that reaches the live check, so the line adds no new
 exposure.
@@ -165,7 +165,9 @@ does; an `originurl` file replaces the answer, one address per line). `expect` t
 expected line 1 as an argument, default
 `→ Site: (no site: address in astro.config.mjs) · GitHub repo: owner/site` (the scratch folder has
 no `astro.config.mjs`, on purpose), and asserts it for every case; every case that printed "Going
-live" or "Nothing new goes live" also printed the no-terminal line, and no "Publish to". New cases:
+live" or "Nothing new goes live" also printed the no-terminal line, and no "Publish to". The line-1
+and no-terminal-line checks are wording checks, so `SHIP_GATE_SKIP_WORDING` skips them as it skips
+the others; exit codes and push counts are asserted either way. New cases:
 - `noorigin`: stops at the fetch; line 1 still the site line, ending in the repo fallback.
 - `tokenurl1`: an `https` address with `user:s3cret` before the host and `owner/site.git` after:
   line 1 ends `owner/site`; no line of the output holds `s3cret`.
@@ -173,7 +175,8 @@ live" or "Nothing new goes live" also printed the no-terminal line, and no "Publ
   `s3cret`.
 - `queryurl`: `https://example.invalid/owner/site.git?token=/s3cret/value`: the fallback, no
   `s3cret`.
-- `fragurl`: the same with `#` in place of `?token=`: the fallback, no `s3cret`.
+- `fragurl`: `https://example.invalid/owner/site.git#/s3cret/value` (the `/` after `#` matters:
+  without it the address falls back even with the refusal gone): the fallback, no `s3cret`.
 - `twopush`: two addresses in `originurl`: the fallback.
 - `oddurl`: `https://example.invalid`: the fallback, and `example.invalid` in no line.
 - `twosite1`, `twosite2`: an `astro.config.mjs` holding an old address in a comment and the live
@@ -190,17 +193,23 @@ lowercase name (`s2/origin`). S2 asserts it as line 1 (worktree mode), P4 (folde
 own domain; S2 also asserts the no-terminal line comes
 after "Going live" and before "▶ pre-push gate".
 
-**A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop> [VAR=value…]` starts ship.sh
+**A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop|--none> [--prog CMD] [--limit S]
+[VAR=value…]` starts ship.sh
 under `script`: macOS's BSD form `script -q /dev/null bash scripts/ship.sh`, util-linux's form
 `script -qec 'bash scripts/ship.sh' /dev/null`, told apart by `script --version` (util-linux has it;
 BSD prints "illegal option", measured). Measured on macOS: BSD `script` passes its input to the
 program, and sends an end of input the moment its own input ends. So a feeder waits, with a limit,
 until the question is in the log, writes the answer, then holds its input open until ship.sh exits.
-ship.sh is started through the wrapper `expect` already uses (line 236: `bash -c 'echo "$$" > pid;
-exec bash "$0"'`), so the helper knows its pid. A watchdog gives each case 60 seconds: past that it
-sends a terminate to that pid and to `script`, polls `kill -0` on both for up to 5 seconds, then
-kills what is left outright, waits for `script` (ship.sh is not the test shell's child, so it is
-polled, not waited for), and fails the case as timed out. A broken case cannot hang the file. Output comes back with `\r\n`; the helper strips
+ship.sh is started through the same pattern as `expect`'s wrapper (line 236), with the pid file
+passed as an argument so it lands outside the clone: `bash -c 'echo "$$" > "$1"; exec bash "$0"'
+scripts/ship.sh "$G/<case>.pid"`. A file in the clone would fail the folder-unchanged check and, in
+folder mode, stop the run as unsaved. Under `script` ship.sh leads its own process group, so the
+pid is also the group. A watchdog gives each case 60 seconds (`--limit` changes it), and bounds
+the feeder's wait too: past the limit it sends a terminate to the group and to `script`, polls
+`kill -0` on both for up to 5 seconds, then kills what is left outright, waits for `script`
+(ship.sh is not the test shell's child, so it is polled, not waited for), and returns 124. A
+broken case cannot hang the file. `run_tty` sets no `fail` itself: T1 to T7 count 124 as a fail,
+and T8 expects it. Output comes back with `\r\n`; the helper strips
 `\r` before any check. Where `script` is missing the T cases are skipped with a
 printed line; the CI steps that run this file (the playwright job and the Mac bash 3.2 step) set
 `SHIP_TEST_REQUIRE_TTY=1`, so a skip fails there, as `SHIP_TEST_REQUIRE_BASH32` does for S10 (e).
@@ -219,12 +228,14 @@ On Windows' Git Bash the real-git half already skips itself.
   prompt-time trap the run keeps waiting, and the case fails as timed out).
 - T6 (folder mode) answers ` YES `: goes on, ends on the LIVE line.
 - T7: a terminal on standard input, output sent to a file outside the clone, the path passed as an
-  argument since `G` is not exported (`script … bash -c 'echo "$$" > pid; exec bash "$0" > "$1"'
-  scripts/ship.sh "$G/t7.out"`); its feeder waits for no question and only holds the input open:
-  no question, the no-terminal line in the file, the run goes on.
-- T8, the watchdog itself: `run_tty` on a stand-in program that ignores terminate and hang-up and
-  sleeps, with a 3-second limit: the case reports timed out within 10 seconds and the stand-in is
-  gone.
+  argument since `G` is not exported (`script … bash -c 'echo "$$" > "$1"; exec bash "$0" > "$2"'
+  scripts/ship.sh "$G/t7.pid" "$G/t7.out"`), with `--none`: its feeder waits for no question and
+  only holds the input open. No question, the no-terminal line in the file, the run goes on.
+- T8, the watchdog itself: `run_tty --none --prog <stand-in> --limit 3`, the stand-in a bash that
+  ignores terminate and hang-up, starts a child that sleeps, and sleeps: `run_tty` returns 124
+  within 15 seconds, and both the stand-in and its child are gone.
+- Under `SHIP_GATE_SKIP_WORDING` the T cases cannot find the question by its text, so they print
+  that they are skipped; no CI step sets it.
 - Every T case also passes `run_ship`'s checks (folder unchanged, nothing left behind).
 - The file's last line names the new checks.
 
@@ -235,10 +246,11 @@ always take the no-terminal branch (T1, T2); ask on `[ -t 0 ]` alone (T7); accep
 accept only lower case (T6); drop the prompt-time trap (T5); move the question after `npm ci` (T2)
 or after the push (T2); move the first line after the fetch (`noorigin`, which stops there); read
 the fetch address, not the push address (every stub case: the stub refuses that form); accept
-several push addresses (`twopush`); drop the `?`/`#` refusal (`queryurl`, `fragurl`); print the raw address (`tokenurl1`, `queryurl`); widen the class to `[^/:]`
-(`tokenurl2`, `queryurl`); drop `-n`/`p` from the `sed` (`oddurl`); count lines, not matches (`twosite2`); drop the count
-(`twosite1`, `twosite2`); drop the watchdog's outright kill (T8 then hangs, and only for this mutation the time limit
-counts as a fail); drop the lock message's addition (the "under way" cases at lines 1169 and 1209, which
+several push addresses (`twopush`); drop the `?`/`#` refusal (`queryurl`, `fragurl`); print the raw address (`tokenurl1`); widen the
+class to `[^/:]` (`tokenurl2`); drop `-n`/`p` from the `sed` (`oddurl`); count lines, not matches (`twosite2`); drop the count
+(`twosite1`, `twosite2`); drop the watchdog's outright kill (T8: the stand-in is still running; BSD `script` exits on
+terminate, so nothing hangs); kill the pid, not the group (T8, with the stand-in starting a child
+that sleeps, which must be gone too); drop the lock message's addition (the "under way" cases at lines 1169 and 1209, which
 gain a check for the new words).
 
 ## Not covered, said plainly
