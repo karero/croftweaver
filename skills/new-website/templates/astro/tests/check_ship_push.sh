@@ -30,6 +30,9 @@
 # the last line for a *.pages.dev address and for a real domain, in both modes. Its L cases check
 # what the run says about the commits that go live: the list, and the lines after the push.
 #
+# Its T cases drive ship.sh under `script`, a fake terminal, to check the question that asks for a y
+# before anything is published; they run only where SHIP_TEST_TTY=1 is set (the toolkit's CI).
+#
 # A failing case prints the nested run's output behind "  | ": this file runs inside the
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
@@ -70,6 +73,15 @@ while :; do
 done
 case "$1" in
   hash-object) echo 2222222222222222222222222222222222222222 ;;
+  # The address `git push origin` uses, exactly as ship.sh asks for it; any other remote form is
+  # refused. A `noorigin` marker fails it as a missing remote does; an `originurl` file (one
+  # address per line) replaces the answer.
+  remote)
+    if [ "$*" != "remote get-url --push --all origin" ]; then
+      echo "STUB: unexpected remote invocation: git $*" >&2; exit 3
+    fi
+    [ -f "$FAKE_DIR/noorigin" ] && { echo "error: No such remote 'origin'" >&2; exit 2; }
+    if [ -f "$FAKE_DIR/originurl" ]; then cat "$FAKE_DIR/originurl"; else echo "git@github.com:owner/site.git"; fi ;;
   config)
     # ship.fromGitHub, read from the clone's own config only: off unless a scenario sets it.
     case "$*" in
@@ -98,6 +110,11 @@ case "$1" in
         echo "$PROD" ;;
       *) echo "$SHA" ;;
     esac ;;
+  # GitHub's astro.config.mjs at the commit being published (worktree mode): the text in a `ghconfig`
+  # file, or a failed read when there is none. Any other read is refused.
+  show)
+    if [ "$*" != "show $SHA:astro.config.mjs" ]; then echo "STUB: unexpected git invocation: git $*" >&2; exit 3; fi
+    if [ -f "$FAKE_DIR/ghconfig" ]; then cat "$FAKE_DIR/ghconfig"; else echo "fatal: path 'astro.config.mjs' does not exist in '$SHA'" >&2; exit 128; fi ;;
   status) [ -f "$FAKE_DIR/dirty" ] && echo " M src/pages/index.astro"; exit 0 ;;
   # GitHub's copy of ship.sh, read when this folder's differs (worktree mode). Only the case of a
   # Ctrl-C that ends that read gets here, so that read, exactly, is all this answers.
@@ -110,6 +127,9 @@ case "$1" in
     echo "${*:2}" >> "$FAKE_DIR/fetchargs"
     n=$(( $(cat "$FAKE_DIR/fetches" 2>/dev/null || echo 0) + 1 ))
     echo "$n" > "$FAKE_DIR/fetches"
+    if [ -f "$FAKE_DIR/noorigin" ]; then
+      printf "fatal: 'origin' does not appear to be a git repository\nfatal: Could not read from remote repository.\n" >&2; exit 1
+    fi
     if [ -s "$FAKE_DIR/fetchfail" ] && [ "$n" -le "$(cat "$FAKE_DIR/fetchfail")" ]; then
       # Default to a transport failure; a scenario can supply another reason instead,
       # because WHY the fetch failed decides whether retrying makes any sense.
@@ -225,9 +245,14 @@ elif [ "$ship_version" != "$gate_version" ]; then
 fi
 
 checked=0
+# The case's expected first line, set before an `expect` call and reset by it; the scratch folder
+# has no astro.config.mjs, on purpose, and the stub's origin is owner/site.
+line1_default="→ Site: (no site: address in astro.config.mjs) · GitHub repo: owner/site"
+want_line1=""
 expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   checked=$((checked + 1))
   local name="$1" want_exit="$2" want_pushes="$3" marker="$4" extra="${5:-}"
+  local line1="${want_line1:-$line1_default}"; want_line1=""
   local dir="$work/cases/$name" log="$work/$name.log" path="$work/bin:$PATH" got_exit pushes
   [ -n "$extra" ] && path="$extra:$path"
   mkdir -p "$dir"; rm -f "$dir/pushes" "$dir/fetches" "$dir/settings" "$dir/fetchargs" "$dir/listcalls"; : > "$dir/pushes"
@@ -274,6 +299,28 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
     echo "   counts are asserted either way.)"
     fail=1
   fi
+  # The first line names the site and the repo; every case that printed the list of commits also
+  # said it does not ask, and no case here has a terminal to ask on. The two wording checks are
+  # skipped with the others; the leak checks are not: no token and no address that should be left
+  # out of a fallback line may be printed anywhere.
+  if [ "$skip_wording" = 0 ]; then
+    if [ "$line1" = none ]; then
+      # Worktree mode names the site once GitHub's main is read: a run that stops before has no such line.
+      if grep -q '^→ Site:' "$log"; then echo "✗ ship push gate [$name]: a run that stopped before reading GitHub's main named the site."; fail=1; fi
+    elif [ "$(head -1 "$log")" != "$line1" ]; then
+      echo "✗ ship push gate [$name]: the first line is '$(head -1 "$log")', expected '$line1'."; fail=1
+    fi
+    if grep -qE '^(Going live|Nothing new goes live)' "$log" && ! grep -qF "No terminal to answer a question here" "$log"; then
+      echo "✗ ship push gate [$name]: a run that listed the commits did not say it does not ask."; fail=1
+    fi
+  fi
+  if grep -qF "Publish to " "$log"; then
+    echo "✗ ship push gate [$name]: a run with no terminal asked a question."; fail=1
+  fi
+  local leak
+  for leak in s3cret old.example example.invalid; do
+    if grep -qF "$leak" "$log"; then echo "✗ ship push gate [$name]: the output holds '$leak'."; fail=1; fi
+  done
   # Every case that gets as far as the push has printed the list: news if the case has some,
   # else the line that nothing is new.
   if [ "$pushes" != 0 ] && [ "$skip_wording" = 0 ]; then
@@ -582,6 +629,7 @@ fi
 # its two branches, so a narrowed fetch setting in the clone cannot leave origin/main stale.
 mark wtfetchfail fromgithub
 mark wtfetchfail fetchfail 2
+want_line1=none
 expect wtfetchfail 1 0 "this folder was not touched"
 if ! grep -qF "couldn't fetch from GitHub" "$work/wtfetchfail.log"; then
   echo "✗ ship push gate [wtfetchfail]: not today's fetch message."; fail=1
@@ -601,6 +649,7 @@ if grep -q "isn't connected to GitHub yet" "$work/stopverdict.log"; then
 fi
 mark stopsilent fromgithub
 mark stopsilent stopat-commondir
+want_line1=none
 expect stopsilent 130 0 "Nothing was published and this folder was not touched."
 if ! grep -q "a stop was asked for" "$work/stopsilent.log"; then
   echo "✗ ship push gate [stopsilent]: a stop that ended a git call ended the run without saying so."; fail=1
@@ -615,12 +664,37 @@ if grep -q "is not the one on GitHub's main" "$work/stopcatfile.log"; then
   echo "✗ ship push gate [stopcatfile]: a read ended by a stop was taken for two different scripts."; fail=1
 fi
 
+# ...and the site it names is GitHub's, not this folder's: worktree mode ignores this folder, and
+# the question asks about what goes live. This folder holds one address and GitHub's commit another.
+mark ghsite fromgithub
+mark ghsite stopat-catfile
+printf "export default { site: 'https://github.example/' };\n" > "$work/cases/ghsite/ghconfig"
+printf "export default { site: 'https://folder.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://github.example · GitHub repo: owner/site"
+expect ghsite 1 0 "a stop was asked for"
+rm -f "$work/cwd/astro.config.mjs"
+if grep -qF "folder.example" "$work/ghsite.log"; then
+  echo "✗ ship push gate [ghsite]: the output names this folder's address, not GitHub's."; fail=1
+fi
+
+# ...and when GitHub's commit has no readable address, the line says so; this folder's is never used.
+mark ghnosite fromgithub
+mark ghnosite stopat-catfile
+printf "export default { site: 'https://folder.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: (no site: address in astro.config.mjs) · GitHub repo: owner/site"
+expect ghnosite 1 0 "a stop was asked for"
+rm -f "$work/cwd/astro.config.mjs"
+if grep -qF "folder.example" "$work/ghnosite.log"; then
+  echo "✗ ship push gate [ghnosite]: the output names this folder's address, not GitHub's."; fail=1
+fi
+
 # --- worktree mode, a git folder the lock cannot be made in ------------------------
 # Not "another publish holds the lock", with a command to remove one that does not exist.
 mark lockro fromgithub
 mark lockro gitdirro
 if [ -w "$work/cases/lockro" ] && mkdir "$work/cases/lockro/w-probe" 2>/dev/null && chmod a-w "$work/cases/lockro/w-probe" \
    && ! mkdir "$work/cases/lockro/w-probe/x" 2>/dev/null; then
+  want_line1=none
   expect lockro 1 0 "couldn't create this clone's publish lock"
   if grep -q "another publish holds" "$work/lockro.log"; then
     echo "✗ ship push gate [lockro]: a lock that could not be made was reported as another publish's."; fail=1
@@ -811,6 +885,45 @@ if grep -q "couldn't list the commits" "$work/stopat-revlist.log"; then
   echo "✗ ship push gate [stopat-revlist]: a git call ended by a stop was read as a failed list."; fail=1
 fi
 
+# --- the first line names the site and the repo, from what `git push origin` uses ------------
+# Expected values are written from each case's own address, never from a run's output. A
+# fallback prints nothing of the address: a token in it (in the user part, or after a ? or #)
+# must reach no line of the output.
+originurl() { # originurl <case> <address>…: the push addresses the stub's origin answers
+  local c="$1"; shift
+  mkdir -p "$work/cases/$c"; printf '%s\n' "$@" > "$work/cases/$c/originurl"
+}
+repo_fallback="(no 'origin' remote with a plain owner/name address)"
+url_case() { # url_case <case> <the repo as line 1 shows it> <address>…: past the fetch, nothing to push
+  local c="$1" r="$2"; shift 2
+  originurl "$c" "$@"
+  printf 'Everything up-to-date\n' | attempt "$c" 1 0
+  want_line1="→ Site: (no site: address in astro.config.mjs) · GitHub repo: $r"
+  expect "$c" 0 1 "✓ Nothing to push"
+}
+# No origin: stops at the fetch with that step's own message; line 1 still names the site.
+mark noorigin noorigin
+want_line1="→ Site: (no site: address in astro.config.mjs) · GitHub repo: $repo_fallback"
+expect noorigin 1 0 "not for a network reason"
+url_case tokenurl1 "owner/site" "https://user:s3cret@example.invalid/owner/site.git"
+url_case tokenurl2 "$repo_fallback" "https://user:s3cret@example.invalid/site.git"
+url_case queryurl "$repo_fallback" "https://example.invalid/owner/site.git?token=/s3cret/value"
+url_case fragurl "$repo_fallback" "https://example.invalid/owner/site.git#/s3cret/value"
+url_case twopush "$repo_fallback" "git@github.com:owner/site.git" "git@github.com:other/site.git"
+url_case oddurl "$repo_fallback" "https://example.invalid"
+url_case hostonly "$repo_fallback" "https://github.com/site.git"
+url_case scpnoowner "$repo_fallback" "git@github.com:site.git"
+url_case oddchars "$repo_fallback" "git@github.com:owner/s%te.git"
+# An old address kept in a comment beside the live one: more than one match, on two lines and on
+# one. Each stops at the fetch (noorigin), which is before the live check would read the old one.
+two_sites="→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: $repo_fallback"
+mark twosite1 noorigin; mark twosite2 noorigin
+printf "// site: 'https://old.example'\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$two_sites"; expect twosite1 1 0 "not for a network reason"
+printf "/* site: 'https://old.example' */ export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$two_sites"; expect twosite2 1 0 "not for a network reason"
+rm -f "$work/cwd/astro.config.mjs"
+
 # --- no line in ship.sh may replace its shell --------------------------------------
 # Its EXIT trap removes the worktree and the lock, and a shell replaced by another program never
 # runs it. Banned outright, comments included, though a redirect-only use would keep the trap:
@@ -978,6 +1091,8 @@ GATE
   first_line() { awk 'NF { print; exit }' "$L"; }
   last_line() { awk 'NF { l = $0 } END { print l }' "$L"; }
   first_has() { case "$(first_line)" in *"$1"*) return 0 ;; esac; return 1; }
+  # The mode line, "→ Publishing …": it follows the first line, which names the site.
+  mode_has() { case "$(awk '/^→ Publishing/ { print; exit }' "$L")" in *"$1"*) return 0 ;; esac; return 1; }
   last_has() { case "$(last_line)" in *"$1"*) return 0 ;; esac; return 1; }
   # The list of commits that go live: every line of standard output from its header to the next
   # blank line. A list line starts with four spaces and a 7-character id. (LC_ALL=C: L4's log holds
@@ -1043,6 +1158,106 @@ GATE
     # Gone, so off the list the way out kills: a later process could reuse the id.
     local g kept=""; for g in $groups; do [ "$g" = "$bg" ] || kept="$kept $g"; done; groups="$kept"
   }
+  # The input of a fake terminal: once the question is in the log it writes the answer (or ends,
+  # which is the end of input, or sends the run a terminate) and keeps the pipe open until the
+  # run is over. Past the limit it stops waiting.
+  tty_feed() { # <what> <limit> <pid file> <done file> <log>
+    set +e
+    local i=0
+    if [ "$1" != --none ]; then
+      until grep -qF "Type y and press Enter" "$5" 2>/dev/null; do
+        i=$((i + 1)); [ "$i" -gt $(($2 * 10)) ] && return 0
+        [ ! -e "$4" ] || return 0
+        "$REAL_SLEEP" 0.1
+      done
+      "$REAL_SLEEP" 0.3
+      case "$1" in
+        --eof) return 0 ;;
+        --stop)
+          kill -TERM "$(cat "$3")" 2>/dev/null
+          while kill -0 "$(cat "$3")" 2>/dev/null && [ ! -e "$4" ]; do "$REAL_SLEEP" 0.1; done ;;
+        *) printf '%s\n' "$1" ;;
+      esac
+    fi
+    # Hold the input open while the program runs; BSD `script` ends only when its input does.
+    i=0
+    until [ -s "$3" ] || [ -e "$4" ] || [ "$i" -gt $(($2 * 10)) ]; do "$REAL_SLEEP" 0.1; i=$((i + 1)); done
+    while [ ! -e "$4" ] && [ "$i" -le $(($2 * 10)) ] && kill -0 "$(cat "$3" 2>/dev/null)" 2>/dev/null; do
+      "$REAL_SLEEP" 0.1; i=$((i + 1))
+    done
+  }
+  # run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--out FILE] [--stdin-null] [--limit S] [VAR=value…]
+  # ship.sh on a fake terminal: BSD's `script -q /dev/null cmd`, or util-linux's `script -qec
+  # 'exec cmd' /dev/null` (told apart by `script --version`). A feeder waits until the question is
+  # in the log, writes the answer (or ends the input, or sends a terminate) and holds the input
+  # open until the run ends; a watchdog ends a run past the limit and run_tty returns 124 in rc.
+  # It sets `fail` only for a misuse of its own options. The wrapper writes down its pid outside the clone, then becomes
+  # ship.sh, which leads its own process group under `script` (util-linux runs it through sh -c,
+  # hence the exec).
+  run_tty() {
+    cname="$1"; L="$G/$1.log"; logged=0
+    local what="$2" prog="scripts/ship.sh" out="" limit=60 name="$1" tty_rc=0 stdin_null=0
+    local pidf="$G/$1.pid" done_f="$G/$1.done" wrap util=0 sp dog oldpwd="$PWD"
+    shift 2
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --prog) prog="$2"; shift 2 ;;
+        --out) out="$2"; shift 2 ;;
+        --stdin-null) stdin_null=1; shift ;;
+        --limit) limit="$2"; shift 2 ;;
+        *) break ;;
+      esac
+    done
+    rm -f "$pidf" "$done_f" "$G/$name.timeout" "$L"
+    if ( cd "$G" && script --version ) >/dev/null 2>&1; then util=1; fi
+    if [ -n "$out" ] && [ "$stdin_null" = 1 ]; then echo "✗ ship push gate [$name]: run_tty takes --out or --stdin-null, not both."; fail=1; return 0; fi
+    wrap='echo "$$" > "$1"; exec bash "$0"'
+    if [ -n "$out" ]; then wrap='echo "$$" > "$1"; exec bash "$0" > "$2"'; fi
+    if [ "$stdin_null" = 1 ]; then wrap='echo "$$" > "$1"; exec bash "$0" < /dev/null'; fi
+    before="$(snap)"
+    CDPATH= cd -- "$C"
+    # The feeder is the left side of the pipe into `script` (a fifo does not work: BSD script
+    # refuses it).
+    if [ "$util" = 1 ]; then
+      tty_feed "$what" "$limit" "$pidf" "$done_f" "$L" | env PATH="${EXTRA_PATH:+$EXTRA_PATH:}$G/bin:$PATH" "$@" \
+        script -qec "exec $(printf '%q ' bash -c "$wrap" "$prog" "$pidf" ${out:+"$out"})" /dev/null > "$L" 2>&1 &
+    else
+      tty_feed "$what" "$limit" "$pidf" "$done_f" "$L" | env PATH="${EXTRA_PATH:+$EXTRA_PATH:}$G/bin:$PATH" "$@" \
+        script -q /dev/null bash -c "$wrap" "$prog" "$pidf" ${out:+"$out"} > "$L" 2>&1 &
+    fi
+    sp=$!; cd "$oldpwd"; groups="$groups $sp"
+    (
+      set +e
+      i=0
+      while [ ! -e "$done_f" ] && [ "$i" -lt $((limit * 10)) ]; do "$REAL_SLEEP" 0.1; i=$((i + 1)); done
+      [ -e "$done_f" ] && exit 0
+      : > "$G/$name.timeout"
+      g="$(cat "$pidf" 2>/dev/null)"
+      [ -z "$g" ] || kill -TERM -- "-$g" 2>/dev/null
+      kill -TERM "$sp" 2>/dev/null
+      i=0
+      while [ "$i" -lt 50 ]; do
+        kill -0 "$sp" 2>/dev/null || { [ -n "$g" ] && kill -0 -- "-$g" 2>/dev/null; } || break
+        "$REAL_SLEEP" 0.1; i=$((i + 1))
+      done
+      if [ -n "$g" ] && kill -0 -- "-$g" 2>/dev/null; then kill -KILL -- "-$g" 2>/dev/null; fi
+      if kill -0 "$sp" 2>/dev/null; then kill -KILL "$sp" 2>/dev/null; fi
+      exit 0
+    ) &
+    dog=$!
+    wait "$sp" 2>/dev/null || tty_rc=$?
+    : > "$done_f"
+    wait "$dog" 2>/dev/null || true
+    rc="$tty_rc"; if [ -e "$G/$name.timeout" ]; then rc=124; fi
+    if [ -f "$L" ]; then tr -d '\r' < "$L" > "$L.nocr" && mv "$L.nocr" "$L"; fi
+    want "this folder's branch, status and index are unchanged" eq "$before" "$(snap)"
+    want "no lock, worktree or line of its own left behind" leaves_nothing
+  }
+  gone_soon() { # <pid>: not running within two seconds; an empty pid fails
+    [ -n "$1" ] || return 1
+    local i=0
+    while kill -0 "$1" 2>/dev/null; do i=$((i + 1)); [ "$i" -gt 20 ] && return 1; "$REAL_SLEEP" 0.1; done
+  }
   # On this file's way out, every group it started goes too. A setup step that fails stops the
   # file (set -e) with no word of its own, so say which case it was in.
   trap 'for g in $groups; do kill -KILL -- "-$g" 2>/dev/null || true; done
@@ -1062,7 +1277,13 @@ GATE
   c2="$(git -C "$S" rev-parse --short=7 HEAD)"; c1="$(git -C "$S" rev-parse --short=7 HEAD~1)"
   run_ship s2; exits 0
   want "production is GitHub's main" eq "$(gh production)" "$m"
-  want "the first line names the mode and the commit" first_has "Publishing GitHub's main as of the fetch (${m:0:12})"
+  # Worktree mode names the site once GitHub's main is read: just before the mode line.
+  want "the site line names the site and the repo" eq "$(grep -m1 '^→ Site:' "$L")" "→ Site: https://ship-test.example.invalid · GitHub repo: s2/origin"
+  want "... and comes before the mode line" before "$(line_of '→ Site:')" "$(line_of '→ Publishing')"
+  want "the mode line names the mode and the commit" mode_has "Publishing GitHub's main as of the fetch (${m:0:12})"
+  want "no terminal: it says it does not ask, after the list" before "$(line_of "$live_header")" "$(line_of 'No terminal to answer a question here')"
+  want "... and before the gate" before "$(line_of 'No terminal to answer a question here')" "$(line_of '▶ pre-push gate')"
+  want "... and asks nothing" lacks "Publish to "
   want "the edited file is listed as not published" has "     M page.txt"
   want "the untracked folder is listed as not published" has "    ?? data/"
   want "the last line is the LIVE line with the count" last_has "2 not published"
@@ -1167,6 +1388,7 @@ GATE
     LC_ALL=C TZ=UTC ps -o lstart= -p "$$" | sed -e 's/^ *//' -e 's/ *$//' > "$C/.git/ship.lock/start"
     run_ship s8-renamed; exits 1
     want "a running match is \"under way\", whatever the host name" has "a publish is under way"
+    want "... and may be waiting for a yes in another window" has "it may be waiting for a yes"
   fi
   rm -rf "$C/.git/ship.lock"
   LOCK_LEFT=0 LIST_WANT="$(printf '%s\t4242\tThu Jan  1 00:00:00 1970\n%s\t4243\tThu Jan  1 00:00:00 1970\n%s\t4245\tThu Jan  1 00:00:00 1970\n%s' "$l1" "$l2" "$D/tmp" "$D/tmp/ship-worktree.trunc")"
@@ -1207,6 +1429,7 @@ GATE
       run_ship s9-second TZ=Asia/Tokyo LANG=de_DE.UTF-8 LC_TIME=de_DE.UTF-8; exits 1
       if [ "$ps_starts" = 1 ]; then
         want "says a publish is under way" has "a publish is under way"
+        want "... and may be waiting for a yes in another window" has "it may be waiting for a yes"
         want "gives no removal command" lacks "rm -r"
       else
         want "says it cannot tell (ps gives no start times here)" has "cannot tell whether that publish is still running"
@@ -1450,7 +1673,7 @@ GATE
   advance 1; m="$(gh main)"
   run_ship s20; exits 0
   want "production is GitHub's main as of the fetch" eq "$(gh production)" "$m"
-  want "the first line names that commit" first_has "${m:0:12}"
+  want "the mode line names that commit" mode_has "${m:0:12}"
   want "the last line names that commit" last_has "${m:0:12}"
 
   # --- S21: another session set the clone's hooks setting to its own folder ----------------
@@ -1589,7 +1812,7 @@ GATE
     m="$(gh main)"
     run_ship "$1"; exits 0
     want "production is GitHub's main" eq "$(gh production)" "$m"
-    if [ "$2" = folder ]; then want "publishes this folder's main" first_has "Publishing main → production."; fi
+    if [ "$2" = folder ]; then want "publishes this folder's main" mode_has "Publishing main → production."; fi
   }
   pv="✓ Published — verified on the pages.dev address: https://ship-test.pages.dev is serving"
   pv_note="That's Cloudflare's address for the site, not your own domain: the site is live on your domain only once that's connected."
@@ -1605,18 +1828,115 @@ GATE
   want "... and says it is not the site's own domain" last_has "$pv_note"
   want "never says LIVE" lacks "✓ LIVE"
   site_case p4 folder https://ship-test.example.invalid
+  want "the first line names the site and the repo" eq "$(first_line)" "→ Site: https://ship-test.example.invalid · GitHub repo: p4/origin"
   want "folder mode lists the one commit" eq "$(listed)" "    ${m:0:7} site address"
   want "a real domain keeps the LIVE line" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving build ${m:0:12} (after"
   want "... with no pages.dev note" lacks "$pv_note"
   site_case p5 github https://Ship-Test.PAGES.DEV.
   want "a host in capitals with a final dot is a pages.dev address too" last_starts "✓ Published — verified on the pages.dev address: https://Ship-Test.PAGES.DEV. is serving"
   want "never says LIVE" lacks "✓ LIVE"
+
+  # --- T1–T8: the question, on a fake terminal (`script`); only where SHIP_TEST_TTY=1 ---------
+  # The question needs no `script`, only these cases do: so an owner's push or a site's CI, where
+  # SHIP_TEST_TTY is not set, never depends on it. The cases find the question by its text.
+  case "${SHIP_GATE_SKIP_WORDING:-}" in ''|0|false|no) t_wording=1 ;; *) t_wording=0 ;; esac
+  if [ -z "${SHIP_TEST_TTY:-}" ]; then
+    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T8 skipped: SHIP_TEST_TTY is not set"
+    echo "  note: T1 to T8 (the question, on a fake terminal) are skipped: SHIP_TEST_TTY is not set."
+  elif ! command -v script >/dev/null 2>&1; then
+    echo "✗ ship push gate, real git: T1 to T8 did not run: SHIP_TEST_TTY is set but 'script' is not here."; fail=1
+  elif [ "$t_wording" = 0 ]; then
+    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T8 skipped: SHIP_GATE_SKIP_WORDING is set"
+    echo "  note: T1 to T8 are skipped: they find the question by its text, and SHIP_GATE_SKIP_WORDING is set."
+  else
+    # The refusals: T2, T3 and T4 differ only in how the answer is not a yes.
+    refused() {
+      want "exits 1 (got $rc)" eq "$rc" 1
+      want "production is unchanged" eq "$(gh production)" "$p0"
+      want "says you did not answer y" has "you did not answer y"
+      want "... and that nothing was published" has "Nothing was published"
+      want "no pre-push gate ran" lacks "▶ pre-push gate"
+      want "npm was never called" test ! -e "$M/npm-calls"
+      want "no 'Not published' list (the question comes before the temporary copy)" lacks "Not published"
+    }
+    # T1: worktree mode, something new goes live, answer y.
+    fixture t1; advance 1; m="$(gh main)"
+    run_tty t1 y
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "production is GitHub's main" eq "$(gh production)" "$m"
+    want "the list comes before the question" before "$(line_of "$live_header")" "$(line_of 'Publish to https://ship-test.example.invalid (t1/origin)?')"
+    want "... and the question before the gate" before "$(line_of 'Publish to https://ship-test.example.invalid (t1/origin)?')" "$(line_of '▶ pre-push gate')"
+    want "the run ends on the LIVE line" eval 'case "$(last_line)" in "✓ LIVE"*) true ;; *) false ;; esac'
+    # T2: worktree mode, one unsaved file in the folder, answer n.
+    fixture t2; advance 1; echo "draft" > "$C/unsaved.txt"; p0="$(gh production)"
+    run_tty t2 n; refused
+    # T3: an empty line. T4: the end of input.
+    fixture t3; advance 1; p0="$(gh production)"
+    run_tty t3 ""; refused
+    fixture t4; advance 1; p0="$(gh production)"
+    run_tty t4 --eof; refused
+    # T5: a terminate while it waits.
+    fixture t5; advance 1; p0="$(gh production)"
+    run_tty t5 --stop
+    want "exits 1 within the limit (got $rc)" eq "$rc" 1
+    want "production is unchanged" eq "$(gh production)" "$p0"
+    want "says a stop was asked for" has "a stop was asked for"
+    want "... and that nothing was published" has "Nothing was published"
+    want "does not blame the answer" lacks "you did not answer y"
+    # The cases above send only a terminate (a backgrounded run ignores INT), so name the rest here.
+    # Asserts ship.sh's source text for the question's trap, verbatim: reword that line, reword this.
+    trap_tail='$here."'"'"' INT TERM HUP QUIT'
+    want "the question's trap catches INT, TERM, HUP and QUIT" grep -qF "$trap_tail" "$C/scripts/ship.sh"
+    # T6: folder mode, answer " YES ". Files dated in the past and the index refreshed, as the
+    # folder-mode site case does, so ship.sh's own git status leaves the index unchanged.
+    fixture t6; advance 1
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    run_tty t6 " YES "
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "production is GitHub's main" eq "$(gh production)" "$m"
+    want "the question named the site and the repo" has "Publish to https://ship-test.example.invalid (t6/origin)?"
+    want "the run ends on the LIVE line" eval 'case "$(last_line)" in "✓ LIVE"*) true ;; *) false ;; esac'
+    # T7: a terminal on input and output, but output sent to a file outside the clone.
+    fixture t7; advance 1; m="$(gh main)"
+    run_tty t7 --none --out "$G/t7.out"
+    L="$G/t7.out"
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "production is GitHub's main" eq "$(gh production)" "$m"
+    want "no question in the file" lacks "Publish to "
+    want "the no-terminal line is in the file" has "No terminal to answer a question here"
+    # T9: output on the terminal, but input from /dev/null (`npm run ship < /dev/null`): not asked.
+    fixture t9; advance 1; m="$(gh main)"
+    run_tty t9 --none --stdin-null
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "production is GitHub's main" eq "$(gh production)" "$m"
+    want "no question" lacks "Publish to "
+    want "the no-terminal line is printed" has "No terminal to answer a question here"
+    # T8: the watchdog itself, with a stand-in that ignores terminate and hang-up and starts a child.
+    fixture t8
+    cat > "$G/t8-stand.sh" <<STAND
+trap '' TERM HUP
+"\$SHIP_T_REAL_SLEEP" 300 &
+echo \$! > "$G/t8-child.pid"
+"\$SHIP_T_REAL_SLEEP" 300
+STAND
+    local t8_from t8_secs
+    t8_from="$(date +%s)"
+    run_tty t8 --none --prog "$G/t8-stand.sh" --limit 3
+    t8_secs=$(( $(date +%s) - t8_from ))
+    want "the watchdog returns 124 (got $rc)" eq "$rc" 124
+    want "... within 30 seconds (took $t8_secs)" test "$t8_secs" -le 30
+    want "the stand-in is gone" gone_soon "$(cat "$G/t8.pid")"
+    want "... and so is its child" gone_soon "$(cat "$G/t8-child.pid")"
+  fi
   rg_done=1
 }
 
 real_git_cases
 
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, and the list of commits that go live)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
+  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, the list of commits that go live, the first line naming the site and repo, and the question on a fake terminal)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
 fi
 exit "$fail"
