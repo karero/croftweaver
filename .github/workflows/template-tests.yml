@@ -93,7 +93,20 @@ jobs:
       - name: Publish classifier (scripts/ship.sh)
         env:
           SHIP_TEST_TTY: 1
-        run: bash tests/check_ship_push.sh
+        run: |
+          rc=0; bash tests/check_ship_push.sh > "$RUNNER_TEMP/ship-tty.log" 2>&1 || rc=$?
+          cat "$RUNNER_TEMP/ship-tty.log"; [ "$rc" = 0 ] || exit "$rc"
+          line="$(grep '^✓ ship push gate:' "$RUNNER_TEMP/ship-tty.log" || true)"
+          case "$line" in *"and the question on a fake terminal"*) ;; *) echo "✗ with SHIP_TEST_TTY=1 the ✓ line must name the question (T1 to T8)"; exit 1 ;; esac
+      # A site's own CI and pre-push gate run it without SHIP_TEST_TTY, so T1 to T8 skip there:
+      # the ✓ line must say so and must not name the question it skipped.
+      - name: Publish classifier as a site runs it (no SHIP_TEST_TTY)
+        run: |
+          bash tests/check_ship_push.sh > "$RUNNER_TEMP/ship-notty.log" 2>&1 || { cat "$RUNNER_TEMP/ship-notty.log"; exit 1; }
+          line="$(grep '^✓ ship push gate:' "$RUNNER_TEMP/ship-notty.log" || true)"
+          echo "$line"
+          case "$line" in *"T1 to T8 skipped: SHIP_TEST_TTY is not set"*) ;; *) echo "✗ the ✓ line must say T1 to T8 were skipped"; exit 1 ;; esac
+          case "$line" in *"question on a fake terminal"*) echo "✗ the ✓ line names the question, which did not run"; exit 1 ;; esac
       - uses: actions/setup-node@v7
         with:
           # The template pins its Node version; build/test on the same one Cloudflare uses.
