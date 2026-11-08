@@ -8,7 +8,7 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-08 | this file |
-| 2 | PLAN gate, High | not started | — |
+| 2 | PLAN gate, High | 9 rounds and a final full read; wording pass next | `docs/reviews/REVIEW-plan-2026-11-08-claude-peaceful-gates-cde640-3ecc8f6.md` |
 | 3 | `ship.sh`: first line, the question, markers 0.25 | not started; waits for the owner's go | — |
 | 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_TTY` | not started | — |
 | 5 | `PUBLISHING.md` sentence, BUGLOG release-notes row | not started | — |
@@ -95,19 +95,19 @@ the new `mode_has` helper (below) finds it as the
 first line starting `→ Publishing`, wherever it sits. The comment at lines 531–532 ("so the first and the last line
 name the commit") changes to "the mode line and the last line".
 
-**C. The question.** It goes after the "Going live" list and its blank line (line 602), before
+**C. The question.** It goes after the "Going live" list or the "Nothing new goes live" line,
+right after the `fi` that ends them (line 602), before
 worktree mode makes its temporary copy, so before `npm ci`, the gate and the push, in both modes.
 The answer rests on the repo in the first line and the commits in the list, which are what goes;
 the site address is this folder's copy of it, which in worktree mode may differ (B). With nothing
 new (`live_n` 0) it still asks, because the checks and the push still run; one rule is simpler.
 
-- `stop_point "Nothing was published and $here."` first, as before every step.
 - **When standard input and standard output are both terminals** (`[ -t 0 ] && [ -t 1 ]`): print,
   with no newline,
 
       Publish to https://example.com (owner/site)? Type y and press Enter to go on, anything else stops:
 
-  (with the first line's fallbacks in place of either name). Read one line with `read -r answer`
+  (with the first line's fallback text, without its own parentheses, in place of either name). Read one line with `read -r answer`
   (default `IFS`, so spaces around the answer go). `y` or `yes`, in any case, goes on, matched with
   `case "$answer" in [yY]|[yY][eE][sS])`, since bash 3.2 has no `${answer,,}`; anything
   else, an empty line, or the end of input (Ctrl-D) stops with
@@ -123,9 +123,11 @@ new (`live_n` 0) it still asks, because the checks and the push still run; one r
   terminate or interrupt sent to bash leaves a waiting `read` waiting, even with the run's trap
   set, until a line or the end of input arrives. A `read -t` loop does not help: bash 3.2 returns 1
   on a timeout, the same as the end of input. A trap that itself exits does work: it ran at once in
-  both versions, and the EXIT trap ran after it. So, for the read only:
-  `trap 'stop_asked=1; stop_point "Nothing was published and $here."' INT TERM HUP QUIT`, then
-  `trap 'stop_asked=1' INT TERM HUP QUIT` again right after. `stop_point` prints the stop message
+  both versions, and the EXIT trap ran after it. So, for the question only, in this order:
+  `trap 'stop_asked=1; stop_point "Nothing was published and $here."' INT TERM HUP QUIT`; then
+  `stop_point "Nothing was published and $here."`, as before every step, for a stop that came
+  earlier; then the question and the read; then `trap 'stop_asked=1' INT TERM HUP QUIT` again.
+  Setting the trap first leaves no moment in which a stop lands and the read still waits. `stop_point` prints the stop message
   and sets `stop_said`, so `on_exit` does not print it twice.
 - The read sits in `if read -r answer; then :; else answer=""; fi`, so `set -e` never ends the run
   on the end of input.
@@ -173,13 +175,17 @@ which is now the site line. A `mode_has` helper reads the first line that starts
 **Stub half.** The stub learns `remote get-url --push --all origin`, answering
 `git@github.com:owner/site.git`, and refuses any other `remote` form loudly, as it already refuses
 commands it does not know (a `noorigin` marker makes it and the fetch fail as a missing remote
-does; an `originurl` file replaces the answer, one address per line). `expect` takes the case's
-expected line 1 as an argument, default
+does; an `originurl` file replaces the answer, one address per line). A variable `want_line1`,
+set before each `expect` call (its fifth argument is already the extra-PATH folder), holds the
+case's expected line 1, default
 `→ Site: (no site: address in astro.config.mjs) · GitHub repo: owner/site` (the scratch folder has
 no `astro.config.mjs`, on purpose), and asserts it for every case; every case that printed "Going
 live" or "Nothing new goes live" also printed the no-terminal line, and no "Publish to". The line-1
 and no-terminal-line checks are wording checks, so `SHIP_GATE_SKIP_WORDING` skips them as it skips
-the others; exit codes and push counts are asserted either way. New cases:
+the others. Exit codes, push counts and the leak checks (no `s3cret`, no `old.example`, no
+`example.invalid`) are asserted either way. Each new case that gets past the fetch gives its one
+push an `attempt` (line 198) of `Everything up-to-date`, exit 0, and expects exit 0 and one push.
+New cases:
 - `noorigin`: stops at the fetch; line 1 still the site line, ending in the repo fallback.
 - `tokenurl1`: an `https` address with `user:s3cret` before the host and `owner/site.git` after:
   line 1 ends `owner/site`; no line of the output holds `s3cret`.
@@ -191,8 +197,8 @@ the others; exit codes and push counts are asserted either way. New cases:
   without it the address falls back even with the refusal gone): the fallback, no `s3cret`.
 - `twopush`: two addresses in `originurl`: the fallback.
 - `oddurl`: `https://example.invalid`: the fallback, and `example.invalid` in no line.
-- `twosite1`, `twosite2`: an `astro.config.mjs` holding an old address in a comment and the live
-  one, on two lines and on one line (`/* site: '…old…' */ export default { site: '…new…' };`). Each
+- `twosite1`, `twosite2`: an `astro.config.mjs` holding an old address in a comment, first, and
+  the live one after it, on two lines and on one line (`/* site: '…old…' */ export default { site: '…new…' };`). Each
   also carries the `noorigin` marker, so it stops at the fetch and never reaches the live check,
   which would read the old address; the file is written for the case and removed after it, since
   the other cases rely on the folder having none. Line 1 is both fallbacks; `old.example` in no
@@ -205,8 +211,8 @@ lowercase name (`s2/origin`). S2 asserts it as line 1 (worktree mode), P4 (folde
 own domain; S2 also asserts the no-terminal line comes
 after "Going live" and before "▶ pre-push gate".
 
-**A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--limit S]
-[VAR=value…]` starts ship.sh, with the same stub `bin` folder first on `PATH` as `run_ship`
+**A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--out FILE]
+[--limit S] [VAR=value…]` starts ship.sh, with the same stub `bin` folder first on `PATH` as `run_ship`
 (line 1009),
 under `script`: macOS's BSD form `script -q /dev/null <command>`, util-linux's form
 `script -qec 'exec <command>' /dev/null`, told apart by `script --version` (util-linux has it;
@@ -214,12 +220,14 @@ BSD prints "illegal option", measured). Measured: both forms pass their input to
 program reads an end of input once `script`'s own input ends (BSD on macOS, READ 1; util-linux
 2.38.1 on Debian 12, READ 13). So a feeder waits, with a limit,
 until the question is in the log, writes the answer, then holds its input open until ship.sh exits;
-its waits use `$SHIP_T_REAL_SLEEP`, since the stub `sleep` first on `PATH` returns at once (an
-answer written before the read is lost under BSD `script`, READ 1).
+its waits use `$SHIP_T_REAL_SLEEP`, never a `sleep` found on `PATH`, which in these cases may be
+the stub that returns at once (an answer written before the read is lost under BSD `script`,
+READ 1).
 ship.sh is started through the same pattern as `expect`'s wrapper (line 236), with the pid file
 passed as an argument so it lands outside the clone: `bash -c 'echo "$$" > "$1"; exec bash "$0"'
 scripts/ship.sh "$G/<case>.pid"` (`--prog FILE` puts another script in place of
-`scripts/ship.sh`). A file in the clone would fail the folder-unchanged check and, in
+`scripts/ship.sh`; `--out FILE` adds `> "$2"` to the `exec` and passes FILE as a second argument,
+so standard output goes to that file and not to `script`). A file in the clone would fail the folder-unchanged check and, in
 folder mode, stop the run as unsaved. Under `script` the program leads its own process group, so the
 pid is also the group: BSD `script` runs the command itself (READ 11), and util-linux runs it
 through `sh -c`, so that form starts with `exec` (READ 13: with it, pid and group match; without
@@ -254,14 +262,15 @@ The toolkit's CI tests the same `ship.sh` every site gets through `whats-new`.
   wrapper, then polled with `kill -0` until it is gone). Exit 1 within the
   limit, the stop message, `Nothing was published`, and no `you did not answer y` (without the
   prompt-time trap the run keeps waiting, and the case fails as timed out).
-- T6 (folder mode) answers ` YES `: goes on, ends on the LIVE line.
-- T7: a terminal on standard input, output sent to a file outside the clone, the path passed as an
-  argument since `G` is not exported (`script … bash -c 'echo "$$" > "$1"; exec bash "$0" > "$2"'
-  scripts/ship.sh "$G/t7.pid" "$G/t7.out"`), with `--none`: its feeder waits for no question and
+- T6 (folder mode) answers ` YES `: goes on, ends on the LIVE line. Its files are dated in the past
+  and the index refreshed first, as the folder-mode site case does (lines 1583–1586), so ship.sh's
+  own `git status` leaves the index unchanged.
+- T7: `run_tty t7 --none --out "$G/t7.out"`, a terminal on standard input and output sent to a
+  file outside the clone (`G` is not exported, so the path goes as an argument): its feeder waits for no question and
   only holds the input open. No question, the no-terminal line in the file, the run goes on.
 - T8, the watchdog itself: `run_tty t8 --none --prog "$G/t8-stand.sh" --limit 3`, the stand-in a
   script under `$G` (outside the clone) that ignores terminate and hang-up, starts a child that
-  sleeps, and sleeps, both through `$SHIP_T_REAL_SLEEP` (the stub `sleep` first on `PATH` returns at
+  sleeps and writes the child's pid to `$G/t8-child.pid`, and sleeps, both through `$SHIP_T_REAL_SLEEP` (the stub `sleep` first on `PATH` returns at
   once, line 896); the watchdog times with the real `sleep` too: `run_tty` returns 124
   within 15 seconds, and both the stand-in and its child are gone.
 - Under `SHIP_GATE_SKIP_WORDING` the T cases cannot find the question by its text, so they print

@@ -16,6 +16,7 @@ Seats: Codex and GLM 5.3 on melious in one command (`SECOND_SEAT=melious MELIOUS
 | 6 | `ea329892` | `--verify` of E1–E6, `--earned-by ci-wiring,allowlist-needle,tool-behaviour --cut "removed the macOS leg from the skip-only caller list…"`; evidence `evidence-r6.md` (r5 plus READ 13 util-linux `script`, READ 14 BSD `script` on TERM, READ 15 tiny gate and lock lines) | Codex, GLM 5.3 | Codex 138 s, 70,243; GLM 496 s, 91,661 | 2/2/1 |
 | 7 | `36dfd5b9` | `--verify` of F1–F6, `--earned-by ci-wiring,refactor-drift --cut "removed the prepare-any-shell push claim and the second slash strip"`; evidence `evidence-r6.md` with READ 16 (stdout through npm, `bsdutils`) and READ 17 (`ship.sh` 753–758, pushes in the workflow) | Codex, GLM 5.3 | Codex 201 s, 71,831; GLM 412 s, 89,173 | 1/3/2 |
 | 8 | `ec668df1` | `--verify` of G1–G6, `--earned-by comment-claim,ci-wiring,test-placement --cut "the T cases no longer run in site pre-push hooks or site CI; the llms clause is dropped from the moved comment"`; evidence `evidence-r6.md` with READ 18 (starter config, llms strip, `run_ship` PATH) | Codex, GLM 5.3 | Codex 177 s, 85,009; GLM 337 s, 77,553 | 1/2/1 |
+| 9 | `c0d61833` | granted by the owner ("Yes, round 9"); `--verify` of H1–H4, `--earned-by output-order,stub-path,ci-wiring --cut "no claim that ubuntu-latest has script; the build PR's own CI is the check"`; evidence `evidence-r6.md` | Codex (clean), GLM 5.3 | Codex 98 s, 61,400; GLM 393 s, 87,467 | 0/1/3 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -116,4 +117,11 @@ Seats: Codex and GLM 5.3 on melious in one command (`SECOND_SEAT=melious MELIOUS
 | H3 | RISK | GLM | 8 | `ubuntu-latest` having `script` is not shown; if it lacks one the whole file goes red with no clue why | fixed `c0d61833`: the failure is one line naming the T cases and `SHIP_TEST_TTY`, as S10 (e) does (line 841); the build PR's own CI shows it before any merge | `check_ship_push.sh` 840–841 |
 | H4 | NIT | GLM | 8 | "the answer rests on what goes" is half wrong in worktree mode: the address is this folder's copy | fixed `c0d61833`: the repo and the commits are what goes; the address is this folder's copy | plan §B |
 
-Gate totals after round 8: 8 rounds, 19 reviewer seat runs, 1,798,007 tokens logged by the script (fresh-eyes rounds 1 to 3 included); 76 findings (16 BUG, 19 RISK, 41 NIT, counting round 6's outside-scope NIT). Not counted: the fixes and the host's own work.
+# Round 9 findings and how each was handled (plan now at 83747653)
+
+| id | Sev | Source | Round | Finding | Status | Evidence |
+|---|---|---|---|---|---|---|
+| I1 | RISK | GLM | 9 | the feeder's waits are unnamed while the stub `sleep` is first on `PATH`; a feeder on it would write the answer before the read, and BSD `script` drops it | fixed `ebe1a364`: the feeder waits on `$SHIP_T_REAL_SLEEP` | READ 1 (an answer before the read is lost); `check_ship_push.sh` 893–898 |
+| I2 | NIT | GLM | 9 | "`mode_has` already finds it": the helper is new | fixed `ebe1a364`: "the new `mode_has` helper (below)" | — |
+| I3 | NIT | GLM | 9 | `report_leftovers` is line 539, not 538 | fixed `ebe1a364` | `ship.sh` 537–539 |
+| I4 | NIT | GLM | 9 | the playwright step's comment says the file "fails within a minute or so", untrue with T cases | fixed `83747653`: the clause is dropped, since a hung T case takes its 60-second limit | `template-tests.yml` 86–93 |
