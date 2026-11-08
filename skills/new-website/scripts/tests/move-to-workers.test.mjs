@@ -338,14 +338,22 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
   });
-  test('S1d: a src/config.ts with CRLF line ends, and SITE on one line with the url after another key, is still read', async () => {
+  test('S1d: a src/config.ts with CRLF line ends and the url on the brace line is still read', async () => {
     const files = config('https://lenas-backstube.example');
-    const oneLine = files['src/config.ts'].replace(/^export const SITE = \{\n[^]*?^\} as const;/m, "export const SITE = { name: 'Lenas Backstube', url: 'https://lenas-backstube.example' } as const;");
-    assert.ok(oneLine.includes("export const SITE = { name: 'Lenas Backstube', url:"), 'the one-line SITE was not written');
-    files['src/config.ts'] = oneLine.replace(/\n/g, '\r\n');
+    const braceLine = files['src/config.ts'].replace('export const SITE = {\n  url:', 'export const SITE = { url:');
+    assert.ok(braceLine.includes('export const SITE = { url:'), 'the brace-line url was not written');
+    files['src/config.ts'] = braceLine.replace(/\n/g, '\r\n');
     const r = await run('', withoutSite(), files);
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('src/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
+  });
+  test("S1e: a nested url above the site's own is not taken for it", async () => {
+    const files = config('https://lenas-backstube.example');
+    const nested = files['src/config.ts'].replace('export const SITE = {\n', "export const SITE = {\n  support: {\n    url: 'https://help.example',\n  },\n");
+    assert.ok(nested.includes("    url: 'https://help.example',"), 'the nested url was not written');
+    const r = await run('', withoutSite(), { 'src/config.ts': nested });
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('src/config.ts gives the address lenas-backstube.example, and no zone'), r.text);
   });
   test('S2: a pages.dev address is not a domain of its own, and the site launches first', async () => {
     const r = await run('https://lenas-backstube.pages.dev', withoutSite());

@@ -721,8 +721,8 @@ async function prepare(opts, io, run) {
 async function siteAddress(git) {
   const r = await git('show', 'HEAD:src/config.ts');
   if (r.code !== 0) return null;
-  const site = /^export const SITE\s*=\s*\{([^]*?)(?=^export |(?![^]))/m.exec(r.stdout)?.[1] ?? ''; // to the next export
-  const url = /(?:^|[{,])\s*url:\s*['"]([^'"\n]+)['"]/m.exec(site)?.[1];
+  const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(r.stdout)?.[1] ?? ''; // the template's form: to its closing line
+  const url = /^(?: ?| {2}|\t)url:[ \t]*['"]([^'"\n]+)['"]/m.exec(site)?.[1]; // a top-level key, not a nested one
   let host;
   try { host = new URL(url).hostname.toLowerCase().replace(/\.$/, ''); } catch { return null; }
   return host && host !== 'example.com' ? { host } : null;
