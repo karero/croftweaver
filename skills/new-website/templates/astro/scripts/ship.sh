@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.24
+# template-version: 0.25
 #   The website-builder release this revision ships in. Sites get their copy at
 #   scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -884,14 +884,16 @@ fi
 if [ -z "$site" ]; then
   echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
   if [ "$from_github" = 1 ]; then
-    finish "  Check it yourself in ~2 min: your live URL should show GitHub's main as of the fetch ($short)."
+    finish "  Check it yourself in a few minutes: your live URL should show GitHub's main as of the fetch ($short)."
   else
-    finish "  Check it yourself in ~2 min: your live URL should show the change."
+    finish "  Check it yourself in a few minutes: your live URL should show the change."
   fi
   exit 0
 fi
-echo "→ Verifying the live site serves this exact build (up to 4 min)…"
-for i in $(seq 1 24); do
+# Checks 10 s apart; a Workers build took about 300 s, so the wait is about 6 minutes.
+wait_min=6
+echo "→ Verifying the live site serves this exact build (about $wait_min min)…"
+for i in $(seq 1 $((wait_min * 6))); do
   # A Ctrl-C ends the wait (or the request), not the script, so the note is read.
   sleep 10 || true
   stop_live=0; [ "$stop_asked" = 1 ] && stop_live=1
@@ -928,17 +930,22 @@ for i in $(seq 1 24); do
 done
 echo ""
 if [ "$live_n" = 0 ]; then
-  echo "⚠ Nothing was pushed ('production' already had this commit), and after 4 minutes the"
+  echo "⚠ Nothing was pushed ('production' already had this commit), and after $wait_min minutes the"
   echo "  live site still serves an OLD build."
+  echo "  This usually means Cloudflare didn't build (it can stop silently). Check, in the"
 else
-  echo "⚠ Pushed OK, but after 4 minutes the live site still serves an OLD build."
+  echo "⚠ Pushed OK, but after $wait_min minutes the live site still serves an OLD build."
+  echo "  The build may still be running: in a few minutes, $build_txt should show"
+  echo "  ${id:0:12}. If it doesn't, Cloudflare didn't build (it can stop silently). Check, in the"
 fi
-echo "  This usually means Cloudflare didn't build (it can stop silently). Check:"
-echo "  Cloudflare dashboard → Workers & Pages → your project → Deployments."
-echo "    • A failed deployment for ${id:0:12} → open its log, then 'Retry deployment'."
-echo "    • NO deployment for it → Settings → Builds: unpause / re-connect the GitHub"
-echo "      integration, then 'Create deployment' from 'production'."
-echo "  (Brand-new site whose domain isn't connected yet? Then this is expected —"
+echo "  Cloudflare dashboard → Workers & Pages → your project:"
+echo "    • On Pages, Deployments: a failed deployment for ${id:0:12} → open its log, then"
+echo "      'Retry deployment'. NO deployment for it → Settings → Builds: unpause /"
+echo "      re-connect the GitHub integration, then 'Create deployment' from 'production'."
+echo "    • On a Worker, Deployments → View build history: a failed build → 'Retry build'."
+echo "      NO build for it → Settings → Build: the Git repository and its branch control."
+echo "      A Worker deployed by command builds nothing on a push: run its deploy command."
+echo "  (Brand-new Pages site whose domain isn't connected yet? Then this is expected —"
 echo "  verify via the project's *.pages.dev URL instead.)"
 exit 1
 }

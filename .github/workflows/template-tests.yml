@@ -113,13 +113,13 @@ jobs:
         run: |
           v="$(git config --local --get core.hooksPath || true)"
           [ -z "$v" ] || { echo "npm ci set core.hooksPath=$v in the enclosing repo"; exit 1; }
-      # Builds the site four ways and reads the HTML. The starter ships with analytics off
-      # (USE_ANALYTICS = false): no tag in any build, the live one included, and no analytics
-      # host in public/_headers. The full suite (the last step) builds once and never as the
-      # live site.
+      # Builds the site as Pages and as Workers Builds would, and reads the HTML. The starter
+      # ships with analytics off (USE_ANALYTICS = false): no tag in any build, the live ones
+      # included, and no analytics host in public/_headers. The full suite (the last step)
+      # builds once and never as the live site.
       - name: Analytics off in every build, as shipped (src/config.ts)
         run: bash tests/check_analytics_gate.sh
-      # The same four builds with analytics switched on (USE_ANALYTICS = true, the host added
+      # The same builds with analytics switched on (USE_ANALYTICS = true, the host added
       # to script-src and connect-src in public/_headers): the tag and the stub on the
       # production build only. Both files are put back afterwards, so the steps below run
       # on the default.
@@ -140,9 +140,10 @@ jobs:
           npm run check
           bash tests/check_analytics_gate.sh
           git checkout -- src/config.ts public/_headers
-      # The same four builds in server mode (USE_ANALYTICS = true, ANALYTICS.mode = 'server'):
-      # no script in any, email links to /go/email on the live build only; _headers needs no
-      # analytics host. config.ts is put back afterwards, so the suite below runs on the default.
+      # The same builds in server mode (USE_ANALYTICS = true, ANALYTICS.mode = 'server'):
+      # no script in any, email links to /go/email on the live Pages build only, and the
+      # Workers build refused; _headers needs no analytics host. config.ts is put back
+      # afterwards, so the suite below runs on the default.
       - name: Analytics in server mode (src/config.ts switched for this step only)
         run: |
           sed -i "s/^export const USE_ANALYTICS = false;/export const USE_ANALYTICS = true;/" src/config.ts

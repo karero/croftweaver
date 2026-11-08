@@ -34,7 +34,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.24   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.25   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -1497,7 +1497,7 @@ GATE
   # --- L2c: the live site never shows the new build: the stall message says what was done --
   fixture l2c; advance 1
   run_ship l2c SHIP_T_STALE=1; exits 1
-  want "a push with news says it pushed" has "⚠ Pushed OK, but after 4 minutes"
+  want "a push with news says it pushed" has "⚠ Pushed OK, but after 6 minutes"
 
   # --- L3: production already has this commit ----------------------------------------------
   fixture l3; p0="$(gh production)"
@@ -1514,7 +1514,7 @@ GATE
   fixture l3b
   run_ship l3b SHIP_T_STALE=1; exits 1
   want "the stall message does not say a push happened" lacks "Pushed OK"
-  want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 4 minutes the"
+  want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 6 minutes the"
 
   # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
   # The clone asks for colour, decorations, the long format and signature lines; one subject holds

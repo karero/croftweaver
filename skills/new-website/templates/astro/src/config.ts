@@ -46,7 +46,8 @@ export const KNOWS_ABOUT: string[] = [];
 
 // Plausible (cookieless; scriptHost is https://plausible.io for the paid cloud
 // version, or your own self-hosted instance). Fire only on the production
-// deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built.
+// deploy: Cloudflare Pages sets CF_PAGES_BRANCH to the branch being built, and Workers
+// Builds sets WORKERS_CI_BRANCH; CF_PAGES_BRANCH wins when set, even empty.
 //
 // The starter ships with analytics OFF (USE_ANALYTICS = false): no build, the live one
 // included, writes the script or the stub, and nothing on the page sends anything to an
@@ -87,8 +88,8 @@ export const KNOWS_ABOUT: string[] = [];
 // kept on purpose). Another analytics tool means changing those two calls and section 3 of
 // the privacy page.
 //
-// IMPORTANT: PROD_BRANCH must equal the branch Cloudflare Pages calls "Production"
-// for THIS project (house convention: 'production'; Cloudflare's default is 'main').
+// IMPORTANT: PROD_BRANCH must equal the branch Cloudflare builds as "Production" for THIS
+// project, on Pages or Workers (house convention: 'production'; Cloudflare's default is 'main').
 // A mismatch means analytics silently never loads — no error, no data.
 //
 // mode, once USE_ANALYTICS is true: 'script' (the default) loads Plausible's script in the browser, as described
@@ -113,7 +114,7 @@ export const USE_ANALYTICS = false;
 export const GENERATOR_TAG: boolean = true;
 
 export const ANALYTICS = {
-  enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,
+  enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,
   mode: 'script' as 'script' | 'server', // keep on one line: tests/check_analytics_gate.sh reads it
   scriptHost: 'https://analytics.example.com',
   scriptId: 'pa-XXXXXXXXXXXXXXXXXXXX',
