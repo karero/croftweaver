@@ -732,7 +732,7 @@ const twoCodes = (bot, other, args = []) => scenario(freshState({ bot }), async 
 
 test('S9: Allow everywhere, as captured or as the kit leaves it, gives no note in any state', async () => {
   for (const c of ['T3-001', 'T3-010', 'T3-013', 'T2-040']) {
-    for (const st of ['change', 'as-is', 'skipped', 'unread', 'done', 'hand']) assert.deepEqual(aiNotes(botOf(c), st), [], `${c} ${st}`);
+    for (const st of ['change', 'as-is', 'skipped', 'unread', 'done', 'hand', 'launch']) assert.deepEqual(aiNotes(botOf(c), st), [], `${c} ${st}`);
   }
   // The same check sees Block, so it cannot pass with no note code: C2's value swapped for C9's.
   assert.ok(aiNotes(botOf(AI.block), 'change').length > 0);
@@ -741,6 +741,21 @@ test('S9: Allow everywhere, as captured or as the kit leaves it, gives no note i
     const r = await aiRun(botOf(c));
     assert.doesNotMatch(r.ask.out + r.done.out, NOTE, c);
   }
+});
+
+// Cloudflare is retiring Managed robots.txt (BUGLOG 2026-10-30): once it drops the field from both
+// reads, the change must still read back as done, not "by hand".
+test('a Bot Management answer with no is_robots_txt_managed: the ai line is written and reads back done', async () => {
+  const bot = botOf(AI.block);
+  delete bot.is_robots_txt_managed;
+  const r = await aiRun(bot);
+  const withField = await aiRun(botOf(AI.block));
+  assert.equal(r.done.code, withField.done.code, r.done.out);
+  assert.ok(!('is_robots_txt_managed' in r.put.body), 'the PUT does not send the field');
+  assert.ok(!('is_robots_txt_managed' in r.state.bot), 'the stub, as Cloudflare, does not return it');
+  assert.match(r.done.out, /done\s+AI crawlers: allow/);
+  assert.match(r.done.out, /Training was Block and is now Allow \(do not block\)/);
+  assert.doesNotMatch(r.done.out, /by hand|is_robots_txt_managed/);
 });
 
 test('S1 and S3: Training on Block: the ask warns that Google, Bing and Apple go too; the report says it is now Allow; code, PUT and exit as without the note', async () => {
@@ -1292,7 +1307,7 @@ test('36 and 37: the report of a finished launch: two-stage names main\'s previe
     assert.match(report, /^Live: https:\/\/lenas-backstube\.example\/ serves [0-9a-f]{7}\./m);
     assert.match(report, /The preview of main, as Cloudflare lists it: https:\/\/main\.lenas-backstube\.pages\.dev/);
     assert.match(report, /https:\/\/lenas-backstube\.pages\.dev\/ forwards to https:\/\/lenas-backstube\.example\//);
-    assert.match(report, /As the project reads now through the API: Fail open on for production and on for previews; build command npm run build, output folder dist\. This stage does not read Minimum TLS Version or the AI fields: the setup stage, run again, shows them.*ssllabs/s);
+    assert.match(report, /As the project reads now through the API: Fail open on for production and on for previews; build command npm run build, output folder dist\. This stage does not read Minimum TLS Version, and does not judge AI Labyrinth or the content-bot block: the setup stage, run again, shows them.*ssllabs/s);
     assert.match(report, /Crawler Hints, the Web Analytics switch, the script monitor's switch/);
     assert.match(report, /HSTS once the site has worked for a few days, not before \d{4}-\d{2}-\d{2}/);
     assert.match(report, /behind a sign-in/);
@@ -1301,10 +1316,116 @@ test('36 and 37: the report of a finished launch: two-stage names main\'s previe
   await launchScenario((h) => finished(h), async ({ api, launch }) => {
     const r = await launch();
     assert.equal(r.code, 0, r.out);
-    assert.ok(!api.log.some((e) => /\/settings\/|bot_management/.test(e.path)), 'launch reads no zone setting, so its report claims no read');
+    assert.ok(!api.log.some((e) => /\/settings\//.test(e.path)), 'launch reads no /settings/, and Bot Management once, by GET, for the notes');
+    assert.deepEqual(api.log.filter((e) => /bot_management/.test(e.path)).map((e) => e.method), ['GET'], 'Bot Management: one read, for the AI notes');
     assert.match(r.out, /main is the live site \(main\); each pull request gets a preview of its own/);
     assert.doesNotMatch(r.out, /preview of main/);
   }, { prodBranch: 'main', production: false });
+});
+
+// ---------------------------------------------------------------- launch day's AI notes
+// BUGLOG 2026-10-30: launch day read no Bot Management, so an owner who set Training to Block after
+// setup heard nothing. The final report now carries setup's notes, worded for a run that changes none.
+const finishedLaunch = (h, bot) => {
+  const s = attachHost(launchState(h));
+  const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
+  s.projects[0].deployment_configs.production.env_vars = v;
+  s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v));
+  if (bot) s.bot = Object.assign(bot, { fight_mode: false });
+  return s;
+};
+const botCalls = (api) => api.log.filter((e) => /bot_management/.test(e.path)).map((e) => e.method);
+const AI_HEADING = 'The AI bot policies, as Cloudflare reads them now:';
+
+test('LA1: Training on Block at launch: the report says what Block costs and how to keep a choice; nothing written', () =>
+  launchScenario((h) => finishedLaunch(h, botOf(AI.block)), async ({ api, launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 0, r.out);
+    const notes = r.out.slice(r.out.indexOf(AI_HEADING), r.out.indexOf('Live: '));
+    assert.ok(r.out.indexOf('The check of') < r.out.indexOf(AI_HEADING) && r.out.indexOf(AI_HEADING) < r.out.indexOf('Live: '), r.out);
+    assert.match(notes, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. Launch day changes no AI setting\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too \(choosing Disallow does not turn it on\), and run the setup stage with --skip ai from then on\./);
+    assert.deepEqual(botCalls(api), ['GET']);
+    assert.ok(!api.writes().some((e) => /bot_management/.test(e.path)));
+  }));
+
+test('LA2: Allow everywhere at launch: no AI note and no heading', () =>
+  launchScenario((h) => finishedLaunch(h, botOf(AI.allow)), async ({ api, launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 0, r.out);
+    assert.ok(!r.out.includes(AI_HEADING), r.out);
+    assert.doesNotMatch(r.out, NOTE);
+    assert.deepEqual(botCalls(api), ['GET']);
+  }));
+
+test('LA2b: a launch that ends in 1 (Bot Fight Mode still on) still carries the Block note, from one read', () =>
+  launchScenario((h) => { const s = finishedLaunch(h, botOf(AI.block)); s.bot.fight_mode = true; return s; }, async ({ api, launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /Training is set to Block\. .*Launch day changes no AI setting\./);
+    assert.deepEqual(botCalls(api), ['GET']);
+    assert.deepEqual(api.writes().filter((e) => /bot_management/.test(e.path)), []);
+  }));
+
+test('LA3: Disallow with Sync off at launch: the Sync note', () =>
+  launchScenario((h) => finishedLaunch(h, botOf(AI.disallowSyncOff)), async ({ launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /Bot Preference Sync is off, so Disallow writes no no-training preference into robots\.txt\./);
+  }));
+
+test('LA4: a refused or dropped Bot Management read at launch: one line, the same status, no note', async () => {
+  for (const [what, set, words] of [
+    ['403', (s) => { s.refuse['GET bot'] = 403; }, /Cloudflare refused it \(403.*Zone → Bot Management → Edit/],
+    ['503', (s) => { s.refuse['GET bot'] = 503; }, /Cloudflare refused it: MADE: refused by the test/],
+    ['a dropped connection', (s) => { s.drop['GET bot'] = 'reset'; }, /Cloudflare's API did not answer/],
+  ]) {
+    await launchScenario((h) => { const s = finishedLaunch(h, botOf(AI.block)); set(s); return s; }, async ({ launch }) => {
+      const r = await launch();
+      assert.equal(r.code, 0, `${what}: ${r.out}`);
+      assert.match(r.out, /Bot Management could not be read: .*\. The notes on the AI bot policies are not shown; the setup stage, run again, shows them\./, what);
+      assert.match(r.out, words, what);
+      assert.doesNotMatch(r.out, /Training is set to/, what);
+      assert.match(r.out, /Launched\. Status 0\./, what);
+    });
+  }
+});
+
+test('LA5: the question (3) and a wait for the domain (4) read no Bot Management', () =>
+  launchScenario((h) => launchState(h, { bot: botOf(AI.block) }), async ({ api, launch }) => {
+    const q = await launch();
+    assert.equal(q.code, 3, q.out);
+    const first = await launch(['--confirm', codeOf(q)]);
+    assert.equal(first.code, 4, first.out);
+    assert.deepEqual(botCalls(api), []);
+    assert.doesNotMatch(q.out + first.out, NOTE);
+  }));
+
+// The test's own timeout fails a read made outside the run's deadline instead of hanging the suite.
+test('LA6: a Bot Management read that never answers ends the run with 4 at its deadline, before any report', { timeout: 90_000 }, () =>
+  launchScenario((h) => { const s = finishedLaunch(h, botOf(AI.block)); s.drop['GET bot'] = 'silent'; return s; }, async ({ launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 4, r.out);
+    assert.match(r.out, /reached its time limit/);
+    assert.ok(r.ms < 60_000, `took ${r.ms} ms`);
+    assert.ok(!r.out.includes('The check of') && !r.out.includes('Live: '), r.out);
+  }));
+
+test("aiNotes at launch: one note per branch, each saying launch day changes nothing", () => {
+  const one = (bot) => aiNotes(bot, 'launch');
+  const tail = /Launch day changes no AI setting\. .*run the setup stage with --skip ai from then on\.$/;
+  assert.match(one(botOf(AI.block))[0], tail);
+  assert.match(one(botOf(AI.adsBlock))[0], /^Training is set to Block on pages with ads\. Cloudflare says Block on pages with ads also keeps Googlebot, Bingbot and Applebot out on pages that show ads, which affects search\. Launch day changes no AI setting\./);
+  assert.deepEqual(one(botOf(AI.disallowSyncOff)), [`Bot Preference Sync is off, so Disallow writes no no-training preference into robots.txt. To publish it there, turn Sync on in the dashboard: ${BOT_LINES.find((b) => b.id === 'ai').path}.`]);
+  assert.deepEqual(one(botOf(AI.disallowSyncOn)), []);
+  assert.deepEqual(one(botOf(AI.searchBlock)), ['Search is set to Block, and launch day leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.']);
+  assert.deepEqual(one(botOf(AI.agentAdsBlock)), ['Agent is set to Block on pages with ads, and launch day leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.']);
+  assert.deepEqual(one(botOf(AI.allow)), []);
+  assert.ok(one(botOf('T2-016')).includes('The older Block AI bots setting is set to block, and launch day leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.'));
+  // Hand-built from T3-010, since no capture has them.
+  const missing = botOf(AI.allow); delete missing.ai_training;
+  assert.match(one(missing)[0], /^Training was missing from what Cloudflare returned at the start of this run: a value this kit does not know/);
+  assert.match(one(botOf(AI.allow, { ai_search: 'x' }))[0], /^Search reads x at the start of this run: a value this kit does not know/);
+  assert.match(one(botOf(AI.disallowSyncOff, { bot_preference_sync_enabled: 'x' }))[0], /^Bot Preference Sync reads x at the start of this run: a value this kit does not know/);
 });
 
 test('launch report: a preview of main with no alias is not called missing either', () =>

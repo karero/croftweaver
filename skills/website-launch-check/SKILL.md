@@ -111,6 +111,38 @@ settings".
   the `_headers` rules, HTTPS and the 404 status show only on a deployed site: at the
   baseline and pre-launch runs they read "not checked yet: not deployed", and the live run
   checks them.
+- The legal pages' answer (`README.md` in the folder that holds `package.json`): quote, in the
+  report's Imprint / privacy row, every line in one of the three forms `AGENTS.md` §5 gives
+  (`legal pages: reviewed by a lawyer (<date>)`, `legal pages: own texts (<date>)`, `legal pages:
+  published as drafted (owner's decision, <date>)`), and ask the owner about them at every
+  pre-launch run, as below.
+  - No such line: a blocker (🔴): the owner's answer is not recorded; `AGENTS.md` §5 asks for it.
+    Do not ask here. Claim no test failure: the site's tests pass a legal page still listed in
+    `UNFILLED_UNTIL_LAUNCH` whose draft notice shows.
+  - Which pages each line covers: the README names none. With one line, it covers every legal
+    page. With more than one, ask the owner at each pre-launch run which legal pages each line
+    was recorded for. A page's answer is the newest line that covers it (of two with one date,
+    the one further down the README); quote older lines as history, with no question.
+  - A page whose answer is `reviewed by a lawyer` or `own texts`: at each pre-launch run, quote
+    that line and ask the owner whether it is still true for the pages it is the answer for, one
+    question per line. "Yes" goes in the report as "owner confirmed, <date>". "No" or "don't
+    know" is a blocker that points at `AGENTS.md` §5: record a true answer, then launch.
+  - A page whose answer is `published as drafted`: no question. Report it as 🟡, one per such
+    line, naming the pages it is the answer for and leaving out any the date check below
+    blocks, and none for a line left with no pages: "<pages>: the kit's drafts, published on
+    your decision of <date>; a lawyer's review is still open to you."
+  - A legal page no line covers, or added after its line: at every pre-launch run, for each
+    legal page in `tests/_helpers.ts` `PAGES` (last path segment `privacy`, `datenschutz` or
+    `impressum`), run `git log --diff-filter=A --format=%cs -- <its file under src/pages/>`, one
+    file per call, and take the first line: the date it last entered git under that name. Not
+    `--follow`, which dates a renamed file (the `/datenschutz` swap) by the file it came from. A
+    page rewritten under the same file name keeps its first date, so this check cannot see the
+    rewrite. A page that no line covers, or whose date is after its answer's date, is a blocker
+    naming that page: `AGENTS.md` §5 asks again for it and adds a dated line. The answer's own
+    day counts as covered. No date (no output: the file is not committed; or an error: not a
+    git repo) is a blocker of its own: commit the page, then run the check again. This holds
+    whatever the answer, `published as drafted` included. Claim no test failure: the tests
+    compare no dates.
 
 **Business in Germany:**
 - **Impressum** per § 5 DDG (the Digitale-Dienste-Gesetz replaced the TMG in May 2024): name,
