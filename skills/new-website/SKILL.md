@@ -500,17 +500,20 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
    `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, `CROFTWEAVER-LICENSE.md` (the licence of
    these copied files; it stays in the site's top folder), root configs — see `templates/astro/README.md`
-   for exact steps and npm deps). Set the real domain in `astro.config.mjs` (`site:`),
+   for exact steps and npm deps). **Do not copy the starter's `README.md`:** it is the kit's
+   assembly manual, and the site's own `README.md` holds the owner's answers, the
+   `legal pages:` line included. A copy of the whole folder replaces it. Run `git add README.md`
+   before the copy; after it, `git diff --quiet -- README.md` must succeed. Set the real domain in `astro.config.mjs` (`site:`),
    `src/config.ts` (`url`), `public/robots.txt` (the `Sitemap:` line) and `public/llms.txt`
    (every `https://example.com` link); the first `npm test` fails while `robots.txt` or
    `llms.txt` still names `example.com`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
-   `astro-i18n-setup`). **`'de'` flips the footer's privacy link to `/datenschutz`** —
-   do the privacy→datenschutz swap in the SAME step (rename the in-repo
-   draft `src/pages/_datenschutz.astro` per its header: page file,
+   `astro-i18n-setup`). **`'de'` flips the footer's links to `/datenschutz` and `/impressum`** —
+   do both swaps in the SAME step (rename the in-repo drafts
+   `src/pages/_datenschutz.astro` and `src/pages/_impressum.astro` per their headers: page file,
    `tests/_helpers.ts` PAGES, `public/llms.txt`, `OWN_CARD_EXEMPT`,
-   `POSITIONING_EXEMPT` + `UNFILLED_UNTIL_LAUNCH` in the specs) or every
-   intermediate `npm test` fails navigation on the footer link.
+   `POSITIONING_EXEMPT` + `UNFILLED_UNTIL_LAUNCH` in the specs; the Impressum replaces
+   `legal-notice.astro`) or every intermediate `npm test` fails navigation on a footer link.
    The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch.
@@ -747,7 +750,7 @@ hold Search Console Request Indexing until then.
 
 - [ ] All QA green: `npm test`, with **no "not ready to launch" warning**:
       `UNFILLED_UNTIL_LAUNCH` in `tests/placeholders.spec.ts` is empty. The starter
-      lists the privacy page, the imprint and the manifest there until their
+      lists the privacy page, the Legal Notice and the manifest there until their
       `[BRACKET]` slots are filled; each entry comes out when its target is filled
       and, for the two legal pages, once the owner has answered the question below and
       the draft notice is cleared (the test turns red until it does). An entry still
@@ -800,20 +803,27 @@ hold Search Console Request Indexing until then.
       `public/_headers` (no script loads), the privacy page's server-mode slots kept, and
       one page view and one email tap on the live domain seen under Today.
       Whether the site may run without a consent banner: §1 Q5's last point.
-      German-market sites: don't re-translate — swap in the vetted German
-      drafts that ship in the site repo, whose own file headers carry the
-      exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;
-      underscore = unrouted until renamed; German-only sites serve it at
-      `/datenschutz` REPLACING `/privacy`, multilingual sites use its text at
-      `/de/privacy`) and `src/pages/impressum.astro` (§ 5 DDG + § 18 Abs. 2
+      The kit ships the English `src/pages/legal-notice.astro` (§ 5 DDG + § 18 Abs. 2
       MStV — required for providers established in Germany, whatever the
       site's language, and for sites targeting the German market; fill/delete
       per its header and section comments, which also cover Austrian/Swiss
-      adaptation and the six-piece removal for providers with no German
+      adaptation and the seven-piece removal for providers with no German
       nexus).
+      German-language sites, and (for the Impressum) an English site whose owner
+      is based in Germany: don't re-translate — swap in the vetted German
+      drafts that ship in the site repo, whose own file headers carry the
+      exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;
+      underscore = unrouted until renamed; German-only sites serve it at
+      `/datenschutz` REPLACING `/privacy`, multilingual sites use its text for
+      the German privacy page) and `src/pages/_impressum.astro` (same underscore rule;
+      German-only sites serve it at `/impressum` REPLACING `/legal-notice`, an
+      English site routes it beside `/legal-notice`, multilingual sites use its
+      text for the German Impressum). On an English site the German Impressum is
+      offered to an owner based in Germany, and only to them: a US owner gets no German page.
       **Ask the owner about the drafts, once, before the deploy item below**, as
-      `AGENTS.md` §5 says (the site carries it; the text is not repeated here). The
-      imprint and the privacy page carry a draft notice until the owner has answered.
+      `AGENTS.md` §5 says (the site carries it; the text is not repeated here), and in the
+      same message ask whether the business is based in Germany. The
+      Legal Notice and the privacy page carry a draft notice until the owner has answered.
 - [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set

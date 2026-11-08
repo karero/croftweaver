@@ -56,7 +56,7 @@ for (const path of PAGES) {
       // _helpers.germanFunctionWordDensity); this extraction additionally
       // strips quoted-voice exemptions, see below. Threshold calibration:
       // real German PROSE runs ~15-20%; directory/legal-genre German
-      // (addresses, register numbers — the shipped Impressum) runs ~4%, so 3%
+      // (addresses, register numbers — the German Impressum draft) runs ~4%, so 3%
       // keeps a real margin only over NON-German text (~0%) — that is the
       // failure this catches; don't raise the threshold. Pages under 30 body
       // words skip entirely: density is noise on tiny stubs.

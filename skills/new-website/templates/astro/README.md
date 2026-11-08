@@ -18,6 +18,8 @@ src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)
 src/styles/tables.css         # the table style (website-design-system, "Tables")
 src/pages/index.astro         # minimal home so the suite is green from commit 1
 src/pages/privacy.astro       # GDPR privacy draft (fill [BRACKET] slots before launch)
+src/pages/legal-notice.astro  # English Legal Notice (§ 5 DDG draft; fill [BRACKET] slots before launch)
+src/pages/_impressum.astro    # German Impressum, unrouted: swapped in per its header, for owners based in Germany
 public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
 functions/_middleware.ts      # noindex *.pages.dev previews; 301 <project>.pages.dev once CANONICAL_URL is set; page views in analytics server mode
 functions/go/email.ts         # analytics server mode: counts the email tap, then opens the mail program
@@ -52,7 +54,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    (this starter's floor, never below Astro's own); keep Node current: SETUP.md lists the fixed version of
    each line. The committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 3. Copy this overlay over the scaffold (the files above, `package.json` included: it carries `engines`,
-   which makes npm warn when Node is older than the fixed version of its line) + `tests/`, then:
+   which makes npm warn when Node is older than the fixed version of its line) + `tests/`, but not this
+   `README.md` (the site's own holds the owner's answers), then:
    ```bash
    npm install
    npx playwright install chromium

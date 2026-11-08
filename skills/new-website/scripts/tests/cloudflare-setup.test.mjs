@@ -1025,7 +1025,7 @@ test('19: the commit that goes live still lists unfilled pages: refused, the ent
   launchScenario((h) => launchState(h), async ({ api, sites, launch }) => {
     const r = await launch();
     assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /UNFILLED_UNTIL_LAUNCH in tests\/placeholders\.spec\.ts still lists \/privacy, \/impressum, \/manifest\.webmanifest/);
+    assert.match(r.out, /UNFILLED_UNTIL_LAUNCH in tests\/placeholders\.spec\.ts still lists \/privacy, \/legal-notice, \/manifest\.webmanifest/);
     assert.match(r.out, /clear the draft notice on a legal page as AGENTS\.md section 5 says/);
     assert.doesNotMatch(r.out, /--confirm/);
     assert.deepEqual(domainsCalls(api), [], 'no call to the domains API');
@@ -1038,7 +1038,17 @@ test('19b: only the manifest is still listed: the stop does not talk about a dra
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /still lists \/manifest\.webmanifest: fill that page, and empty the list first/);
     assert.doesNotMatch(r.out, /draft notice/);
-  }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC.replace("'/privacy', '/impressum', ", '') } }));
+  }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC.replace("'/privacy', '/legal-notice', ", '') } }));
+
+test('19c: only the English Legal Notice or only an Impressum is still listed: the stop names the draft notice', async () => {
+  for (const page of ['/legal-notice', '/impressum']) {
+    await launchScenario((h) => launchState(h), async ({ launch }) => {
+      const r = await launch();
+      assert.equal(r.code, 1, r.out);
+      assert.ok(r.out.includes(`still lists ${page}: fill that page, clear the draft notice on a legal page as AGENTS.md section 5 says`), r.out);
+    }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC.replace("'/privacy', '/legal-notice', '/manifest.webmanifest'", `'${page}'`) } });
+  }
+});
 
 test('20: a draft token in src/, a German site\'s own token, two tokens that differ, no placeholder test: refused, and said which', async () => {
   const german = (spec) => {

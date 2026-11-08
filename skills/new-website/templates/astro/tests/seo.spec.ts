@@ -54,12 +54,13 @@ const DEFAULT_OG_CARD = '/images/og/default.jpg';
 // else MUST have a dedicated /images/og/<slug>.jpg card — a CONTENT page silently sharing
 // the generic default is the failure this guards. Opt-OUT model: as you add content pages
 // (uncomment them in _helpers PAGES), do NOT list them here, and the guard makes sure each
-// gets its own card. The starter ships only '/', '/privacy' + '/impressum', so it stays green from commit 1.
+// gets its own card. The starter ships only '/', '/privacy' + '/legal-notice', so it stays green from commit 1.
 //   - '/'          home: the default card IS the home card.
 //   - '/privacy'   legal/utility — nobody shares it with a custom preview.
-//   - '/impressum' legal/utility — same reasoning as /privacy.
+//   - '/legal-notice' legal/utility — same reasoning as /privacy. (A site that already routes
+//     /impressum keeps that path here when it merges a newer copy of this file.)
 // (A noindex 404 isn't here: it's excluded from PAGES entirely, so the guard never runs on it.)
-const OWN_CARD_EXEMPT = new Set<string>(['/', '/privacy', '/impressum']);
+const OWN_CARD_EXEMPT = new Set<string>(['/', '/privacy', '/legal-notice']);
 
 for (const path of PAGES) {
   test(`seo — head contract on ${path}`, async ({ page }) => {
