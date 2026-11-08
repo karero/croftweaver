@@ -428,8 +428,8 @@ if raw="$(git config --local --get ship.fromGitHub 2>/dev/null)"; then
       exit 1 ;;
   esac
 fi
-# The first line names the site and the GitHub repo, before any check, fetch or lock, so a run in
-# the wrong folder shows it at once. In worktree mode this folder is ignored and the published
+# The first line names the site and the GitHub repo, right after the setting above is read and
+# before any check, fetch or lock, so a run in the wrong folder shows it at once. In worktree mode this folder is ignored and the published
 # site is GitHub's: its line waits for the fetch, below, and reads GitHub's commit.
 if [ "$from_github" = 0 ]; then name_site "$(config_text .)"; fi
 # What every "nothing was published" message adds about the state you are in now.

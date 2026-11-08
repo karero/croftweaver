@@ -1210,6 +1210,7 @@ GATE
     done
     rm -f "$pidf" "$done_f" "$G/$name.timeout" "$L"
     if ( cd "$G" && script --version ) >/dev/null 2>&1; then util=1; fi
+    if [ -n "$out" ] && [ "$stdin_null" = 1 ]; then echo "✗ ship push gate [$name]: run_tty takes --out or --stdin-null, not both."; fail=1; return 0; fi
     wrap='echo "$$" > "$1"; exec bash "$0"'
     if [ -n "$out" ]; then wrap='echo "$$" > "$1"; exec bash "$0" > "$2"'; fi
     if [ "$stdin_null" = 1 ]; then wrap='echo "$$" > "$1"; exec bash "$0" < /dev/null'; fi
@@ -1883,6 +1884,7 @@ GATE
     want "... and that nothing was published" has "Nothing was published"
     want "does not blame the answer" lacks "you did not answer y"
     # The cases above send only a terminate (a backgrounded run ignores INT), so name the rest here.
+    # Asserts ship.sh's source text for the question's trap, verbatim: reword that line, reword this.
     trap_tail='$here."'"'"' INT TERM HUP QUIT'
     want "the question's trap catches INT, TERM, HUP and QUIT" grep -qF "$trap_tail" "$C/scripts/ship.sh"
     # T6: folder mode, answer " YES ". Files dated in the past and the index refreshed, as the
