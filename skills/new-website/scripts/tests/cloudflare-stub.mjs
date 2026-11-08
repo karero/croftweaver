@@ -140,6 +140,7 @@ export function freshState(over = {}) {
     domains: {}, // project → the custom domains attached to it, with their status
     ruleset: null, // the zone's ruleset for the response header phase, or none
     refuse: {}, // "<METHOD> <route>" → status
+    drop: {}, // "<METHOD> <route>" → 'reset' (MADE: the connection is dropped) or 'silent' (MADE: never answered)
     delayMs: 0,
     perPage: { zones: 50, projects: 10, deployments: 25 },
     ...over,
@@ -414,6 +415,10 @@ export async function startApi(state) {
       const entry = { method: req.method, path: p, query: url.search, body, token: req.headers.authorization === `Bearer ${TOKEN}`, contentType: req.headers['content-type'] ?? '' };
       log.push(entry);
       if (state.delayMs) await new Promise((r) => setTimeout(r, state.delayMs).unref());
+      const route = ROUTES.find(([m, re]) => m === req.method && re.test(p));
+      const drop = route && state.drop?.[`${req.method} ${route[2]}`];
+      if (drop === 'reset') { req.socket.destroy(); return; }
+      if (drop === 'silent') return;
       let out;
       if (req.headers.authorization !== `Bearer ${TOKEN}`) out = { status: 401, body: answer('T1-014') };
       else out = handle(state, req.method, p, url.searchParams, body, req.headers['content-type']);
