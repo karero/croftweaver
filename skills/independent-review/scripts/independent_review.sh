@@ -1765,19 +1765,18 @@ report_tier() {
   [ $rc -ne 3 ] && log_seat "$label" "$stem" "$secs" "$tokens" "$outcome"
   return $rc
 }
-# Codex's own token count: it ends a run with a "tokens used" line on stderr and the number on
-# the next line (or the same one). Best effort — empty when absent, never guessed.
+# Codex's own token count: it ends a run with a "tokens used" line alone on stderr and the number
+# alone on the next line. The last such pair counts; a quoted "tokens used: N" never does. Best
+# effort: empty when no pair exists. A quoted bare pair after the footer, or in a run with no
+# footer, still counts (the plan names this).
 codex_tokens() {
-  awk '/^[[:space:]]*tokens used/ {
-         line = $0; sub(/.*tokens used/, "", line); gsub(/[^0-9]/, "", line)
-         if (line == "") { if ((getline nxt) > 0) { line = nxt; gsub(/[^0-9]/, "", line) } }
-         if (line != "") { print line; exit }
-       }' "$RAW_DIR/codex.err" 2>/dev/null
+  awk '/^[[:space:]]*tokens used[[:space:]]*$/ { if ((getline nxt) > 0 && nxt ~ /^[[:space:]]*[0-9][0-9,]*[[:space:]]*$/) { gsub(/[^0-9]/, "", nxt); last = nxt } } END { if (last != "") print last }' "$RAW_DIR/codex.err" 2>/dev/null
 }
 # One cost-log line per attempted seat (review_log.sh). Absent helper (an older vendored copy):
 # nothing is logged, nothing fails.
 log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
-  local model="" effort="-" oc="${5%% (*}"
+  local model="" effort="-" oc="${5%% (*}" reason="-"
+  case "$5" in *" ("*) reason="${5#* (}"; reason="${reason%)}" ;; esac
   [ -r "$SCRIPT_DIR/review_log.sh" ] || return 0
   case "$2" in
     codex)  model="$(codex_model)"
@@ -1788,7 +1787,7 @@ log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
   esac
   bash "$SCRIPT_DIR/review_log.sh" add --seat "$1" --model "${model:--}" --effort "$effort" \
     --seconds "$3" --tokens "$4" --gate "$TYPE" --depth "$DEPTH" --round "$ROUND" \
-    --outcome "$(printf '%s' "$oc" | tr ' ' '-')" --earned-by "$EARNED_BY" --cut "$CUT"
+    --outcome "$(printf '%s' "$oc" | tr ' ' '-')" --earned-by "$EARNED_BY" --cut "$CUT" --reason "$reason"
 }
 # attempt <label> <file stem> <run function> — one tier, in the foreground
 attempt() { run_tier "$2" "$3"; report_tier "$1" "$2"; }

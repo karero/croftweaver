@@ -63,7 +63,7 @@ new_repo "$T/repo"
 GATE_FILE="$(gate_file_of "$T/repo")"
 LOG="$T/runs.tsv"
 export REVIEW_LOG="$LOG"
-NEW_HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut'
+NEW_HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason'
 OLD_HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id'
 line() {   # line <gate id> <round> <seat> <tokens> <earned_by> [cut]: one log line, 16 fields
   printf '2026-10-14T10:00:00Z\trepo\tbranch\tabc1234\tdiff\tnormal\t%s\t%s\tmodel\t-\t60\t%s\tOK\t%s\t%s\t%s\n' \
@@ -327,8 +327,8 @@ REVIEW_LOG="$OLDLOG" run --round 5 --earned-by config-advice
 check "old log: round 5 after an old round 4 runs, no warning" $P "" "$WARN"
 (cd "$T/repo" && REVIEW_LOG="$OLDLOG" bash "$LOG_SH" add --seat codex --round 5 --tokens 5000 --earned-by config-advice --cut "dropped x")
 if [ "$(sed -n 1p "$OLDLOG")" = "$OLD_HEADER" ] && [ "$(grep -c '^date' "$OLDLOG")" = 1 ] && [ "$(grep -c . "$OLDLOG")" = 6 ] \
-   && [ "$(tail -n 1 "$OLDLOG" | awk -F'\t' '{print NF ":" $14 ":" $15 ":" $16}')" = "16:G3:config-advice:dropped x" ]; then
-  ok "old log: add appends a 16-field line and keeps the old header, not rewriting the file"
+   && [ "$(tail -n 1 "$OLDLOG" | awk -F'\t' '{print NF ":" $14 ":" $15 ":" $16 ":" $17}')" = "17:G3:config-advice:dropped x:-" ]; then
+  ok "old log: add appends a 17-field line and keeps the old header, not rewriting the file"
 else fail "old log after add: $(cat "$OLDLOG")"; fi
 (cd "$T/repo" && REVIEW_LOG="$OLDLOG" bash "$LOG_SH" add --seat codex --round 6 --tokens 6000 --earned-by config-advice)
 REVIEW_LOG="$OLDLOG" run --round 7 --earned-by config-advice
@@ -384,6 +384,16 @@ else fail "full run restart: exit $rc, gates [$id] [$id2]. Output: $out"; fi
 out_off="$(cd "$T/e2e" && HOME="$T/home2" REVIEW_LOG=off REVIEW_RAW_DIR="$T/raw" bash "$SCRIPT" "$T/plan.md" --seat codex --depth normal 2>&1)"; rc=$?
 [ $rc -eq 0 ] && [[ "$out_off" != *"reviewer seat run"* ]] && ok "full run with REVIEW_LOG=off: no running total" \
   || fail "full run with REVIEW_LOG=off: exit $rc. Output: $out_off"
+
+# 14. The reason column: log_seat cuts it from the text inside the outcome's parentheses, so every
+#     literal outcome="..." assignment but OK must hold " (". A new branch written that way and
+#     left without parentheses would log reason "-"; one built another way gets past this check.
+outs="$(grep -E '(^|[^A-Za-z_])outcome="' "$SCRIPT")"
+n_out="$(printf '%s\n' "$outs" | grep -c .)"
+n_bare="$(printf '%s\n' "$outs" | grep -v 'outcome="OK"' | grep -vc 'outcome="[^"]* (')"
+if [ "$n_out" -gt 1 ] && [ "$n_bare" -eq 0 ] && [ "$(printf '%s\n' "$outs" | grep -c 'outcome="OK"')" -eq 1 ]; then
+  ok "every outcome assignment but OK carries a parenthesised reason ($n_out assignments)"
+else fail "outcome assignments without a parenthesised reason: $n_bare of $n_out: $outs"; fi
 
 echo
 if [ $fails -ne 0 ]; then echo "$fails of $n check(s) FAILED"; exit 1; fi

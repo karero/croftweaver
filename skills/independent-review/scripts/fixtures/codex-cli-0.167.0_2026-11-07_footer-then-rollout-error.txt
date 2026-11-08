@@ -1,0 +1,3 @@
+tokens used
+54,161
+2026-11-07T12:58:24.095679Z ERROR codex_core::session: failed to record rollout items: thread 0198c7e2-5a41-7d3b-9f06-1b2c3d4e5f60 not found

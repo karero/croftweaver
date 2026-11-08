@@ -98,6 +98,8 @@ case "${CODEX_STUB:-ok}" in
         : >"$STUB_MARKS/codex-done"; printf '%s\n' '- BUG: stub finding one' ;;
   tokens) # a run that reports its token count on stderr, as codex ends a run
         printf '%s\n' 'tokens used' '61,108' >&2; printf '%s\n' '- BUG: stub finding one' ;;
+  quotedtokens) # a quoted "tokens used: N" line comes first, then Codex's own footer
+        printf '%s\n' 'tokens used: 59,960' 'tokens used' '72,315' >&2; printf '%s\n' '- BUG: stub finding one' ;;
   stubborn) # a CLI that ignores SIGTERM, as one mid-request might; records its pid
         trap '' TERM; echo $$ >"$STUB_MARKS/codex-pid"; sleep 30 ;;
   wrapped) # a launcher whose worker, one level further down, ignores SIGTERM; records its pid
@@ -298,6 +300,9 @@ case "$url" in
       keepalive) printf ': PROCESSING\n\n: PROCESSING\n\n' >"$out"; printf 200 ;;   # comments only, then closed
       slow)   [ -e "$STUB_MARKS/codex-done" ] && : >"$STUB_MARKS/melious-after-codex"
               : >"$STUB_MARKS/melious-started"; sleep 2; { d '"content":"- BUG: slow finding"' '"stop"'; printf 'data: [DONE]\n\n'; } >"$out"; printf 200 ;;
+      fixture) # the reply text in $STUB_REPLY_FILE (a capture, its own hex marker in it), served as a
+              # stream with the marker this run asked for
+              M="$M" perl -MJSON::PP -e 'open my $fh, "<:encoding(UTF-8)", $ARGV[0] or die; local $/; my $t = <$fh>; $t =~ s/=== FINAL REVIEW [0-9a-f]+ ===/$ENV{M}/g; my $j = JSON::PP->new->utf8->encode({choices => [{index => 0, delta => {content => $t}, finish_reason => "stop"}]}); print "data: $j\n\ndata: [DONE]\n\n"' "$STUB_REPLY_FILE" >"$out"; printf 200 ;;
       nobalance) # the reply Melious sends when the balance is empty: a real capture, unedited
               cp "$STUB_FIXTURES/melious-api_2026-10-27_insufficient-balance.sse" "$out"; printf 200 ;;
       echoed) # the balance words in the message, but another code: not an empty balance
@@ -2103,6 +2108,109 @@ run contentempty bash "$T/tree/skills/independent-review/scripts/independent_rev
 check "content, no quoted prompt: exit 2" rc_is contentempty 2
 check "content, no quoted prompt: says so" has contentempty.err "has no quoted prompt"
 check "content, refusals: no seat ran" sh -c '[ ! -e "$1/codex-ran" ] && [ ! -e "$2/codex-ran" ]' _ "$T/contentmissing.marks" "$T/contentempty.marks"
+
+# 40. GLM 5.3 writes the final-review marker twice; a FAILED seat logs its reason; the token count
+#     is Codex's own. The two captures are the real replies (whole lines cut, nothing edited); the
+#     expected lines below are typed from the captures, not from what the reader printed.
+FX="$HERE/fixtures"
+CAP_A="$FX/melious-glm_2026-11-06_final-review-marker-twice-a.txt"
+CAP_B="$FX/melious-glm_2026-11-07_final-review-marker-twice-b.txt"
+reader() {   # reader <name> <reply file> <marker>: melious_stream.pl on the reply, sent as a stream
+  perl -MJSON::PP -e 'open my $fh, "<:encoding(UTF-8)", $ARGV[0] or die; local $/; my $t = <$fh>; my $j = JSON::PP->new->utf8->encode({choices => [{index => 0, delta => {content => $t}, finish_reason => "stop"}]}); print "data: $j\n\ndata: [DONE]\n\n"' "$2" >"$T/$1.resp"
+  perl "$HERE/perl/melious_stream.pl" "$T/$1.resp" 200 "$T/$1.tok" "$3" "$T/$1.full" >"$T/$1.out" 2>"$T/$1.err"
+  echo $? >"$T/$1.rc"
+}
+no_notes() {   # no note of the reader's in <name>.out
+  ! grep -qF "the marker came" "$T/$1.out" && ! grep -qF "text before the final-review marker dropped" "$T/$1.out" \
+    && ! grep -qF "no usable final-review marker" "$T/$1.out"
+}
+# T1, T2: the reader keeps everything after the first marker.
+reader glma "$CAP_A" "=== FINAL REVIEW bee6cc68 ==="
+check "T1: ctiPcY reply: exit 0" rc_is glma 0
+check "T1: ... the section opens with the line after the first marker" \
+  sh -c '[ "$(grep -m1 . "$1")" = "Findings (verification round: prior dispositions checked against the evidence; changed sections re-read)." ]' _ "$T/glma.out"
+check "T1: ... the first finding line is in it" has glma.out "- NIT — Script-identity check, "
+check "T1: ... so is the summary line" has glma.out "(Findings above: 1 BUG, 5 RISK, 6 NIT; scope 1 re-check"
+check "T1: ... and no note of the reader's" no_notes glma
+reader glmb "$CAP_B" "=== FINAL REVIEW 0435e72a ==="
+check "T2: hsNCTK reply: exit 0" rc_is glmb 0
+check "T2: ... the section opens with the first finding line" \
+  sh -c 'case "$(grep -m1 . "$1")" in "- BUG — \"The change\", item 1, the new question: "*) exit 0 ;; *) exit 1 ;; esac' _ "$T/glmb.out"
+check "T2: ... the last finding line is in it" has glmb.out "- NIT — \"The change\", item 4: \"It is language-neutral\""
+check "T2: ... so is the summary line" has glmb.out "The findings above stand as ranked: 1 BUG (label scope"
+check "T2: ... and no note of the reader's" no_notes glmb
+# T3: through independent_review.sh as the pair runs it (the curl stub serves the capture with this run's marker).
+for c in a b; do
+  eval "cap=\$CAP_$(printf %s "$c" | tr a-z A-Z)"
+  run glm$c SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$cap" bash "$SCRIPT" "$T/change.diff" --base none
+  check "T3 ($c): the pair's summary reads melious OK" has glm$c.out "reviewers: codex OK, melious OK"
+  case "$c" in a) first='^- NIT — Script-identity' ;; b) first='^- BUG — "The change", item 1' ;; esac
+  check "T3 ($c): ... the section holds the first finding line" grep -qE "$first" "$T/glm$c.out"
+  check "T3 ($c): ... and no note of the reader's" no_notes glm$c
+done
+# T4, KNOWN WRONG: a summary after the second marker that starts like a finding makes that marker usable again.
+printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '' '- BUG: first finding line' '- RISK: second finding line' '=== FINAL REVIEW 0123abcd ===' '- Totals: 1 BUG, 1 RISK' >"$T/known.reply"
+reader known "$T/known.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T4 KNOWN WRONG: exit 0" rc_is known 0
+check "T4 KNOWN WRONG: the section is the reader's note and the summary" \
+  sh -c 'grep -qF "the marker came 2 times with findings after it, so check that the section starts with the review" "$1" && grep -qF -- "- Totals: 1 BUG, 1 RISK" "$1"' _ "$T/known.out"
+check "T4 KNOWN WRONG: ... neither finding line is in it" \
+  sh -c '! grep -qF "first finding line" "$1" && ! grep -qF "second finding line" "$1"' _ "$T/known.out"
+# T15 (added in review): a clean verdict after the marker is findings-shaped, so the marker is usable (the second branch of $findings).
+printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' 'No BUG/RISK/NIT findings.' >"$T/clean.reply"
+reader clean "$T/clean.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T15: exit 0" rc_is clean 0
+check "T15: the section is the clean verdict" has clean.out "No BUG/RISK/NIT findings."
+check "T15: ... the reasoning before the marker is cut, and no note of the reader's is needed" \
+  sh -c '! grep -qF "Reasoning line." "$1" && ! grep -qF "no usable final-review marker" "$1"' _ "$T/clean.out"
+# No T5, T9 or T13 here: T5 is the suite's existing marker cases, unchanged; T9 and T13 live in test_round_checks.sh.
+# T14: footers that look like findings to Perl but not to the review check's grep, and the other way round
+# (bytes as octal escapes). The seat must stay OK and keep both findings.
+dm() {   # dm <name> <printf format of the footer line>
+  { printf '=== FINAL REVIEW 0123abcd ===\n\n- BUG: first real finding\n- RISK: second real finding\n=== FINAL REVIEW 0123abcd ===\n'; printf -- "$2\n"; } >"$T/$1.reply"
+  run "$1" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$T/$1.reply" bash "$SCRIPT" "$T/change.diff" --base none
+  check "T14 $1: melious OK, both findings kept" \
+    sh -c 'grep -qF "reviewers: codex OK, melious OK" "$1" && grep -qF -- "- BUG: first real finding" "$1" && grep -qF -- "- RISK: second real finding" "$1"' _ "$T/$1.out"
+}
+dm dmnel '\302\205- BUG: see above'
+dm dmnbsp '\302\240- BUG: see above'
+dm dmlongs '- RI\305\277K: see above'
+dm dmkelvin '- RIS\342\204\252: see above'
+dm dmeacutebefore '- \303\251BUG: see above'
+dm dmeacuteafter '- BUG\303\251: see above'
+dm dmxbefore '- xBUG: see above'
+dm dmxafter '- BUGx: see above'
+dm dmplus '+ BUG: see above'
+dm dmnul '- BUG\000x: see above'
+# T6-T8: the reason column.
+run t6 REVIEW_LOG="$T/t6.tsv" OLLAMA_STUB=notreview bash "$SCRIPT" "$T/change.diff" --base none
+check "T6: a new log's header ends in cut, reason" \
+  sh -c '[ "$(sed -n 1p "$1" | awk -F"\t" "{print NF \":\" \$(NF-1) \":\" \$NF}")" = "17:cut:reason" ]' _ "$T/t6.tsv"
+check "T6: the rejected seat: FAILED in column 13, its reason in column 17" \
+  awk -F'\t' '$8=="ollama-cloud" && NF==17 && $13=="FAILED" && $17=="output is not a review" {f=1} END {exit !f}' "$T/t6.tsv"
+check "T7: the 429 seat's reason is what the summary line shows, spaces kept" \
+  awk -F'\t' '$8=="ollama-cloud" && $13=="FAILED" && $17=="exit 1; quota/rate limit: wait or add credits" {f=1} END {exit !f}' "$T/costs2.tsv"
+limitcase t7size "codex stub-codex takes:150000$REF
+ollama-cli $STUB_TAG refuses$REF
+" "$T/big200.diff" REVIEW_LOG="$T/t7size.tsv" --
+check "T7: a seat over its size limit: the whole reason, inner parentheses and \"nothing was sent\" kept" \
+  sh -c 'r="$(awk -F"\t" "\$8==\"codex\" && \$13==\"FAILED\" {print \$17}" "$1")"; case "$r" in "a prompt of "*" bytes, over the 150000 this seat took whole (seat_limits.txt); nothing was sent") exit 0 ;; *) echo "got [$r]" >&2; exit 1 ;; esac' _ "$T/t7size.tsv"
+check "T8: an OK seat: column 17 is -" \
+  awk -F'\t' '$8=="codex" && $13=="OK" && NF==17 && $17=="-" {f=1} END {exit !f}' "$LOGT"
+# T10-T12: codex_tokens, the function as production has it, on the trimmed captures.
+CT_R3="$FX/codex-cli-0.167.0_2026-11-07_quoted-tokens-used-then-footer.txt"
+CT_F5="$FX/codex-cli-0.167.0_2026-11-07_footer-then-rollout-error.txt"
+codex_tokens_of() {   # codex_tokens_of <file>: what codex_tokens prints when that file is codex.err
+  mkdir -p "$T/ct" && cp "$1" "$T/ct/codex.err" \
+    && (RAW_DIR="$T/ct"; eval "$(sed -n '/^codex_tokens() {/,/^}/p' "$SCRIPT")"; codex_tokens)
+}
+check "T10: the quoted count first, Codex's own footer last: 72315" sh -c '[ "$(cat "$1")" = 72315 ]' _ <(codex_tokens_of "$CT_R3")
+head -n 3 "$CT_R3" >"$T/ct-nofooter.txt"
+check "T11: the same with the footer removed: no figure" sh -c '[ -z "$(cat "$1")" ]' _ <(codex_tokens_of "$T/ct-nofooter.txt")
+check "T12: the footer followed by a rollout ERROR line: 54161" sh -c '[ "$(cat "$1")" = 54161 ]' _ <(codex_tokens_of "$CT_F5")
+run t10run REVIEW_LOG="$T/t10run.tsv" CODEX_STUB=quotedtokens bash "$SCRIPT" "$T/change.diff" --base none
+check "T10: through independent_review.sh: the log holds 72315, not the quoted 59960" \
+  awk -F'\t' '$8=="codex" && $12=="72315" {f=1} END {exit !f}' "$T/t10run.tsv"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
