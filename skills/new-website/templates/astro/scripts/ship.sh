@@ -72,16 +72,33 @@ site_of() { # <astro.config.mjs text>
   printf '%s\n' "${s%/}"
 }
 
-# The `site:` addresses in the astro.config.mjs text given, one per line, leaving out `//` comments
-# and `/* */` comments on one line: an old address kept in one is not the address the build uses.
-# A comment counts only after a space or one of ;,{}(), so a `//` or `/*` inside an address stays.
+# The `site:` addresses in the astro.config.mjs text given, one per line, outside comments: an old
+# address kept in a comment is not the address the build uses. Quotes are tracked, so a `//` or
+# `/*` inside a string stays; a regular-expression literal is not understood.
 site_addrs() { # <astro.config.mjs text>
-  sed -E -e 's#(^|[[:space:];,{}()])/\*([^*]|\*+[^*/])*\*+/#\1#g' -e 's#(^|[[:space:];,{}()])//.*$#\1#' <<<"$1" 2>/dev/null |
+  awk -v sq="'" '
+    { out = ""; q = ""; n = length($0); i = 1
+      while (i <= n) {
+        c = substr($0, i, 1); d = substr($0, i, 2)
+        if (blk) { if (d == "*/") { blk = 0; i += 2 } else i++; continue }
+        if (q != "") {
+          out = out c
+          if (c == "\\") { out = out substr($0, i + 1, 1); i += 2; continue }
+          if (c == q) q = ""
+          i++; continue
+        }
+        if (d == "//") break
+        if (d == "/*") { blk = 1; i += 2; continue }
+        if (c == "\"" || c == sq || c == "`") q = c
+        out = out c; i++
+      }
+      print out
+    }' <<<"$1" 2>/dev/null |
     grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" | sed -E "s/site:[[:space:]]*['\"]//" || true
 }
 
-# none, one or many `site:` addresses outside those comments. Many (one inside a comment spanning
-# lines counts too) means no one address can be named or checked.
+# none, one or many `site:` addresses outside comments. Many means no one address can be named or
+# checked.
 site_count() { # <astro.config.mjs text>
   local h
   h="$(site_addrs "$1")"
