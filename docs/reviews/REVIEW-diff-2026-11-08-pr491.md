@@ -15,8 +15,9 @@ leaves out `docs/reviews/`. The evidence files sit in the session's scratchpad.
 | 1 | `7bd4b05f` | whole change (503 lines); evidence 19,874 bytes (READ 1–4, PLAN-READ 1–9) | Codex 0.167.0 gpt-6.1-sol, read-only; melious glm-5.3; fresh-eyes Sonnet | Codex 147 s, 54,466 · melious 212 s, 36,628 · fresh-eyes 51 s, 119,741 | 2 / 3 / 4 |
 | 2 | `b7cc885e` | verify: delta since `7bd4b05f`, PRIOR round 1; evidence READ 5 | Codex (medium); melious | Codex 187 s, 57,187 · melious 231 s, 25,417 | 2 / 0 / 3 |
 | 3 | `6ba70f63` | verify: delta since `b7cc885e`, PRIOR round 2; evidence READ 6–7 | Codex (medium); melious | Codex 102 s, 56,725 · melious 279 s, 36,540 | 0 / 0 / 1 |
+| merge link (not a round) | `c71a4d5c` | `merge_link.sh 38bf1768 6ba70f63 3cf57d5e` (736 lines), PRIOR through round 3; evidence READ 8 | Codex (medium); melious | Codex 264 s, 88,364 · melious 663 s, 81,811 | 0 / 4 / 1 (Codex 0/1/0, melious 0/3/1), and one outside scope |
 
-Three rounds, 15 findings, 7 seat runs, 386,704 tokens (the script's running total).
+Three rounds, 15 findings; with the merge link, 9 seat runs, 556,879 tokens (the script's running total).
 
 ## Findings
 
@@ -36,7 +37,12 @@ Three rounds, 15 findings, 7 seat runs, 386,704 tokens (the script's running tot
 | B3 | NIT | GLM | 2 | README line missing its verb | fixed, externally_reverified | `6ba70f63` |
 | B4 | NIT | GLM | 2 | The gate comment read as if the builds would catch another name | fixed, then C1 | `6ba70f63` |
 | B5 | NIT | GLM | 2 | The gate's message said "beside CF_PAGES_BRANCH", which the check does not require | fixed, externally_reverified | `6ba70f63` |
-| C1 | NIT | Codex (as BUG), GLM | 3 | B4's comment says the builds cannot catch another name; with the name fixed they can | fixed | `67b4a2e4`; re-sorted: a comment, nothing runs differently; checked by the merge link |
+| C1 | NIT | Codex (as BUG), GLM | 3 | B4's comment says the builds cannot catch another name; with the name fixed they can | fixed, externally_reverified | `67b4a2e4`; re-sorted: a comment, nothing runs differently; both seats confirmed it in the merge link |
+| M1 | RISK | Codex | link | A second `enabled:` line reading `process.env` elsewhere in `config.ts` fails the gate | follow-up | re-sorted: rare (the starter has one; the gate refuses loudly, naming the line); BUGLOG row of 2026-11-08 (the Workers name check) |
+| M2 | RISK | GLM | link | T2–T5 rely on BSD `script` passing the child's exit status | refuted | #490's code; `SHIP_TEST_TTY=1 bash tests/check_ship_push.sh` on macOS: ✓, 384 real-git checks (318 without the T cases) |
+| M3 | RISK | GLM | link | T2's "Not published" check may meet `report_leftovers` first | refuted | #490's code; the same run passed T2 |
+| M4 | RISK | GLM | link | T8's stand-in uses `SHIP_T_REAL_SLEEP`, set nowhere | refuted | `check_ship_push.sh:983` sets it; the same run passed T8 |
+| M5 | NIT | GLM | link | The ✓ line names the question's checks when T1–T8 were skipped | follow-up | #490's code, not this change's; sent to the release manager |
 
 ## Waivers and deferrals
 
@@ -45,10 +51,10 @@ Three rounds, 15 findings, 7 seat runs, 386,704 tokens (the script's running tot
 ## Follow-ups
 
 - Round 3, GLM, outside scope: the "about 5 minutes" in release-note item 4. Refuted: PLAN-READ 3 in round 1's evidence (the row-0.4 trial, about 300 s).
-- Round 3, GLM, outside scope: markers read 0.25 in a 0.35 row. Refuted: `template-version` numbers the file, not the release.
+- Round 3, GLM, outside scope: markers read 0.25 in a 0.35 row. Not a defect of this change: the marker runs on its own count (v0.34 shipped ship.sh at 0.23; 0.24 and 0.25 both land in 0.35). The merge link's one outside-scope finding (Codex): `ship.sh`'s comment calls the marker "the website-builder release this revision ships in", which it no longer is. Older than this change; sent to the release manager.
 
 ## Notes
 
 - Mutation check, by hand (the scratchpad's `mutate2.sh`): 12 mutations killed, 2 must-pass cases passed; listed in the PR body.
-- After round 3 `origin/main` was merged (`754d9a9d`). #490 also took ship.sh and its test from 0.24 to 0.25; both sides bumped the same line, and one 0.25 covers both changes within 0.35. A merge link reviewed it (below).
+- After round 3 `origin/main` was merged (`754d9a9d`). #490 also took ship.sh and its test from 0.24 to 0.25; both sides bumped the same line, and one 0.25 covers both changes within 0.35. A merge link reviewed it (the table above); nothing shipped since v0.34, whose ship.sh is 0.23.
 - Codex asked UNVERIFIABLE questions about Cloudflare's variables, Astro's `process.env` handling and Plausible's counting. Each round's evidence held the READs (the real build captures, and the gate's builds across the modes); a live `/go/email` on a Worker was not read.
