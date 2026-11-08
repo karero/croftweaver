@@ -196,7 +196,7 @@ lowercase name (`s2/origin`). S2 asserts it as line 1 (worktree mode), P4 (folde
 own domain; S2 also asserts the no-terminal line comes
 after "Going live" and before "▶ pre-push gate".
 
-**A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop|--none> [--prog CMD] [--limit S]
+**A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--limit S]
 [VAR=value…]` starts ship.sh
 under `script`: macOS's BSD form `script -q /dev/null <command>`, util-linux's form
 `script -qec 'exec <command>' /dev/null`, told apart by `script --version` (util-linux has it;
