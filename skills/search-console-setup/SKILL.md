@@ -140,7 +140,8 @@ block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has
 >    their credentials or 2FA.
 > 2. With their explicit go-ahead and the target zone, navigate to **Caching →
 >    Configuration** (Crawler Hints) and **Security → Settings → Bot traffic → AI Crawler
->    and Agent access policies**, read the current values back, and only then set any that don't
+>    and Agent access policies** (**Configure AI bot policies** on a dashboard not yet renamed),
+>    read the current values back, and only then set any that don't
 >    match the posture above.
 >
 > If no browser automation is available or the user declines, fall back to walking them
