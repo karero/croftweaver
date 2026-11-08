@@ -809,15 +809,16 @@ hold Search Console Request Indexing until then.
       per its header and section comments, which also cover Austrian/Swiss
       adaptation and the seven-piece removal for providers with no German
       nexus).
-      German-market sites: don't re-translate — swap in the vetted German
+      German-language sites, and (for the Impressum) an English site whose owner
+      is based in Germany: don't re-translate — swap in the vetted German
       drafts that ship in the site repo, whose own file headers carry the
       exact steps: `src/pages/_datenschutz.astro` (§ 25 TDDDG-aware;
       underscore = unrouted until renamed; German-only sites serve it at
-      `/datenschutz` REPLACING `/privacy`, multilingual sites use its text at
-      `/de/privacy`) and `src/pages/_impressum.astro` (same underscore rule;
+      `/datenschutz` REPLACING `/privacy`, multilingual sites use its text for
+      the German privacy page) and `src/pages/_impressum.astro` (same underscore rule;
       German-only sites serve it at `/impressum` REPLACING `/legal-notice`, an
       English site routes it beside `/legal-notice`, multilingual sites use its
-      text at `/de/impressum`). The German Impressum is offered to an owner
+      text for the German Impressum). The German Impressum is offered to an owner
       based in Germany, and only to them: a US owner gets no German page.
       **Ask the owner about the drafts, once, before the deploy item below**, as
       `AGENTS.md` §5 says (the site carries it; the text is not repeated here), and in the

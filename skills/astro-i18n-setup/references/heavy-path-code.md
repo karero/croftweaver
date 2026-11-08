@@ -72,7 +72,8 @@ export type RouteSpec = { path: string; locales?: readonly string[] };
 export const ROUTES: readonly RouteSpec[] = [
   { path: '/' },
   { path: '/privacy' },
-  // The two legal lines assume English first and German added: match them to LOCALES.
+  // The two legal lines assume English and German: keep only those for the languages in
+  // LOCALES and the legal pages the site keeps (an unknown locale throws below).
   { path: '/legal-notice', locales: ['en'] },   // the starter's English Legal Notice
   { path: '/impressum', locales: ['de'] },       // its German twin, src/pages/de/impressum.astro
   // { path: '/blog/some-post', locales: ['de'] },   // German-only page, no EN twin

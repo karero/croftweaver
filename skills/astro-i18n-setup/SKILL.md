@@ -186,8 +186,9 @@ Then point each entry at the pages that exist. The default language keeps its un
 paths; every other language's entry gets its prefix, because its pages live under
 `src/pages/<locale>/`. On the usual site, English first and German added, that is the `de`
 entry: `privacyHref: '/de/privacy'` and `imprintHref: '/de/impressum'` (its single-locale
-values, `/datenschutz` and `/impressum`, are 404s there). With German as the default, the
-`de` entry keeps its single-locale paths and the `en` entry gets `/en/` ones.
+values, `/datenschutz` and `/impressum`, are 404s there). With German as the default (§5),
+`de` gets `/privacy` and `/impressum` (ROUTES has no `/datenschutz`), and `en` gets
+`/en/privacy` and `/en/legal-notice`.
 The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `{alternates.map(…)}` render line** (the hreflang cluster from
 `references/heavy-path-code.md` §3 replaces it) — the
@@ -222,6 +223,12 @@ landmark-unique rule).
   deeper, so change every `'../` import in it to `'../../`, or the build cannot find
   `Base.astro`. §2's ROUTES lists the two Impressum routes (`/legal-notice` English only,
   `/impressum` German only).
+- With German as the default, the two languages swap places. The German pages sit in
+  `src/pages/` (`_datenschutz.astro` → `privacy.astro`, `_impressum.astro` →
+  `impressum.astro`), and the English ones move to `src/pages/en/` (`privacy.astro`,
+  `legal-notice.astro`, with `'../../` imports). Every `/de/…` legal path in this skill
+  then reads as the unprefixed one, and every English one as `/en/…`: for example,
+  `UNFILLED_UNTIL_LAUNCH` holds `/privacy`, `/impressum`, `/en/privacy` and `/en/legal-notice`.
 - With Content Collections, add a `locale` field (or per-locale entry dirs) and render
   locale routes from it. **Translate the whole page**, not just the chrome — partial
   translation reads as thin/duplicate (international-seo.md).
