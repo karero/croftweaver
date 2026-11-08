@@ -344,17 +344,22 @@ site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, o
 
 # The first ./ or ../ specifier of each one-line static import on stdin. A helper, not a
 # parser: other import forms are not read, and the report says so.
-# Quotes are made double first (no octal escape for awk to differ on); /* */ comments go.
+# Quotes are made double first (no octal escape for awk to differ on); each /* */ comment
+# becomes a blank. The specifier is the quoted string after the first `from`.
 spec_imports() {
-  awk '{ gsub(/'\''/, "\""); gsub(/\/\*([^*]|\*+[^*\/])*\*+\//, "") }
+  awk '{ gsub(/'\''/, "\"")
+      while ((i = index($0, "/*")) && (j = index(substr($0, i + 2), "*/")))
+        $0 = substr($0, 1, i - 1) " " substr($0, i + j + 3)
+    }
     /^[[:space:]]*import[[:space:]]*"\.\.?\// { match($0, /"[^"]*"/); print substr($0, RSTART + 1, RLENGTH - 2); next }
-    /^[[:space:]]*import[[:space:]{*]/ && match($0, /from[[:space:]]*"\.\.?\/[^"]*"/) {
-      s = substr($0, RSTART, RLENGTH); sub(/^from[[:space:]]*"/, "", s); print substr(s, 1, length(s) - 1)
+    /^[[:space:]]*import[[:space:]{*]/ && match($0, /from[[:space:]]*"[^"]*"/) {
+      s = substr($0, RSTART, RLENGTH); sub(/^from[[:space:]]*"/, "", s); s = substr(s, 1, length(s) - 1)
+      if (s ~ /^\.\.?\//) print s
     }'
 }
 
-# $1 = the spec's folder in the site, $2 = specifier; prints the site-relative path, or
-# returns 1 when the specifier leaves the site.
+# $1 = the spec's folder in the site, $2 = specifier; prints the site-relative path (empty
+# for the site's top folder), or returns 1 when the specifier leaves the site.
 resolve_import() {
   local rest="$1/$2" part out=""
   while [ -n "$rest" ]; do
