@@ -68,7 +68,7 @@ export const BOT_LINES = [
       ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
       crawler_protection: 'disabled', content_bots_protection: 'disabled', bot_preference_sync_enabled: false,
     },
-    path: 'Your domain → Security → Settings → filter by Bot traffic → Configure AI bot policies',
+    path: 'Your domain → Security → Settings → filter by Bot traffic → AI Crawler and Agent access policies',
     visitor: "AI crawlers, training ones included, are no longer blocked or led into AI Labyrinth, and Cloudflare adds no lines to robots.txt" },
 ];
 // The AI bot policies' values, per field, as the third trial read them for each choice in the
@@ -80,7 +80,7 @@ const AI_FIELDS = {
   ai_user: { label: 'Agent', values: { disabled: 'Allow (do not block)', block: 'Block', only_on_ad_pages: 'Block on pages with ads' } },
   ai_bots_protection: { label: 'The older Block AI bots setting', values: { disabled: 'disabled', block: 'block' } },
 };
-const stayInSearch = (skipping) => `Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search (the kit has not tested how crawlers are treated): choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too (choosing Disallow does not turn it on), and ${skipping ? 'keep running this with' : 'run this with'} --skip ai.`;
+const stayInSearch = (skipping) => `Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search (the kit has not tested how crawlers are treated): choose Disallow for Training in the dashboard, turn Bot Preference Sync on there too (choosing Disallow does not turn it on), and ${skipping === 'launch' ? 'run the setup stage with --skip ai from then on' : `${skipping ? 'keep running this with' : 'run this with'} --skip ai`}.`;
 const STAY_IN_SEARCH = stayInSearch(false);
 
 // The notes on what the AI bot policies mean for search, from the `ai` line's values read at the
@@ -103,14 +103,14 @@ export function aiNotes(now, state) {
       continue;
     }
     if (k !== 'ai_training') {
-      if (state === 'skipped' || state === 'unread') notes.push(`${f.label} is set to ${label}, and this run leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.`);
+      if (state === 'skipped' || state === 'unread' || state === 'launch') notes.push(`${f.label} is set to ${label}, and ${state === 'launch' ? 'launch day' : 'this run'} leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.`);
       continue;
     }
     if (state === 'done') { notes.push(`Training was ${label} and is now Allow (do not block). ${STAY_IN_SEARCH}`); continue; }
     if (v === 'disallow') {
       if (state === 'change') notes.push('Training is set to Disallow. If you say yes, it becomes Allow (do not block), and AI training crawlers are let in. To keep Disallow, run this with --skip ai.');
       if (state === 'unread') notes.push('Training is set to Disallow. The zone\'s records could not be read, so this run did not change it; to keep Disallow on a later run, run it with --skip ai.');
-      if (state === 'skipped' || state === 'unread') {
+      if (state === 'skipped' || state === 'unread' || state === 'launch') {
         const sync = now.bot_preference_sync_enabled;
         if (sync === false) notes.push(`Bot Preference Sync is off, so Disallow writes no no-training preference into robots.txt. To publish it there, turn Sync on in the dashboard: ${where}.`);
         else if (sync !== true) notes.push(`Bot Preference Sync ${sync === undefined ? 'was missing from what Cloudflare returned' : `reads ${show(sync)}`} at the start of this run: a value this kit does not know, so it cannot say whether robots.txt carries the no-training preference. Look at it in the dashboard: ${where}.`);
@@ -122,6 +122,7 @@ export function aiNotes(now, state) {
     if (state === 'change') notes.push(`${said} If you say yes, it becomes Allow (do not block). ${STAY_IN_SEARCH}`);
     else if (state === 'skipped') notes.push(`${said} This run leaves it as it is. ${stayInSearch(true)}`);
     else if (state === 'unread') notes.push(`${said} The zone's records could not be read, so this run did not change it. ${STAY_IN_SEARCH}`);
+    else if (state === 'launch') notes.push(`${said} Launch day changes no AI setting. ${stayInSearch('launch')}`);
   }
   return notes;
 }
@@ -1566,9 +1567,11 @@ async function launchStage(opts, io) {
     return 4;
   }
 
-  // ---- nothing left to do: the whole check decides the status.
+  // ---- nothing left to do: the whole check decides the status; the report adds Bot Management's AI
+  // notes. A time limit in either ends the run with 4 before the report starts.
+  const ai = await readAiNow(api, zoneAt);
   const whole = await runCheck(ctx, { commit });
-  return launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project });
+  return launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project, ai });
 }
 
 // A domain status that waiting will not change: 1, with Cloudflare's words; nothing is detached.
@@ -1607,9 +1610,24 @@ async function addNelRule(api, zoneAt, ruleset) {
   }
 }
 
+// The `ai` line's fields as Bot Management reads them, for launch day's notes. A refusal or a dropped
+// connection comes back as `why`, never a stop; a time limit still rejects with Deadline.
+async function readAiNow(api, zoneAt) {
+  let r;
+  try {
+    r = await api('GET', `${zoneAt}/bot_management`);
+  } catch (e) {
+    if (e instanceof Stop) return { why: "Cloudflare's API did not answer" };
+    throw e;
+  }
+  if (!ok(r)) return { why: refusal(r, ROW.bot) };
+  const bot = r.body.result ?? {};
+  return { now: Object.fromEntries(Object.keys(BOT_LINES.find((b) => b.id === 'ai').fields).map((k) => [k, bot[k]])) };
+}
+
 // The end of a launch run with nothing left to do: the whole check, read by LAUNCH_FAIL, and the report
 // the plan asks for (scenarios 36 and 37).
-async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project }) {
+async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project, ai }) {
   const { say, host, model, prodBranch } = ctx;
   const v = launchVerdict(whole, opts.skip);
   say('', `The check of ${host}, from outside:`);
@@ -1621,6 +1639,12 @@ async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, 
     if (id) say(`If ${r.title.replace(/`/g, '')} was left out on purpose, its --skip ${id} belongs on the command.`);
   }
   for (const r of v.passed) say(`Left to you: ${r.title.replace(/`/g, '')} fails, and was left out on purpose (or is yours to decide).`);
+  if (ai.why) {
+    say('', `Bot Management could not be read: ${ai.why}. The notes on the AI bot policies are not shown; the setup stage, run again, shows them.`);
+  } else {
+    const notes = aiNotes(ai.now, 'launch');
+    if (notes.length) say('', 'The AI bot policies, as Cloudflare reads them now:', ...notes);
+  }
 
   say('', `Live: https://${host}/ serves ${short(commit)}.`);
   if (model === 'two-stage') {
@@ -1635,7 +1659,7 @@ async function launchReport(ctx, { whole, opts, live, commit, deps, forwarding, 
   if (!nelRule) say('The NEL rule was left out (--skip nel-rule).');
   const dc = project.deployment_configs ?? {};
   const fo = (e) => (dc[e]?.fail_open === true ? 'on' : 'off');
-  say(`No outside check exists for these. As the project reads now through the API: Fail open ${fo('production')} for production and ${fo('preview')} for previews; build command ${project.build_config?.build_command || '(none)'}, output folder ${project.build_config?.destination_dir || '(none)'}. This stage does not read Minimum TLS Version or the AI fields: the setup stage, run again, shows them and changes nothing that is as the checklist wants. For TLS, run the domain through ssllabs.com/ssltest: TLS 1.0 and 1.1 should say No.`);
+  say(`No outside check exists for these. As the project reads now through the API: Fail open ${fo('production')} for production and ${fo('preview')} for previews; build command ${project.build_config?.build_command || '(none)'}, output folder ${project.build_config?.destination_dir || '(none)'}. This stage does not read Minimum TLS Version, and does not judge AI Labyrinth or the content-bot block: the setup stage, run again, shows them and changes nothing that is as the checklist wants. For TLS, run the domain through ssllabs.com/ssltest: TLS 1.0 and 1.1 should say No.`);
   const hsts = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
   say('Left to do by hand (CLOUDFLARE_CHECK.md, "By hand, always"): Crawler Hints, the Web Analytics switch, the script monitor\'s switch (the checklist\'s section 3, step 5),',
     `and HSTS once the site has worked for a few days, not before ${hsts} (the checklist's section 2).`);

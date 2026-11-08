@@ -293,7 +293,8 @@ For everyone, the owner included:
     and the site does not launch.
   - A line in one of those forms already in the `README.md` means: do not ask again,
     except for a legal page added after its date (a new locale, the `/datenschutz`
-    swap). Ask again for that page and add a new dated line.
+    swap). Ask again for that page and add a new dated line. The launch check quoting a line and
+    asking whether it still holds is not asking again.
 - Changes to `.github/`, `scripts/`, `functions/`, `public/_headers`,
   `astro.config.mjs`, `package.json` or `AGENTS.md` affect tests, the server or
   publishing. Say so explicitly in the pull request.

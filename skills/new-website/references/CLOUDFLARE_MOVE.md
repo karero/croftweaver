@@ -98,7 +98,7 @@ question will not fit a later one: a wrong code asks again and changes nothing.
 | 1 | Something failed or was refused. | Read the report. It says what, and where each host is now. Two cases need no change from you: a `--confirm` run more than 15 minutes after its plain run finishes a host that is on neither platform first, then refuses if another host is still to move; run the plain command again, then `--confirm` with the code it prints. And "GitHub could not be reached": git got no answer in 15 seconds and nothing was changed; check the connection, or try again later. |
 | 2 | The command was wrong. | Fix the command. |
 | 3 | Waiting for a yes. | Ask the User the question in the report. Run `--confirm <code>` only after her yes. |
-| 4 | Not finished. | Run the same command again. At once after a switch that stopped part way, or left a host unstarted for lack of time; after a minute if the report names a build; in the seconds the report names if it names GitHub's pause (30 seconds at most). Only a plain `move`, `undo` or `after` meets that pause: a `--confirm` run reads no GitHub. |
+| 4 | Not finished. | Run the same command again. At once after a switch that stopped part way, or left a host unstarted for lack of time; after a minute if the report names a build; in the seconds the report names if it names GitHub's pause (30 seconds at most). Only a plain `move`, `undo` or `after` meets that pause: a `--confirm` run reads no GitHub. At the time limit, the report names the call it stopped at and, while it reads addresses, how many are kept: run again while that number grows. If it stops growing, or runs keep stopping at the time limit, check the connection, or try again later. |
 
 A run lasts at most about a minute. The switch is built for that.
 

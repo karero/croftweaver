@@ -49,8 +49,8 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    `templates/.gitignore`, commit.
 2. `npm create --yes astro@latest . -- --template minimal --no-install --no-git --yes --skip-houston`
    (Empty, TypeScript **Strict**, and no questions from npm or create-astro; checked with
-   npm 11.20.0 and create-astro 5.3.1), then `git checkout -- .gitignore`: the scaffold replaces step 1's
-   `.gitignore` with its own. Requires **Node ≥22.23.4**
+   npm 11.20.0 and create-astro 5.3.1), then copy `templates/.gitignore` in again: the scaffold
+   replaces step 1's `.gitignore` with its own. Requires **Node ≥22.23.4**
    (this starter's floor, never below Astro's own); keep Node current: SETUP.md lists the fixed version of
    each line. The committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
 3. Copy this overlay over the scaffold (the files above, `package.json` included: it carries `engines`,
