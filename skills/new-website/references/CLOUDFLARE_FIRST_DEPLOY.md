@@ -140,6 +140,9 @@ request got no answer or an item could not be judged, whatever `--skip` says. It
 when an item fails, unless the run was given that item's `--skip` (`canonical`, `https`,
 `nel-rule`, `bot`, `email`); a Web Analytics failure never counts. The report says which, and
 what is left by hand.
+That run also reads Bot Management once and prints setup's notes on the AI bot policies
+(Training on Block, say), worded for a run that changes no AI setting; pass them on as printed.
+A refused read prints one line instead, and changes neither the status nor the rest.
 
 **By hand, always:** what `CLOUDFLARE_CHECK.md` lists under "By hand, always" (Crawler
 Hints, the Web Analytics switch, the script monitor's switch, HSTS a few days after launch,
