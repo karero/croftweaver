@@ -87,8 +87,9 @@ none found for this repository; a Worker that already has a domain; more than on
 config; a `functions/` folder holding anything but `_middleware.ts`, or a `public/_worker.js`;
 and a site in analytics server mode. Once the Worker's domain is checked, the other four (the
 Workers config, `functions/`, `public/_worker.js` and server mode) are listed together, and after a
-refused token too, so one run shows what stage 1 still lacks. Every run reads the Workers config; the other
-checks are for a first move, and while a move is open they are lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
+refused token too, so one run shows what stage 1 still lacks. Every run that gets that far reads
+the Workers config; the other checks are for a first move, and while a move is open they are
+lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
 GitHub has a branch `production`; `check` then also shows whether `main` is on the live branch's
 commit, and `record` refuses until it is. `check` first verifies the token and reads the branches with `git ls-remote`; of its GitHub reads, the repository's answer
 comes first, and it names a private repository (and, when `gh` is missing, says where to get it); while a move is open it says which commit `after` waits for

@@ -338,9 +338,11 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
   });
-  test('S1d: a src/config.ts with CRLF line ends and the url on the brace line is still read', async () => {
+  test('S1d: a src/config.ts with CRLF line ends, and SITE on one line with the url after another key, is still read', async () => {
     const files = config('https://lenas-backstube.example');
-    files['src/config.ts'] = files['src/config.ts'].replace('export const SITE = {\n  url:', 'export const SITE = { url:').replace(/\n/g, '\r\n');
+    const oneLine = files['src/config.ts'].replace(/^export const SITE = \{\n[^]*?^\} as const;/m, "export const SITE = { name: 'Lenas Backstube', url: 'https://lenas-backstube.example' } as const;");
+    assert.ok(oneLine.includes("export const SITE = { name: 'Lenas Backstube', url:"), 'the one-line SITE was not written');
+    files['src/config.ts'] = oneLine.replace(/\n/g, '\r\n');
     const r = await run('', withoutSite(), files);
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('src/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
