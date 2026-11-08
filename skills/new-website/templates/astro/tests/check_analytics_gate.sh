@@ -113,7 +113,7 @@ preview=main
 
 # Workers Builds' branch variable. With analytics on, the enabled: line must read it beside
 # CF_PAGES_BRANCH, and every real Workers Builds capture (tests/fixtures/workers-builds-*.txt)
-# must list it. The builds below set this name, so they cannot catch config.ts reading another.
+# must list it, so the name the builds below set is one Cloudflare really sets.
 wvar=WORKERS_CI_BRANCH
 if [ "$use" != false ]; then
   wvar_fail() {
