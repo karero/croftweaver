@@ -1,10 +1,11 @@
 // One source of truth for routes. Every suite iterates PAGES — add a route here
 // and the a11y / SEO / navigation / image checks all cover it automatically.
 // CONVENTION: NO trailing slash (matches `trailingSlash: 'never'`); home stays '/'.
+// A site that already routes /impressum keeps that path when it merges a newer copy of this file.
 export const PAGES = [
   '/',
   '/privacy',
-  '/impressum',  // German-market legal page; non-DE/AT/CH sites delete it (see new-website checklist)
+  '/legal-notice',  // legal page; sites with no German nexus delete it (see new-website checklist)
   // '/about',
   // '/contact',
 ] as const;

@@ -22,7 +22,7 @@ for (const path of PAGES) {
 }
 
 // The no-JS hint speaks the language of the page it is on, not the site's: the
-// German Impressum on an English site must say "[punkt]", not "[dot]". Runs with
+// German Impressum on an English site (once swapped in) must say "[punkt]", not "[dot]". Runs with
 // JavaScript off, as a no-JS visitor sees it (with JS on, the decode script swaps
 // the hint for the address). Each hint is rebuilt from its encoded address and
 // the page's <html lang>; links with their own `text` (no "[at]") are skipped.

@@ -155,7 +155,8 @@ recommendation, never to pick unasked.
 - **Language/i18n (non-English or multi-locale sites):** every page's CONTENT language
   matches its `<html lang>` (the tone gate's density check covers German; eyeball other
   languages); `og:locale` present and matching on every page; chrome (skip link, footer)
-  in the site's language; German-market sites carry the filled Impressum and the German
+  in the site's language; German-market sites carry the filled imprint (`/legal-notice`; `/impressum`
+  on a German-language site, `/de/impressum` multilingual) and the German
   privacy page at the right URL (`/datenschutz` single-locale, `/de/privacy` multilingual);
   multi-locale sites: hreflang sets complete + reciprocal (`tests/i18n.spec.ts` green, or
   the twin-page seo.spec test for the light path), every `/locale` route in PAGES, the
