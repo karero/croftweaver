@@ -73,11 +73,11 @@ site_of() { # <astro.config.mjs text>
 }
 
 # The `site:` addresses in the astro.config.mjs text given, one per line, outside comments: an old
-# address kept in a comment is not the address the build uses. Quotes are tracked, so a `//` or
-# `/*` inside a string stays; a regular-expression literal is not understood.
+# address kept in a comment is not the address the build uses. Quotes are tracked, across lines too,
+# so a `//` or `/*` inside a string stays; a regular-expression literal is not understood.
 site_addrs() { # <astro.config.mjs text>
   awk -v sq="'" '
-    { out = ""; q = ""; n = length($0); i = 1
+    { out = ""; n = length($0); i = 1
       while (i <= n) {
         c = substr($0, i, 1); d = substr($0, i, 2)
         if (blk) { if (d == "*/") { blk = 0; i += 2 } else i++; continue }

@@ -916,13 +916,14 @@ url_case scpnoowner "$repo_fallback" "git@github.com:site.git"
 url_case oddchars "$repo_fallback" "git@github.com:owner/s%te.git"
 # An old address kept in a comment beside the live one, on its own line, on the same line, in a
 # comment spanning lines, or with no space before the comment: the first line names the live one.
-# A `//` or `/*` inside the address, or in a string with an escaped quote, stays in it. Two `site:` keys outside comments: the line says
+# A `//` or `/*` inside the address, in a string with an escaped quote, or in a string spanning
+# lines, stays in it. Two `site:` keys outside comments: the line says
 # many. Each stops at the fetch (noorigin); P6 and P7 check the live check with configs like these.
 new_site="→ Site: https://new.example · GitHub repo: $repo_fallback"
 two_sites="→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: $repo_fallback"
 mark twosite1 noorigin; mark twosite2 noorigin; mark twosite3 noorigin; mark twosite4 noorigin
 mark twosite5 noorigin; mark twosite6 noorigin; mark starsite noorigin; mark semisite noorigin
-mark escsite noorigin
+mark escsite noorigin; mark tplsite noorigin; mark contsite noorigin
 printf "// site: 'https://old.example'\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="$new_site"; expect twosite1 1 0 "not for a network reason"
 printf "/* site: 'https://old.example' */ export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
@@ -941,6 +942,10 @@ printf "const old = { site: 'https://old.example' };\nexport default { site: 'ht
 want_line1="$two_sites"; expect twosite6 1 0 "not for a network reason"
 printf "export default { title: 'a \\\\'// b', site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="$new_site"; expect escsite 1 0 "not for a network reason"
+printf "const t = \`Title\n/* deco\n\`;\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$new_site"; expect tplsite 1 0 "not for a network reason"
+printf "const t = 'a \\\\\n/* b';\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$new_site"; expect contsite 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
