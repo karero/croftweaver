@@ -301,6 +301,66 @@ describe('1: the token', () => {
 
 // ---------------------------------------------------------------- test 2: recorded captures
 
+// The 0.35 rows (workers-for-new-sites/PLAN-move-script-0.35-rows.md, S1 to S7): a refused token
+// names the site's address as src/config.ts gives it, and check lists every stage 1 gap at once.
+describe('1: what a refused token and an unfinished stage 1 say', () => {
+  const capture = (name) => JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-token', name), 'utf8')).result;
+  const recipe = () => capture('cloudflare-api-zones-list-move-token-2026-11-04.json'); // the recipe's token: DNS in the site zone only
+  const accountOnly = () => capture('cloudflare-api-zones-list-account-only-token-2026-11-08.json'); // DNS Edit listed in every zone
+  const withoutSite = () => recipe().filter((z) => z.name !== ZONE.name);
+  // src/config.ts in the template's form, with SITE.url set.
+  const config = (url) => ({ 'src/config.ts': `export const SITE = {\n  url: '${url}',          // production origin, no trailing slash\n  name: 'Lenas Backstube',\n} as const;\nexport const PROD_BRANCH = 'production';\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n` });
+  const run = async (url, zones, files = {}) => scenario({ site: makeSite({ files: { ...config(url), ...files } }), world: { zones } }).go(['check']);
+  // No Workers config, and a Pages Function: two of stage 1's four gaps.
+  const unfinished = { 'workers.jsonc': null, 'functions/go/email.ts': 'export const onRequest = () => new Response("");\n' };
+
+  test("S1: a domain that no zone of the token is names that domain, not \"the site's own domain\"", async () => {
+    const r = await run('https://lenas-backstube.example', withoutSite());
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. src/config.ts gives the address lenas-backstube.example, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet,'), r.text);
+    assert.ok(!r.text.includes("site's own domain"), r.text);
+  });
+  test('S2: a pages.dev address is not a domain of its own, and the site launches first', async () => {
+    const r = await run('https://lenas-backstube.pages.dev', withoutSite());
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('src/config.ts gives the address https://lenas-backstube.pages.dev, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says'), r.text);
+  });
+  test('S3: a token that reaches four zones names them, shows the permissions, and names the site zone to keep', async () => {
+    const site = recipe().find((z) => z.name === ZONE.name);
+    const r = await run('https://www.lenas-backstube.example', [...accountOnly(), site]);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('Stopped: This token can reach the DNS or settings of 4 zones (other-1.example, other-2.example, other-3.example, lenas-backstube.example).\n'), r.text);
+    // By hand from the two captures: the 2026-11-08 zones list DNS Edit and Read, the site zone adds zone settings Read.
+    assert.ok(r.text.includes('\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read, #zone_settings:read.\n'), r.text);
+    assert.ok(r.text.includes('\nMake one limited to lenas-backstube.example (Zone Resources: that one domain).'), r.text);
+  });
+  test('S4: check lists the stage 1 gaps after a refused token', async () => {
+    const r = await run('https://lenas-backstube.example', withoutSite(), unfinished);
+    assert.equal(r.code, 1, r.text);
+    const at = r.text.indexOf('If no move is open, stage 1 is not done either:\n- No Workers config at ');
+    assert.ok(at > r.text.indexOf('may not be on Cloudflare yet') && r.text.indexOf('may not be on Cloudflare yet') > 0, r.text);
+    assert.match(r.text.slice(at), /\n- [0-9a-f]{7} holds functions\/go\/email\.ts in functions\/\./);
+  });
+  test('S5: with the recipe\'s token, check lists both gaps in one stop', async () => {
+    const r = await run('https://lenas-backstube.example', recipe(), unfinished);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /Stopped: Stage 1 of the move section is not done at [0-9a-f]{7}:\n- No Workers config at [0-9a-f]{7}: .*\n- [0-9a-f]{7} holds functions\/go\/email\.ts in functions\//);
+  });
+  test('S6: the address never picks the zone: a token that reaches one zone is accepted whatever SITE.url says', async () => {
+    const zones = recipe();
+    const site = zones.find((z) => z.name === ZONE.name);
+    site.id = ZONE.id;
+    site.account = { ...ACCOUNT };
+    const r = await run('https://another-bakery.example', zones);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('S7: the 2026-11-08 token alone: three zones, their permissions, and a domain that may not be on Cloudflare', async () => {
+    const r = await run('https://lenas-backstube.example', accountOnly());
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('Stopped: This token can reach the DNS or settings of 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
+  });
+});
+
 describe('2: real captures, expected values written by hand', () => {
   test('a real Pages-versus-Worker file comparison: only the AVIF rows differ, and they are known', () => {
     const rows = readFileSync(path.join(HERE, 'fixtures', 'row-0.6', 'wrangler-4.156.0-pages-vs-worker.txt'), 'utf8').split('\n').filter((l) => /^(SAME|KNOWN) /.test(l) && !/ - pages=/.test(l)); // a row with no content type is left out
