@@ -915,7 +915,7 @@ url_case hostonly "$repo_fallback" "https://github.com/site.git"
 url_case scpnoowner "$repo_fallback" "git@github.com:site.git"
 url_case oddchars "$repo_fallback" "git@github.com:owner/s%te.git"
 # An old address kept in a comment beside the live one: more than one match, on two lines and on
-# one. Each stops at the fetch (noorigin); P6 and P7 check that the live check then checks none.
+# one. Each stops at the fetch (noorigin); P6 and P7 check that the live check then checks none and says why.
 two_sites="→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: $repo_fallback"
 mark twosite1 noorigin; mark twosite2 noorigin
 printf "// site: 'https://old.example'\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
