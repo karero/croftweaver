@@ -268,8 +268,9 @@ cookies, scripts or tracking you didn't choose.
   ([`search-console-setup`](../skills/search-console-setup/SKILL.md) walks you through it)
   you can watch the notifications arrive.
 - [ ] **AI crawlers: allow.**
-  Your domain → Security → Settings → filter by **Bot traffic** → **Configure AI bot
-  policies** → set **Search**, **Agent** and **Training** each to **Allow (do not block)**.
+  Your domain → Security → Settings → filter by **Bot traffic** → **AI Crawler and Agent
+  access policies** (called **Configure AI bot policies** until Cloudflare renamed it on 4
+  November 2026) → set **Search**, **Agent** and **Training** each to **Allow (do not block)**.
   Search and Agent let assistants find and read your pages. Training means crawlers that
   gather text to train AI models: Allow is the kit's default, and opting out is your
   choice. Choose how with care. Since 15 September 2026, Cloudflare says, **Block** and
@@ -295,7 +296,7 @@ cookies, scripts or tracking you didn't choose.
   Three more switches can keep AI crawlers out. Set each to off, with the one exception
   under Bot Preference Sync:
   - **Bot Preference Sync: Off, unless you chose Disallow for Training.** Same place:
-    Configure AI bot policies → **Enable Bot Preference Sync**. This is Cloudflare's managed
+    AI Crawler and Agent access policies → **Enable Bot Preference Sync**. This is Cloudflare's managed
     `robots.txt`: it puts Cloudflare's own lines in front of your file, or writes a file if
     you have none. The file the kit made already says who may read your site. Choosing
     Disallow does not turn this switch on: on a spare domain (30 October 2026), Training on

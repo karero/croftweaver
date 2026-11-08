@@ -68,7 +68,7 @@ export const BOT_LINES = [
       ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
       crawler_protection: 'disabled', content_bots_protection: 'disabled', bot_preference_sync_enabled: false,
     },
-    path: 'Your domain → Security → Settings → filter by Bot traffic → Configure AI bot policies',
+    path: 'Your domain → Security → Settings → filter by Bot traffic → AI Crawler and Agent access policies',
     visitor: "AI crawlers, training ones included, are no longer blocked or led into AI Labyrinth, and Cloudflare adds no lines to robots.txt" },
 ];
 // The AI bot policies' values, per field, as the third trial read them for each choice in the

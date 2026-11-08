@@ -812,7 +812,7 @@ test('S5a: the zone\'s records could not be read: Training is not written, and t
 });
 
 test('S5b: a change Cloudflare did not confirm names what Training read before the run, and claims nothing about now', async () => {
-  const unconfirmed = /Training read Block before this run; Cloudflare did not confirm the change, so look at it in the dashboard: .*Configure AI bot policies\.\n.*Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search/;
+  const unconfirmed = /Training read Block before this run; Cloudflare did not confirm the change, so look at it in the dashboard: .*AI Crawler and Agent access policies\.\n.*Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search/;
   const cases = {
     'a refused PUT': (s) => { s.refuse['PUT bot'] = 403; },
     'a 502 to the PUT': (s) => { s.refuse['PUT bot'] = 502; },

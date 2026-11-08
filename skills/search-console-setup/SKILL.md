@@ -104,8 +104,8 @@ Cloudflare-managed domain.
 ### Also in the Cloudflare dashboard — keep crawlers *allowed*
 
 The AI crawler settings are under your domain → Security → Settings → filter by **Bot
-traffic** → **Configure AI bot policies** (the names as a dashboard showed them on
-2026-10-30). For the open, indexable posture this kit wants, confirm these (the defaults can
+traffic** → **AI Crawler and Agent access policies** (the place as a dashboard showed it on
+2026-10-30; Cloudflare renamed the setting from Configure AI bot policies on 2026-11-04). For the open, indexable posture this kit wants, confirm these (the defaults can
 block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has the details:
 
 - **Search, Agent and Training → "Allow (do not block)".** Since 15 September 2026,
@@ -139,8 +139,9 @@ block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has
 > 1. The user **opens the browser and logs in to Cloudflare themselves** — never handle
 >    their credentials or 2FA.
 > 2. With their explicit go-ahead and the target zone, navigate to **Caching →
->    Configuration** (Crawler Hints) and **Security → Settings → Bot traffic → Configure
->    AI bot policies**, read the current values back, and only then set any that don't
+>    Configuration** (Crawler Hints) and **Security → Settings → Bot traffic → AI Crawler
+>    and Agent access policies** (**Configure AI bot policies** on a dashboard not yet renamed),
+>    read the current values back, and only then set any that don't
 >    match the posture above.
 >
 > If no browser automation is available or the user declines, fall back to walking them
