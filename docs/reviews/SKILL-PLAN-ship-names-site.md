@@ -10,7 +10,7 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 | 1 | This plan | written 2026-11-08 | this file |
 | 2 | PLAN gate, High | not started | — |
 | 3 | `ship.sh`: first line, the question, markers 0.25 | not started; waits for the owner's go | — |
-| 4 | `check_ship_push.sh`: the cases below, marker 0.25 | not started | — |
+| 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_REQUIRE_TTY` | not started | — |
 | 5 | `PUBLISHING.md` sentence, BUGLOG release-notes row | not started | — |
 | 6 | `make check`, mutation check, DIFF gate at High, then PR | not started | — |
 
@@ -211,9 +211,15 @@ the feeder's wait too: past the limit it sends a terminate to the group and to `
 broken case cannot hang the file. `run_tty` sets no `fail` itself: T1 to T7 count 124 as a fail,
 and T8 expects it. Output comes back with `\r\n`; the helper strips
 `\r` before any check. Where `script` is missing the T cases are skipped with a
-printed line; the CI steps that run this file (the playwright job and the Mac bash 3.2 step) set
-`SHIP_TEST_REQUIRE_TTY=1`, so a skip fails there, as `SHIP_TEST_REQUIRE_BASH32` does for S10 (e).
-On Windows' Git Bash the real-git half already skips itself.
+printed line. The file runs in several places; the build changes `.github/workflows/template-tests.yml`
+so that the two steps that run it directly, the playwright job's (line 94, Linux) and the Mac
+bash 3.2 step (lines 303–311), set `SHIP_TEST_REQUIRE_TTY: 1`, and a skip fails there, as
+`SHIP_TEST_REQUIRE_BASH32` does for S10 (e). Elsewhere a skip only prints its line: runs through
+the pre-push hook (the macOS leg of prepare-any-shell, verify-windows, and each owner's own
+pushes), and each site's own CI (`templates/astro/.github/workflows/ci.yml` line 129, Ubuntu,
+which has util-linux `script`). On Windows' Git Bash the real-git half already skips itself. The T
+cases run wherever the file runs, so they add time to every push from a site; the PR records how
+much.
 - T1 (worktree mode) answers `y`: the "Going live" header comes before `Publish to
   https://ship-test.example.invalid (t1/origin)?`, which comes before "▶ pre-push gate"; the run
   ends on the LIVE line, exit 0; production is now main.
@@ -231,8 +237,9 @@ On Windows' Git Bash the real-git half already skips itself.
   argument since `G` is not exported (`script … bash -c 'echo "$$" > "$1"; exec bash "$0" > "$2"'
   scripts/ship.sh "$G/t7.pid" "$G/t7.out"`), with `--none`: its feeder waits for no question and
   only holds the input open. No question, the no-terminal line in the file, the run goes on.
-- T8, the watchdog itself: `run_tty --none --prog <stand-in> --limit 3`, the stand-in a bash that
-  ignores terminate and hang-up, starts a child that sleeps, and sleeps: `run_tty` returns 124
+- T8, the watchdog itself: `run_tty t8 --none --prog <stand-in> --limit 3`, the stand-in an inline
+  `bash -c` (no file, so nothing lands in the clone) that ignores terminate and hang-up, starts a
+  child that sleeps, and sleeps: `run_tty` returns 124
   within 15 seconds, and both the stand-in and its child are gone.
 - Under `SHIP_GATE_SKIP_WORDING` the T cases cannot find the question by its text, so they print
   that they are skipped; no CI step sets it.
