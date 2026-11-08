@@ -347,13 +347,23 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('src/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
   });
-  test("S1e: a nested url above the site's own is not taken for it", async () => {
+  test('S1e: a SITE holding a nested object gives the old words, not the nested url', async () => {
     const files = config('https://lenas-backstube.example');
-    const nested = files['src/config.ts'].replace('export const SITE = {\n', "export const SITE = {\n  support: {\n    url: 'https://help.example',\n  },\n");
-    assert.ok(nested.includes("    url: 'https://help.example',"), 'the nested url was not written');
+    const nested = files['src/config.ts'].replace('export const SITE = {\n', "export const SITE = {\n support: {\n  url: 'https://help.example',\n },\n");
+    assert.ok(nested.includes("  url: 'https://help.example',"), 'the nested url was not written');
     const r = await run('', withoutSite(), { 'src/config.ts': nested });
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes('src/config.ts gives the address lenas-backstube.example, and no zone'), r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+    assert.ok(!r.text.includes('help.example'), r.text);
+  });
+  test('S1f: a SITE on one line gives the old words, not the url of an object after it', async () => {
+    const files = config('https://lenas-backstube.example');
+    const oneLine = files['src/config.ts'].replace(/^export const SITE = \{\n[^]*?^\} as const;/m, "export const SITE = { name: 'Lenas Backstube', url: 'https://lenas-backstube.example' } as const;\nexport const SUPPORT = {\n  url: 'https://help.example',\n};");
+    assert.ok(oneLine.includes("export const SUPPORT = {\n  url: 'https://help.example',"), 'the one-line SITE was not written');
+    const r = await run('', withoutSite(), { 'src/config.ts': oneLine });
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+    assert.ok(!r.text.includes('help.example'), r.text);
   });
   test('S2: a pages.dev address is not a domain of its own, and the site launches first', async () => {
     const r = await run('https://lenas-backstube.pages.dev', withoutSite());
