@@ -362,7 +362,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest is now 26.04, where setup-python has no 3.9
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -380,7 +380,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest is now 26.04, where setup-python has no 3.9
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -397,7 +397,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest is now 26.04, where setup-python has no 3.9
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -426,7 +426,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest is now 26.04, where setup-python has no 3.9
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -439,7 +439,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest is now 26.04, where setup-python has no 3.9
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -452,7 +452,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest is now 26.04, where setup-python has no 3.9
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -466,7 +466,7 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest is now 26.04, where setup-python has no 3.9
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
