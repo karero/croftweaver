@@ -262,7 +262,7 @@ For everyone, the owner included:
   cleared (next bullet) belongs to filling it, at every rights level. The test asks
   for it.
 - The draft notice under the heading of the legal pages (the privacy page, and the
-  imprint where the site has one; `[DRAFT NOTICE, …]`, in German
+  Legal Notice or Impressum where the site has one; `[DRAFT NOTICE, …]`, in German
   `[ENTWURFSHINWEIS, …]`) is the owner's to clear, at every
   rights level. Do not delete it to turn a test green: `tests/placeholders.spec.ts`
   fails for a legal page in `PAGES` whose notice is gone while no answer is recorded.
@@ -276,6 +276,10 @@ For everyone, the owner included:
     your site does." (On a site with no imprint, word it for the privacy page alone.)
     Options: **A lawyer has reviewed them** / **I use my own texts** /
     **Publish the drafts as they are**.
+  - The kit ships the English Legal Notice. In the same message, ask whether the
+    business is based in Germany. If it is, offer the German Impressum as well
+    (`src/pages/_impressum.astro`, whose header has the steps); offer it to no one
+    else.
   - Record the answer first, as a line of its own in the `README.md` in the folder
     that holds `package.json`: one of the forms below, written bare (no list marker, no
     backticks) and nothing else on that line, the date as YYYY-MM-DD. Then delete the

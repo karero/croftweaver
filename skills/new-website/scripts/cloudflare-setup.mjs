@@ -1326,7 +1326,7 @@ async function launchStage(opts, io) {
     const drafts = await draftsAt(git, prodSha);
     if (drafts.cannot) stops.push(`At ${short(prodSha)}, ${drafts.cannot}. So the script cannot tell whether the site is finished. The domain can be attached by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md).`);
     else {
-      if (drafts.unfilled.length) stops.push(`At ${short(prodSha)}, UNFILLED_UNTIL_LAUNCH in tests/placeholders.spec.ts still lists ${drafts.unfilled.join(', ')}: fill ${drafts.unfilled.length === 1 ? 'that page' : 'those pages'}, ${drafts.unfilled.some((u) => /^(privacy|datenschutz|impressum)$/.test(u.split('/').filter(Boolean).pop() ?? '')) ? 'clear the draft notice on a legal page as AGENTS.md section 5 says, ' : ''}and empty the list first (new-website §4).`);
+      if (drafts.unfilled.length) stops.push(`At ${short(prodSha)}, UNFILLED_UNTIL_LAUNCH in tests/placeholders.spec.ts still lists ${drafts.unfilled.join(', ')}: fill ${drafts.unfilled.length === 1 ? 'that page' : 'those pages'}, ${drafts.unfilled.some((u) => /^(privacy|datenschutz|impressum|legal-notice)$/.test(u.split('/').filter(Boolean).pop() ?? '')) ? 'clear the draft notice on a legal page as AGENTS.md section 5 says, ' : ''}and empty the list first (new-website §4).`);
       if (drafts.hits.length) stops.push(`At ${short(prodSha)}, the search for "${drafts.token}" in src/ and public/ finds ${drafts.hits.join(', ')}: fill ${drafts.hits.length === 1 ? 'it' : 'them'} first.`);
     }
     if (address.length > 1) stops.push(`${host} has ${address.length} address records (${address.map((r) => `${r.type} ${r.content}`).join(', ')}). The site needs one CNAME there, and the script deletes no record: remove the others by hand ("Going live" in CLOUDFLARE_FIRST_DEPLOY.md).`);

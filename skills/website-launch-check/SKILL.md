@@ -113,7 +113,10 @@ settings".
   checks them.
 
 **Business in Germany:**
-- **Impressum** per § 5 DDG (the Digitale-Dienste-Gesetz replaced the TMG in May 2024): name,
+- **Legal Notice or Impressum** per § 5 DDG (the Digitale-Dienste-Gesetz replaced the TMG in May 2024).
+  The kit ships the English page at `/legal-notice`; the German one at `/impressum` replaces it on a
+  German-language site, and an owner based in Germany may route both. Either address counts as the
+  imprint. It carries: name,
   address, a fast electronic contact, register entry, VAT ID if any; for a regulated
   profession (architects, lawyers, doctors, and a trade that must register with a chamber such
   as the Handwerkskammer) also the chamber, the professional title and the state that granted it.

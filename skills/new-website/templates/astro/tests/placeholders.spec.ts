@@ -108,7 +108,9 @@ const SHOWN_AS_TEXT = ['text', 'search', 'email', 'tel', 'url', 'submit', 'butto
 // launch (a second locale's privacy page). Never to get an unfinished page green:
 // that is weakening the test (AGENTS.md §5). Fill the slot, or use the content
 // placeholder and keep the pull request a draft.
-const UNFILLED_UNTIL_LAUNCH = new Set<string>(['/privacy', '/impressum', '/manifest.webmanifest']);
+// A site that already routes /impressum keeps that path here when it merges a newer copy of
+// this file: do not swap it for /legal-notice.
+const UNFILLED_UNTIL_LAUNCH = new Set<string>(['/privacy', '/legal-notice', '/manifest.webmanifest']);
 
 // The draft notice under the heading of the legal pages (AGENTS.md §5). It is slot-shaped,
 // so a listed page reports it as "not ready to launch". It leaves with the owner's answer,
@@ -133,7 +135,7 @@ async function noteIsVisible(page: Page): Promise<boolean> {
   return false;
 }
 // Also listed in skills/new-website/scripts/cloudflare-setup.mjs (its launch stop); change both.
-const LEGAL_LAST_SEGMENTS = ['privacy', 'datenschutz', 'impressum'];
+const LEGAL_LAST_SEGMENTS = ['privacy', 'datenschutz', 'impressum', 'legal-notice'];
 const isLegalPage = (path: string) => LEGAL_LAST_SEGMENTS.includes(path.split('/').filter(Boolean).pop() ?? '');
 const hasLegalRecord = (readme: string) => LEGAL_RECORDS.some((re) => re.test(readme));
 
@@ -599,7 +601,7 @@ for (const path of PAGES) {
 
 // The legal pages' draft notice, pinned by example (AGENTS.md §5).
 test('placeholders — the draft notice rules pick the legal pages and read the answer', () => {
-  for (const p of ['/privacy', '/impressum', '/datenschutz', '/de/privacy', '/fr/privacy', '/de/impressum']) {
+  for (const p of ['/privacy', '/legal-notice', '/impressum', '/datenschutz', '/de/privacy', '/fr/privacy', '/de/impressum']) {
     expect(isLegalPage(p), `${p} is a legal page`).toBe(true);
   }
   for (const p of ['/', '/about', '/legal', '/privacy-policy', '/privacy/team', '/blog/privacy-tips']) {
@@ -690,7 +692,7 @@ test('placeholders — the draft notice is read as a visitor sees it', async ({ 
 // answer that is not true; a note made unreadable another way (opacity: 0, off-screen, text
 // in a hidden child); a legal page added after the answer; a page at another address
 // (/legal); or a note in another language than its page. In the toolkit the folder is
-// templates/astro, whose README.md has no answer, so /privacy and /impressum hold their notes.
+// templates/astro, whose README.md has no answer, so /privacy and /legal-notice hold their notes.
 for (const path of PAGES.filter(isLegalPage)) {
   test(`placeholders — ${path} keeps its draft notice until the owner's answer is recorded`, async ({ page }) => {
     await page.goto(path);

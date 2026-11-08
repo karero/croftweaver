@@ -546,6 +546,20 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           cp -R "$GITHUB_WORKSPACE/skills/new-website/templates/astro" site && cd site
+          # The German page is unrouted in the starter: swap it in on this English site by the
+          # steps in the header of src/pages/_impressum.astro (page, footer link, four lists, llms.txt).
+          mv src/pages/_impressum.astro src/pages/impressum.astro
+          perl -pi -e 's|^      <!-- (<a href="/impressum">Impressum</a>) -->|      $1|' src/layouts/Base.astro
+          perl -pi -e 's|^(  \x27/legal-notice\x27,.*)$|$1\n  \x27/impressum\x27,|' tests/_helpers.ts
+          perl -pi -e "s|'/legal-notice', '/manifest|'/legal-notice', '/impressum', '/manifest|" tests/placeholders.spec.ts
+          perl -pi -e "s|'/legal-notice'\]\)|'/legal-notice', '/impressum'])|" tests/seo.spec.ts tests/positioning.spec.ts
+          perl -pi -e 's|^(- \[Legal Notice\]\(https://example.com/legal-notice\).*)$|$1\n- [Impressum](https://example.com/impressum): Impressum.|' public/llms.txt
+          grep -q '^      <a href="/impressum">Impressum</a>' src/layouts/Base.astro
+          grep -q "^  '/impressum'," tests/_helpers.ts
+          grep -q "'/legal-notice', '/impressum', '/manifest.webmanifest'" tests/placeholders.spec.ts
+          grep -q "'/privacy', '/legal-notice', '/impressum'\])" tests/seo.spec.ts
+          grep -q "'/privacy', '/legal-notice', '/impressum'\])" tests/positioning.spec.ts
+          grep -q 'example.com/impressum' public/llms.txt
           K="$GITHUB_WORKSPACE/skills/website-contact-form/templates"
           mkdir -p public/js
           cp "$K/mail-form.js" public/js/ && cp "$K/MailForm.astro" "$K/mail-form-text.ts" src/components/ && cp "$K/mail-form.spec.ts" tests/
