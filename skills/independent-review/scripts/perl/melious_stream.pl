@@ -114,10 +114,10 @@ my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
 my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?=[\t\r\x20-\x2F\x3A-\x40\x5B-\x5E\x60\x7B-\x7E]|$)|No BUG\/RISK\/NIT findings/m;
 my $usable = grep { substr($c, $_->[1]) =~ $findings } @at;
 my $kept_whole = 1;
-for my $m (reverse @at) {
+my @ok;   # markers with findings after them that do not look quoted, in order
+for my $m (@at) {
   my ($start, $end) = @$m;
-  my $after = substr($c, $end); $after =~ s/\A\r?\n//;
-  next unless $after =~ $findings;
+  next unless substr($c, $end) =~ $findings;
   my $ls = rindex($c, "\n", $start - 1) + 1;   # where the marker line starts
   my $lead = substr($c, $ls, $start - $ls);
   my $glued = $lead !~ /\A$wrap\z/;
@@ -126,12 +126,29 @@ for my $m (reverse @at) {
     my $pl = rindex($c, "\n", $ls - 2) + 1;
     next if substr($c, $pl, $ls - 1 - $pl) =~ /\A[ \t>]*\x60\x60\x60/;
   }
+  push @ok, [$start, $end, $glued];
+}
+# The last such marker wins unless what follows it has a finding line and the stretch from the
+# one before it has at least as many: then the earlier one wins, so a closing tally with no more
+# finding lines than the review above it cannot stand in for it (A1). A finding line is a list
+# line $findings matches, counted once. Moving back keeps the text after the later marker, and the
+# section then holds two or more lines the review check counts, so that check cannot newly reject it.
+my $count = sub { scalar grep { /$findings/ && /\A[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)/ } split /\n/, $_[0] };
+my $i = $#ok;
+while ($i > 0) {
+  my $n = $count->(substr($c, $ok[$i][1]));
+  last unless $n && $count->(substr($c, $ok[$i-1][1], $ok[$i][0] - $ok[$i-1][1])) >= $n;
+  $i--;
+}
+if (@ok) {
+  my (undef, $end, $glued) = @{$ok[$i]};
+  my $after = substr($c, $end); $after =~ s/\A\r?\n//;
   my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
   if ($before =~ /\S/) {
     my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
     $note = "(text before the final-review marker dropped, $kb" . ($glued ? "; the marker ended a line of other text" : "") . ($usable > 1 ? "; the marker came $usable times with findings after it" : "") . ($glued || $usable > 1 ? ", so check that the section starts with the review" : "") . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
   }
-  $c = $after; $kept_whole = 0; last;
+  $c = $after; $kept_whole = 0;
 }
 # A cut with nothing before it has no dropped-text note, but a skipped marker can still mean
 # the reply opens with reasoning: said all the same.
