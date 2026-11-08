@@ -46,8 +46,10 @@ every run at a terminal. The owner decided it on 2026-11-08 ("Start it and add i
   as an assignment, `s="$(grep … | head -1 || true)"`, then `printf '%s\n' "${s%/}"`. The
   `check_pipefail_pipes.sh` allow-list entry matches the fixed text ` | head -1 || true)"` on the
   flagged line, so it still matches its one site; a bare pipeline as the function's body would
-  lose the `)"` and fail the entry as stale. Line 753 becomes `site="$(site_of "${wt:-.}")"`; the
-  slash strip after it stays, now with nothing to do; the live check is unchanged.
+  lose the `)"` and fail the entry as stale. Line 753 becomes `site="$(site_of "${wt:-.}")"`, and
+  the slash strip after it (line 758) goes, its comment (754–757) moving into `site_of` with the
+  strip, so one slash is stripped as today: `site: 'https://a//'` still asks for
+  `https://a//build.txt`. The live check is otherwise unchanged.
 - `site_count <folder>`: `none`, `one` or `many`, from every match of the same pattern in that
   file (`h="$(grep -oE … 2>/dev/null || true)"`, no pipe), read with
   `case "$h" in '') none;; *$'\n'*) many;; *) one;; esac`. It counts matches, not lines, so an old
@@ -104,12 +106,13 @@ new (`live_n` 0) it still asks, because the checks and the push still run; one r
   `case "$answer" in [yY]|[yY][eE][sS])`, since bash 3.2 has no `${answer,,}`; anything
   else, an empty line, or the end of input (Ctrl-D) stops with
   `✗ Publish stopped — you did not answer y. Nothing was published and $here.` and exit 1.
-- **Otherwise:** `→ No terminal to answer a question here (an assistant's or CI's run, or output
-  sent to a file), so this run does not ask.` and the run goes on.
+- **Otherwise:** `→ No terminal to answer a question here (input or output is not a terminal
+  window), so this run does not ask.` and the run goes on.
 - **Why standard output too:** with output sent to a file the question would be invisible and the
   run would sit silent. Checked 2026-11-08: under `npm run` (npm 11.20.0) a terminal's standard
-  input still reaches the script; Claude Code's shell and `codex exec` (0.167.0) both have no
-  terminal on either.
+  input and output both still reach the script as terminals, and with `> file` only output stops
+  being one (READ 16); Claude Code's shell and `codex exec` (0.167.0) both have no terminal on
+  either.
 - **A stop while it waits.** Measured 2026-11-08 under `script`, with bash 3.2.57 and 5.3.20: a
   terminate or interrupt sent to bash leaves a waiting `read` waiting, even with the run's trap
   set, until a line or the end of input arrives. A `read -t` loop does not help: bash 3.2 returns 1
@@ -223,9 +226,10 @@ printed line. The file runs in several places; the build changes `.github/workfl
 so that the two steps that run it directly, the playwright job's (line 94, Linux) and the Mac
 bash 3.2 step (lines 303–311, in prepare-any-shell's macOS leg), set `SHIP_TEST_REQUIRE_TTY: 1`,
 and a skip fails there, as `SHIP_TEST_REQUIRE_BASH32` does for S10 (e). Elsewhere a skip only
-prints its line: runs through a copied site's pre-push hook (prepare-any-shell's pushes on each
-system, verify-windows, and each owner's own pushes), and each site's own CI (`templates/astro/.github/workflows/ci.yml` line 129, Ubuntu,
-which has util-linux `script`). On Windows' Git Bash the real-git half already skips itself. The T
+prints its line: runs through a copied site's pre-push hook (verify-windows' pushes and each
+owner's own pushes), and each site's own CI (`templates/astro/.github/workflows/ci.yml` line 129).
+That CI runs on `ubuntu-latest`, the same image as the playwright job, whose required step shows
+on every run that `script` is there (on Debian it is in `bsdutils`, an essential package; READ 16). On Windows' Git Bash the real-git half already skips itself. The T
 cases run wherever the file runs, so they add time to every push from a site; the PR records how
 much.
 - T1 (worktree mode, `advance 1`, so something new goes live) answers `y`: the "Going live" header comes before `Publish to
