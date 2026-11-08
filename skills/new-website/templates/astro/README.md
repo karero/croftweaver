@@ -36,7 +36,7 @@ scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, whic
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server,tables,served-build}.spec.ts
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis, and its ship.fromGitHub mode on throwaway local repos (pre-push hook + CI)
-tests/check_analytics_gate.sh # counter self-test, CSP check, builds as Pages and as Workers Builds would: off in all with USE_ANALYTICS = false (as shipped), or on only when the branch being built (CF_PAGES_BRANCH, else Workers Builds' WORKERS_CI_BRANCH) is PROD_BRANCH; in server mode no script and email links to /go/email on the live Pages build only, and a build on Workers Builds or without functions/go/email.ts refused (the suite's own CI)
+tests/check_analytics_gate.sh # counter self-test, CSP check, builds as Pages and as Workers Builds would: off in all with USE_ANALYTICS = false (as shipped), or on only when the branch being built (CF_PAGES_BRANCH, else Workers Builds' WORKERS_CI_BRANCH) is PROD_BRANCH; in server mode no script and email links to /go/email on the live Pages build only, and a live build on Workers Builds or without functions/go/email.ts is refused (the suite's own CI)
 ```
 Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 `claude/settings.json` (permission allowlist), `content-guide.md`, `brand.md`.
