@@ -191,6 +191,7 @@ No BUG is open.
 
 ## State at the end
 
-No BUG that the change introduced is open. A1 is fixed (above, and round 3). B2 (A2) is an old defect the plan
+No BUG that the change introduced is open. A1 is fixed (rounds 3 to 6) and merged as `38bf1768` (#482). B2 (A2) is an old defect the plan
 names as "still wrong after the fix"; the owner deferred it to a `docs/BUGLOG.md` row, 2026-11-08.
-Round 2 was the verify round of fixes that are tests and comments, plus one grep: no further round.
+For #481, round 2 was the verify round of fixes that are tests and comments, plus one grep: no
+further round.
