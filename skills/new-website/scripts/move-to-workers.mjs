@@ -721,7 +721,7 @@ async function prepare(opts, io, run) {
 async function siteAddress(git) {
   const r = await git('show', 'HEAD:src/config.ts');
   if (r.code !== 0) return null;
-  const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(r.stdout.replace(/\r/g, ''))?.[1] ?? '';
+  const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(r.stdout)?.[1] ?? '';
   const url = /^\s*url:\s*['"]([^'"\n]+)['"]/m.exec(site)?.[1];
   let host;
   try { host = new URL(url).hostname.toLowerCase().replace(/\.$/, ''); } catch { return null; }
