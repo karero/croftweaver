@@ -2121,7 +2121,7 @@ reader() {   # reader <name> <reply file> <marker>: melious_stream.pl on the rep
   echo $? >"$T/$1.rc"
 }
 no_notes() {   # no note of the reader's in <name>.out
-  ! grep -qF "the marker came" "$T/$1.out" && ! grep -qF "text before the final-review marker dropped" "$T/$1.out" \
+  ! grep -qF "marker came" "$T/$1.out" && ! grep -qF "text before the final-review marker dropped" "$T/$1.out" \
     && ! grep -qF "no usable final-review marker" "$T/$1.out"
 }
 # T1, T2: the reader keeps everything after the first marker.
@@ -2148,14 +2148,24 @@ for c in a b; do
   check "T3 ($c): ... the section holds the first finding line" grep -qE "$first" "$T/glm$c.out"
   check "T3 ($c): ... and no note of the reader's" no_notes glm$c
 done
-# T4, KNOWN WRONG: a summary after the second marker that starts like a finding makes that marker usable again.
-printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '' '- BUG: first finding line' '- RISK: second finding line' '=== FINAL REVIEW 0123abcd ===' '- Totals: 1 BUG, 1 RISK' >"$T/known.reply"
-reader known "$T/known.reply" "=== FINAL REVIEW 0123abcd ==="
-check "T4 KNOWN WRONG: exit 0" rc_is known 0
-check "T4 KNOWN WRONG: the section is the reader's note and the summary" \
-  sh -c 'grep -qF "the marker came 2 times with findings after it, so check that the section starts with the review" "$1" && grep -qF -- "- Totals: 1 BUG, 1 RISK" "$1"' _ "$T/known.out"
-check "T4 KNOWN WRONG: ... neither finding line is in it" \
-  sh -c '! grep -qF "first finding line" "$1" && ! grep -qF "second finding line" "$1"' _ "$T/known.out"
+# T4 (A1): a closing tally after the second marker that starts like a finding ("- Totals: 1 BUG,
+# 1 RISK") does not make that marker usable: the walk falls back to the first, and the review is kept.
+printf '%s\n' '=== FINAL REVIEW 0123abcd ===' '' '- BUG: first finding line' '- RISK: second finding line' '=== FINAL REVIEW 0123abcd ===' '- Totals: 1 BUG, 1 RISK' >"$T/tally.reply"
+reader tally "$T/tally.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T4: exit 0" rc_is tally 0
+check "T4: the section holds both finding lines, and the tally after them" \
+  sh -c 'grep -qF "first finding line" "$1" && grep -qF "second finding line" "$1" && grep -qF -- "- Totals: 1 BUG, 1 RISK" "$1"' _ "$T/tally.out"
+check "T4: ... and no note of the reader's" no_notes tally
+run tallypair SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=fixture STUB_REPLY_FILE="$T/tally.reply" bash "$SCRIPT" "$T/change.diff" --base none
+check "T4, as the pair runs it: melious OK, and the section holds the first finding line" \
+  sh -c 'grep -qF "reviewers: codex OK, melious OK" "$1" && grep -qF "first finding line" "$1"' _ "$T/tallypair.out"
+# T16 (A1): cutting counts leaves a real finding that names a count ("- BUG: the 2 RISK paths ...") findings-shaped.
+printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' '- BUG: the 2 RISK paths disagree' >"$T/count.reply"
+reader count "$T/count.reply" "=== FINAL REVIEW 0123abcd ==="
+check "T16: exit 0" rc_is count 0
+check "T16: the section is the finding after the marker" \
+  sh -c 'grep -qF -- "- BUG: the 2 RISK paths disagree" "$1" && ! grep -qF "Reasoning line." "$1"' _ "$T/count.out"
+check "T16: ... so the marker was usable: no no-marker warning" lacks count.out "no usable final-review marker"
 # T15 (added in review): a clean verdict after the marker is findings-shaped, so the marker is usable (the second branch of $findings).
 printf '%s\n' 'Reasoning line.' '=== FINAL REVIEW 0123abcd ===' 'No BUG/RISK/NIT findings.' >"$T/clean.reply"
 reader clean "$T/clean.reply" "=== FINAL REVIEW 0123abcd ==="

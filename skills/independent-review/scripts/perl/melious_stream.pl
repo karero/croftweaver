@@ -112,12 +112,18 @@ my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
 # $findings may count only lines the review check's grep (looks_like_review) also counts: ASCII
 # only, no /i, no NUL in the lookahead. Loosening it lets a footer win the last-marker walk (T14).
 my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?=[\t\r\x20-\x2F\x3A-\x40\x5B-\x5E\x60\x7B-\x7E]|$)|No BUG\/RISK\/NIT findings/m;
-my $usable = grep { substr($c, $_->[1]) =~ $findings } @at;
+# A line counts only if it is still findings-shaped once counts such as "1 BUG" are cut, so a
+# closing tally after a repeated marker ("- Totals: 1 BUG, 1 RISK") cannot win the walk (A1).
+my $has_findings = sub {
+  for my $l (split /\n/, $_[0]) { (my $s = $l) =~ s/[0-9]+[ \t]*(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])//g; return 1 if $s =~ $findings }
+  return 0;
+};
+my $usable = grep { $has_findings->(substr($c, $_->[1])) } @at;
 my $kept_whole = 1;
 for my $m (reverse @at) {
   my ($start, $end) = @$m;
   my $after = substr($c, $end); $after =~ s/\A\r?\n//;
-  next unless $after =~ $findings;
+  next unless $has_findings->($after);
   my $ls = rindex($c, "\n", $start - 1) + 1;   # where the marker line starts
   my $lead = substr($c, $ls, $start - $ls);
   my $glued = $lead !~ /\A$wrap\z/;

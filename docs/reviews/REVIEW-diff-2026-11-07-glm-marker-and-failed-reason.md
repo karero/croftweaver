@@ -41,7 +41,7 @@ Gate total, reviewer seat runs: 346,796 tokens (the script's line, fresh-eyes in
 
 | Id | Sev | From | Finding | Status |
 |---|---|---|---|---|
-| A1 | BUG | Codex (melious RISK) | A summary after the second marker that starts like a finding (`- Totals: 1 BUG, 1 RISK`) makes that marker usable; both real findings are dropped | Not fixed: the plan names it (section 1) and T4 pins it KNOWN WRONG. It is not new: today's code does the same. The strict rule is the review check's own grep, which accepts that summary as well |
+| A1 | BUG | Codex (melious RISK) | A summary after the second marker that starts like a finding (`- Totals: 1 BUG, 1 RISK`) makes that marker usable; both real findings are dropped | Fixed after #481 merged, in its own pull request, at the owner's word ("Fix A1 first", 2026-11-08): see "A1 fix" below |
 | A2 | BUG | Codex | `codex_tokens` comment said "never guessed", but a quoted bare pair after the footer, or in a run with no footer, counts | The behaviour is the plan's (section 3). The comment was wrong: fixed |
 | A3 | RISK | melious | Lines like `BUG — …`, `1) BUG`, `> BUG` do not count | Refuted: `looks_like_review`'s grep needs the same lead, so such a reply fails the check anyway |
 | A4 | RISK | melious | A same-line footer (`tokens used 72,315`) is not read | Refuted by measurement: 60 of 60 `codex.err` files hold the bare pair |
@@ -65,8 +65,34 @@ with no Perl-only match. melious:
 | B2 | BUG | A2 again: the behaviour is unchanged | Same as A2: the plan's section 3 names it as still wrong after the fix |
 | B3 | NIT | T13 needs a space before the paren | Refuted: `log_seat` cuts at the first ` (`, so an outcome without the space would log `-`; the check must require it |
 
+## A1 fix (after #481 merged)
+
+The owner chose to fix A1 rather than defer it. #481 merged before the fix was ready (the owner's
+word in the build session), so the fix is its own pull request, branch `fix/a1-closing-tally`. The reader now cuts each count, a number then a
+label, from a line before testing it against the strict rule, so a closing tally no longer makes
+its marker usable and the walk falls back to the first marker (plan, section 1). T4 now checks the
+review is kept, by the reader and through `independent_review.sh`; T16 checks that a finding
+naming a count still counts.
+
+Every real `melious.resp` under `$TMPDIR`, replayed with each marker its prompt holds through the
+reader before and after the fix: the same section and exit code in all 550 run and marker pairs (577
+before; some run folders have since been cleared). So in no real reply did a tally win the walk.
+
+Mutations, each on the reader with T4's and T16's replies (not the whole suite):
+
+| Id | Mutation | Killed by |
+|---|---|---|
+| M14 | the walk tests the plain rule | T4 |
+| M15 | the "came N times" count tests the plain rule | T4, once `no_notes` was fixed |
+| M16 | the cut takes a label without a number | T4, T16 |
+| M17 | no cut | T4 |
+
+M15 first survived: the test helper `no_notes` looked for "the marker came", but the note printed
+when nothing comes before the marker says "the final-review marker came". It now looks for
+"marker came". T1–T3 use the same helper, so before this they could not see that note either.
+
 ## State at the end
 
-No BUG that the change introduced is open. A1 and B2 are old defects the plan names as "still wrong
-after the fix"; they stay open and need an owner's call (a BUGLOG row, or a fix in a later change).
+No BUG that the change introduced is open. A1 is fixed (above). B2 (A2) is an old defect the plan
+names as "still wrong after the fix"; the owner deferred it to a `docs/BUGLOG.md` row, 2026-11-08.
 Round 2 was the verify round of fixes that are tests and comments, plus one grep: no further round.
