@@ -202,7 +202,7 @@ has   "T15 a string named from is not the keyword"           "$(nf named-from)"
 if awk '/^    IMPORT / && prev !~ /^    ([0-9a-f]+ |IMPORT )/ { bad = 1 } { prev = $0 } END { exit !bad }' "$T/out"; then
   echo "FAIL an IMPORT line does not follow its spec's log lines"; fails=$((fails+1))
 else echo "ok   every IMPORT line follows its spec's log lines"; fi
-NOTICE="Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (the path after the first 'from', relative paths only); other forms are not checked."
+NOTICE="Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (the path after the first 'from', or a bare import's own; relative paths only); other forms are not checked."
 has   "T13 the import check states its limit"                 "$NOTICE"
 if awk -v n="$NOTICE" '/^Specs that import a file this site lacks/ { h = NR } $0 == n { m = NR } END { exit !(h && m > h) }' "$T/out"; then
   echo "ok   T13 the notice comes after the closing block"

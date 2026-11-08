@@ -345,7 +345,8 @@ site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, o
 # The first ./ or ../ specifier of each one-line static import on stdin. A helper, not a
 # parser: other import forms are not read, and the report says so.
 # Quotes are made double first (no octal escape for awk to differ on); each /* */ comment
-# becomes a blank. The specifier is the quoted string after the first `from`.
+# becomes a blank. The specifier is the quoted string after the first `from`, or a bare
+# import's own.
 spec_imports() {
   awk '{ gsub(/'\''/, "\"")
       while ((i = index($0, "/*")) && (j = index(substr($0, i + 2), "*/")))
@@ -524,7 +525,7 @@ CHANGED
   fi
   if [ -n "$specs_checked" ]; then
     echo
-    echo "Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (the path after the first 'from', relative paths only); other forms are not checked."
+    echo "Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (the path after the first 'from', or a bare import's own; relative paths only); other forms are not checked."
   fi
   echo
   echo "Review + merge each by hand, e.g.:"
