@@ -11,6 +11,10 @@
 # not missing, and neither is one deleted upstream. The last case checks every file in the
 # real TEMPLATE_TRACKED list: the path the report shows as its site copy must be the path the
 # MISSING check looks for, so the two mappings cannot drift apart or lose a file.
+# A changed spec can also import a file the site never had (functions/_middleware on a site
+# without functions/): taking the spec alone then fails when it loads. The import cases pin
+# that each such file is named, that a file the site has in any lookup form is not, and that
+# the real template specs raise no false alarm against the starter they ship with.
 #
 # Usage: bash scripts/test_whats_new.sh
 set -u
@@ -78,14 +82,8 @@ hasnt "a changed file the site has is not MISSING"            "no scripts/hooks/
 hasnt "a changed test the site has is not MISSING"            "no tests/a.spec.ts"
 has   "a file deleted upstream is still listed as drift"      "  templates/astro/scripts/set_pdf_title.py (site copy: scripts/set_pdf_title.py)"
 hasnt "a file deleted upstream is not MISSING"                "no scripts/set_pdf_title.py"
-# A changed spec may import a site file the site lacks: the report prints a grep for those
-# imports, and the grep must run as printed and find one.
-has   "a changed spec prints the import grep"                 "  grep -rn --include='*.spec.ts' \"from .\\.\\./\" \"$S/$A/tests\""
-if bash -c "$(sed -n 's/^  grep -rn /grep -rn /p' "$T/out")" 2>&1 | grep -qF "b.spec.ts:2:import { y } from '../src/lib/y';"; then
-  echo "ok   the printed grep finds the spec's site import"
-else
-  echo "FAIL the printed grep does not find the spec's site import"; fails=$((fails+1))
-fi
+# The changed spec's import the site lacks is named (the full import cases are further down).
+has   "a changed spec names an import the site lacks"         "    IMPORT NOT FOUND: src/lib/y (this spec imports it)"
 
 # A site older than TESTS-VERSION falls back to its SUITE-VERSION baseline: the sites this
 # check exists for, so the same file must be MISSING there too.
@@ -143,5 +141,111 @@ while IFS='|' read -r shown checked; do
 done < "$T/pairs"
 has   "a template test in a subfolder keeps its path"        "    MISSING: the site has no tests/sub/x.spec.ts"
 
+# Imports of changed specs. Each spec is one case; the site lacks every file unless noted.
+IS="$T/isuite" IP="$T/isite"
+mkdir -p "$IS/scripts"
+cp "$HERE/whats-new.sh" "$IS/scripts/"
+spec() { local dest="$IS/$A/tests/$1"; mkdir -p "$(dirname "$dest")"; shift; printf '%s\n' "$@" > "$dest"; }  # spec <path> <line>...
+spec keep.spec.ts "import { n } from '../never/there';"     # unchanged: never checked
+spec gone.spec.ts "import { g } from '../gone/thing';"      # deleted upstream
+$git -C "$IS" init -q && $git -C "$IS" add -A && $git -C "$IS" commit -qm base
+IBASE="$($git -C "$IS" rev-parse HEAD)"
+$git -C "$IS" rm -q "$A/tests/gone.spec.ts"
+spec t1.spec.ts  "import { onRequest } from '../functions/_middleware';"
+spec t3.spec.ts  "import { site } from '../src/config';" "import { obfuscate } from '../src/lib/obfuscate';" "import { o } from '../src/lib/other';"
+spec t4.spec.ts  'import { d } from "../dq/a";' "import '../bare/b';"
+spec t6.spec.ts  "import x from '../../outside';"
+spec t8.spec.ts  "import a from '../m/a';" "import b from '../m/b';" "import c from '../m/c';" "import d from '../m/d';" "import e from '../m/e.json';"
+spec sub/n.spec.ts "import { h } from '../_helpers';"
+spec t12.spec.ts "import { e } from './_extra';"
+spec t14.spec.ts "// was: import theme from '../v1/theme'" "import x from'../x14';"
+$git -C "$IS" add -A && $git -C "$IS" commit -qm later
+mkdir -p "$IP/.claude/skills" "$IP/tests" "$IP/src/lib" "$IP/m/d"
+stamp "$IP/.claude/skills/SUITE-VERSION" "$IBASE"
+stamp "$IP/tests/TESTS-VERSION" "$IBASE"
+echo v1 > "$IP/tests/keep.spec.ts"
+echo v1 > "$IP/src/config.ts"
+for x in a.tsx b.js c.mjs d/index.ts e.json; do echo v1 > "$IP/m/$x"; done
+
+report "$IS" "$IP" "a site lacking imported files"
+nf() { printf '    IMPORT NOT FOUND: %s (this spec imports it)' "$1"; }
+has   "T1 a missing import is named"                          "$(nf functions/_middleware)"
+has   "T1 the closing block names spec and import"            "  tests/t1.spec.ts → functions/_middleware"
+has   "T1 the closing block has its heading"                  "Specs that import a file this site lacks. Before taking one, take the file too, change"
+has   "T3 the second missing import is named"                 "$(nf src/lib/obfuscate)"
+has   "T3 the third missing import is named"                  "$(nf src/lib/other)"
+has   "T3 each has its own closing line"                      "  tests/t3.spec.ts → src/lib/obfuscate"
+has   "T3 each has its own closing line (2)"                  "  tests/t3.spec.ts → src/lib/other"
+hasnt "T3 a file the site has is not named"                   "NOT FOUND: src/config"
+has   "T4 a double-quoted import is read"                     "$(nf dq/a)"
+has   "T4 a bare import is read"                              "$(nf bare/b)"
+hasnt "T5 a spec deleted upstream is not checked"             "gone/thing"
+if grep -q '^fatal:' "$T/out"; then echo "FAIL T5 git printed an error"; fails=$((fails+1)); else echo "ok   T5 no git error"; fi
+has   "T6 an import leaving the site is said, not skipped"    "    IMPORT NOT CHECKED: ../../outside points outside the site"
+hasnt "T7 an unchanged spec is not checked"                   "never/there"
+hasnt "T8 every lookup form counts as present"                "NOT FOUND: m/"
+has   "T10 a nested spec resolves from its own folder"        "$(nf tests/_helpers)"
+has   "T12 a sibling import is checked"                       "$(nf tests/_extra)"
+hasnt "T14 a commented-out import is not read"                "v1/theme"
+has   "T14 an import with no blank before its quote is read"  "$(nf x14)"
+# Every IMPORT line follows the spec's git log lines (or another IMPORT line), so the pairing
+# check above never reads one as a drift line's MISSING line.
+if awk '/^    IMPORT / && prev !~ /^    ([0-9a-f]+ |IMPORT )/ { bad = 1 } { prev = $0 } END { exit !bad }' "$T/out"; then
+  echo "FAIL an IMPORT line does not follow its spec's log lines"; fails=$((fails+1))
+else echo "ok   every IMPORT line follows its spec's log lines"; fi
+NOTICE="Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (relative paths, the first on each line); other forms are not checked."
+has   "T13 the import check states its limit"                 "$NOTICE"
+if awk -v n="$NOTICE" '/^Specs that import a file this site lacks/ { h = NR } $0 == n { m = NR } END { exit !(h && m > h) }' "$T/out"; then
+  echo "ok   T13 the notice comes after the closing block"
+else echo "FAIL T13 the notice is not after the closing block"; fails=$((fails+1)); fi
+
+# T8: each lookup form, removed in turn, is then named.
+for x in a.tsx:m/a b.js:m/b c.mjs:m/c d/index.ts:m/d e.json:m/e.json; do
+  mv "$IP/m/${x%%:*}" "$T/moved"
+  report "$IS" "$IP" "T8 without m/${x%%:*}"
+  has "T8 without m/${x%%:*} it is named" "$(nf "${x#*:}")"
+  mv "$T/moved" "$IP/m/${x%%:*}"
+done
+
+# T9 then T2: an empty folder of the import's name is not the file; the file itself is.
+mkdir -p "$IP/functions/_middleware"
+report "$IS" "$IP" "T9 an empty folder of that name"
+has   "T9 an empty folder does not count"                     "$(nf functions/_middleware)"
+echo v1 > "$IP/functions/_middleware.ts"
+report "$IS" "$IP" "T2 the site has the file"
+hasnt "T2 a file the site has is not named"                   "NOT FOUND: functions/_middleware"
+hasnt "T2 nor in the closing block"                           "→ functions/_middleware"
+
+# T13: with no changed spec there is no import check, and so no notice.
+S3="$T/suite3" P3="$T/site3"
+mkdir -p "$S3/scripts" "$P3/.claude/skills" "$P3/tests" "$P3/scripts/hooks"
+cp "$HERE/whats-new.sh" "$S3/scripts/"
+put "$S3/$A/scripts/hooks/pre-push" v1
+$git -C "$S3" init -q && $git -C "$S3" add -A && $git -C "$S3" commit -qm base
+BASE3="$($git -C "$S3" rev-parse HEAD)"
+put "$S3/$A/scripts/hooks/pre-push" v2
+$git -C "$S3" add -A && $git -C "$S3" commit -qm later
+stamp "$P3/.claude/skills/SUITE-VERSION" "$BASE3"
+stamp "$P3/tests/TESTS-VERSION" "$BASE3"
+echo v1 > "$P3/scripts/hooks/pre-push"
+report "$S3" "$P3" "T13 no changed spec"
+hasnt "T13 no changed spec, no notice"                        "Import check:"
+
+# T11: the real template specs, every one counted as changed, against a copy of the starter
+# they ship with: today's real imports must raise no false alarm.
+S4="$T/suite4" P4="$T/site4"
+mkdir -p "$S4/scripts" "$S4/$A" "$P4/.claude/skills"
+cp "$HERE/whats-new.sh" "$S4/scripts/"
+$git -C "$S4" init -q && $git -C "$S4" add -A && $git -C "$S4" commit -qm base
+BASE4="$($git -C "$S4" rev-parse HEAD)"
+cp -R "$HERE/../$A/tests" "$S4/$A/"
+$git -C "$S4" add -A && $git -C "$S4" commit -qm later
+cp -R "$HERE/../$A/." "$P4/"
+stamp "$P4/.claude/skills/SUITE-VERSION" "$BASE4"
+stamp "$P4/tests/TESTS-VERSION" "$BASE4"
+report "$S4" "$P4" "T11 the real specs against the starter"
+has   "T11 the real specs were checked"                       "$NOTICE"
+hasnt "T11 no false alarm on the real imports"                "IMPORT NOT"
+
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed" >&2; exit 1; }
-echo "all whats-new missing-file tests passed"
+echo "all whats-new missing-file and import tests passed"

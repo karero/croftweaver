@@ -342,8 +342,40 @@ site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, o
   esac
 }
 
+# The first ./ or ../ specifier of each one-line static import on stdin. A helper, not a
+# parser: other import forms are not read, and the report says so.
+spec_imports() {
+  awk '/^[[:space:]]*import[[:space:]]*["\047]/ || (/^[[:space:]]*import[[:space:]{*]/ && /from[[:space:]]*["\047]/) {
+    if (match($0, /["\047]\.\.?\/[^"\047]*["\047]/)) print substr($0, RSTART + 1, RLENGTH - 2)
+  }'
+}
+
+# $1 = the spec's folder in the site, $2 = specifier; prints the site-relative path, or
+# returns 1 when the specifier leaves the site.
+resolve_import() {
+  local rest="$1/$2" part out=""
+  while [ -n "$rest" ]; do
+    part="${rest%%/*}"
+    if [ "$part" = "$rest" ]; then rest=""; else rest="${rest#*/}"; fi
+    case "$part" in
+      ""|.) ;;
+      ..) [ -n "$out" ] || return 1
+          case "$out" in */*) out="${out%/*}" ;; *) out="" ;; esac ;;
+      *) out="${out:+$out/}$part" ;;
+    esac
+  done
+  printf '%s\n' "$out"
+}
+
+# Regular files only, so an empty folder of the import's name does not count.
+site_has_module() {  # $1 = path in the site, as imported (extension optional)
+  [ -f "$1" ] || [ -f "$1.ts" ] || [ -f "$1.tsx" ] || [ -f "$1.js" ] || [ -f "$1.mjs" ] || [ -f "$1/index.ts" ]
+}
+
 process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline source label
   local tests_dir="$1" base="$2" src="$3" short_base changed f site_rel missing=""
+  local site_root spec_site spec path lacking="" specs_checked=""
+  site_root="$(dirname "$tests_dir")"
   if [ -z "$base" ] || [ "$base" = "unknown" ]; then
     echo "error: the tests baseline ($src) has no usable commit (zip install?). Compare by" >&2
     echo "hand, then set a fresh baseline with:  scripts/whats-new.sh --stamp-tests $tests_dir" >&2
@@ -445,6 +477,26 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
 "
     fi
     git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "$f" | sed 's/^/    /'
+    # A changed spec can import a file the site never had (src/lib, functions/): name it.
+    case "$f" in
+      skills/new-website/templates/astro/tests/*.spec.ts)
+        if git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null; then
+          specs_checked=1
+          spec_site="${f#skills/new-website/templates/astro/}"
+          while IFS= read -r spec; do
+            [ -n "$spec" ] || continue
+            if ! path="$(resolve_import "$(dirname "$spec_site")" "$spec")"; then
+              echo "    IMPORT NOT CHECKED: $spec points outside the site"
+            elif ! site_has_module "$site_root/$path"; then
+              echo "    IMPORT NOT FOUND: $path (this spec imports it)"
+              lacking="$lacking  $spec_site → $path
+"
+            fi
+          done <<IMPORTS
+$(git -C "$REPO_DIR" show "HEAD:$f" | spec_imports)
+IMPORTS
+        fi ;;
+    esac
   done <<CHANGED
 $changed
 CHANGED
@@ -455,6 +507,16 @@ CHANGED
     echo "does without it:"
     printf '%s' "$missing"
   fi
+  if [ -n "$lacking" ]; then
+    echo
+    echo "Specs that import a file this site lacks. Before taking one, take the file too, change"
+    echo "the spec, or leave the spec out and note why:"
+    printf '%s' "$lacking"
+  fi
+  if [ -n "$specs_checked" ]; then
+    echo
+    echo "Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (relative paths, the first on each line); other forms are not checked."
+  fi
   echo
   echo "Review + merge each by hand, e.g.:"
   echo "  git -C $REPO_DIR diff $short_base HEAD -- $(head -n 1 <<<"$changed")"
@@ -462,12 +524,6 @@ CHANGED
     echo "NOTE: tests/_helpers.ts changed — specs import it (tone.spec.ts, i18n.spec.ts on"
     echo "multilingual sites, mail-form.spec.ts with a contact form), so merge the helpers together"
     echo "with any spec that uses the new exports, or the import breaks loudly."
-  fi
-  # A spec can import site files the site never had (src/lib, functions/): say how to check first.
-  if grep -q 'templates/astro/tests/.*\.spec\.ts$' <<<"$changed"; then
-    echo "NOTE: a spec may import site files (from '../…') this site lacks. Before taking a spec,"
-    echo "check the site has each file it imports; this lists the imports of every template spec:"
-    echo "  grep -rn --include='*.spec.ts' \"from .\\.\\./\" \"$REPO_DIR/skills/new-website/templates/astro/tests\""
   fi
   echo "When the site's copies are current again, advance the baseline:"
   echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
