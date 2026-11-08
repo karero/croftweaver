@@ -365,6 +365,15 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
     assert.ok(!r.text.includes('help.example'), r.text);
   });
+  test('S1g: a template string in SITE gives the old words, not a url line inside it', async () => {
+    const files = config('https://lenas-backstube.example');
+    const tpl = files['src/config.ts'].replace('export const SITE = {\n', "export const SITE = {\n  note: `See\n  url: 'https://help.example' for help`,\n");
+    assert.ok(tpl.includes("\n  url: 'https://help.example' for help`"), 'the template string was not written');
+    const r = await run('', withoutSite(), { 'src/config.ts': tpl });
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+    assert.ok(!r.text.includes('help.example'), r.text);
+  });
   test('S2: a pages.dev address is not a domain of its own, and the site launches first', async () => {
     const r = await run('https://lenas-backstube.pages.dev', withoutSite());
     assert.equal(r.code, 1, r.text);

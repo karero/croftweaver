@@ -722,7 +722,7 @@ async function siteAddress(git) {
   const r = await git('show', 'HEAD:src/config.ts');
   if (r.code !== 0) return null;
   const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(r.stdout)?.[1];
-  if (site === undefined || /[{}]/.test(site)) return null; // only the template's flat form; a nested or one-line SITE gives the old words
+  if (site === undefined || /[{}`]/.test(site)) return null; // only the template's flat form; a nested or one-line SITE, or a template string, gives the old words
   const url = /^[ \t]*url:[ \t]*['"]([^'"\n]+)['"]/m.exec(site)?.[1];
   let host;
   try { host = new URL(url).hostname.toLowerCase().replace(/\.$/, ''); } catch { return null; }
