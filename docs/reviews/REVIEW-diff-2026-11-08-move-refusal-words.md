@@ -8,33 +8,36 @@ command (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`), fresh-eyes Sonnet in roun
 leaves out `docs/reviews/`. The runs, the evidence and the mutation record sit in the session's
 scratchpad; the figures below are copied from them.
 
-**Verdict: ROUND4_VERDICT** Gate `20261108T201342Z-15892`, ROUNDS_TOTAL.
+**Verdict: CLEAN at round 5** (no BUG or RISK; of its two NITs one fixed in `0e506e01`, with test S1g and
+mutation M15, not externally re-verified, and one accepted as designed). Gate `20261108T201342Z-15892`: 5 rounds, 31 findings,
+440,358 tokens logged over 11 seat runs (fresh-eyes included).
 
 ## Mutation check
 
 Each mutation ran in a throwaway copy of `skills/new-website/scripts`, with the template's
 `src/config.ts` beside it and the plan's S tests picked by name; the harness refuses a run where
-one of them did not run. The last run is on `27d9f754` (12 S tests).
+one of them did not run. The last run is on `0e506e01` (14 S tests).
 
 | Id | Mutation | Killed by |
 |---|---|---|
 | M0 | none | — (all pass) |
-| M1 | `siteAddress` returns nothing | S1, S1b, S1d, S1e, S2, S3, S4, S4b, S7 |
+| M1 | `siteAddress` returns nothing | S1, S1b, S1d, S2, S3, S4, S4b, S7 |
 | M2 | no permissions line | S3, S7 |
 | M3 | no gaps after a refused token | S4 |
 | M4 | only the first gap is listed | S5 |
 | M5 | the address can refuse a token that reaches one zone | S6 |
-| M6 | the first block pattern (`^\};`) | S1, S1b, S1d, S1e, S2, S3, S4, S4b, S7 |
+| M6 | the first block pattern (`^\};`) | S1, S1b, S1d, S2, S3, S4, S4b, S7 |
 | M7 | no pages.dev words | S2 |
 | M8 | the site's zone is looked for among the reaching zones only | S1b |
 | M9 | no CRLF strip (at `8943610b`) | survived, so the strip was dropped |
 | M10 | the placeholder counts as an address | S1c |
 | M11 | the token catch in every command | S4b |
 | M12 | gaps listed during an open move | survived, expected (finding A6) |
-| M13 | a `url:` at any indent | S1e |
+| M13 | no flat-form guard (a block with braces or a backtick is read) | S1e, S1f, S1g |
 | M14 | no url on the brace line | S1d |
+| M15 | the guard lets a template string through | S1g |
 
-Before the fix, on base `e7c68dbe`: S1 to S5 and S7 fail, S6 passes (S1b to S1e were written
+Before the fix, on base `e7c68dbe`: S1 to S5 and S7 fail, S6 passes (S1b to S1g were written
 later).
 
 ## Rounds
@@ -44,10 +47,13 @@ later).
 | 1 | `3ad7fd4` | whole change; evidence (32,521 bytes) | Codex; melious glm-5.3; fresh-eyes Sonnet | Codex 155 s, 64,587 · melious 182 s, 40,975 · fresh-eyes 75 s, 110,415 | 2 / 6 / 6 (Codex 2/2/0, melious 0/1/4, fresh-eyes 0/4/3; two shared) |
 | 2 | `4d016e36` | round 1's fixes | Codex; melious glm-5.3 | Codex 139 s, 49,343 · melious 197 s, 26,953 | 0 / 2 / 3 (one RISK outside scope) |
 | 3 | `c786899d` | round 2's fixes | Codex; melious glm-5.3 | Codex 100 s, 32,440 · melious 139 s, 17,885 | 2 / 1 / 4 (one NIT outside scope) |
-| 4 | `07cb8a8d` | round 3's fixes; earned by `site-address-read`, with a cut | Codex; melious glm-5.3 | ROUND4_TIMINGS | ROUND4_COUNTS |
+| 4 | `07cb8a8d` | round 3's fixes; earned by `site-address-read`, with a cut | Codex; melious glm-5.3 | Codex 105 s, 29,383 · melious 171 s, 20,036 | 2 / 0 / 1 (Codex 2/0/0, melious 1/0/1; one shared) |
+| 5 | `1c3d3678` | round 4's fixes; earned by `site-address-read`, with a second cut | Codex; melious glm-5.3 | Codex 116 s, 30,884 · melious 152 s, 17,457 | 0 / 0 / 2 (melious) |
 
-Round 4 was earned by round 3's BUGs in `siteAddress`. The fix is a cut: round 2's wider read of
-`SITE` was dropped, and only the template's form is read, with the url as a top-level key.
+Rounds 4 and 5 were earned by BUGs of one kind, `site-address-read`: `siteAddress` taking another
+object's url for the site's. Round 4's cut dropped round 2's wider read of `SITE`. The kind came
+back, so round 5's cut replaced the read by a strict rule: a block holding any other brace (or,
+after round 5, a backtick) gives today's words. Round 5 found no BUG or RISK, so the rounds end.
 
 ## Round 1 findings
 
@@ -82,7 +88,7 @@ Round 4 was earned by round 3's BUGs in `siteAddress`. The fix is a cut: round 2
 
 | Id | Sev | From | Finding | Status |
 |---|---|---|---|---|
-| C1 | BUG | Codex | A nested `url:` inside `SITE` was read as the site's | Fixed: the block ends at `SITE`'s closing line, and `url:` counts only at a top-level indent. Test S1e (M13) |
+| C1 | BUG | Codex | A nested `url:` inside `SITE` was read as the site's | Fixed in round 3 by an indent rule; D2 showed indentation does not prove depth, and round 5's cut replaced it. Test S1e |
 | C2 | BUG | Codex | Reading to the next export takes a url from a later declaration | Fixed by the same cut (M6) |
 | C3 | RISK | melious | The same over-read as C2 | Fixed with C2 |
 | C4 | NIT | melious | `[{,]` before `url:` can match inside a quoted value | Gone: `url:` is matched only at a line start |
@@ -90,7 +96,20 @@ Round 4 was earned by round 3's BUGs in `siteAddress`. The fix is a cut: round 2
 | C6 | NIT | melious | The comment "to the next export" is incomplete | Gone with the cut |
 | C7 | NIT (outside scope) | melious | A typed `SITE: Site =` is not read | Re-sorted: rare, in the same BUGLOG row as B1 |
 
-ROUND4_FINDINGS
+## Round 4 findings
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| D1 | BUG | Codex, melious | A `SITE` on one line has no closing line of its own, so the block runs on to a later object's, and that object's `url:` is read (C2 again) | Fixed by the cut: a block holding another brace gives the old words. Test S1f (M13) |
+| D2 | BUG | Codex | Indentation does not prove depth: a `support:` at one space with its `url:` at two is read (C1 again) | Fixed by the same cut; the indent rule is gone. S1e uses this case (M13) |
+| D3 | NIT | melious | The comment "a top-level key, not a nested one" overclaims | Gone with the cut |
+
+## Round 5 findings
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| E1 | NIT | melious | A brace inside a string value of a flat `SITE` trips the guard, so the refusal loses the address | Accepted as designed: it falls back to today's words, and the BUGLOG row says so |
+| E2 | NIT | melious | A multi-line template string in a flat `SITE` with a line starting `url:` is read ahead of the real key | Fixed in `0e506e01`: a backtick in the block gives the old words. Test S1g (M15) |
 
 ## Checks
 
