@@ -351,9 +351,10 @@ spec_imports() {
       while ((i = index($0, "/*")) && (j = index(substr($0, i + 2), "*/")))
         $0 = substr($0, 1, i - 1) " " substr($0, i + j + 3)
     }
-    /^[[:space:]]*import[[:space:]]*"\.\.?\// { match($0, /"[^"]*"/); print substr($0, RSTART + 1, RLENGTH - 2); next }
-    /^[[:space:]]*import[[:space:]{*]/ && match($0, /from[[:space:]]*"[^"]*"/) {
-      s = substr($0, RSTART, RLENGTH); sub(/^from[[:space:]]*"/, "", s); s = substr(s, 1, length(s) - 1)
+    /^[[:space:]]*import[[:space:]]*"/ { match($0, /"[^"]*"/); s = substr($0, RSTART + 1, RLENGTH - 2)
+      if (s ~ /^\.\.?\//) print s; next }
+    /^[[:space:]]*import[[:space:]{*]/ && match($0, /[[:space:]}*]from[[:space:]]*"[^"]*"/) {
+      s = substr($0, RSTART, RLENGTH); sub(/^.from[[:space:]]*"/, "", s); s = substr(s, 1, length(s) - 1)
       if (s ~ /^\.\.?\//) print s
     }'
 }
@@ -523,7 +524,7 @@ CHANGED
   fi
   if [ -n "$specs_checked" ]; then
     echo
-    echo "Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (relative paths, the first on each line); other forms are not checked."
+    echo "Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (the path after the first 'from', relative paths only); other forms are not checked."
   fi
   echo
   echo "Review + merge each by hand, e.g.:"

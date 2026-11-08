@@ -160,7 +160,8 @@ spec sub/n.spec.ts "import { h } from '../_helpers';"
 spec t12.spec.ts "import { e } from './_extra';"
 spec t14.spec.ts "// was: import theme from '../v1/theme'" "import x from'../x14';"
 spec t15.spec.ts 'import x /* was "../src/config" */ from "../missing-module";' "import { read } from 'node:fs'; load('../fixture');" \
-  'import/* glued */g from "../glued";' "import { w } from 'node:fs'; // from '../fixture2'"
+  'import/* glued */g from "../glued";' "import { w } from 'node:fs'; // from '../fixture2'" \
+  'import { "from" as f } from "../named-from";' "import 'node:fs'; // from '../fixture3'"
 spec t16.spec.ts "import r from '../';"
 $git -C "$IS" add -A && $git -C "$IS" commit -qm later
 mkdir -p "$IP/.claude/skills" "$IP/tests" "$IP/src/lib" "$IP/m/d"
@@ -195,12 +196,13 @@ has   "T14 an import with no blank before its quote is read"  "$(nf x14)"
 has   "T15 the path after from is read, not one in a comment" "$(nf missing-module)"
 hasnt "T15 a relative string after a package import is not"   "fixture"
 has   "T15 a comment right after import is a blank"           "$(nf glued)"
+has   "T15 a string named from is not the keyword"           "$(nf named-from)"
 # Every IMPORT line follows the spec's git log lines (or another IMPORT line), so the pairing
 # check above never reads one as a drift line's MISSING line.
 if awk '/^    IMPORT / && prev !~ /^    ([0-9a-f]+ |IMPORT )/ { bad = 1 } { prev = $0 } END { exit !bad }' "$T/out"; then
   echo "FAIL an IMPORT line does not follow its spec's log lines"; fails=$((fails+1))
 else echo "ok   every IMPORT line follows its spec's log lines"; fi
-NOTICE="Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (relative paths, the first on each line); other forms are not checked."
+NOTICE="Import check: reads one-line \"import … from './…'\" and \"import '../…'\" lines only (the path after the first 'from', relative paths only); other forms are not checked."
 has   "T13 the import check states its limit"                 "$NOTICE"
 if awk -v n="$NOTICE" '/^Specs that import a file this site lacks/ { h = NR } $0 == n { m = NR } END { exit !(h && m > h) }' "$T/out"; then
   echo "ok   T13 the notice comes after the closing block"
