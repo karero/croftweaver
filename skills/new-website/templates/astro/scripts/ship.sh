@@ -68,40 +68,15 @@ config_text() { # <folder>
 # follows such redirects, but keep the normalization.
 site_of() { # <astro.config.mjs text>
   local s
-  s="$(site_addrs "$1" | head -1 || true)"
+  s="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
   printf '%s\n' "${s%/}"
 }
 
-# The `site:` addresses in the astro.config.mjs text given, one per line, outside comments: an old
-# address kept in a comment is not the address the build uses. Quotes are tracked, across lines too,
-# so a `//` or `/*` inside a string stays; a regular-expression literal is not understood.
-site_addrs() { # <astro.config.mjs text>
-  awk -v sq="'" '
-    { out = ""; n = length($0); i = 1
-      while (i <= n) {
-        c = substr($0, i, 1); d = substr($0, i, 2)
-        if (blk) { if (d == "*/") { blk = 0; i += 2 } else i++; continue }
-        if (q != "") {
-          out = out c
-          if (c == "\\") { out = out substr($0, i + 1, 1); i += 2; continue }
-          if (c == q) q = ""
-          i++; continue
-        }
-        if (d == "//") break
-        if (d == "/*") { blk = 1; i += 2; continue }
-        if (c == "\"" || c == sq || c == "`") q = c
-        out = out c; i++
-      }
-      print out
-    }' <<<"$1" 2>/dev/null |
-    grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" | sed -E "s/site:[[:space:]]*['\"]//" || true
-}
-
-# none, one or many `site:` addresses outside comments. Many means no one address can be named or
-# checked.
+# none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
+# an old address kept in a comment counts. Many means no one address can be named or checked.
 site_count() { # <astro.config.mjs text>
   local h
-  h="$(site_addrs "$1")"
+  h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none ;; *$'\n'*) echo many ;; *) echo one ;; esac
 }
 
@@ -984,7 +959,7 @@ fi
 # the published copy.
 if [ -z "$site" ]; then
   if [ "$site_n" = many ]; then
-    echo "⚠ astro.config.mjs has more than one site: address, so there is no one address to check — can't verify the deploy."
+    echo "⚠ astro.config.mjs has more than one site: address (an old one in a comment counts), so there is no one address to check — can't verify the deploy."
   else
     echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
   fi
