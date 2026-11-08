@@ -9,10 +9,10 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 |---|---|---|---|
 | 1 | This plan | written 2026-11-08 | this file |
 | 2 | PLAN gate, High | CLEAN 2026-11-08: 9 rounds, a final full read, a closing re-gate | `docs/reviews/REVIEW-plan-2026-11-08-claude-peaceful-gates-cde640-3ecc8f6.md` |
-| 3 | `ship.sh`: first line, the question, markers 0.25 | built in the build session; fromGitHub reads the site from GitHub's commit (DIFF r1, Codex BUG) | see step 6 |
-| 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_TTY` | built; T8 bound 30 s (15 s missed under load) | see step 6 |
-| 5 | `PUBLISHING.md` sentence, BUGLOG release-notes row | not started | — |
-| 6 | `make check`, mutation check, DIFF gate at High, then PR | not started | — |
+| 3 | `ship.sh`: first line, the question, markers 0.25 | built; fromGitHub reads the site from GitHub's commit (DIFF r1, Codex BUG) | `10f24d84`, `19b48389`, `7123b94d` |
+| 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_TTY` | built; T8 bound 30 s (15 s missed under load) | `10f24d84`, `19b48389`, `1dadc9aa`; default and bash 3.2: 68 outcomes, 384 real-git checks, exit 0 |
+| 5 | `PUBLISHING.md` sentence, BUGLOG release-notes row | built | `10f24d84`, `19b48389`; many-sites follow-up row `38ff65f1` |
+| 6 | `make check`, mutation check, DIFF gate at High, then PR | `make check` exit 0; 28 mutations KILLED (two survived once, killed after two url cases); DIFF gate: 3 rounds, 23 findings (5 BUG, none open), 268,011 tokens logged, fresh-eyes rounds 1-2 not counted; PR: its body | `7123b94d`; trail `docs/reviews/REVIEW-diff-2026-11-08-ship-names-site.md` |
 
 ## What and why
 
