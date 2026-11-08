@@ -24,6 +24,9 @@ mkdir -p .agents/skills
 cp -R path/to/croftweaver/skills/* .agents/skills/
 ```
 
+### Both at once: an old copy can win
+Install one way, not both. In one test with both, the Antigravity app used the older global copy whenever its session was not in the workspace folder; the `agy` command, run from that folder, used the workspace copy. Nothing warned that the old copy was in use. So when you update the suite, run the copy command again for every install you made, or delete the copy you don't use.
+
 ## 2. Usage
 
 Once installed, open an Antigravity chat. With a global install (Option A), open it in your websites folder (`Documents/Websites`, or wherever you keep your projects). With a workspace install (Option B), open it in the folder that contains `.agents/skills`. Then simply trigger the orchestrator just as you would with Claude:
