@@ -10,7 +10,7 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 | 1 | This plan | written 2026-11-08 | this file |
 | 2 | PLAN gate, High | not started | — |
 | 3 | `ship.sh`: first line, the question, markers 0.25 | not started; waits for the owner's go | — |
-| 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_REQUIRE_TTY` | not started | — |
+| 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_TTY` | not started | — |
 | 5 | `PUBLISHING.md` sentence, BUGLOG release-notes row | not started | — |
 | 6 | `make check`, mutation check, DIFF gate at High, then PR | not started | — |
 
@@ -49,12 +49,14 @@ every run at a terminal. The owner decided it on 2026-11-08 ("Start it and add i
   lose the `)"` and fail the entry as stale. Line 753 becomes `site="$(site_of "${wt:-.}")"`, and
   the slash strip after it (line 758) goes, its comment (754–757) moving into `site_of` with the
   strip, so one slash is stripped as today: `site: 'https://a//'` still asks for
-  `https://a//build.txt`. The live check is otherwise unchanged.
+  `https://a//build.txt`. The comment's last clause, "same as the llms-coverage guard applies",
+  is dropped in the move: that guard strips every trailing slash, this one strips one. The live
+  check is otherwise unchanged.
 - `site_count <folder>`: `none`, `one` or `many`, from every match of the same pattern in that
   file (`h="$(grep -oE … 2>/dev/null || true)"`, no pipe), read with
   `case "$h" in '') none;; *$'\n'*) many;; *) one;; esac`. It counts matches, not lines, so an old
   address kept in a comment counts whether it sits on its own line or beside the live one. The
-  starter has one. With `many`, `site_of` may return the commented one, so the first line and the
+  starter's own `astro.config.mjs` gives `one`, `https://example.com` (READ 18). With `many`, `site_of` may return the commented one, so the first line and the
   question name no address then (fallback below) rather than a possibly wrong one.
 - `repo_of_origin`: the address `git push origin` uses, which is `origin`'s push address when one is
   set: `git remote get-url --push --all origin 2>/dev/null || true`. More than one line (several
@@ -87,7 +89,9 @@ printed today, unfiltered, by every run that reaches the live check. A run that 
 prints it too, with `owner/name`, on the owner's own screen or log; nothing else is printed.
 
 The mode line ("→ Publishing main → production." or "→ Publishing GitHub's main as of the fetch
-(<id>) …") becomes the second line. The comment at lines 531–532 ("so the first and the last line
+(<id>) …") now follows the first line, with anything that prints before it today (a lock
+refusal, a leftovers warning, a fetch retry) still before it; `mode_has` already finds it as the
+first line starting `→ Publishing`, wherever it sits. The comment at lines 531–532 ("so the first and the last line
 name the commit") changes to "the mode line and the last line".
 
 **C. The question.** It goes after the "Going live" list and its blank line (line 602), before
@@ -200,7 +204,8 @@ own domain; S2 also asserts the no-terminal line comes
 after "Going live" and before "▶ pre-push gate".
 
 **A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--limit S]
-[VAR=value…]` starts ship.sh
+[VAR=value…]` starts ship.sh, with the same stub `bin` folder first on `PATH` as `run_ship`
+(line 1009),
 under `script`: macOS's BSD form `script -q /dev/null <command>`, util-linux's form
 `script -qec 'exec <command>' /dev/null`, told apart by `script --version` (util-linux has it;
 BSD prints "illegal option", measured). Measured: both forms pass their input to the program, and the
@@ -221,17 +226,15 @@ the feeder's wait too: past the limit it sends a terminate to the group and to `
 (ship.sh is not the test shell's child, so it is polled, not waited for), and returns 124. A
 broken case cannot hang the file. `run_tty` sets no `fail` itself: T1 to T7 count 124 as a fail,
 and T8 expects it. Output comes back with `\r\n`; the helper strips
-`\r` before any check. Where `script` is missing the T cases are skipped with a
-printed line. The file runs in several places; the build changes `.github/workflows/template-tests.yml`
-so that the two steps that run it directly, the playwright job's (line 94, Linux) and the Mac
-bash 3.2 step (lines 303–311, in prepare-any-shell's macOS leg), set `SHIP_TEST_REQUIRE_TTY: 1`,
-and a skip fails there, as `SHIP_TEST_REQUIRE_BASH32` does for S10 (e). Elsewhere a skip only
-prints its line: runs through a copied site's pre-push hook (verify-windows' pushes and each
-owner's own pushes), and each site's own CI (`templates/astro/.github/workflows/ci.yml` line 129).
-That CI runs on `ubuntu-latest`, the same image as the playwright job, whose required step shows
-on every run that `script` is there (on Debian it is in `bsdutils`, an essential package; READ 16). On Windows' Git Bash the real-git half already skips itself. The T
-cases run wherever the file runs, so they add time to every push from a site; the PR records how
-much.
+`\r` before any check. The T cases run only when `SHIP_TEST_TTY=1` is set, and there a missing
+`script` fails the file. The build changes `.github/workflows/template-tests.yml` so that the two
+steps that run the file directly set it: the playwright job's (line 94, Linux) and the Mac bash 3.2
+step (lines 303–311, in prepare-any-shell's macOS leg). Everywhere else the file runs, the T cases
+print one line saying they are skipped and run nothing: a copied site's pre-push hook
+(verify-windows' pushes and each owner's own pushes) and each site's own CI
+(`templates/astro/.github/workflows/ci.yml` line 129). So an owner's push never depends on their
+machine's `script`, and the T cases add no time to it; the question itself needs no `script`, only the T cases do.
+The toolkit's CI tests the same `ship.sh` every site gets through `whats-new`.
 - T1 (worktree mode, `advance 1`, so something new goes live) answers `y`: the "Going live" header comes before `Publish to
   https://ship-test.example.invalid (t1/origin)?`, which comes before "▶ pre-push gate"; the run
   ends on the LIVE line, exit 0; production is now main.
@@ -259,7 +262,7 @@ much.
 - The file's last line names the new checks.
 
 **Mutation check**, on the built commit, as the 0.24 build ran it: a small script applies each
-mutation to a copy and runs this file under a time limit (the `mutation-check` skill has no runner
+mutation to a copy and runs this file, with `SHIP_TEST_TTY=1`, under a time limit (the `mutation-check` skill has no runner
 for a bash test file). Each must fail a case:
 always take the no-terminal branch (T1, T2); ask on `[ -t 0 ]` alone (T7); accept any answer (T2);
 accept only lower case (T6); drop the prompt-time trap (T5); move the question after `npm ci` (T2)
@@ -287,7 +290,8 @@ gain a check for the new words).
 - Ctrl-C from a real keyboard through `npm` was not measured; the measurement sent the signal to
   bash's own process. The script's existing stops rely on the same delivery.
 - util-linux `script` was measured offline on Debian 12's 2.38.1 (READ 13), not on the CI image's
-  own version; the CI step that requires the T cases shows it at build.
+  own version; the CI step that sets `SHIP_TEST_TTY` shows it at build. The T cases do not run on
+  owners' machines or in site CI, so a `ship.sh` a site edits by hand loses their cover there.
 - Windows: whether Git Bash reports a terminal was not checked. If it reports none, the run says so
   and goes on as today; if a session's shell reports one, the run waits and publishes nothing. Both
   wrong guesses are safe ones.
