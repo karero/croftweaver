@@ -1,8 +1,7 @@
 # DIFF review — #491 — the starter's updates for a site already on Cloudflare Workers (0.35)
 
 Base `38bf1768` (rounds 1–3), then `3cf57d5e` after the merge of `origin/main` · depth: Normal (code a
-site's build runs; no box, user data, login, money, deletion or schema) · verdict: see the PR
-comment · authority used: POST AUTHORITY, WORKTREE-WRITE and BRANCH-COMMIT — atom A, session
+site's build runs; no box, user data, login, money, deletion or schema) · verdict: CLEAN, with A2 deferred by the owner · authority used: POST AUTHORITY, WORKTREE-WRITE and BRANCH-COMMIT — atom A, session
 "0.35 B" created the PR, the worktree and the branch. Plan: `PLAN-workers-site-updates.md` in the
 private hub (PLAN gate closed: 41 findings, 6 BUGs). Seats: Codex and GLM 5.3 on melious in one
 command (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`), fresh-eyes Sonnet in round 1. The artifact
@@ -16,8 +15,9 @@ leaves out `docs/reviews/`. The evidence files sit in the session's scratchpad.
 | 2 | `b7cc885e` | verify: delta since `7bd4b05f`, PRIOR round 1; evidence READ 5 | Codex (medium); melious | Codex 187 s, 57,187 · melious 231 s, 25,417 | 2 / 0 / 3 |
 | 3 | `6ba70f63` | verify: delta since `b7cc885e`, PRIOR round 2; evidence READ 6–7 | Codex (medium); melious | Codex 102 s, 56,725 · melious 279 s, 36,540 | 0 / 0 / 1 |
 | merge link (not a round) | `c71a4d5c` | `merge_link.sh 38bf1768 6ba70f63 3cf57d5e` (736 lines), PRIOR through round 3; evidence READ 8 | Codex (medium); melious | Codex 264 s, 88,364 · melious 663 s, 81,811 | 0 / 4 / 1 (Codex 0/1/0, melious 0/3/1), and one outside scope |
+| wording pass (not a round) | `0371af4a` | the BUGLOG row added since `c71a4d5c` (1 line), `--wording-pass` | Codex | Codex 63 s, 43,972 | 0 / 0 / 0 |
 
-Three rounds, 15 findings; with the merge link, 9 seat runs, 556,879 tokens (the script's running total).
+Three rounds, 15 findings; with the merge link and the wording pass, 10 seat runs, 600,851 tokens (the script's running total).
 
 ## Findings
 
