@@ -42,9 +42,12 @@ every run at a terminal. The owner decided it on 2026-11-08 ("Start it and add i
 
 **A. Two reads, as functions**, next to `log_view`:
 - `site_of <folder>`: the `site:` address in `<folder>/astro.config.mjs`, trailing slash removed,
-  empty if none. It is today's read at line 753, moved into the function word for word, so the
-  `check_pipefail_pipes.sh` allow-list entry for its `| head -1 || true)"` still matches its one
-  site. Line 753 becomes `site="$(site_of "${wt:-.}")"`; the live check is unchanged.
+  empty if none. It is today's read at line 753, moved into the function word for word and kept
+  as an assignment, `s="$(grep … | head -1 || true)"`, then `printf '%s\n' "${s%/}"`. The
+  `check_pipefail_pipes.sh` allow-list entry matches the fixed text ` | head -1 || true)"` on the
+  flagged line, so it still matches its one site; a bare pipeline as the function's body would
+  lose the `)"` and fail the entry as stale. Line 753 becomes `site="$(site_of "${wt:-.}")"`; the
+  slash strip after it stays, now with nothing to do; the live check is unchanged.
 - `site_count <folder>`: `none`, `one` or `many`, from every match of the same pattern in that
   file (`h="$(grep -oE … 2>/dev/null || true)"`, no pipe), read with
   `case "$h" in '') none;; *$'\n'*) many;; *) one;; esac`. It counts matches, not lines, so an old
@@ -78,8 +81,8 @@ mode the published copy differs whenever the `site:` line differs between this f
 `main` (for example an edit here, committed or not, that is not on GitHub's `main`, or a change on
 GitHub not yet pulled here); the live check at line 753 still reads the published copy. What goes live is decided by the push address, which the line names; the site
 address is the name a person recognises. The address is already
-printed today, unfiltered, by every run that reaches the live check, so the line adds no new
-exposure.
+printed today, unfiltered, by every run that reaches the live check. A run that stops earlier now
+prints it too, with `owner/name`, on the owner's own screen or log; nothing else is printed.
 
 The mode line ("→ Publishing main → production." or "→ Publishing GitHub's main as of the fetch
 (<id>) …") becomes the second line. The comment at lines 531–532 ("so the first and the last line
@@ -195,32 +198,37 @@ after "Going live" and before "▶ pre-push gate".
 
 **A fake terminal.** A helper `run_tty <case> <answer|--eof|--stop|--none> [--prog CMD] [--limit S]
 [VAR=value…]` starts ship.sh
-under `script`: macOS's BSD form `script -q /dev/null bash scripts/ship.sh`, util-linux's form
-`script -qec 'bash scripts/ship.sh' /dev/null`, told apart by `script --version` (util-linux has it;
-BSD prints "illegal option", measured). Measured on macOS: BSD `script` passes its input to the
-program, and sends an end of input the moment its own input ends. So a feeder waits, with a limit,
+under `script`: macOS's BSD form `script -q /dev/null <command>`, util-linux's form
+`script -qec 'exec <command>' /dev/null`, told apart by `script --version` (util-linux has it;
+BSD prints "illegal option", measured). Measured: both forms pass their input to the program, and the
+program reads an end of input once `script`'s own input ends (BSD on macOS, READ 1; util-linux
+2.38.1 on Debian 12, READ 13). So a feeder waits, with a limit,
 until the question is in the log, writes the answer, then holds its input open until ship.sh exits.
 ship.sh is started through the same pattern as `expect`'s wrapper (line 236), with the pid file
 passed as an argument so it lands outside the clone: `bash -c 'echo "$$" > "$1"; exec bash "$0"'
-scripts/ship.sh "$G/<case>.pid"`. A file in the clone would fail the folder-unchanged check and, in
-folder mode, stop the run as unsaved. Under `script` ship.sh leads its own process group, so the
-pid is also the group. A watchdog gives each case 60 seconds (`--limit` changes it), and bounds
+scripts/ship.sh "$G/<case>.pid"` (`--prog FILE` puts another script in place of
+`scripts/ship.sh`). A file in the clone would fail the folder-unchanged check and, in
+folder mode, stop the run as unsaved. Under `script` the program leads its own process group, so the
+pid is also the group: BSD `script` runs the command itself (READ 11), and util-linux runs it
+through `sh -c`, so that form starts with `exec` (READ 13: with it, pid and group match; without
+it, the group is the shell's). A watchdog gives each case 60 seconds (`--limit` changes it), and bounds
 the feeder's wait too: past the limit it sends a terminate to the group and to `script`, polls
-`kill -0` on both for up to 5 seconds, then kills what is left outright, waits for `script`
+`kill -0` on both for up to 5 seconds, then kills what is left outright, the group and `script`
+(util-linux `script` outlives a terminate, READ 13; BSD's exits on it), waits for `script`
 (ship.sh is not the test shell's child, so it is polled, not waited for), and returns 124. A
 broken case cannot hang the file. `run_tty` sets no `fail` itself: T1 to T7 count 124 as a fail,
 and T8 expects it. Output comes back with `\r\n`; the helper strips
 `\r` before any check. Where `script` is missing the T cases are skipped with a
 printed line. The file runs in several places; the build changes `.github/workflows/template-tests.yml`
 so that the two steps that run it directly, the playwright job's (line 94, Linux) and the Mac
-bash 3.2 step (lines 303–311), set `SHIP_TEST_REQUIRE_TTY: 1`, and a skip fails there, as
-`SHIP_TEST_REQUIRE_BASH32` does for S10 (e). Elsewhere a skip only prints its line: runs through
-the pre-push hook (the macOS leg of prepare-any-shell, verify-windows, and each owner's own
-pushes), and each site's own CI (`templates/astro/.github/workflows/ci.yml` line 129, Ubuntu,
+bash 3.2 step (lines 303–311, in prepare-any-shell's macOS leg), set `SHIP_TEST_REQUIRE_TTY: 1`,
+and a skip fails there, as `SHIP_TEST_REQUIRE_BASH32` does for S10 (e). Elsewhere a skip only
+prints its line: runs through a copied site's pre-push hook (prepare-any-shell's pushes on each
+system, verify-windows, and each owner's own pushes), and each site's own CI (`templates/astro/.github/workflows/ci.yml` line 129, Ubuntu,
 which has util-linux `script`). On Windows' Git Bash the real-git half already skips itself. The T
 cases run wherever the file runs, so they add time to every push from a site; the PR records how
 much.
-- T1 (worktree mode) answers `y`: the "Going live" header comes before `Publish to
+- T1 (worktree mode, `advance 1`, so something new goes live) answers `y`: the "Going live" header comes before `Publish to
   https://ship-test.example.invalid (t1/origin)?`, which comes before "▶ pre-push gate"; the run
   ends on the LIVE line, exit 0; production is now main.
 - T2 (worktree mode, one unsaved file in the folder) answers `n`: exit 1; `you did not answer y`
@@ -237,9 +245,9 @@ much.
   argument since `G` is not exported (`script … bash -c 'echo "$$" > "$1"; exec bash "$0" > "$2"'
   scripts/ship.sh "$G/t7.pid" "$G/t7.out"`), with `--none`: its feeder waits for no question and
   only holds the input open. No question, the no-terminal line in the file, the run goes on.
-- T8, the watchdog itself: `run_tty t8 --none --prog <stand-in> --limit 3`, the stand-in an inline
-  `bash -c` (no file, so nothing lands in the clone) that ignores terminate and hang-up, starts a
-  child that sleeps, and sleeps: `run_tty` returns 124
+- T8, the watchdog itself: `run_tty t8 --none --prog "$G/t8-stand.sh" --limit 3`, the stand-in a
+  script under `$G` (outside the clone) that ignores terminate and hang-up, starts a child that
+  sleeps, and sleeps: `run_tty` returns 124
   within 15 seconds, and both the stand-in and its child are gone.
 - Under `SHIP_GATE_SKIP_WORDING` the T cases cannot find the question by its text, so they print
   that they are skipped; no CI step sets it.
@@ -274,8 +282,8 @@ gain a check for the new words).
   today.
 - Ctrl-C from a real keyboard through `npm` was not measured; the measurement sent the signal to
   bash's own process. The script's existing stops rely on the same delivery.
-- util-linux `script`'s handling of its input was not measured on Linux; the feeder's design does not
-  depend on it, and the CI step proves it at build.
+- util-linux `script` was measured offline on Debian 12's 2.38.1 (READ 13), not on the CI image's
+  own version; the CI step that requires the T cases shows it at build.
 - Windows: whether Git Bash reports a terminal was not checked. If it reports none, the run says so
   and goes on as today; if a session's shell reports one, the run waits and publishes nothing. Both
   wrong guesses are safe ones.
