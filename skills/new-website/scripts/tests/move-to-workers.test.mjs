@@ -308,8 +308,13 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
   const recipe = () => capture('cloudflare-api-zones-list-move-token-2026-11-04.json'); // the recipe's token: DNS in the site zone only
   const accountOnly = () => capture('cloudflare-api-zones-list-account-only-token-2026-11-08.json'); // DNS Edit listed in every zone
   const withoutSite = () => recipe().filter((z) => z.name !== ZONE.name);
-  // src/config.ts in the template's form, with SITE.url set.
-  const config = (url) => ({ 'src/config.ts': `export const SITE = {\n  url: '${url}',          // production origin, no trailing slash\n  name: 'Lenas Backstube',\n} as const;\nexport const PROD_BRANCH = 'production';\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n` });
+  // The template's own src/config.ts, with SITE.url set: what a real site holds.
+  const TEMPLATE_CONFIG = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'src', 'config.ts'), 'utf8');
+  const config = (url) => {
+    const text = TEMPLATE_CONFIG.replace("  url: 'https://example.com',", `  url: '${url}',`);
+    assert.notEqual(text, TEMPLATE_CONFIG, "the template's SITE.url line was not found");
+    return { 'src/config.ts': text };
+  };
   const run = async (url, zones, files = {}) => scenario({ site: makeSite({ files: { ...config(url), ...files } }), world: { zones } }).go(['check']);
   // No Workers config, and a Pages Function: two of stage 1's four gaps.
   const unfinished = { 'workers.jsonc': null, 'functions/go/email.ts': 'export const onRequest = () => new Response("");\n' };
@@ -319,6 +324,14 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. src/config.ts gives the address lenas-backstube.example, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet,'), r.text);
     assert.ok(!r.text.includes("site's own domain"), r.text);
+  });
+  test('S1b: a token without DNS Edit, where a listed zone is the parent of the address, names that zone', async () => {
+    const zones = recipe();
+    const site = zones.find((z) => z.name === ZONE.name);
+    site.permissions = site.permissions.filter((p) => !/^#(dns_records|zone_settings):/.test(p));
+    const r = await run('https://www.lenas-backstube.example', zones);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to lenas-backstube.example.\n'), r.text);
   });
   test('S2: a pages.dev address is not a domain of its own, and the site launches first', async () => {
     const r = await run('https://lenas-backstube.pages.dev', withoutSite());
