@@ -182,9 +182,12 @@ hreflang, and clean trailing slashes under `trailingSlash: 'never'`).
 The starter's CHROME chrome-strings lookup keys on `SITE.locale`, which §2
 removed — rekey it on `Astro.currentLocale ?? DEFAULT_LOCALE` (per-page chrome
 language IS correct on a locale-routed site, unlike the single-locale starter).
-Then point the `de` entry at the pages that exist: `privacyHref: '/de/privacy'` and
-`imprintHref: '/de/impressum'`. Its single-locale values (`/datenschutz`, `/impressum`)
-are 404s on a locale-routed site, because the German pages live under `src/pages/de/`.
+Then point each entry at the pages that exist. The default language keeps its unprefixed
+paths; every other language's entry gets its prefix, because its pages live under
+`src/pages/<locale>/`. On the usual site, English first and German added, that is the `de`
+entry: `privacyHref: '/de/privacy'` and `imprintHref: '/de/impressum'` (its single-locale
+values, `/datenschutz` and `/impressum`, are 404s there). With German as the default, the
+`de` entry keeps its single-locale paths and the `en` entry gets `/en/` ones.
 The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `{alternates.map(…)}` render line** (the hreflang cluster from
 `references/heavy-path-code.md` §3 replaces it) — the

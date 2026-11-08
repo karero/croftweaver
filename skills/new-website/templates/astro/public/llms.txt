@@ -8,7 +8,7 @@
 ## Key pages
 - [Home](https://example.com/): positioning, primary action.
 - [Privacy](https://example.com/privacy): privacy policy (GDPR).
-- [Legal Notice](https://example.com/legal-notice): provider identification (§ 5 DDG, German-market sites).
+- [Legal Notice](https://example.com/legal-notice): provider identification (§ 5 DDG; required for providers established in Germany).
 
 ## Facts
 - Legal entity: Example GmbH

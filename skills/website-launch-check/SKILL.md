@@ -133,11 +133,12 @@ settings".
     your decision of <date>; a lawyer's review is still open to you."
   - A legal page no line covers, or added after its line: at every pre-launch run, for each
     legal page in `tests/_helpers.ts` `PAGES` (last path segment `privacy`, `datenschutz`,
-    `legal-notice` or `impressum`), run `git log --diff-filter=A --format=%cs -- <its file under src/pages/>`, one
-    file per call, and take the first line: the date it last entered git under that name. Not
-    `--follow`, which dates a renamed file (the `/datenschutz` or `/impressum` swap) by the file it came from. A
-    page rewritten under the same file name keeps its first date, so this check cannot see the
-    rewrite. A page that no line covers, or whose date is after its answer's date, is a blocker
+    `legal-notice` or `impressum`), run
+    `git log --diff-filter=A --format=%cs -- <its file under src/pages/>`, one file per call,
+    and take the first line: the date it last entered git under that name. Not `--follow`,
+    which dates a renamed file (the `/datenschutz` or `/impressum` swap) by the file it came
+    from. A page rewritten under the same file name keeps its first date, so this check cannot
+    see the rewrite. A page that no line covers, or whose date is after its answer's date, is a blocker
     naming that page: `AGENTS.md` §5 asks again for it and adds a dated line. The answer's own
     day counts as covered. No date (no output: the file is not committed; or an error: not a
     git repo) is a blocker of its own: commit the page, then run the check again. This holds

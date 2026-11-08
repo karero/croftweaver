@@ -915,7 +915,7 @@ jobs:
             grep -q "const PAUSE: string = '$PAUSE';" tests/hero-carousel.spec.ts
             grep -q "const SWAP: string = '$SWAP';" tests/hero-carousel.spec.ts
             sed -i "s|^import { SITE } from '../config';|import { SITE } from '../config';\nimport HeroCarousel from '../components/HeroCarousel.astro';\nimport pale from '../assets/hc-pale.jpg';\nimport dark from '../assets/hc-dark.jpg';\nimport mid from '../assets/hc-mid.jpg';|" src/pages/index.astro
-            sed -i "s|^<Base title={SITE.name}>|<Base title={SITE.name}>\n<HeroCarousel label=\"Photos of our work\" pause=\"$PAUSE\" swap=\"$SWAP\" slides={[{ image: pale, alt: 'A pale wall in daylight, seen straight on', label: 'Pale wall', href: '/privacy' }, { image: dark, alt: 'A dark room with no light on', label: 'Dark room', href: '/impressum' }, { image: mid, alt: 'A green-grey field under an even sky', label: 'Field' }]} />|" src/pages/index.astro
+            sed -i "s|^<Base title={SITE.name}>|<Base title={SITE.name}>\n<HeroCarousel label=\"Photos of our work\" pause=\"$PAUSE\" swap=\"$SWAP\" slides={[{ image: pale, alt: 'A pale wall in daylight, seen straight on', label: 'Pale wall', href: '/privacy' }, { image: dark, alt: 'A dark room with no light on', label: 'Dark room', href: '/legal-notice' }, { image: mid, alt: 'A green-grey field under an even sky', label: 'Field' }]} />|" src/pages/index.astro
             grep -q '<HeroCarousel ' src/pages/index.astro
             grep -q 'import HeroCarousel' src/pages/index.astro
             npm run check

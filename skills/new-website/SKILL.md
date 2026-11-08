@@ -502,8 +502,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    these copied files; it stays in the site's top folder), root configs — see `templates/astro/README.md`
    for exact steps and npm deps). **Do not copy the starter's `README.md`:** it is the kit's
    assembly manual, and the site's own `README.md` holds the owner's answers, the
-   `legal pages:` line included. A copy of the whole folder replaces it. After the copy, on a
-   site whose `README.md` is committed, `git diff --quiet HEAD -- README.md` must succeed. Set the real domain in `astro.config.mjs` (`site:`),
+   `legal pages:` line included. A copy of the whole folder replaces it. Run `git add README.md`
+   before the copy; after it, `git diff --quiet -- README.md` must succeed. Set the real domain in `astro.config.mjs` (`site:`),
    `src/config.ts` (`url`), `public/robots.txt` (the `Sitemap:` line) and `public/llms.txt`
    (every `https://example.com` link); the first `npm test` fails while `robots.txt` or
    `llms.txt` still names `example.com`. **Set `SITE.locale` in `src/config.ts` to match the interview's
