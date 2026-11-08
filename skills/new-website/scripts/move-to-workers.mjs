@@ -44,7 +44,11 @@ export class UsageError extends Error {}
 export class Stop extends Error { // the run ends here with `code`; `lines` say why
   constructor(code, ...lines) { super(lines[0]); this.code = code; this.lines = lines; }
 }
-class Deadline extends Error {}
+// The run's deadline. `waiting`: a call was sent or running when it came (false: it came before the
+// next call). `place` and `call` name that call; the code that makes or starts the call sets them.
+class Deadline extends Error {
+  constructor(waiting, place = null, call = null) { super('deadline'); Object.assign(this, { waiting, place, call }); }
+}
 
 const USAGE = `Usage: node move-to-workers.mjs check|record|move|undo|after [--confirm <code>]
 
@@ -151,8 +155,9 @@ export function makeApi(send, token, ctx, { clock = null, requestMs = REQUEST_MS
   return async (method, p, { json } = {}) => {
     const wire = json === undefined ? undefined : JSON.stringify(json);
     gate(method, p, wire === undefined ? undefined : JSON.parse(wire), ctx); // the gate sees what is sent
+    const call = apiCall(method, p);
     const left = clock ? clock.left() : Infinity;
-    if (left <= 0) throw new Deadline();
+    if (left <= 0) throw new Deadline(false, 'Cloudflare', call);
     const headers = { authorization: `Bearer ${token}`, accept: 'application/json', 'user-agent': UA };
     if (wire !== undefined) headers['content-type'] = 'application/json';
     try {
@@ -162,11 +167,14 @@ export function makeApi(send, token, ctx, { clock = null, requestMs = REQUEST_MS
       try { body = text ? JSON.parse(text) : null; } catch { body = null; }
       return { status: r.status, body, text };
     } catch (e) {
-      if (clock && clock.left() <= 0) throw new Deadline();
+      if (clock && clock.left() <= 0) throw new Deadline(true, 'Cloudflare', call);
       return { status: 0, body: null, text: '', error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e) };
     }
   };
 }
+
+// A Cloudflare call as a stop names it: no query, and the ids after these segments cut, for a readable line.
+const apiCall = (method, p) => `${method} ${p.split('?')[0].replace(/\/(accounts|zones|dns_records|domains)\/[^/]+/g, '/$1/…')}`;
 
 // The site, the Worker's version URL and GitHub: every host but those is refused, and so is
 // api.cloudflare.com. Redirects are never followed.
@@ -176,12 +184,12 @@ export function makeSiteFetch(send, allowed, { clock = null, requestMs = REQUEST
     if (u.hostname === 'api.cloudflare.com' || !allowed.has(u.hostname)) throw new Stop(1, `gate: refused fetch of ${u.hostname}`);
     if (u.protocol !== 'https:' && !(u.protocol === 'http:' && u.hostname !== 'api.github.com')) throw new Stop(1, `gate: refused ${u.protocol} fetch`);
     const left = clock ? clock.left() : Infinity;
-    if (left <= 0) throw new Deadline();
+    if (left <= 0) throw new Deadline(false, u.hostname, u.pathname);
     try {
       const r = await send(url, { method, headers: { 'user-agent': UA, ...headers }, redirect: 'manual', signal: AbortSignal.timeout(Math.min(requestMs, left)) });
       return { status: r.status, headers: r.headers, body: Buffer.from(await r.arrayBuffer()) };
     } catch (e) {
-      if (clock && clock.left() <= 0) throw new Deadline();
+      if (clock && clock.left() <= 0) throw new Deadline(true, u.hostname, u.pathname);
       return { status: 0, headers: new Headers(), body: Buffer.alloc(0), error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e) };
     }
   };
@@ -291,7 +299,7 @@ function childEnv(env, token) {
 export function runProgram(cmd, args, { cwd, env, clock }) {
   return new Promise((resolve, reject) => {
     const ms = clock.left();
-    if (ms <= 0) { reject(new Deadline()); return; }
+    if (ms <= 0) { reject(new Deadline(false)); return; }
     const posix = process.platform !== 'win32';
     let out = '';
     let err = '';
@@ -305,13 +313,19 @@ export function runProgram(cmd, args, { cwd, env, clock }) {
       try { if (posix) process.kill(-child.pid, 'SIGKILL'); else child.kill('SIGKILL'); } catch { /* it has ended */ }
       child.stdout.destroy();
       child.stderr.destroy();
-      settle(() => reject(new Deadline()));
+      settle(() => reject(new Deadline(true)));
     }, ms);
     child.stdout.on('data', (c) => { out += c; });
     child.stderr.on('data', (c) => { err += c; });
     child.on('error', (e) => settle(() => reject(new Stop(1, e.code === 'ENOENT' ? `${cmd} is not installed, or not on the PATH` : `could not run ${cmd}: ${e.message}`))));
     child.on('close', (code) => settle(() => resolve({ code, stdout: out, stderr: err })));
   });
+}
+
+// A program's deadline, named where the real command is known (a test may hand runProgram a stand-in).
+function named(e, place, call) {
+  if (e instanceof Deadline && !e.place) Object.assign(e, { place, call });
+  return e;
 }
 
 const short = (sha) => String(sha).slice(0, 7);
@@ -581,7 +595,9 @@ async function prepare(opts, io, run) {
   const clock = makeClock(io.runMs ?? RUN_MS, now);
   const ctx = { opts, io, clock, say: io.say, sleep: io.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))), now };
   let cenv = childEnv(env, (env.CLOUDFLARE_API_TOKEN ?? '').trim() || null);
-  ctx.run = (cmd, args, extra = {}) => (io.run ?? runProgram)(cmd, args, { cwd: extra.cwd ?? ctx.root ?? io.cwd, env: cenv, clock });
+  ctx.run = async (cmd, args, extra = {}) => {
+    try { return await (io.run ?? runProgram)(cmd, args, { cwd: extra.cwd ?? ctx.root ?? io.cwd, env: cenv, clock }); } catch (e) { throw named(e, cmd === 'gh' ? 'GitHub' : 'git', `${cmd} ${args[0]}`); }
+  };
   const git = (...args) => ctx.run('git', args);
   ctx.git = git;
   // A git read of GitHub, with its own short limit: a connection that hangs (SSH to GitHub does) ends here with a plain
@@ -591,7 +607,7 @@ async function prepare(opts, io, run) {
     const sub = { left: () => Math.min(clock.left(), cap) };
     try { return await (io.run ?? runProgram)('git', args, { cwd: ctx.root ?? io.cwd, env: cenv, clock: sub }); } catch (e) {
       if (e instanceof Deadline && clock.left() > 0) throw new Stop(1, `GitHub could not be reached: git got no answer from ${ctx.repository ?? 'it'} in ${Math.round(cap / 1000)} s. Nothing was changed. Check this computer's connection to GitHub, or try again later.`);
-      throw e;
+      throw named(e, 'GitHub', `git ${args[0]}`);
     }
   };
   const gitOut = async (...args) => {
@@ -979,16 +995,23 @@ function unanswered(bag, lists) {
   return n;
 }
 
+// The first error stops handing out addresses; the calls already sent are waited for, then the state
+// is saved, so a stop at the deadline can say how many answers the saved state holds.
 async function fetchAll(ctx, base, paths, names, into, save) {
   const todo = paths.filter((p) => !into[p] || into[p].s === 0);
   let n = 0;
+  let failed = null;
   const worker = async () => {
-    for (let p = todo.shift(); p !== undefined; p = todo.shift()) {
-      into[p] = await fetchEntry(ctx, base, p, names);
+    while (!failed && todo.length) {
+      const p = todo.shift();
+      try { into[p] = await fetchEntry(ctx, base, p, names); } catch (e) { failed ??= e; return; }
       if (++n % 40 === 0) save();
     }
   };
-  try { await Promise.all(Array.from({ length: 6 }, worker)); } finally { save(); }
+  await Promise.all(Array.from({ length: 6 }, worker));
+  save();
+  if (failed instanceof Deadline) failed.kept = { n: paths.filter((p) => into[p] && into[p].s !== 0).length, of: paths.length, host: new URL(base).hostname };
+  if (failed) throw failed;
 }
 
 // The differences between what a platform answered when recorded (`was`) and now. `change` says the
@@ -1190,7 +1213,9 @@ async function ensureBuild(ctx, sha, run) {
   mkdirSync(path.join(dir, 'src'), { recursive: true });
   const idx = path.join(dir, 'index');
   const gitEnv = { ...childEnv(ctx.io.env ?? process.env, ctx.token), GIT_INDEX_FILE: idx };
-  const sh = (args) => (ctx.io.run ?? runProgram)('git', args, { cwd: ctx.root, env: gitEnv, clock: ctx.clock });
+  const sh = async (args) => {
+    try { return await (ctx.io.run ?? runProgram)('git', args, { cwd: ctx.root, env: gitEnv, clock: ctx.clock }); } catch (e) { throw named(e, 'git', `git ${args[0]}`); }
+  };
   const rt = await sh(['read-tree', sha]);
   const co = rt.code === 0 ? await sh(['checkout-index', '-a', '-f', `--prefix=${path.join(dir, 'src')}${path.sep}`]) : rt;
   if (co.code !== 0) throw new Stop(1, `git could not copy ${short(sha)} to build it: ${(co.stderr || co.stdout).trim().split('\n')[0]}`);
@@ -1799,9 +1824,17 @@ export async function main(argv, io = {}) {
   } catch (e) {
     if (e instanceof UsageError) { process.stderr.write(`move-to-workers: ${e.message}\n`); code = 2; }
     else if (e instanceof Deadline) {
-      errLines = ['This run reached its time limit (55 seconds) and stopped.'];
+      const at = !e.place ? '' : e.waiting ? ` while waiting on ${e.place} (${e.call})` : ` before its next call, to ${e.place} (${e.call}): the time went on the calls before it`;
+      const k = e.kept;
+      errLines = [
+        `This run reached its time limit (${Math.round((io.runMs ?? RUN_MS) / 1000)} seconds) and stopped${at}.`,
+        'What it changed stands; the next run reads what is there and carries on.',
+        ...(k ? [`${k.n} of ${k.of} addresses on ${k.host} are read and kept; the next run starts after them.`,
+          `Run the same command again, as long as the number for ${k.host} grows (a later stop may name another host: each run asks again for every address that got no answer).`]
+          : ["Run the same command again. If runs keep stopping at the time limit, the run's calls take longer than it allows: the places it calls answer slowly from this computer, or there is a lot to read. Check the connection, or try again later."]),
+      ];
       leftLines().forEach((l) => say(l));
-      say('', `${errLines[0]} What it changed stands; the next run reads what is there and carries on. Run the same command again. Status 4.`);
+      say('', ...errLines, 'Status 4.');
       run.next ??= `node move-to-workers.mjs ${opts.cmd}${opts.confirm ? ` --confirm ${opts.confirm}` : ''}`;
       code = 4;
     } else if (e instanceof Stop) {

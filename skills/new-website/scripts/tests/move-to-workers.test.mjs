@@ -2724,6 +2724,8 @@ describe('test 6 (a fresh assistant on the guide): a hung GitHub, a timed-out to
     const r = await s.go(['check'], { run: hangWhen((a) => a[0] === 'ls-remote'), gitNetMs: 60_000, runMs: 1500 });
     assert.equal(r.code, 4, r.text);
     assert.match(r.text, /time limit/);
+    assert.ok(r.text.includes('and stopped while waiting on GitHub (git ls-remote).'), r.text); // T3
+    assert.ok(!r.text.includes(process.execPath), 'the stand-in program was named');
   });
 
   test('6.3: a token check that times out says it is the connection, not the token; a refusal still says the token', async () => {
@@ -2768,5 +2770,123 @@ describe('test 6 (a fresh assistant on the guide): a hung GitHub, a timed-out to
     const r = await recordDone(s);
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, new RegExp(`unknown: \\S+/build\\.txt commit line: the domain serves ${'b'.repeat(40)}; ${s.site.frozen} is expected`));
+  });
+});
+
+// ---------------------------------------------------------------- the time-limit stop says where it was
+
+// The plan's tests T1, T1b, T2 and T4 (workers-for-new-sites/PLAN-move-time-limit.md); T3 is in 6.2 above.
+describe('the time-limit stop names its call and, while reading addresses, how many are kept', () => {
+  const host = HOSTS[0];
+  const PAGES = Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`site/p${i}.html`, `<p>${i}</p>`]));
+  // A site with a finished build and no recording: the next record goes straight to reading addresses.
+  async function readyToRecord() {
+    const s = scenario({ site: makeSite({ files: PAGES }) });
+    assert.equal((await recordDone(s)).code, 0);
+    rmSync(s.stateFile());
+    return s;
+  }
+  const answered = (s) => Object.values(s.state().recording.entries[host] ?? {}).filter((e) => e.s !== 0).length;
+  const keptOf = (text) => /(\d+) of (\d+) addresses on lenas-backstube\.example are read and kept; the next run starts after them\./.exec(text);
+
+  test('T1: record that runs out of time between calls says which host it was on and how many answers it kept', async () => {
+    const s = await readyToRecord();
+    const real = makeFetch(s.w);
+    let calls = 0;
+    const siteFetch = (url, init) => { if (new URL(url).hostname === host) calls++; return real(url, init); };
+    s.w.dropOnce = new Set(['/app.js']); // one address gets no answer: it is not kept
+    const T0 = Date.now();
+    const a = await s.go(['record'], { siteFetch, runMs: 5000, now: () => T0 + (calls > 10 ? 6000 : 0) });
+    assert.equal(a.code, 4, a.text);
+    assert.match(a.text, /This run reached its time limit \(5 seconds\) and stopped before its next call, to lenas-backstube\.example \(\/[^)]*\): the time went on the calls before it\./);
+    assert.doesNotMatch(a.text, /55 seconds/);
+    assert.equal(s.state().recording.entries[host]['/app.js'].s, 0, 'the dropped address is in the state as unanswered');
+    const k1 = keptOf(a.text);
+    assert.ok(k1, a.text);
+    assert.equal(Number(k1[1]), answered(s), 'the count is what the state file holds');
+    assert.equal(Number(k1[2]), s.state().recording.paths.length);
+    assert.ok(Number(k1[1]) < Number(k1[2]), 'the run stopped part way');
+    assert.ok(a.text.includes('Run the same command again, as long as the number for lenas-backstube.example grows'), a.text);
+    assert.equal(a.text.match(/Status 4\./g).length, 1, a.text);
+
+    calls = 0;
+    const b = await s.go(['record'], { siteFetch, runMs: 5000, now: () => T0 + (calls > 20 ? 6000 : 0) });
+    assert.equal(b.code, 4, b.text);
+    const k2 = keptOf(b.text);
+    assert.ok(k2, b.text);
+    assert.equal(Number(k2[1]), answered(s));
+    assert.ok(Number(k2[1]) > Number(k1[1]), 'the second run kept more');
+  });
+
+  test('T1b: calls already sent when the time runs out are waited for, so the count is what the state file keeps', async () => {
+    const s = await readyToRecord();
+    const real = makeFetch(s.w);
+    let calls = 0;
+    let held = 0;
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    // Calls 36 to 40 wait at the gate; call 41 is answered, so the next one meets the deadline while they are out.
+    const siteFetch = async (url, init) => {
+      if (new URL(url).hostname === host) {
+        const n = ++calls;
+        if (n >= 36 && n <= 40) { held++; await gate; }
+      }
+      return real(url, init);
+    };
+    const T0 = Date.now();
+    let finished = false;
+    const run = s.go(['record'], { siteFetch, runMs: 5000, now: () => T0 + (calls > 40 ? 6000 : 0) }).then((r) => { finished = true; return r; });
+    try {
+      for (let i = 0; i < 500 && calls < 41; i++) await wait(20);
+      assert.equal(calls, 41);
+      await wait(300);
+      assert.equal(held, 5);
+      assert.equal(finished, false, 'the run ended while calls it had sent were still out');
+    } finally { release(); }
+    const r = await run;
+    assert.equal(r.code, 4, r.text);
+    const k = keptOf(r.text);
+    assert.ok(k, r.text);
+    assert.equal(Number(k[1]), answered(s), 'the count is what the state file holds');
+    const kept = readFileSync(s.stateFile(), 'utf8');
+    await wait(300);
+    assert.equal(readFileSync(s.stateFile(), 'utf8'), kept, 'the state file changed after the run ended');
+  });
+
+  test('T2: check that runs out of time while Cloudflare is answering names that call, without the account id', async () => {
+    const s = scenario();
+    const real = makeFetch(s.w);
+    let past = false;
+    const apiFetch = (url, init) => {
+      if (new URL(url).pathname === `/client/v4/accounts/${ACCOUNT.id}/pages/projects`) {
+        past = true;
+        return new Promise((_, rej) => {
+          const keep = setTimeout(() => {}, 120_000); // holds the event loop open until the abort
+          init.signal.addEventListener('abort', () => { clearTimeout(keep); rej(Object.assign(new Error('aborted'), { name: 'TimeoutError' })); });
+        });
+      }
+      return real(url, init);
+    };
+    const T0 = Date.now();
+    const r = await s.go(['check'], { apiFetch, requestMs: 200, now: () => T0 + (past ? 60_000 : 0) });
+    assert.equal(r.code, 4, r.text);
+    assert.ok(r.text.includes('and stopped while waiting on Cloudflare (GET /accounts/…/pages/projects).'), r.text);
+    assert.ok(r.text.includes("If runs keep stopping at the time limit, the run's calls take longer than it allows"), r.text);
+    assert.ok(!r.text.includes(ACCOUNT.id), 'the account id was printed');
+  });
+
+  test('T4: check whose gh call hangs names GitHub (gh api)', async () => {
+    const s = scenario();
+    const HANG = ['-e', 'setInterval(() => {}, 1000)'];
+    const run = (cmd, args, o) => {
+      if (cmd !== 'gh') return runProgram(cmd, args, o);
+      if (args[0] === 'auth') return Promise.resolve({ code: 0, stdout: '', stderr: '' });
+      return runProgram(process.execPath, HANG, o); // killed when the run's time is out
+    };
+    const T0 = Date.now(); // a clock that stands still: only the hanging call's own timer ends the run
+    const r = await s.go(['check'], { useGh: true, run, runMs: 1500, now: () => T0 });
+    assert.equal(r.code, 4, r.text);
+    assert.ok(r.text.includes('and stopped while waiting on GitHub (gh api).'), r.text);
+    assert.ok(!r.text.includes(process.execPath), 'the stand-in program was named');
   });
 });
