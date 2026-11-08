@@ -1567,8 +1567,8 @@ async function launchStage(opts, io) {
     return 4;
   }
 
-  // ---- nothing left to do: the whole check decides the status. Bot Management is read first, so a
-  // time limit there prints no part of the report.
+  // ---- nothing left to do: the whole check decides the status; the report adds Bot Management's AI
+  // notes. A time limit in either ends the run with 4 before the report starts.
   const ai = await readAiNow(api, zoneAt);
   const whole = await runCheck(ctx, { commit });
   return launchReport(ctx, { whole, opts, live, commit, deps, forwarding, nelRule, project, ai });
