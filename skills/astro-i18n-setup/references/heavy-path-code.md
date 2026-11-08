@@ -72,6 +72,8 @@ export type RouteSpec = { path: string; locales?: readonly string[] };
 export const ROUTES: readonly RouteSpec[] = [
   { path: '/' },
   { path: '/privacy' },
+  { path: '/legal-notice', locales: ['en'] },   // the starter's English Legal Notice
+  { path: '/impressum', locales: ['de'] },       // its German twin, src/pages/de/impressum.astro
   // { path: '/blog/some-post', locales: ['de'] },   // German-only page, no EN twin
 ];
 
@@ -116,7 +118,8 @@ export function routeLocales(neutral: string): readonly string[] {
 ---
 import { getRelativeLocaleUrl } from 'astro:i18n';
 import { SITE, DEFAULT_LOCALE, routeLocales /* … */ } from '../config';
-// … existing title/description/image props …
+// … existing title/description/image props, and in the Props destructure
+// `lang = SITE.locale,` becomes `lang: langProp,` …
 
 const site = Astro.site ?? new URL(SITE.url);
 // clean URL: drop index.html + .html, strip trailing slash except root
@@ -125,6 +128,8 @@ if (cleanPath !== '/' && cleanPath.endsWith('/')) cleanPath = cleanPath.slice(0,
 const canonical = new URL(cleanPath, site).href;
 
 const currentLocale = Astro.currentLocale ?? DEFAULT_LOCALE;
+// The starter's `lang` prop keeps working: an explicit one wins over the route's locale.
+const lang = langProp ?? currentLocale;
 // Replaces the starter's `Astro.locals.lang = lang;`: components inside the page
 // (the contact form) speak the page's language.
 Astro.locals.lang = currentLocale;
@@ -152,7 +157,7 @@ const xDefault = new URL(
   site,
 ).href;
 ---
-<html lang={currentLocale}>
+<html lang={lang}>
   <head>
     …
     <link rel="canonical" href={canonical} />
