@@ -57,21 +57,26 @@ looks_like_network_failure() { # <git's output, as text>
 # runs of this script print gate, refusal, login and port lines that are not this publish's.
 log_view() { grep -v '^  | ' "$1" 2>/dev/null || true; }
 
-# The `site:` address in <folder>/astro.config.mjs, one trailing slash removed; empty if none.
+# The text of <folder>/astro.config.mjs; empty if there is none.
+config_text() { # <folder>
+  cat -- "$1/astro.config.mjs" 2>/dev/null || true
+}
+
+# The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
 # A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
 # NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
 # follows such redirects, but keep the normalization.
-site_of() { # <folder>
+site_of() { # <astro.config.mjs text>
   local s
-  s="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" "$1/astro.config.mjs" 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
+  s="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
   printf '%s\n' "${s%/}"
 }
 
-# none, one or many `site:` addresses in <folder>/astro.config.mjs, counting every match, so an
-# old address kept in a comment counts. With many, site_of may return the commented one.
-site_count() { # <folder>
+# none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
+# an old address kept in a comment counts. With many, site_of may return the commented one.
+site_count() { # <astro.config.mjs text>
   local h
-  h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" "$1/astro.config.mjs" 2>/dev/null || true)"
+  h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none ;; *$'\n'*) echo many ;; *) echo one ;; esac
 }
 
@@ -82,7 +87,27 @@ repo_of_origin() {
   url="$(git remote get-url --push --all origin 2>/dev/null || true)"
   case "$url" in ''|*$'\n'*|*\?*|*'#'*) return 0 ;; esac
   url="${url%/}"; url="${url%.git}"
+  # In a scheme://host/… address the host is not an owner: the path needs owner/name after it.
+  case "$url" in *://*) case "${url#*://}" in */*/*) ;; *) return 0 ;; esac ;; esac
   sed -nE 's#^.*[:/]([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)$#\1#p' <<<"$url"
+}
+
+# Prints the first line, naming the site and the GitHub repo, and sets site_a and repo_a for the
+# question. The site comes from the astro.config.mjs text given; with no address or several, or no
+# plain owner/name push address, the line says so rather than name a guess.
+name_site() { # <astro.config.mjs text>
+  case "$(site_count "$1")" in
+    one) site_a="$(site_of "$1")"; site_p="$site_a" ;;
+    many) site_a="more than one site: address in astro.config.mjs — check which one is live"; site_p="($site_a)" ;;
+    *) site_a="no site: address in astro.config.mjs"; site_p="($site_a)" ;;
+  esac
+  repo_a="$(repo_of_origin)"
+  if [ -n "$repo_a" ]; then
+    repo_p="$repo_a"
+  else
+    repo_a="no 'origin' remote with a plain owner/name address"; repo_p="($repo_a)"
+  fi
+  echo "→ Site: $site_p · GitHub repo: $repo_p"
 }
 
 # A process's start time as `ps` gives it, spaces trimmed; empty where ps cannot say (Windows'
@@ -388,22 +413,6 @@ set -euo pipefail
 # meanwhile could pass for the one running.
 self_blob="$(git hash-object -- "${BASH_SOURCE[0]}" 2>/dev/null)" || self_blob=""
 
-# The first line names the site and the GitHub repo, before any check, fetch or lock, so a run in
-# the wrong folder shows it at once. It reads this folder's astro.config.mjs; with no address or
-# several, or no plain owner/name push address, it says so rather than name a guess.
-case "$(site_count .)" in
-  one) site_a="$(site_of .)"; site_p="$site_a" ;;
-  many) site_a="more than one site: address in astro.config.mjs — check which one is live"; site_p="($site_a)" ;;
-  *) site_a="no site: address in astro.config.mjs"; site_p="($site_a)" ;;
-esac
-repo_a="$(repo_of_origin)"
-if [ -n "$repo_a" ]; then
-  repo_p="$repo_a"
-else
-  repo_a="no 'origin' remote with a plain owner/name address"; repo_p="($repo_a)"
-fi
-echo "→ Site: $site_p · GitHub repo: $repo_p"
-
 # Read from this clone's own config only (--local): a value in someone's global config must not
 # switch a fresh clone (a beginner's, a new owner's) out of the folder checks below.
 from_github=0
@@ -419,6 +428,10 @@ if raw="$(git config --local --get ship.fromGitHub 2>/dev/null)"; then
       exit 1 ;;
   esac
 fi
+# The first line names the site and the GitHub repo, before any check, fetch or lock, so a run in
+# the wrong folder shows it at once. In worktree mode this folder is ignored and the published
+# site is GitHub's: its line waits for the fetch, below, and reads GitHub's commit.
+if [ "$from_github" = 0 ]; then name_site "$(config_text .)"; fi
 # What every "nothing was published" message adds about the state you are in now.
 if [ "$from_github" = 1 ]; then here="this folder was not touched"; else here="you're still safely on 'main'"; fi
 
@@ -579,6 +592,7 @@ else
   # files and unpushed commits are listed below instead.
   id="$(git rev-parse --verify 'refs/remotes/origin/main^{commit}')"
   short="${id:0:12}"
+  name_site "$(git show "$id:astro.config.mjs" 2>/dev/null || true)"
   echo "→ Publishing GitHub's main as of the fetch ($short) → production, from a temporary copy; this folder is ignored. This goes LIVE."
   check_script
   report_leftovers
@@ -816,7 +830,7 @@ for attempt in $(seq 1 "$push_tries"); do
   if [ "$stop_asked" = 1 ]; then break; fi
 done
 
-site="$(site_of "${wt:-.}")"
+site="$(site_of "$(config_text "${wt:-.}")")"
 build_txt="${site:-your live site}/build.txt"
 # A *.pages.dev address is Cloudflare's own address for the project: serving the build there
 # does not show the site is live on its own domain, so the success line must not say LIVE.

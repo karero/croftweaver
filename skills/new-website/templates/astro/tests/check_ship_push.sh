@@ -110,6 +110,11 @@ case "$1" in
         echo "$PROD" ;;
       *) echo "$SHA" ;;
     esac ;;
+  # GitHub's astro.config.mjs at the commit being published (worktree mode): the text in a `ghconfig`
+  # file, or a failed read when there is none. Any other read is refused.
+  show)
+    if [ "$*" != "show $SHA:astro.config.mjs" ]; then echo "STUB: unexpected git invocation: git $*" >&2; exit 3; fi
+    if [ -f "$FAKE_DIR/ghconfig" ]; then cat "$FAKE_DIR/ghconfig"; else echo "fatal: path 'astro.config.mjs' does not exist in '$SHA'" >&2; exit 128; fi ;;
   status) [ -f "$FAKE_DIR/dirty" ] && echo " M src/pages/index.astro"; exit 0 ;;
   # GitHub's copy of ship.sh, read when this folder's differs (worktree mode). Only the case of a
   # Ctrl-C that ends that read gets here, so that read, exactly, is all this answers.
@@ -299,7 +304,10 @@ expect() { # expect <case> <exit> <pushes> <message-fragment> [extra-PATH-dir]
   # skipped with the others; the leak checks are not: no token and no address that should be left
   # out of a fallback line may be printed anywhere.
   if [ "$skip_wording" = 0 ]; then
-    if [ "$(head -1 "$log")" != "$line1" ]; then
+    if [ "$line1" = none ]; then
+      # Worktree mode names the site once GitHub's main is read: a run that stops before has no such line.
+      if grep -q '^→ Site:' "$log"; then echo "✗ ship push gate [$name]: a run that stopped before reading GitHub's main named the site."; fail=1; fi
+    elif [ "$(head -1 "$log")" != "$line1" ]; then
       echo "✗ ship push gate [$name]: the first line is '$(head -1 "$log")', expected '$line1'."; fail=1
     fi
     if grep -qE '^(Going live|Nothing new goes live)' "$log" && ! grep -qF "No terminal to answer a question here" "$log"; then
@@ -621,6 +629,7 @@ fi
 # its two branches, so a narrowed fetch setting in the clone cannot leave origin/main stale.
 mark wtfetchfail fromgithub
 mark wtfetchfail fetchfail 2
+want_line1=none
 expect wtfetchfail 1 0 "this folder was not touched"
 if ! grep -qF "couldn't fetch from GitHub" "$work/wtfetchfail.log"; then
   echo "✗ ship push gate [wtfetchfail]: not today's fetch message."; fail=1
@@ -640,6 +649,7 @@ if grep -q "isn't connected to GitHub yet" "$work/stopverdict.log"; then
 fi
 mark stopsilent fromgithub
 mark stopsilent stopat-commondir
+want_line1=none
 expect stopsilent 130 0 "Nothing was published and this folder was not touched."
 if ! grep -q "a stop was asked for" "$work/stopsilent.log"; then
   echo "✗ ship push gate [stopsilent]: a stop that ended a git call ended the run without saying so."; fail=1
@@ -654,12 +664,37 @@ if grep -q "is not the one on GitHub's main" "$work/stopcatfile.log"; then
   echo "✗ ship push gate [stopcatfile]: a read ended by a stop was taken for two different scripts."; fail=1
 fi
 
+# ...and the site it names is GitHub's, not this folder's: worktree mode ignores this folder, and
+# the question asks about what goes live. This folder holds one address and GitHub's commit another.
+mark ghsite fromgithub
+mark ghsite stopat-catfile
+printf "export default { site: 'https://github.example/' };\n" > "$work/cases/ghsite/ghconfig"
+printf "export default { site: 'https://folder.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://github.example · GitHub repo: owner/site"
+expect ghsite 1 0 "a stop was asked for"
+rm -f "$work/cwd/astro.config.mjs"
+if grep -qF "folder.example" "$work/ghsite.log"; then
+  echo "✗ ship push gate [ghsite]: the output names this folder's address, not GitHub's."; fail=1
+fi
+
+# ...and when GitHub's commit has no readable address, the line says so; this folder's is never used.
+mark ghnosite fromgithub
+mark ghnosite stopat-catfile
+printf "export default { site: 'https://folder.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: (no site: address in astro.config.mjs) · GitHub repo: owner/site"
+expect ghnosite 1 0 "a stop was asked for"
+rm -f "$work/cwd/astro.config.mjs"
+if grep -qF "folder.example" "$work/ghnosite.log"; then
+  echo "✗ ship push gate [ghnosite]: the output names this folder's address, not GitHub's."; fail=1
+fi
+
 # --- worktree mode, a git folder the lock cannot be made in ------------------------
 # Not "another publish holds the lock", with a command to remove one that does not exist.
 mark lockro fromgithub
 mark lockro gitdirro
 if [ -w "$work/cases/lockro" ] && mkdir "$work/cases/lockro/w-probe" 2>/dev/null && chmod a-w "$work/cases/lockro/w-probe" \
    && ! mkdir "$work/cases/lockro/w-probe/x" 2>/dev/null; then
+  want_line1=none
   expect lockro 1 0 "couldn't create this clone's publish lock"
   if grep -q "another publish holds" "$work/lockro.log"; then
     echo "✗ ship push gate [lockro]: a lock that could not be made was reported as another publish's."; fail=1
@@ -876,6 +911,7 @@ url_case queryurl "$repo_fallback" "https://example.invalid/owner/site.git?token
 url_case fragurl "$repo_fallback" "https://example.invalid/owner/site.git#/s3cret/value"
 url_case twopush "$repo_fallback" "git@github.com:owner/site.git" "git@github.com:other/site.git"
 url_case oddurl "$repo_fallback" "https://example.invalid"
+url_case hostonly "$repo_fallback" "https://github.com/site.git"
 # An old address kept in a comment beside the live one: more than one match, on two lines and on
 # one. Each stops at the fetch (noorigin), which is before the live check would read the old one.
 two_sites="→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: $repo_fallback"
@@ -1148,7 +1184,7 @@ GATE
       "$REAL_SLEEP" 0.1; i=$((i + 1))
     done
   }
-  # run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--out FILE] [--limit S] [VAR=value…]
+  # run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--out FILE] [--stdin-null] [--limit S] [VAR=value…]
   # ship.sh on a fake terminal: BSD's `script -q /dev/null cmd`, or util-linux's `script -qec
   # 'exec cmd' /dev/null` (told apart by `script --version`). A feeder waits until the question is
   # in the log, writes the answer (or ends the input, or sends a terminate) and holds the input
@@ -1158,13 +1194,14 @@ GATE
   # hence the exec).
   run_tty() {
     cname="$1"; L="$G/$1.log"; logged=0
-    local what="$2" prog="scripts/ship.sh" out="" limit=60 name="$1" tty_rc=0
+    local what="$2" prog="scripts/ship.sh" out="" limit=60 name="$1" tty_rc=0 stdin_null=0
     local pidf="$G/$1.pid" done_f="$G/$1.done" wrap util=0 sp dog oldpwd="$PWD"
     shift 2
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --prog) prog="$2"; shift 2 ;;
         --out) out="$2"; shift 2 ;;
+        --stdin-null) stdin_null=1; shift ;;
         --limit) limit="$2"; shift 2 ;;
         *) break ;;
       esac
@@ -1173,6 +1210,7 @@ GATE
     if ( cd "$G" && script --version ) >/dev/null 2>&1; then util=1; fi
     wrap='echo "$$" > "$1"; exec bash "$0"'
     if [ -n "$out" ]; then wrap='echo "$$" > "$1"; exec bash "$0" > "$2"'; fi
+    if [ "$stdin_null" = 1 ]; then wrap='echo "$$" > "$1"; exec bash "$0" < /dev/null'; fi
     before="$(snap)"
     CDPATH= cd -- "$C"
     # The feeder is the left side of the pipe into `script` (a fifo does not work: BSD script
@@ -1212,7 +1250,8 @@ GATE
     want "this folder's branch, status and index are unchanged" eq "$before" "$(snap)"
     want "no lock, worktree or line of its own left behind" leaves_nothing
   }
-  gone_soon() { # <pid>: not running within two seconds
+  gone_soon() { # <pid>: not running within two seconds; an empty pid fails
+    [ -n "$1" ] || return 1
     local i=0
     while kill -0 "$1" 2>/dev/null; do i=$((i + 1)); [ "$i" -gt 20 ] && return 1; "$REAL_SLEEP" 0.1; done
   }
@@ -1235,7 +1274,9 @@ GATE
   c2="$(git -C "$S" rev-parse --short=7 HEAD)"; c1="$(git -C "$S" rev-parse --short=7 HEAD~1)"
   run_ship s2; exits 0
   want "production is GitHub's main" eq "$(gh production)" "$m"
-  want "the first line names the site and the repo" eq "$(first_line)" "→ Site: https://ship-test.example.invalid · GitHub repo: s2/origin"
+  # Worktree mode names the site once GitHub's main is read: just before the mode line.
+  want "the site line names the site and the repo" eq "$(grep -m1 '^→ Site:' "$L")" "→ Site: https://ship-test.example.invalid · GitHub repo: s2/origin"
+  want "... and comes before the mode line" before "$(line_of '→ Site:')" "$(line_of '→ Publishing')"
   want "the mode line names the mode and the commit" mode_has "Publishing GitHub's main as of the fetch (${m:0:12})"
   want "no terminal: it says it does not ask, after the list" before "$(line_of "$live_header")" "$(line_of 'No terminal to answer a question here')"
   want "... and before the gate" before "$(line_of 'No terminal to answer a question here')" "$(line_of '▶ pre-push gate')"
@@ -1839,6 +1880,9 @@ GATE
     want "says a stop was asked for" has "a stop was asked for"
     want "... and that nothing was published" has "Nothing was published"
     want "does not blame the answer" lacks "you did not answer y"
+    # The cases above send only a terminate (a backgrounded run ignores INT), so name the rest here.
+    trap_tail='$here."'"'"' INT TERM HUP QUIT'
+    want "the question's trap catches INT, TERM, HUP and QUIT" grep -qF "$trap_tail" "$C/scripts/ship.sh"
     # T6: folder mode, answer " YES ". Files dated in the past and the index refreshed, as the
     # folder-mode site case does, so ship.sh's own git status leaves the index unchanged.
     fixture t6; advance 1
@@ -1859,6 +1903,13 @@ GATE
     want "production is GitHub's main" eq "$(gh production)" "$m"
     want "no question in the file" lacks "Publish to "
     want "the no-terminal line is in the file" has "No terminal to answer a question here"
+    # T9: output on the terminal, but input from /dev/null (`npm run ship < /dev/null`): not asked.
+    fixture t9; advance 1; m="$(gh main)"
+    run_tty t9 --none --stdin-null
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "production is GitHub's main" eq "$(gh production)" "$m"
+    want "no question" lacks "Publish to "
+    want "the no-terminal line is printed" has "No terminal to answer a question here"
     # T8: the watchdog itself, with a stand-in that ignores terminate and hang-up and starts a child.
     fixture t8
     cat > "$G/t8-stand.sh" <<STAND

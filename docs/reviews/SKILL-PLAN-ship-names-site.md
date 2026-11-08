@@ -9,8 +9,8 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 |---|---|---|---|
 | 1 | This plan | written 2026-11-08 | this file |
 | 2 | PLAN gate, High | CLEAN 2026-11-08: 9 rounds, a final full read, a closing re-gate | `docs/reviews/REVIEW-plan-2026-11-08-claude-peaceful-gates-cde640-3ecc8f6.md` |
-| 3 | `ship.sh`: first line, the question, markers 0.25 | not started; waits for the owner's go | — |
-| 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_TTY` | not started | — |
+| 3 | `ship.sh`: first line, the question, markers 0.25 | built in the build session; fromGitHub reads the site from GitHub's commit (DIFF r1, Codex BUG) | see step 6 |
+| 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_TTY` | built; T8 bound 30 s (15 s missed under load) | see step 6 |
 | 5 | `PUBLISHING.md` sentence, BUGLOG release-notes row | not started | — |
 | 6 | `make check`, mutation check, DIFF gate at High, then PR | not started | — |
 
@@ -79,6 +79,11 @@ With no address: `Site: (no site: address in astro.config.mjs)`. With more than 
 `Site: (more than one site: address in astro.config.mjs — check which one is live)`. With no usable
 push address: `GitHub repo: (no 'origin' remote with a plain owner/name address)`. The run goes on either way, as it
 does today: a missing `origin` still stops at the fetch with that step's own message.
+
+**Superseded in worktree mode (DIFF r1, Codex BUG; planner's call):** with `ship.fromGitHub` on, the
+line waits for the fetch and reads GitHub's commit (`git show <id>:astro.config.mjs`, through the
+same `site_of`), because that is the copy that goes live; with no site there, the fallback text, never
+this folder's file. Folder mode is as written below.
 
 It reads this folder's `astro.config.mjs`; the line does not say which copy it read. In worktree
 mode the published copy differs whenever the `site:` line differs between this folder and GitHub's
