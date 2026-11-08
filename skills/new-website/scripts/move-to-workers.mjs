@@ -1004,8 +1004,10 @@ async function fetchAll(ctx, base, paths, names, into, save) {
   const worker = async () => {
     while (!failed && todo.length) {
       const p = todo.shift();
-      try { into[p] = await fetchEntry(ctx, base, p, names); } catch (e) { failed ??= e; return; }
-      if (++n % 40 === 0) save();
+      try {
+        into[p] = await fetchEntry(ctx, base, p, names);
+        if (++n % 40 === 0) save();
+      } catch (e) { failed ??= e; return; }
     }
   };
   await Promise.all(Array.from({ length: 6 }, worker));

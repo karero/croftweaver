@@ -2824,12 +2824,15 @@ describe('the time-limit stop names its call and, while reading addresses, how m
     let calls = 0;
     let held = 0;
     let release;
+    let reached;
     const gate = new Promise((r) => { release = r; });
+    const at41 = new Promise((r) => { reached = r; });
     // Calls 36 to 40 wait at the gate; call 41 is answered, so the next one meets the deadline while they are out.
     const siteFetch = async (url, init) => {
       if (new URL(url).hostname === host) {
         const n = ++calls;
         if (n >= 36 && n <= 40) { held++; await gate; }
+        if (n === 41) reached();
       }
       return real(url, init);
     };
@@ -2837,9 +2840,9 @@ describe('the time-limit stop names its call and, while reading addresses, how m
     let finished = false;
     const run = s.go(['record'], { siteFetch, runMs: 5000, now: () => T0 + (calls > 40 ? 6000 : 0) }).then((r) => { finished = true; return r; });
     try {
-      for (let i = 0; i < 500 && calls < 41; i++) await wait(20);
+      await at41;
+      await wait(300); // time for the run to end, had it not waited
       assert.equal(calls, 41);
-      await wait(300);
       assert.equal(held, 5);
       assert.equal(finished, false, 'the run ended while calls it had sent were still out');
     } finally { release(); }
