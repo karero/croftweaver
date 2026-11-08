@@ -16,8 +16,9 @@ leaves out `docs/reviews/`. The evidence files sit in the session's scratchpad.
 | 3 | `6ba70f63` | verify: delta since `b7cc885e`, PRIOR round 2; evidence READ 6–7 | Codex (medium); melious | Codex 102 s, 56,725 · melious 279 s, 36,540 | 0 / 0 / 1 |
 | merge link (not a round) | `c71a4d5c` | `merge_link.sh 38bf1768 6ba70f63 3cf57d5e` (736 lines), PRIOR through round 3; evidence READ 8 | Codex (medium); melious | Codex 264 s, 88,364 · melious 663 s, 81,811 | 0 / 4 / 1 (Codex 0/1/0, melious 0/3/1), and one outside scope |
 | wording pass (not a round) | `0371af4a` | the BUGLOG row added since `c71a4d5c` (1 line), `--wording-pass` | Codex | Codex 63 s, 43,972 | 0 / 0 / 0 |
+| second merge link (not a round) | `1ecbce2a` | `merge_link.sh 3cf57d5e 0371af4a e7c68dbe` (2 BUGLOG rows from #485, prose), `--wording-pass` | Codex | Codex 90 s, 60,556 | 1 / 0 / 0, outside this change |
 
-Three rounds, 15 findings; with the merge link and the wording pass, 10 seat runs, 600,851 tokens (the script's running total).
+Three rounds, 15 findings; with the wording pass and two merge links, 11 seat runs, 661,407 tokens (the script's running total).
 
 ## Findings
 
@@ -42,6 +43,7 @@ Three rounds, 15 findings; with the merge link and the wording pass, 10 seat run
 | M2 | RISK | GLM | link | T2–T5 rely on BSD `script` passing the child's exit status | refuted | #490's code; `SHIP_TEST_TTY=1 bash tests/check_ship_push.sh` on macOS: ✓, 384 real-git checks (318 without the T cases) |
 | M3 | RISK | GLM | link | T2's "Not published" check may meet `report_leftovers` first | refuted | #490's code; the same run passed T2 |
 | M4 | RISK | GLM | link | T8's stand-in uses `SHIP_T_REAL_SLEEP`, set nowhere | refuted | `check_ship_push.sh:983` sets it; the same run passed T8 |
+| M6 | BUG | Codex | link 2 | #485's BUGLOG row (Bot Management `ai_agents`) says the field is "silently cleared"; the read-back would print it | outside this change | base-side text from #485, unchanged here; sent to the release manager |
 | M5 | NIT | GLM | link | The ✓ line names the question's checks when T1–T8 were skipped | follow-up | #490's code, not this change's; sent to the release manager |
 
 ## Waivers and deferrals
@@ -56,5 +58,5 @@ Three rounds, 15 findings; with the merge link and the wording pass, 10 seat run
 ## Notes
 
 - Mutation check, by hand (the scratchpad's `mutate2.sh`): 12 mutations killed, 2 must-pass cases passed; listed in the PR body.
-- After round 3 `origin/main` was merged (`754d9a9d`). #490 also took ship.sh and its test from 0.24 to 0.25; both sides bumped the same line, and one 0.25 covers both changes within 0.35. A merge link reviewed it (the table above); nothing shipped since v0.34, whose ship.sh is 0.23.
+- After round 3 `origin/main` was merged twice (`754d9a9d`, then `1ecbce2a` for #485 and #486, whose BUGLOG rows GitHub could not merge). #490 also took ship.sh and its test from 0.24 to 0.25; both sides bumped the same line, and one 0.25 covers both changes within 0.35. A merge link reviewed it (the table above); nothing shipped since v0.34, whose ship.sh is 0.23.
 - Codex asked UNVERIFIABLE questions about Cloudflare's variables, Astro's `process.env` handling and Plausible's counting. Each round's evidence held the READs (the real build captures, and the gate's builds across the modes); a live `/go/email` on a Worker was not read.
