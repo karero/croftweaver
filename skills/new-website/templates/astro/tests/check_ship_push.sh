@@ -912,6 +912,8 @@ url_case fragurl "$repo_fallback" "https://example.invalid/owner/site.git#/s3cre
 url_case twopush "$repo_fallback" "git@github.com:owner/site.git" "git@github.com:other/site.git"
 url_case oddurl "$repo_fallback" "https://example.invalid"
 url_case hostonly "$repo_fallback" "https://github.com/site.git"
+url_case scpnoowner "$repo_fallback" "git@github.com:site.git"
+url_case oddchars "$repo_fallback" "git@github.com:owner/s%te.git"
 # An old address kept in a comment beside the live one: more than one match, on two lines and on
 # one. Each stops at the fetch (noorigin), which is before the live check would read the old one.
 two_sites="→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: $repo_fallback"
