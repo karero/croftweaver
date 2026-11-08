@@ -60,7 +60,8 @@ does today: a missing `origin` still stops at the fetch with that step's own mes
 It reads this folder's `astro.config.mjs`. In worktree mode the published copy may differ; that
 copy is still what the live check reads at line 753. What goes live is decided by `origin`, which
 the line names exactly; the address is the name a person recognises. The address is already
-printed today, unfiltered, at the end of every run, so the line adds no new exposure.
+printed today, unfiltered, by every run that reaches the live check, so the line adds no new
+exposure.
 
 The mode line ("→ Publishing main → production." or "→ Publishing GitHub's main as of the fetch
 (<id>) …") becomes the second line. The comment at lines 531–532 ("so the first and the last line
