@@ -96,14 +96,17 @@ whole with the no-marker warning, as any reply without a usable marker is today,
 check decides. **A closing tally (A1, added after #481 merged, at the owner's word "Fix A1 first").** A summary
 after the second marker that does start like a finding ("- Totals: 1 BUG, 5 RISK") made that
 marker usable again: the section was the reader's note and the summary, the review check accepted
-it, and the seat counted as OK on a summary. Today's code does the same. So the walk now cuts each
-count, a number then a label ("1 BUG", "5 RISK"), from a line before testing it against the
-strict rule: a tally holds nothing else and no longer counts, while a finding that names a count
-("- BUG: the 2 RISK paths disagree") still does. The walk then falls back to the first marker and
-keeps the review, tally and all. Each counted line is still one the grep counts, so the review
-check is unchanged. **Still wrong:** a tally that puts the label first ("- BUG: 1, RISK: 5"), and a
-summary that quotes the clean verdict ("(No BUG/RISK/NIT findings above)"), which still counts
-anywhere. Neither seen.
+it, and the seat counted as OK on a summary. Today's code does the same. So a line now counts only
+if the strict rule counts it both as it is and with every tally cut: a number then a label ("1 BUG",
+"1 **BUG**"), or a label, an optional colon and a number followed by a comma, semicolon, full stop,
+closing paren or the end of the line ("BUG: 1,", "**RISK**: 5"). A tally holds nothing else and no
+longer counts, while a finding that names a count ("- BUG: the 2 RISK paths disagree", "- BUG: 3
+retries are lost") still does. The walk then falls back to the first marker and keeps the review,
+tally and all. Testing the line as it is as well keeps every counted line one the grep counts (DIFF
+round 3: a cut alone can join "- 1 BUGRISK" into "- RISK"), so the review check is unchanged.
+**Still wrong:** a tally in another shape ("BUG (1)", "one BUG"), a finding that is only a label
+and a number ("- BUG: 3."), which no longer counts and goes the loud way, and a summary that quotes
+the clean verdict ("(No BUG/RISK/NIT findings above)"), which still counts anywhere. None seen.
 
 **Rejected.** Taking the FIRST usable marker: a leaked trace can restate the ask, marker and all,
 before the real one (#165, cases `leak` and `echoglued` in `test_failed_tier_report.sh`).
@@ -171,7 +174,9 @@ r3 capture keeps the quoted line at 317 and the footer pair; the f5jNZ6 capture 
 | T2 | the same for hsNCTK | the same | the same, with that capture's lines |
 | T3 | the T1 reply served by the curl stub, its hex marker replaced at serve time by the marker the run asked for | `independent_review.sh` with `SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3` (the pair as REVIEW-RULES.md runs it) | the summary reads `melious OK`; the section holds the first finding line; no no-marker warning |
 | T4 | two markers, two finding lines between them, then a closing tally that starts like a finding (`- Totals: 1 BUG, 1 RISK`); the same reply through `independent_review.sh` | `melious_stream.pl`, `independent_review.sh` | exit 0; the section holds both finding lines and the tally, with no note of the reader's; the pair reads `codex OK, melious OK` |
+| T4b–e | T4 with the tally written `- Totals: 1 **BUG**, 1 **RISK**`, `- BUG: 1, RISK: 5`, `- **BUG**: 1, **RISK**: 5`, and `- 1 BUGRISK` | `melious_stream.pl` | the section holds both finding lines; no note of the reader's |
 | T16 | reasoning, a marker, then `- BUG: the 2 RISK paths disagree` | `melious_stream.pl` | the section is that finding; no no-marker warning (cutting the count leaves a finding) |
+| T16b | the same with `- BUG: 3 retries are lost` | `melious_stream.pl` | the section is that finding; no no-marker warning |
 | T5 | the existing marker cases (`leak`, `markdup`, `markfence`, `markwrap`, `glued`, `echoglued`, `fencequote`, `afterfence`, `topecho`, `quotemark`, `oldmark`, `markend`, …), all in `test_failed_tier_report.sh` | the suite runs | all pass unchanged |
 | T6 | a stub reply the review check rejects, and an empty log | `independent_review.sh`, with `REVIEW_LOG` set | the new log's header ends in `cut` then `reason`; that seat's line has `FAILED` in column 13 and `output is not a review` in column 17 |
 | T7 | the existing `costfail` case (ollama 429), and the size-limit case `t11c` (codex over its limit) | the same | column 17 holds the reason each summary line shows, spaces kept; for `t11c`, its inner `(seat_limits.txt)` and the closing "nothing was sent" included |

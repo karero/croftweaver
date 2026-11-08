@@ -34,6 +34,7 @@ copy of `5aaf2ed2`, the mutation applied, the suite read for FAIL lines. All KIL
 |---|---|---|---|---|---|
 | 1 | `21710f92` | whole change (27,064 bytes); evidence (4,822 bytes) | Codex gpt-6.1-sol; melious glm-5.3; fresh-eyes Sonnet | Codex 141 s, 57,421 · melious 381 s, 48,390 · fresh-eyes 235 s, 157,175 | 2 / 4 / 7 (Codex 2/0/0, melious 0/3/3, fresh-eyes 0/1/4) |
 | 2 | `7e0718e0` | verify: delta since round 1 (5,810 bytes), PRIOR round 1 | Codex; melious | Codex 170 s, 59,960 · melious 202 s, 23,850 | 2 / 0 / 1 (Codex 0/0/0, melious 2/0/1) |
+| 3 | `202ef297` (#482) | verify: the A1 fix against `6859448c` (8,297 bytes), PRIOR | Codex; melious | Codex 171 s, 42,968 · melious 249 s, 27,635 | 4 / 0 / 1 (Codex 3/0/0, melious 2/0/1; one BUG from both) |
 
 Gate total, reviewer seat runs: 346,796 tokens (the script's line, fresh-eyes included).
 
@@ -91,8 +92,29 @@ M15 first survived: the test helper `no_notes` looked for "the marker came", but
 when nothing comes before the marker says "the final-review marker came". It now looks for
 "marker came". T1–T3 use the same helper, so before this they could not see that note either.
 
+## Round 3 findings
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| C1 | BUG | Codex | A tally in bold (`- Totals: 1 **BUG**, 1 **RISK**`) still wins the walk | Fixed: the cut allows `*`, `_` and backticks around the label; T4 (bold) |
+| C2 | BUG | Codex, melious | The cut can create a match: `- 1 BUGRISK` becomes `- RISK`, so the comment's subset claim was false | Fixed: a line must match the strict rule as it is too; T4 (joined); the comment now says why |
+| C3 | BUG | Codex | The A2 row says only the cost log's figure is wrong; the `timings:` lines print it too | Fixed: the row names both |
+| C4 | BUG | melious | A label-first tally (`- BUG: 1, RISK: 5`) still wins; the plan had named it as still wrong | Fixed: the cut also takes a label, an optional colon and a number followed by `,` `;` `.` `)` or the end of the line; T4 (labelfirst, labelfirstbold); T16b checks that `- BUG: 3 retries are lost` still counts |
+| C5 | NIT | melious | The A2 row's "not seen" does not cover the 7 runs with no footer | Fixed: a quoted pair needs a lone `tokens used` line, and those runs hold none (re-checked on the 675 runs now present: 5 with none, none holding a pair) |
+
+Outside scope, both already named: the clean verdict quoted in a summary (plan, section 1) and A2.
+
+Mutations on the reworked cut, each on the reader with the T4 and T16 replies:
+
+| Id | Mutation | Killed by |
+|---|---|---|
+| M18 | no test of the line as it is | T4 (joined) |
+| M19 | no Markdown after the label | T4 (labelfirstbold), added when M19 first survived |
+| M20 | no label-first branch | T4 (labelfirst) |
+| M21 | the label-first branch without its lookahead | T16b |
+
 ## State at the end
 
-No BUG that the change introduced is open. A1 is fixed (above). B2 (A2) is an old defect the plan
+No BUG that the change introduced is open. A1 is fixed (above, and round 3). B2 (A2) is an old defect the plan
 names as "still wrong after the fix"; the owner deferred it to a `docs/BUGLOG.md` row, 2026-11-08.
 Round 2 was the verify round of fixes that are tests and comments, plus one grep: no further round.

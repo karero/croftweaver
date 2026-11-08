@@ -112,10 +112,17 @@ my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
 # $findings may count only lines the review check's grep (looks_like_review) also counts: ASCII
 # only, no /i, no NUL in the lookahead. Loosening it lets a footer win the last-marker walk (T14).
 my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?=[\t\r\x20-\x2F\x3A-\x40\x5B-\x5E\x60\x7B-\x7E]|$)|No BUG\/RISK\/NIT findings/m;
-# A line counts only if it is still findings-shaped once counts such as "1 BUG" are cut, so a
-# closing tally after a repeated marker ("- Totals: 1 BUG, 1 RISK") cannot win the walk (A1).
+# A line counts only if $findings counts it both as it is and with every tally cut ("1 BUG",
+# "1 **BUG**", "BUG: 1," and the like), so a closing tally after a repeated marker cannot win the
+# walk (A1), while "- BUG: 3 retries are lost" still counts. Testing the line as it is too keeps
+# every counted line one the review check's grep counts: a cut can join "- 1 BUGRISK" into "- RISK".
+my $label = qr/(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])[*_\x60]*/;
 my $has_findings = sub {
-  for my $l (split /\n/, $_[0]) { (my $s = $l) =~ s/[0-9]+[ \t]*(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])//g; return 1 if $s =~ $findings }
+  for my $l (split /\n/, $_[0]) {
+    next unless $l =~ $findings;
+    (my $s = $l) =~ s/[0-9]+[ \t]*[*_\x60]*$label|$label[ \t]*:?[ \t]*[0-9]+(?=[ \t\r]*(?:[,;.)]|$))//g;
+    return 1 if $s =~ $findings;
+  }
   return 0;
 };
 my $usable = grep { $has_findings->(substr($c, $_->[1])) } @at;
