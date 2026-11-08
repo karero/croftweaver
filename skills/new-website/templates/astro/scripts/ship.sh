@@ -74,8 +74,9 @@ site_of() { # <astro.config.mjs text>
 
 # The `site:` addresses in the astro.config.mjs text given, one per line, leaving out `//` comments
 # and `/* */` comments on one line: an old address kept in one is not the address the build uses.
+# A comment counts only after a space or one of ;,{}(), so a `//` or `/*` inside an address stays.
 site_addrs() { # <astro.config.mjs text>
-  sed -E -e 's#/\*([^*]|\*+[^*/])*\*+/##g' -e 's#(^|[[:space:]])//.*$##' <<<"$1" 2>/dev/null |
+  sed -E -e 's#(^|[[:space:];,{}()])/\*([^*]|\*+[^*/])*\*+/#\1#g' -e 's#(^|[[:space:];,{}()])//.*$#\1#' <<<"$1" 2>/dev/null |
     grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" | sed -E "s/site:[[:space:]]*['\"]//" || true
 }
 

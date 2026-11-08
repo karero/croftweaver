@@ -915,17 +915,23 @@ url_case hostonly "$repo_fallback" "https://github.com/site.git"
 url_case scpnoowner "$repo_fallback" "git@github.com:site.git"
 url_case oddchars "$repo_fallback" "git@github.com:owner/s%te.git"
 # An old address kept in a comment beside the live one, on two lines and on one: the first line
-# names the live one. Inside a comment spanning lines it still counts, and the line says many.
-# Each stops at the fetch (noorigin); P6 and P7 check the live check with the same configs.
+# names the live one, also with no space before the comment. A `/*` inside the address stays in it.
+# Inside a comment spanning lines it still counts, and the line says many. Each stops at the
+# fetch (noorigin); P6 and P7 check the live check with configs of the same shapes.
 new_site="→ Site: https://new.example · GitHub repo: $repo_fallback"
 two_sites="→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: $repo_fallback"
-mark twosite1 noorigin; mark twosite2 noorigin; mark twosite3 noorigin
+mark twosite1 noorigin; mark twosite2 noorigin; mark twosite3 noorigin; mark twosite4 noorigin
+mark starsite noorigin
 printf "// site: 'https://old.example'\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="$new_site"; expect twosite1 1 0 "not for a network reason"
 printf "/* site: 'https://old.example' */ export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="$new_site"; expect twosite2 1 0 "not for a network reason"
 printf "/*\n  site: 'https://old.example'\n*/\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="$two_sites"; expect twosite3 1 0 "not for a network reason"
+printf "export default {site: 'https://new.example'};// site: 'https://old.example'\n" > "$work/cwd/astro.config.mjs"
+want_line1="$new_site"; expect twosite4 1 0 "not for a network reason"
+printf "export default { site: 'https://new.example/*archive*/' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example/*archive* · GitHub repo: $repo_fallback"; expect starsite 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
