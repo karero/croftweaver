@@ -81,7 +81,7 @@ export const ITEMS = [
     path: 'Your domain → Caching → Configuration → Crawler Hints',
     lookFor: 'there is no outside check for this one' },
   { id: 'ai', section: 4, title: 'AI crawlers: allow',
-    path: 'Your domain → Security → Settings → filter by Bot traffic → Configure AI bot policies',
+    path: 'Your domain → Security → Settings → filter by Bot traffic → AI Crawler and Agent access policies',
     lookFor: 'Search, Agent and Training each set to Allow (do not block); AI Labyrinth Off; Bot Preference Sync Off, or On if you chose Disallow for Training; the content-bot block Off, which may show only through the API' },
   { id: 'robots', section: 5, title: 'Your own robots.txt' },
   { id: 'build', section: 5, title: 'The build that is live' },
