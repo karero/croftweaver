@@ -1,7 +1,7 @@
 # PLAN review — branch `claude/peaceful-gates-cde640` — `npm run ship` names the site and asks at a terminal
 
 Artifact: `docs/reviews/SKILL-PLAN-ship-names-site.md`. Base `6859448c` · depth: High (the
-starter's publish script; the High row names deploy code) · verdict: in progress; round 9 granted by the owner ("Yes, round 9", 2026-11-08), one round only · authority used:
+starter's publish script; the High row names deploy code) · verdict: CLEAN at `7171552c` (2026-11-08); round 9 granted by the owner ("Yes, round 9"), one round only · authority used:
 WORKTREE-WRITE and BRANCH-COMMIT (the app made this worktree and branch for this session). No PR.
 Seats: Codex and GLM 5.3 on melious in one command (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`,
 `CODEX_EFFORT=config`), fresh-eyes Opus 5.5 in rounds 1 to 3.
@@ -125,3 +125,26 @@ Seats: Codex and GLM 5.3 on melious in one command (`SECOND_SEAT=melious MELIOUS
 | I2 | NIT | GLM | 9 | "`mode_has` already finds it": the helper is new | fixed `ebe1a364`: "the new `mode_has` helper (below)" | — |
 | I3 | NIT | GLM | 9 | `report_leftovers` is line 539, not 538 | fixed `ebe1a364` | `ship.sh` 537–539 |
 | I4 | NIT | GLM | 9 | the playwright step's comment says the file "fails within a minute or so", untrue with T cases | fixed `83747653`: the clause is dropped, since a hung T case takes its 60-second limit | `template-tests.yml` 86–93 |
+
+# Final full read (not a round): a fresh Opus 5.5 subagent, whole plan at 83747653, against base and READ 1–18; 567 s, 204,502 tokens (not in the script's log). 0/1/10. Plan now at 7171552c.
+
+| id | Sev | Source | Round | Finding | Status | Evidence |
+|---|---|---|---|---|---|---|
+| J1 | RISK | full read | — | status row 2 says the PLAN gate is not started | fixed `7171552c`: rounds and the trail path; not earning (no behaviour) | this trail |
+| J2 | NIT | full read | — | the new stub cases give no push fixture, exit or push count; the push stub needs one | fixed `7171552c`: each case past the fetch gets an `attempt` of `Everything up-to-date`, exit 0, one push | `check_ship_push.sh` 198 |
+| J3 | NIT | full read | — | `expect`'s fifth argument is already the extra-PATH folder | fixed `7171552c`: a `want_line1` variable | `check_ship_push.sh` 228 |
+| J4 | NIT | full read | — | T7 cannot be written through `run_tty` | fixed `7171552c`: `--out FILE` | — |
+| J5 | NIT | full read | — | `twosite1` catches "drop the count" only if the old address comes first | fixed `7171552c`: "first" | — |
+| J6 | NIT | full read | — | T8 needs the child's pid | fixed `7171552c`: the stand-in writes `$G/t8-child.pid` | READ 13 |
+| J7 | NIT | full read | — | T6 in folder mode fails "index unchanged" unless its files are backdated | fixed `7171552c`: as the folder-mode site case does | `check_ship_push.sh` 1583–1586 |
+| J8 | NIT | full read | — | the leak checks are skippable with the wording checks | fixed `7171552c`: asserted either way | — |
+| J9 | NIT | full read | — | the stub-`sleep` reason holds only if the feeder's `PATH` has it | fixed `7171552c`: "never a `sleep` found on `PATH`" | `check_ship_push.sh` 1009 |
+| J10 | NIT | full read | — | a stop between the stop check and the exiting trap leaves the read waiting (rare) | fixed `7171552c`: trap first, then `stop_point`, then the question | `ship.sh` 85–91 |
+| J11 | NIT | full read | — | with `live_n` 0 there is no blank line before the question; fallbacks inside the question's parentheses double them | fixed `7171552c`: placed after the `fi` at 602; fallback text without its parentheses | `ship.sh` 586–602 |
+
+# Closing re-gate (not a round; stands in for the wording pass, since the delta holds commands a builder follows)
+
+Codex alone, full scope, the delta `c0d61833..7171552c` of the plan sent as a diff with `--base c0d61833`, `--verify` of I1–I4 and J1–J11, evidence `evidence-r6.md`: 135 s, 73,469 tokens. No BUG, RISK or NIT; every fix verified, and the trap order and answer matching reproduced on `/bin/bash` 3.2.57. Left UNVERIFIABLE, for the build to show: T6's index with the backdating, T1–T8 on both `script` forms, the signal probe on bash 5.3 (measured in READ 4, not reproduced).
+
+**Verdict: CLEAN.** No BUG or RISK open. Totals: 9 rounds; 91 findings (16 BUG, 21 RISK, 54 NIT), all fixed except F3, refuted by measurement; 2,020,343 tokens in the script's log (22 seat runs, fresh-eyes rounds 1 to 3 and the re-gate included) plus the final full read's 204,502, about 2.22M in all. Not counted: the fixes and the host's own work. Nothing is built; the build waits on the owner's go.
+

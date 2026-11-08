@@ -8,7 +8,7 @@ the keyboard; a "no" only stops earlier; nothing is deleted, logged in to or mov
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-08 | this file |
-| 2 | PLAN gate, High | 9 rounds and a final full read; wording pass next | `docs/reviews/REVIEW-plan-2026-11-08-claude-peaceful-gates-cde640-3ecc8f6.md` |
+| 2 | PLAN gate, High | CLEAN 2026-11-08: 9 rounds, a final full read, a closing re-gate | `docs/reviews/REVIEW-plan-2026-11-08-claude-peaceful-gates-cde640-3ecc8f6.md` |
 | 3 | `ship.sh`: first line, the question, markers 0.25 | not started; waits for the owner's go | — |
 | 4 | `check_ship_push.sh`: the cases below, marker 0.25; `template-tests.yml`: `SHIP_TEST_TTY` | not started | — |
 | 5 | `PUBLISHING.md` sentence, BUGLOG release-notes row | not started | — |
