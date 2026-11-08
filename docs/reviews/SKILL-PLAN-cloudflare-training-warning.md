@@ -117,7 +117,7 @@ Cloudflare's word is "mixed-use".
   captures showed. The ask prints them after `reportQuiet` and before the build-failed line;
   the report prints them after `reportQuiet(…, { done: true })` and before the connection
   lines. They change no setting, no question code and no exit code. Launch day reads no bot
-  settings and gets no notes (a BUGLOG row).
+  settings and gets no notes (a BUGLOG row; true when this plan was written: see Not covered).
 - **Prose, the same facts everywhere:** checklist section 4 and its section 6 sentence on
   blocking Training on purpose; `skills/search-console-setup/SKILL.md` ("Also in the Cloudflare
   dashboard"); `skills/ai-seo/SKILL.md` Step 4 and its Common Mistakes line on blocking the
