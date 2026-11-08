@@ -112,25 +112,12 @@ my @at; while ($c =~ /\Q$mark\E$wrap\r?$/mg) { push @at, [$-[0], $+[0]] }
 # $findings may count only lines the review check's grep (looks_like_review) also counts: ASCII
 # only, no /i, no NUL in the lookahead. Loosening it lets a footer win the last-marker walk (T14).
 my $findings = qr/^[ \t\f\x0B\r]*(?:[#*-]|[0-9]+\.)[\t\x20-\x7E]*?(?<![A-Za-z0-9_])(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])(?=[\t\r\x20-\x2F\x3A-\x40\x5B-\x5E\x60\x7B-\x7E]|$)|No BUG\/RISK\/NIT findings/m;
-# A line counts only if $findings counts it both as it is and with every tally cut ("1 BUG",
-# "1 **BUG**", "BUG: 1," and the like), so a closing tally after a repeated marker cannot win the
-# walk (A1), while "- BUG: 3 retries are lost" still counts. Testing the line as it is too keeps
-# every counted line one the review check's grep counts: a cut can join "- 1 BUGRISK" into "- RISK".
-my $label = qr/(?:[Bb][Uu][Gg]|[Rr][Ii][Ss][Kk]|[Nn][Ii][Tt])[*_\x60]*/;
-my $has_findings = sub {
-  for my $l (split /\n/, $_[0]) {
-    next unless $l =~ $findings;
-    (my $s = $l) =~ s/[0-9]+[ \t]*[*_\x60]*$label|$label[ \t]*:?[ \t]*[0-9]+(?=[ \t\r]*(?:[,;.)]|$))//g;
-    return 1 if $s =~ $findings;
-  }
-  return 0;
-};
-my $usable = grep { $has_findings->(substr($c, $_->[1])) } @at;
+my $usable = grep { substr($c, $_->[1]) =~ $findings } @at;
 my $kept_whole = 1;
-for my $m (reverse @at) {
+my @ok;   # markers with findings after them that do not look quoted, in order
+for my $m (@at) {
   my ($start, $end) = @$m;
-  my $after = substr($c, $end); $after =~ s/\A\r?\n//;
-  next unless $has_findings->($after);
+  next unless substr($c, $end) =~ $findings;
   my $ls = rindex($c, "\n", $start - 1) + 1;   # where the marker line starts
   my $lead = substr($c, $ls, $start - $ls);
   my $glued = $lead !~ /\A$wrap\z/;
@@ -139,12 +126,24 @@ for my $m (reverse @at) {
     my $pl = rindex($c, "\n", $ls - 2) + 1;
     next if substr($c, $pl, $ls - 1 - $pl) =~ /\A[ \t>]*\x60\x60\x60/;
   }
+  push @ok, [$start, $end, $glued];
+}
+# The last such marker wins unless the stretch from the one before it holds at least as many
+# finding lines as what follows it: then the earlier one wins, so a closing tally after a repeated
+# marker cannot stand in for the review (A1), whatever its wording. Moving back never drops the
+# text after the later marker; the "came N times" note says to check where the review starts.
+my $count = sub { my $n = () = $_[0] =~ /$findings/g; $n };
+my $i = $#ok;
+$i-- while $i > 0 && $count->(substr($c, $ok[$i-1][1], $ok[$i][0] - $ok[$i-1][1])) >= $count->(substr($c, $ok[$i][1]));
+if (@ok) {
+  my ($start, $end, $glued) = @{$ok[$i]};
+  my $after = substr($c, $end); $after =~ s/\A\r?\n//;
   my $before = substr($c, 0, $end); $before =~ s/$wrap\Q$mark\E$wrap\r?$//mg;
   if ($before =~ /\S/) {
     my $kb = length($before) < 1024 ? "under 1 KB" : "about " . int(length($before) / 1024 + 0.5) . " KB";
     $note = "(text before the final-review marker dropped, $kb" . ($glued ? "; the marker ended a line of other text" : "") . ($usable > 1 ? "; the marker came $usable times with findings after it" : "") . ($glued || $usable > 1 ? ", so check that the section starts with the review" : "") . ($saved ? "; the full reply is in melious.full" : "; the full reply could not be saved") . ")\n\n";
   }
-  $c = $after; $kept_whole = 0; last;
+  $c = $after; $kept_whole = 0;
 }
 # A cut with nothing before it has no dropped-text note, but a skipped marker can still mean
 # the reply opens with reasoning: said all the same.

@@ -6,7 +6,7 @@
 | 2 | Plan review gate (Normal: a tooling fix, no red team) | ✅ gate closed at `45abb125`: 7 rounds, the final full read and the wording pass, no BUG or RISK open; the owner's go for the gate and to build, 2026-11-07 | `REVIEW-plan-2026-11-07-glm-marker-and-failed-reason.md` |
 | 3 | Build, tests, DIFF gate, one pull request | ✅ built and reviewed (2 rounds, Codex + GLM 5.3, no BUG the change introduced open); pull request opened from this branch | commits `5aaf2ed2`, `21710f92`, `7e0718e0`; `REVIEW-diff-2026-11-07-glm-marker-and-failed-reason.md` |
 | 4 | `HARNESS-CHANGES.md` entry in `~/.claude` | ✅ written 2026-11-07 | the 2026-11-07 "keeps GLM's review" entry in `~/.claude/HARNESS-CHANGES.md` |
-| 5 | A1: a closing tally no longer wins the walk (section 1), its own pull request after #481 | 🔄 built; DIFF review round 3 next | branch `fix/a1-closing-tally` |
+| 5 | A1: a closing tally no longer wins the walk (section 1), its own pull request after #481 | 🔄 built; DIFF rounds 3 and 4 done, the cut made, round 5 next | #482, branch `fix/a1-closing-tally` |
 
 Raised by the session that fixed the refusal check (karero/croftweaver#476). Scope 3 was added by
 the owner on 2026-11-07 ("Same PR"), so the three fixes ship as one pull request.
@@ -96,21 +96,27 @@ whole with the no-marker warning, as any reply without a usable marker is today,
 check decides. **A closing tally (A1, added after #481 merged, at the owner's word "Fix A1 first").** A summary
 after the second marker that does start like a finding ("- Totals: 1 BUG, 5 RISK") made that
 marker usable again: the section was the reader's note and the summary, the review check accepted
-it, and the seat counted as OK on a summary. Today's code does the same. So a line now counts only
-if the strict rule counts it both as it is and with every tally cut: a number then a label ("1 BUG",
-"1 **BUG**"), or a label, an optional colon and a number followed by a comma, semicolon, full stop,
-closing paren or the end of the line ("BUG: 1,", "**RISK**: 5"). A tally holds nothing else and no
-longer counts, while a finding that names a count ("- BUG: the 2 RISK paths disagree", "- BUG: 3
-retries are lost") still does. The walk then falls back to the first marker and keeps the review,
-tally and all. Testing the line as it is as well keeps every counted line one the grep counts (DIFF
-round 3: a cut alone can join "- 1 BUGRISK" into "- RISK"), so the review check is unchanged.
-**Still wrong:** a tally in another shape ("BUG (1)", "one BUG"), a finding that is only a label
-and a number ("- BUG: 3."), which no longer counts and goes the loud way, and a summary that quotes
-the clean verdict ("(No BUG/RISK/NIT findings above)"), which still counts anywhere. None seen.
+it, and the seat counted as OK on a summary. Today's code does the same. So the walk now compares
+finding lines: it takes the last usable marker unless the stretch from the usable marker before it
+holds at least as many lines the strict rule counts as the text after it, and then takes that
+earlier one (and so on back). A closing tally with no more finding lines than the review above it
+loses, whatever its wording ("- Totals: 1 **BUG**, 1 **RISK**", "- **BUG:** 1, **RISK:** 5", or one
+line per label): the first marker wins and the section is the review, the second marker and the
+tally; the "came 2 times" note stays. A leaked draft followed by a fuller final answer still loses
+to it (the `leak` case, T17). Moving back never drops the text after the later marker, and no line
+is counted that was not counted before, so the review check is unchanged. **Still wrong:** a
+closing summary with more finding lines than the review above it; a final answer with no more
+finding lines than a draft between two markers before it, where the section then holds the draft
+as well, with the note; and a summary that quotes the clean verdict ("(No BUG/RISK/NIT findings
+above)"), which still counts anywhere. Of 567 real replies, 6 are the second case: GLM wrote
+its review after one marker and a shorter copy after a second, so the section holds both, the
+shorter copy last, with the note. The other two are not seen.
 
 **Rejected.** Taking the FIRST usable marker: a leaked trace can restate the ask, marker and all,
 before the real one (#165, cases `leak` and `echoglued` in `test_failed_tier_report.sh`).
-Choosing the marker with the most finding lines after it: more code for a case not seen.
+Cutting tallies such as "1 BUG" from each line before testing it (DIFF rounds 3 and 4 of #482):
+each shape it took in (bold, label first) left another out (`**BUG:** 1`) and cost real findings
+(`- BUG: 1,000 requests exhaust the pool`), so it was cut for the count above.
 
 ## 2. A FAILED seat logs no reason
 
@@ -173,10 +179,8 @@ r3 capture keeps the quoted line at 317 and the footer pair; the f5jNZ6 capture 
 | T1 | the trimmed ctiPcY reply, as an SSE stream, with its own hex marker | `melious_stream.pl` reads it, given that marker | exit 0; the section's first non-blank line is the capture's first non-blank line after its first marker; its first finding line and its summary line are in it; neither the "marker came 2 times" note, the dropped-text note nor the no-marker warning is in it |
 | T2 | the same for hsNCTK | the same | the same, with that capture's lines |
 | T3 | the T1 reply served by the curl stub, its hex marker replaced at serve time by the marker the run asked for | `independent_review.sh` with `SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3` (the pair as REVIEW-RULES.md runs it) | the summary reads `melious OK`; the section holds the first finding line; no no-marker warning |
-| T4 | two markers, two finding lines between them, then a closing tally that starts like a finding (`- Totals: 1 BUG, 1 RISK`); the same reply through `independent_review.sh` | `melious_stream.pl`, `independent_review.sh` | exit 0; the section holds both finding lines and the tally, with no note of the reader's; the pair reads `codex OK, melious OK` |
-| T4b–e | T4 with the tally written `- Totals: 1 **BUG**, 1 **RISK**`, `- BUG: 1, RISK: 5`, `- **BUG**: 1, **RISK**: 5`, and `- 1 BUGRISK` | `melious_stream.pl` | the section holds both finding lines; no note of the reader's |
-| T16 | reasoning, a marker, then `- BUG: the 2 RISK paths disagree` | `melious_stream.pl` | the section is that finding; no no-marker warning (cutting the count leaves a finding) |
-| T16b | the same with `- BUG: 3 retries are lost` | `melious_stream.pl` | the section is that finding; no no-marker warning |
+| T4 | two markers, two finding lines between them, then a closing tally after the second: `- Totals: 1 BUG, 1 RISK`, the same in bold, `- BUG: 1, RISK: 5`, `- **BUG:** 1, **RISK:** 5`, and one line per label; the first reply also through `independent_review.sh` | `melious_stream.pl`, `independent_review.sh` | exit 0; the section holds both finding lines and says the marker came 2 times; the pair reads `codex OK, melious OK` |
+| T17 | two finding-shaped lines, a marker, one draft finding, a marker, two final ones | `melious_stream.pl` | the section is the final answer, without the draft |
 | T5 | the existing marker cases (`leak`, `markdup`, `markfence`, `markwrap`, `glued`, `echoglued`, `fencequote`, `afterfence`, `topecho`, `quotemark`, `oldmark`, `markend`, …), all in `test_failed_tier_report.sh` | the suite runs | all pass unchanged |
 | T6 | a stub reply the review check rejects, and an empty log | `independent_review.sh`, with `REVIEW_LOG` set | the new log's header ends in `cut` then `reason`; that seat's line has `FAILED` in column 13 and `output is not a review` in column 17 |
 | T7 | the existing `costfail` case (ollama 429), and the size-limit case `t11c` (codex over its limit) | the same | column 17 holds the reason each summary line shows, spaces kept; for `t11c`, its inner `(seat_limits.txt)` and the closing "nothing was sent" included |

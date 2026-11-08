@@ -35,6 +35,7 @@ copy of `5aaf2ed2`, the mutation applied, the suite read for FAIL lines. All KIL
 | 1 | `21710f92` | whole change (27,064 bytes); evidence (4,822 bytes) | Codex gpt-6.1-sol; melious glm-5.3; fresh-eyes Sonnet | Codex 141 s, 57,421 · melious 381 s, 48,390 · fresh-eyes 235 s, 157,175 | 2 / 4 / 7 (Codex 2/0/0, melious 0/3/3, fresh-eyes 0/1/4) |
 | 2 | `7e0718e0` | verify: delta since round 1 (5,810 bytes), PRIOR round 1 | Codex; melious | Codex 170 s, 59,960 · melious 202 s, 23,850 | 2 / 0 / 1 (Codex 0/0/0, melious 2/0/1) |
 | 3 | `202ef297` (#482) | verify: the A1 fix against `6859448c` (8,297 bytes), PRIOR | Codex; melious | Codex 171 s, 42,968 · melious 249 s, 27,635 | 4 / 0 / 1 (Codex 3/0/0, melious 2/0/1; one BUG from both) |
+| 4 | `5a16cc90` (#482) | verify: round 3's fixes (8,688 bytes), PRIOR; earned by `tally-cut` | Codex; melious | Codex 211 s, 164,582 · melious 160 s, 22,435 | 2 / 0 / 1 (Codex 2/0/0, melious 0/0/1) |
 
 Gate total, reviewer seat runs: 346,796 tokens (the script's line, fresh-eyes included).
 
@@ -112,6 +113,44 @@ Mutations on the reworked cut, each on the reader with the T4 and T16 replies:
 | M19 | no Markdown after the label | T4 (labelfirstbold), added when M19 first survived |
 | M20 | no label-first branch | T4 (labelfirst) |
 | M21 | the label-first branch without its lookahead | T16b |
+
+## Round 4 findings, and the cut
+
+| Id | Sev | From | Finding | Status |
+|---|---|---|---|---|
+| D1 | BUG | Codex | `- **BUG:** 1, **RISK:** 5` (the colon inside the bold) still wins the walk | Fixed by the cut; T4 (boldcolon) |
+| D2 | BUG | Codex | New: `- BUG: 1,000 requests exhaust the pool` and `- BUG: 3.11 crashes at startup` read as tallies, so a real final answer lost its marker | Fixed by the cut: no line is changed before it is counted |
+| D3 | NIT | melious | The comment says a tally "cannot win", but `BUG (1)` and `one BUG` still do | Gone with the comment; the plan names what is still wrong |
+
+The kind `tally-cut` came back, so the fix is a cut (SKILL.md step 6): the per-line tally cut is
+taken out, and the walk compares finding lines instead. It takes the last usable marker unless the
+stretch from the usable marker before it holds at least as many lines the strict rule counts as the
+text after it (plan, section 1). This was the plan's rejected alternative, turned down then as more
+code; the per-line cut proved to be more. T4 now has five tally shapes, each keeping the review with
+the "came 2 times" note; T17 checks that a fuller final answer still beats a draft and the reasoning
+above it. T16 and T16b tested the cut and are gone.
+
+| Id | Mutation | Killed by |
+|---|---|---|
+| M22 | `>` instead of `>=` | T4 (twolines) |
+| M23 | never move back | T4 (every shape) |
+| M24 | always the first usable marker | T17, mleak |
+| M25 | compare with all the text before the marker, not the stretch since the one before | T17, once it held finding-shaped reasoning above its first marker (M25 first survived) |
+
+M22–M25 were first run on the reader alone, with replies built in zsh. The suite, run by bash, then
+failed T4's note check on every shape: it built each tally with `printf "<tally>"`, and bash's
+`printf` reads a format that starts with `-` as an option, so the reply held no tally at all and
+the "both finding lines" check passed without the fix. T4 now builds the tally with `printf '%b'`
+and checks that it is in the section; through the suite, M23 fails T4 on every shape and M22 on
+the one line per label.
+
+Replays of every real `melious.resp`, the #481 reader against each version, once per marker in the
+prompt: the round-3 reader gave the same section and exit code in 554 of 554 pairs; the cut, in
+561 of 567 (more runs had been kept by then). In the 6 others GLM wrote its review after one marker
+and a shorter copy of it after a second, and the earlier review has as many finding lines or more.
+The cut steps back: in each, the section #481 printed is kept whole at the end, the fuller review
+comes before it, and the "came N times" note was already printed. The plan names this case. Only
+the review check counts finding lines in a section, and more lines can only pass it.
 
 ## State at the end
 
