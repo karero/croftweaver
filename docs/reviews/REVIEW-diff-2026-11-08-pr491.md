@@ -17,8 +17,9 @@ leaves out `docs/reviews/`. The evidence files sit in the session's scratchpad.
 | merge link (not a round) | `c71a4d5c` | `merge_link.sh 38bf1768 6ba70f63 3cf57d5e` (736 lines), PRIOR through round 3; evidence READ 8 | Codex (medium); melious | Codex 264 s, 88,364 · melious 663 s, 81,811 | 0 / 4 / 1 (Codex 0/1/0, melious 0/3/1), and one outside scope |
 | wording pass (not a round) | `0371af4a` | the BUGLOG row added since `c71a4d5c` (1 line), `--wording-pass` | Codex | Codex 63 s, 43,972 | 0 / 0 / 0 |
 | second merge link (not a round) | `1ecbce2a` | `merge_link.sh 3cf57d5e 0371af4a e7c68dbe` (2 BUGLOG rows from #485, prose), `--wording-pass` | Codex | Codex 90 s, 60,556 | 1 / 0 / 0, outside this change |
+| third merge link (not a round) | `1403a085` | `merge_link.sh e7c68dbe 1ecbce2a bc8a0291` (#483 and #489: BUGLOG rows, one README line, prose), `--wording-pass` | Codex | Codex 98 s, 47,833 | 0 / 0 / 0 |
 
-Three rounds, 15 findings; with the wording pass and two merge links, 11 seat runs, 661,407 tokens (the script's running total).
+Three rounds, 15 findings; with the wording pass and three merge links, 12 seat runs, 709,240 tokens (the script's running total).
 
 ## Findings
 
@@ -58,5 +59,5 @@ Three rounds, 15 findings; with the wording pass and two merge links, 11 seat ru
 ## Notes
 
 - Mutation check, by hand (the scratchpad's `mutate2.sh`): 12 mutations killed, 2 must-pass cases passed; listed in the PR body.
-- After round 3 `origin/main` was merged twice (`754d9a9d`, then `1ecbce2a` for #485 and #486, whose BUGLOG rows GitHub could not merge). #490 also took ship.sh and its test from 0.24 to 0.25; both sides bumped the same line, and one 0.25 covers both changes within 0.35. A merge link reviewed it (the table above); nothing shipped since v0.34, whose ship.sh is 0.23.
+- After round 3 `origin/main` was merged three times (`754d9a9d`; `1ecbce2a` for #485 and #486; `1403a085` for #483 and #489, whose BUGLOG rows GitHub could not merge; each time the union merge's stale row copies were deleted and `check_buglog_rows.sh` passed). #490 also took ship.sh and its test from 0.24 to 0.25; both sides bumped the same line, and one 0.25 covers both changes within 0.35. A merge link reviewed it (the table above); nothing shipped since v0.34, whose ship.sh is 0.23.
 - Codex asked UNVERIFIABLE questions about Cloudflare's variables, Astro's `process.env` handling and Plausible's counting. Each round's evidence held the READs (the real build captures, and the gate's builds across the modes); a live `/go/email` on a Worker was not read.
