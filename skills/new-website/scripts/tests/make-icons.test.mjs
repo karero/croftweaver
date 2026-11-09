@@ -469,7 +469,8 @@ for (const size of [32, 64]) {
   });
 }
 
-// Fewer differing pixels than this, and two glyphs blur into one at that size in a tab.
+// Regression floors, not proof of legibility (the glyph sheet is checked by eye): the drawing
+// with the inner outline fell under both.
 for (const [size, floor] of [[16, 6], [32, 16]]) test(`no two glyphs give the same picture at ${size} px`, async () => {
   const pictures = {};
   for (const letter of Object.keys(script.GLYPHS)) pictures[letter] = await lumaAt(script.drawSvg(letter, '#000000'), size);

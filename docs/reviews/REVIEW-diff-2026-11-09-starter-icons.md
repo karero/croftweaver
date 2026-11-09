@@ -35,3 +35,25 @@ failed import of `src/config.ts` is covered by the self-test.
 
 The 36 glyphs at 180, 32 and 16 px on a light and a dark tab bar: `docs/reviews/starter-icons-glyph-sheet.png`.
 Raw output: the shared notes folder of the 0.35 sweep (outside the repo).
+
+## Artifact 2: the redraw without the outline (2026-11-09)
+
+The maintainer looked at the glyph sheet and answered "No, see notes". In this session he then
+approved: "ok to: drop the inner white outline and draw the letter bigger, in all seven files".
+`98c145ef` draws no outline, with the letter 1.6 times larger and the stroke 54. At 16 px the
+closest pair now differs in 9 pixels (4 before), and at 32 px in 27 (12 before). The tests check
+there is no outline, keep the letter 64 units clear of each edge, and require no two glyphs to
+look alike at 16 or at 32. The sheet was redrawn as a browser shows `favicon.svg`, with the
+corners transparent; the old sheet flattened them, so the tiles looked square. This is a new
+artifact under the skill's step 6 ("a redesign is a new artifact with a new count"), reviewed
+from `cea8a494` so that `42f0a1af`'s CI change is in it too.
+
+| Round | Reviewed | Codex | GLM 5.3 | What was done |
+|---|---|---|---|---|
+| 1 | `cea8a494..98c145ef` | 1 RISK | out of balance | The comment said glyphs under the floor "blur into one" in a tab; nothing showed that. Reworded: the floors are regression floors, and the sheet is the check by eye. A wording fix, so no further round. |
+
+Codex alone; melious out of balance (the owner's rule of 2026-10-27: no rerun owed). Run without
+`--round`, so the script counts it as a run with no round of gate 20261109T112634Z-44873:
+Codex 135 s, 53,040 tokens. Evidence sent with it: `icons-redraw-evidence.md` in the notes folder.
+Checked here: `make-icons.test.mjs`, 56 of 56 pass; the brand kit's `TheStartersOwnIcons`, 7 of 7
+pass (with `BRAND_KIT_NODE_MODULES` set; without it they skip).
