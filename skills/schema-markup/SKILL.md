@@ -195,5 +195,5 @@ You can combine multiple schema types on one page using `@graph`:
 ## Related Skills
 
 - **seo-audit**: For overall SEO including schema review
-- **ai-seo**: For AI search optimization (schema helps AI understand content)
+- **ai-seo**: For AI search optimization (Google says no special schema is needed for its AI features; Microsoft says schema helps AI systems understand content, [Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025)
 - **site-architecture**: For breadcrumb structure and navigation schema planning

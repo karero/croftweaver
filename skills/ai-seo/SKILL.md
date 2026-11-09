@@ -42,7 +42,7 @@ Gather this context (ask if not provided):
 
 ### The AI Search Landscape
 
-Each row with a link is what that company's page lets you act on; in the Copilot row, the link between Copilot and Bingbot is our guess. Step 4 of the audit has the bots in full.
+Each row with a link is what that company's page lets you act on; in the Copilot row, no Microsoft page we read says which crawler feeds a Copilot answer. Step 4 of the audit has the bots in full.
 
 | Platform | What you can act on | The company's page |
 |----------|---------------------|--------------------|
@@ -50,7 +50,7 @@ Each row with a link is what that company's page lets you act on; in the Copilot
 | **ChatGPT (with search)** | Allow OAI-SearchBot | [OpenAI](https://developers.openai.com/api/docs/bots) |
 | **Perplexity** | Allow PerplexityBot | [Perplexity](https://docs.perplexity.ai/guides/bots) |
 | **Gemini** | Decide Google-Extended on its own: it covers Gemini training and grounding (content from the Google Search index given to the model at prompt time), and Google says it does not affect Search (Step 4) | [Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) |
-| **Copilot** | Allow Bingbot and use IndexNow. Bing says it respects robots.txt and recommends IndexNow; it does not say Copilot reads pages through Bingbot, so that part is our guess | [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview) |
+| **Copilot** | Allow Bingbot and use IndexNow. Microsoft Advertising says Copilot is powered by Bing's search index; Bing's post says Bing respects robots.txt and that IndexNow keeps AI answers current. No page we read says which crawler feeds a Copilot answer | [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview), [Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers) |
 | **Claude** | Allow Claude-SearchBot | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
 
 For what each company's page says and what to do for each platform, see [references/platform-ranking-factors.md](references/platform-ranking-factors.md).
@@ -123,17 +123,17 @@ For each priority page, verify:
 
 ### Step 4: AI Bot Access Check
 
-Each AI company runs more than one bot, and each bot has a main job. Look at the job before you allow or block a bot. This is what the companies' own pages say (read on 2026-10-11; the Bing and Search Console lines on 2026-10-29):
+Each AI company runs more than one bot, and each bot has a main job. Look at the job before you allow or block a bot. This is what the companies' own pages say (read on 2026-10-11; the Search Console line on 2026-10-29, the Bingbot line on 2026-11-09):
 
 - **OpenAI** — **OAI-SearchBot** is the bot for ChatGPT's search answers (a site opted out of it is not shown there, though it can still appear as a link), **GPTBot** gathers content for training, and **ChatGPT-User** fetches a page when a user asks (OpenAI says robots.txt rules may not apply to it) ([OpenAI](https://developers.openai.com/api/docs/bots))
 - **Anthropic** — **Claude-SearchBot** indexes pages for Claude's search results, **Claude-User** fetches a page when a user asks, and **ClaudeBot** gathers content for training. Anthropic's page names these three and no `anthropic-ai` ([Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler))
 - **Perplexity** — **PerplexityBot** shows your pages in its search results and is not used for training, and **Perplexity-User** fetches a page when a user asks (Perplexity says Perplexity-User generally ignores robots.txt) ([Perplexity](https://docs.perplexity.ai/guides/bots))
 - **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)). Search Console also has a **Search generative AI** control in each property's settings, rolled out to all sites by 31 August 2026. Opting out there keeps your content out of AI Overviews, AI Mode and the generative AI features in Google Discover. Google says it "isn't used as a ranking or inclusion signal affecting other parts of Search" and "doesn't affect AI training", which is Google-Extended's job ([Google](https://support.google.com/webmasters/answer/16908024)). Look at what it shows for your property (a property can inherit it from a parent one), and opt out only if you want out of Google's AI answers.
-- **Bingbot** — Bing's crawler. Bing's post on its AI Performance report says Bing respects robots.txt and counts citations in Copilot, Bing's AI summaries and some partner services; it does not say Copilot reads pages through Bingbot, so treat that as likely, not stated ([Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview))
+- **Bingbot** — Bing's standard crawler, which Microsoft says "handles most of our crawling needs" ([Bing](https://www.bing.com/webmasters/help/which-crawlers-does-bing-use-8c184ec0)). Microsoft says Copilot is powered by Bing's search index ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025). Bing's post on its AI Performance report says Bing respects robots.txt and counts citations in Copilot, Bing's AI summaries and some partner services ([Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)). No Microsoft page we read says which crawler fetches a page for a Copilot answer, so keeping Bingbot allowed is our advice, not a stated requirement
 
 Check your robots.txt for `Disallow` rules aimed at any of these. Blocking a search bot can keep your pages out of that company's search answers: OpenAI says a site opted out of OAI-SearchBot is not shown in ChatGPT search answers, Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search, and Perplexity recommends allowing PerplexityBot so your site appears. Training is a separate choice. OpenAI says its OAI-SearchBot and GPTBot settings are independent, and Anthropic lists its three bots apart, so you can block GPTBot and ClaudeBot and still allow the search bots. Google-Extended covers grounding in Gemini apps as well as training, so decide it on its own. CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls; its page shows how to block CCBot to keep future crawls out, and mentions an Opt-out Registry ([Common Crawl](https://commoncrawl.org/ccbot)). OpenAI and Perplexity also recommend allowing their published IP ranges, so check that a firewall or CDN is not blocking a bot that robots.txt allows.
 
-If the site runs behind Cloudflare, make the training choice with **Disallow**, not **Block**. Since 15 September 2026, Cloudflare says, Block and Block on pages with ads on Training also keep out Googlebot, Bingbot and Applebot, "so either setting impacts search as well as training". Disallow for Training, with Bot Preference Sync on, keeps those crawlers in and, Cloudflare says, publishes a no-training preference in robots.txt (the kit has not tested how crawlers are treated). The file Cloudflare writes then also shuts out Google-Extended, so that choice is made too, and Baiduspider and PetalBot, the crawlers of Baidu's and Huawei's Petal search; Bing does not read the preference yet (Microsoft's support is "targeted for early 2027"), and until then Cloudflare points to Bing's `NOARCHIVE` meta tag for a training preference (what Bing does with it is Microsoft's to say) ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)). The Cloudflare checklist's section 4 has the steps.
+If the site runs behind Cloudflare, make the training choice with **Disallow**, not **Block**. Since 15 September 2026, Cloudflare says, Block and Block on pages with ads on Training also keep out Googlebot, Bingbot and Applebot, "so either setting impacts search as well as training". Disallow for Training, with Bot Preference Sync on, keeps those crawlers in and, Cloudflare says, publishes a no-training preference in robots.txt (the kit has not tested how crawlers are treated). The file Cloudflare writes then also shuts out Google-Extended, so that choice is made too, and Baiduspider and PetalBot, the crawlers of Baidu's and Huawei's Petal search; Bing does not read the preference yet ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)). Microsoft's AI Preferences FAQ (announced 30 October 2026; [Bing](https://www.bing.com/webmasters/help/new-ai-preferences-2t1cc16d), read 2026-11-09) says nothing changes today. From 1 February 2027 Microsoft starts honoring a shared AI Training preference in robots.txt, the same preference on single pages, and a separate page-level AI Grounding preference; after 1 March 2027 `NOARCHIVE` and `NOCACHE` are no longer honored for training, so they still count until then. Microsoft says those two tags treated training and grounding as one decision. A site that uses either tag on 15 December 2026 can record a temporary grounding preference in Bing Webmaster Tools; every other site needs no transition step, and Allow is the default. To refuse training at Bing from 1 February, publish Microsoft's AI Training preference; the FAQ (Q10) gives the syntax. We have not checked whether the line Cloudflare writes is in the form Microsoft reads. The Cloudflare checklist's section 4 has the steps.
 
 See [references/platform-ranking-factors.md](references/platform-ranking-factors.md) for the full robots.txt configuration.
 
@@ -210,10 +210,12 @@ Give a reader, human or machine, reasons to trust the page. Build citation-worth
 - Remove or update outdated information
 
 **E-E-A-T alignment**
-- First-hand experience demonstrated
-- Specific, detailed information (not generic)
-- Transparent sourcing and methodology
-- Clear author expertise for the topic
+
+E-E-A-T is a Google Search idea: Google says its systems look for signs of experience, expertise, authoritativeness and trust, and that E-E-A-T "isn't a specific ranking factor" ([Google](https://developers.google.com/search/docs/fundamentals/creating-helpful-content), read 2026-11-09). We found no study that tests it on ChatGPT, Perplexity or Claude. Google's questions are a good checklist for any page:
+- Does the page show first-hand experience (having used the product or visited the place)?
+- Is the information specific, not generic?
+- Is the sourcing clear, with evidence of the expertise involved?
+- Does a byline lead to background on the author?
 
 ### Pillar 3: Presence — Be Where AI Looks
 
@@ -222,10 +224,12 @@ AI answers cite more than your own website, so be present where they look. One m
 **Places worth being present:**
 - Wikipedia (7.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
 - Reddit (1.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
-- Industry publications and guest posts
-- Review sites (G2, Capterra, TrustRadius for B2B SaaS)
+- Industry publications
+- Review sites
 - YouTube
 - Quora answers
+
+Profound's later study of ChatGPT.com ([Profound](https://www.tryprofound.com/blog/chatgpt-citation-sources), US-based, English-language users, October to December 2025, about 730,000 conversations with a web citation; read 2026-11-09) puts Wikipedia at 5% and Reddit at 3% of all citations. The two samples differ, so don't line the figures up; each is one company's count of what ChatGPT cited at the time. The same Profound page counts Quora at 1.5% and YouTube at 1.9% of Google AI Overviews citations and G2 at 1.1% of ChatGPT citations. These show where answers have cited, not that being there gets you cited, and Google advises against seeking inauthentic "mentions" across the web ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide), read 2026-11-09).
 
 **Actions:**
 - If your business has a Wikipedia article, keep it accurate and current (Profound's [glossary](https://www.tryprofound.com/blog/ai-search-glossary) says Wikipedia judges a subject by independent coverage and that you can't write your own article)
@@ -246,7 +250,7 @@ list for the research-workflow view):
 
 ### Machine-Readable Files for AI Agents
 
-Software that reads your site for someone, such as an AI agent comparing tools, can only use what it can read. If your pricing is locked in a JavaScript-rendered page or a "contact sales" wall, put it in a plain file as well.
+Software that reads your site for someone, such as an AI agent comparing tools, can only use what it can read. If your pricing is behind a "contact sales" wall, put it in a plain file as well. This is advice: no company page we read says its agents or crawlers prefer such a file, and Google says it processes JavaScript content unless it is blocked ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide), read 2026-11-09).
 
 Add these machine-readable files to your site root:
 
@@ -331,7 +335,7 @@ Profound's April table and Peec's table have no row for definitive guides or ori
 - Thin product pages with marketing fluff
 - Gated content (behind a login or a form)
 - Content without dates or author attribution
-- PDF-only content (publish the text as a web page too)
+- PDF-only content (publish the text as a web page too; Microsoft says PDFs often lack the headings and metadata that HTML gives, [Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025)
 
 ---
 
@@ -353,14 +357,14 @@ Google and Bing count how often your site appears in their AI answers, for free:
 
 ### AI Visibility Monitoring Tools
 
-This is a starting list; check each tool's own page for what it covers today. Google says "No third-party tool has access to our internal ranking or AI systems" ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)), so weigh a tool's advice against Google's own guidance.
+This is a starting list, not a recommendation or a test: each tool's page names the engines it tracks, and those lists change, so read the page for the engine you need. Google says "No third-party tool has access to our internal ranking or AI systems" ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)), so weigh a tool's advice against Google's own guidance.
 
-| Tool | Coverage | Best For |
-|------|----------|----------|
-| **Otterly AI** | ChatGPT, Perplexity, Google AI Overviews | Share of AI voice tracking |
-| **Peec AI** | ChatGPT, Gemini, Perplexity, Claude, Copilot+ | Multi-platform monitoring at scale |
-| **ZipTie** | Google AI Overviews, ChatGPT, Perplexity | Brand mention + sentiment tracking |
-| **LLMrefs** | ChatGPT, Perplexity, AI Overviews, Gemini | SEO keyword → AI visibility mapping |
+| Tool | Its page |
+|------|----------|
+| **Otterly AI** | [otterly.ai](https://otterly.ai) |
+| **Peec AI** | [peec.ai](https://peec.ai) |
+| **ZipTie** | [ziptie.dev](https://ziptie.dev) |
+| **LLMrefs** | [llmrefs.com](https://llmrefs.com) |
 
 ### DIY Monitoring (No Tools)
 
@@ -449,7 +453,7 @@ OpenRouter a week's run cost about $0.72 per site (the Costs section of that `ge
 - **Ignoring third-party presence** — Run your key queries (Step 1 of the audit), note which sites the answers cite, and be present on the ones you can reach instead of relying on your own blog alone
 - **No structured data** — Schema markup describes your content to machines; Google says no special schema is needed to appear in AI Overviews, so treat it as good hygiene
 - **Keyword stuffing** — It lowered visibility by about 8% on the Princeton GEO study's main measure, the only method that did
-- **Hiding pricing behind "contact sales" or JS-rendered pages** — Software reading your site for a buyer can only use what it can read. Add a `/pricing.md` file
+- **Hiding pricing behind "contact sales"** — Software reading your site for a buyer can only use what it can read. Add a `/pricing.md` file
 - **Blocking the search bots** — OpenAI says a site that blocks OAI-SearchBot is not shown in ChatGPT's search answers, though it can still appear as a link; Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search; Perplexity recommends allowing PerplexityBot so your site appears. Blocking the training bots (GPTBot, ClaudeBot) is a separate choice; on Cloudflare, make it with Disallow for Training, not Block, which also keeps Googlebot, Bingbot and Applebot out (Step 4)
 - **Generic content without data** — "We're the best" gives a reader nothing to check. A specific claim with a source does (for example "Our customers see 3x improvement in [metric]", if you can show it)
 - **Forgetting to monitor** — You can't improve what you don't measure. Check AI visibility monthly at minimum
@@ -483,6 +487,6 @@ For implementation, see the tools registry in the marketing-skills repo (`Devel/
 ## Related Skills
 
 - **seo-audit**: For traditional technical and on-page SEO audits
-- **schema-markup**: For implementing structured data that helps AI understand your content
+- **schema-markup**: For implementing structured data
 - **website-new-page**: For writing a new page, a comparison page included
 - **copywriting**: For writing content that's both human-readable and AI-extractable
