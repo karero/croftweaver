@@ -428,7 +428,7 @@ OpenRouter a week's run cost about $0.72 per site (the Costs section of that `ge
 - Fair and balanced (say where a competitor is the better choice)
 - Specific criteria with ratings or scores
 - Updated pricing and feature data
-- Cite the competitor-alternatives skill for building these pages
+- Use `website-new-page` to build these pages
 
 ### Documentation / Help Content
 
@@ -488,7 +488,5 @@ For implementation, see the tools registry in the marketing-skills repo (`Devel/
 
 - **seo-audit**: For traditional technical and on-page SEO audits
 - **schema-markup**: For implementing structured data
-- **content-strategy**: For planning what content to create
-- **competitor-alternatives**: For building comparison pages that get cited
-- **programmatic-seo**: For building SEO pages at scale
+- **website-new-page**: For writing a new page, a comparison page included
 - **copywriting**: For writing content that's both human-readable and AI-extractable

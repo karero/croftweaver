@@ -480,7 +480,7 @@ skills/            the suite skills (canonical)
                    sit outside the chain
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
-  search-console-setup, business-listings-setup   (bundled deps)
+  search-console-setup, search-console-insights, business-listings-setup   (bundled deps)
   facts-check      (read-only, any live site on any stack: one approved facts list
                    in, every page in the sitemap compared with it, each differing
                    figure and retired phrase out; plus the positioning check, each
@@ -663,7 +663,7 @@ The suite is a handoff artifact, so it must carry **no personal names, contact i
 credentials**.
 
 ```bash
-make check       # PII/secrets + model-agnostic + template coverage + Node floor + per-skill size budgets
+make check       # runs the repo's checks, among them PII/secrets, model-agnostic, template coverage, Node floor, per-skill size budgets
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic

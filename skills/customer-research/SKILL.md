@@ -271,8 +271,8 @@ Don't ask all six at once — lead with #1 and #2, then follow up with the rest 
 |-----------------|-------|
 | Writing copy informed by the research | `copywriting` |
 | Optimizing a page using VOC insights | `page-cro` |
-| Building a competitor comparison page | `competitor-alternatives` |
+| Building a competitor comparison page | `website-new-page` |
 | Creating a churn prevention strategy from churn research | `churn-prevention` |
 | Planning paid ads informed by research | `paid-ads` |
 | Writing cold email using research on pain/trigger | `cold-email` |
-| Planning content based on discovered topics | `content-strategy` |
+| Planning content based on discovered topics | `site-architecture` |
