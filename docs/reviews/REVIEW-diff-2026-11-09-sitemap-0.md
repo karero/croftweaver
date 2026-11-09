@@ -35,5 +35,12 @@ no BUG was open, and they change a failure message and a checklist line.
 | GLM | NIT | The name `sitemap-0.xml` is never asserted, so a renamed child gets the wrong advice | Re-sorted: rare, and the test still fails; it belongs to a later `@astrojs/sitemap` that renames files |
 | GLM | NIT | The checklist lost "robots.txt accurate" | Fixed: "`robots.txt` (naming it) + `llms.txt` accurate" |
 
-Unverifiable, not counted: Bing's report of 2026-11-09 (Daniel's screenshots of 22 and 15 pages
+Unverifiable, not counted: Bing's report of 2026-11-09 (the owner's screenshots of 22 and 15 pages
 for two sites; plan S2) and that `#` ends a line in robots.txt (RFC 9309).
+
+## S2: Google
+
+The owner submitted the croftweaver.com `sitemap-0.xml` in Search Console on 2026-11-09 and sent a
+screenshot of the Sitemaps report: type Sitemap, submitted and last read 2026-11-09, status
+Success, 22 discovered pages (the sitemap index beside it: Success, 22). Bing showed 22 and 15 for
+two sites the same day, so S2 holds in both consoles.
