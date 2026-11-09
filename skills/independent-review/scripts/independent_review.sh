@@ -128,6 +128,7 @@
 #     reviewed head, a merge link or the wording pass. A --verify round on a diff must name it.
 #     The base must be a commit HEAD contains, or one on neither HEAD nor the default branch (the
 #     old head after a rebase, as the merge link and the wording pass need); else refused (exit 2).
+#     "The default branch" is the local origin/HEAD, not fetched: a base on a newer main passes.
 #   - --base none: no check, for a diff not made by git diff in this repository; said so on the
 #     base: line.
 # Every diff run ends with that base: line, beside reviewers: and timings:. Plan:
@@ -645,7 +646,7 @@ else
             default_name="$(git -C "$top" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" || default_name="origin/<default-branch>"
             base_refuse "--base $BASE ($base_id) is not on this branch: HEAD does not contain it, so a diff from it shows every commit HEAD lacks as removed." \
               "For the whole change, drop --base and make the diff from the merge base (three dots):" \
-              "  git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ $default_name...HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT_DIR/${0##*/}") - <your other options>" \
+              "  git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ $(printf '%q' "$default_name")...HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT_DIR/${0##*/}") - <your other options>" \
               "For a delta, name the last reviewed head, a commit on this branch: --base <last-reviewed-head>." \
               "For a PR to another branch, name its merge base with that branch: --base <that merge base>." ;;
           1) ;;

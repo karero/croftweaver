@@ -146,11 +146,12 @@ Codex's effort for any run.
    base: every file's sides, and that its hunks give HEAD's content (or, for uncommitted work,
    the working tree's); a diff that fails is
    refused, naming each file and the command that makes a correct one. Any other diff (a delta,
-   a merge link, the wording pass) passes `--base <the commit it starts from>`, a commit HEAD
-   contains, or one on neither HEAD nor the default branch, as the merge link and the wording
-   pass after a rebase need (a base on the default branch only is refused); so does a change
-   whose PR targets a branch other than the default one (`--base <its merge base with that
-   branch>`). A diff not made by `git diff` in this repository passes `--base none`. Evidence for
+   a merge link, the wording pass) passes `--base <the commit it starts from>`. That is a commit
+   HEAD contains, or the old head a rebase left behind (the merge link and the wording pass need
+   it). A base on the default branch only is refused, judged by the local `origin/HEAD`, which is
+   not fetched: a newer main passes. A change
+   whose PR targets a branch other than the default one passes `--base <its merge base with that
+   branch>`. A diff not made by `git diff` in this repository passes `--base none`. Evidence for
    the reviewers (command output, logs, measurements) goes in one file with `--evidence <file>`,
    which sends it as labelled data beside the artifact; never append it to a diff, and it is no
    reason for `--base none`. A read of a system no seat can reach (a GitHub setting, a dashboard,

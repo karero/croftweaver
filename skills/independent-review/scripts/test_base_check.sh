@@ -406,6 +406,7 @@ run t9a "$R/w" "$T/t9a.diff" --seat codex --depth normal --base origin/main
 check "T9a two-dot diff with --base origin/main, main moved: refused (exit 2)" rc_is t9a 2
 check "T9a ... saying the base is not on this branch" has t9a.err "is not on this branch"
 check "T9a ... with the three-dot command naming origin/main...HEAD" has t9a.err "origin/main...HEAD -- . ':(exclude)docs/reviews/' |"
+check "T9a ... and the delta and other-branch remedies" sh -c 'grep -qF -- "--base <last-reviewed-head>." "$1.err" && grep -qF -- "--base <that merge base>." "$1.err"' _ "$T/t9a"
 check "T9a ... and no reviewer ran" not_ran t9a
 g "$R/w" diff origin/main...HEAD >"$T/t9b.diff"
 run t9b "$R/w" "$T/t9b.diff" --seat codex --depth normal
