@@ -19,12 +19,20 @@ const ICONS: Icon[] = [
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-// A PNG with its signature, IHDR first, image data, and IEND last, walking the chunks. Not a decoder.
+// A PNG with its signature, IHDR first, image data, and IEND last, its chunks end to end with
+// nothing after them. Not a decoder.
 const isPng = (b: Buffer) => {
   if (b.length < 45 || !b.subarray(0, 8).equals(PNG_SIGNATURE)) return false;
-  const names: string[] = [];
-  for (let at = 8; at + 12 <= b.length; at += 12 + b.readUInt32BE(at)) names.push(b.subarray(at + 4, at + 8).toString('latin1'));
-  return names[0] === 'IHDR' && names.includes('IDAT') && names.at(-1) === 'IEND';
+  const chunks: { name: string; length: number }[] = [];
+  let at = 8;
+  while (at + 12 <= b.length) {
+    const length = b.readUInt32BE(at);
+    if (at + 12 + length > b.length) return false;
+    chunks.push({ name: b.subarray(at + 4, at + 8).toString('latin1'), length });
+    at += 12 + length;
+  }
+  return at === b.length && chunks[0]?.name === 'IHDR' && chunks.at(-1)?.name === 'IEND' &&
+    chunks.some((c) => c.name === 'IDAT' && c.length > 0);
 };
 
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
@@ -62,15 +70,15 @@ for (const icon of ICONS) {
       expect(type, `${icon.path} content type`).toMatch(/image\/(x-icon|vnd\.microsoft\.icon)/);
       expect(body.length, `${icon.path} holds an ICO header`).toBeGreaterThanOrEqual(6);
       expect([body.readUInt16LE(0), body.readUInt16LE(2)], `${icon.path} is an ICO (reserved 0, type 1)`).toEqual([0, 1]);
-      // A 32-pixel entry whose frame lies past the directory, inside the file, and starts as a PNG
-      // or a bitmap (a 40-byte BITMAPINFOHEADER) does.
+      // A 32-pixel entry whose frame lies past the directory and inside the file, and is a whole PNG
+      // or starts with a 40-byte BITMAPINFOHEADER.
       const count = body.readUInt16LE(4);
       const frames = Array.from({ length: count }, (_, i) => 6 + 16 * i)
         .filter((at) => at + 16 <= body.length)
         .map((at) => ({ size: body[at] || 256, length: body.readUInt32LE(at + 8), offset: body.readUInt32LE(at + 12) }));
       const whole = frames
-        .filter((f) => f.length >= 8 && f.offset >= 6 + 16 * count && f.offset + f.length <= body.length)
-        .filter((f) => body.subarray(f.offset, f.offset + 8).equals(PNG_SIGNATURE) || body.readUInt32LE(f.offset) === 40)
+        .filter((f) => f.offset >= 6 + 16 * count && f.offset + f.length <= body.length)
+        .filter((f) => isPng(body.subarray(f.offset, f.offset + f.length)) || (f.length >= 40 && body.readUInt32LE(f.offset) === 40))
         .map((f) => f.size);
       expect(whole, `${icon.path} has a 32 pixel frame, inside the file, that is a PNG or a bitmap`).toContain(icon.size);
     } else {

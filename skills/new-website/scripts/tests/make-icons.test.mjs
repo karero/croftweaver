@@ -404,6 +404,7 @@ test('S12: a --brand the script cannot read is a warning, not a failure', async 
   const reasons = await (await load(site)).staleReasons(site);
   assert.equal(reasons.length, 1);
   assert.match(reasons[0], /rgb\(17, 34, 51\).*not #rrggbb/);
+  assert.ok(reasons[0].includes("--colour '#rrggbb'"), 'the colour in the hint is quoted, so a shell does not read it as a comment');
 });
 
 test('S12: the command it names is a plain run, and that run keeps a letter set with a flag', async () => {

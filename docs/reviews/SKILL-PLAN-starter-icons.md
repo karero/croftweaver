@@ -67,8 +67,9 @@ Both come before step 5's first green run, because the icon test is part of that
   one 16-byte entry each (the brand kit's `ico_from_png` does one frame the same way);
 - writes `scripts/icons-made.json`: each file's path and SHA-256, the letter and the colour, and
   for each whether it came from the site (`SITE.name`, `--brand`) or from `--letter`/`--colour`.
-  A later run without the flag keeps a letter or colour that came from one, so a plain
-  `node scripts/make-icons.mjs` redraws the same icon on the new colour.
+  A later run without the flag keeps a letter or colour that came from one; a colour that came
+  from `--brand` follows it, so a plain `node scripts/make-icons.mjs` redraws the icon on the new
+  `--brand`.
 
 **Whose files it may overwrite.** A file may be written when it is missing or its SHA-256 is in
 `scripts/icons-made.json`. With `--setup`, which setup passes minutes after the scaffold wrote

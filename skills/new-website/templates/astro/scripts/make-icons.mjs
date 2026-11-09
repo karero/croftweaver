@@ -6,7 +6,7 @@
 //
 //   --setup          also replace the scaffold's favicon.svg and favicon.ico, on a new site only
 //   --letter X       draw this letter or digit (A-Z, 0-9) instead of the name's first
-//   --colour #rrggbb the tile colour instead of --brand in src/styles/global.css
+//   --colour '#rrggbb'  the tile colour instead of --brand in src/styles/global.css (quote the #)
 //   --replace        also replace icons this script did not make (only on the owner's yes)
 //
 // It needs the site's own `sharp` (it comes with Astro) and adds no dependency.
@@ -158,10 +158,10 @@ export async function readSiteName(root) {
 // The light theme's --brand from src/styles/global.css.
 export function readBrand(root) {
   const file = path.join(root, 'src', 'styles', 'global.css');
-  if (!existsSync(file)) throw new IconsError(`${file} is not there. Run this in the site's folder, or give --colour #rrggbb.`);
+  if (!existsSync(file)) throw new IconsError(`${file} is not there. Run this in the site's folder, or give --colour '#rrggbb'.`);
   const value = readFileSync(file, 'utf8').match(/:root\s*\{[^}]*?--brand:\s*([^;}]*?)\s*;/)?.[1];
-  if (value === undefined) throw new IconsError('Found no --brand colour in the :root block of src/styles/global.css. Give the tile colour with --colour #rrggbb.');
-  if (!HEX.test(value)) throw new IconsError(`--brand in src/styles/global.css is "${value}", which is not #rrggbb. Give the tile colour with --colour #rrggbb.`);
+  if (value === undefined) throw new IconsError('Found no --brand colour in the :root block of src/styles/global.css. Give the tile colour with --colour \'#rrggbb\'.');
+  if (!HEX.test(value)) throw new IconsError(`--brand in src/styles/global.css is "${value}", which is not #rrggbb. Give the tile colour with --colour '#rrggbb'.`);
   return value.toLowerCase();
 }
 
@@ -382,7 +382,7 @@ export async function staleReasons(root) {
 
 // ---- the command line -------------------------------------------------------------------
 
-const USAGE = 'Usage: node scripts/make-icons.mjs [--setup] [--letter X] [--colour #rrggbb] [--replace]';
+const USAGE = 'Usage: node scripts/make-icons.mjs [--setup] [--letter X] [--colour \'#rrggbb\'] [--replace]';
 
 function parseArgs(argv) {
   const out = {};
