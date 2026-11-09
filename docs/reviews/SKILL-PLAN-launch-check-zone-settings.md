@@ -7,8 +7,8 @@ five places in the Cloudflare dashboard, and the report records what they showed
 |---|------|-------|----------|
 | 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09; the Account API tokens list read in round 2 | this file, "Seen in the dashboard" |
 | 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | ✅ 5 rounds, 30 findings (8 BUG), clean at round 5 | "Review trail" below |
-| 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | 🔄 built 2026-11-09, also `docs/WHAT-THE-SKILLS-RUN.md` line 243 (it called 12a optional); dry run: all ten scenarios end in their row | 97b00bfc |
-| 4 | DIFF gate (Normal) | 🔄 2 rounds, 2 findings (1 BUG), none open; GLM seat pending | "Review trail" below |
+| 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | ✅ built 2026-11-09, also `docs/WHAT-THE-SKILLS-RUN.md` line 243 (it called 12a optional); dry run: all ten scenarios end in their row | 97b00bfc |
+| 4 | DIFF gate (Normal) | ✅ 2 rounds on Codex alone (GLM seat out of balance, round 3 counted none), 2 findings (1 BUG), none open | "Review trail" below |
 
 ## Why
 
@@ -229,3 +229,7 @@ The change is skill text and checklist prose; there is no code to test.
 - **DIFF round 2** (Codex alone again, Melious still empty; 25,066 tokens; 96,722 over two
   rounds): no findings. Codex checked both round 1 fixes and found them landed. The GLM seat
   reviews the whole diff once Melious refills (round 3), so the gate is not left Codex-only.
+- **DIFF round 3** (the GLM 5.3 seat alone, on the whole diff, about 45 minutes after round 2):
+  Melious still empty ("Required: 82, Available: 0"), so no reviewer counted. By the owner's
+  rule of 2026-10-27 no rerun is owed, and the DIFF gate stands on Codex alone: 2 rounds,
+  2 findings (1 BUG, 1 RISK), both fixed, round 2 clean.
