@@ -161,8 +161,8 @@ Codex's effort for any run.
    A claim in the artifact about what a system does when it runs (a timeout firing, a killed
    client, a lock held, what a migration rewrites) gets one run on a real instance before
    round 1, sent in that file as a READ; a claim that cannot be run then says "not tested" in
-   the artifact itself. The seats cannot start the system, and their prompt makes an
-   unsupported load-bearing claim a RISK.
+   the artifact itself. The seats review read-only, and their prompt reports such a claim as
+   unsupported: a RISK wherever what breaks if it is false can be named.
    Send the same file every round its claims are under review; a
    quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
