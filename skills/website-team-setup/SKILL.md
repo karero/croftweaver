@@ -251,7 +251,7 @@ differences: in the `pull_request` rule `allowed_merge_methods` (all three),
 in the `required_status_checks` rule `do_not_enforce_on_create` (false). GitHub's
 [REST reference](https://docs.github.com/en/rest/repos/rules) lists all four. The
 extra-approval key makes a pull request that Copilot opened for no person need one more
-approval than the count; it does nothing while the count is 0, as here, and starts to
+approval than the count; GitHub's rules page says it has no effect while the count is 0, as here, and it starts to
 apply once the owner raises it. A value other than those defaults is a difference: ask the
 owner if it is on purpose. Put all four keys in the PUT body, so the PUT does not decide
 them: with the values the read-back showed, or the default for a key the owner says was
@@ -260,7 +260,7 @@ Anything that differs — `enforcement` not `active`, a non-empty `bypass_actors
 missing rule, a `strict_required_status_checks_policy` that is not the owner's choice
 (`true` unless the next paragraph applies), a `context` that is not the CI job's name — is fixed with
 `gh api -X PUT "repos/$OWNER/$REPO/rulesets/$id" --input -`
-and the same JSON body (it carries `"bypass_actors": []` explicitly, so a bypass list
+and the same JSON body plus the four keys (it carries `"bypass_actors": []` explicitly, so a bypass list
 is cleared rather than left as GitHub found it). Read it back once more after the PUT.
 
 **"Up to date" may be switched off, as the owner's choice.** With it on, every merge
@@ -270,7 +270,8 @@ sessions, each with its own pull request, pays that after every merge. With it o
 (`"strict_required_status_checks_policy": false`) a pull request merges once its own CI
 passed, and GitHub warns that checks may fail after the merge if two changes do not fit
 ([Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), "Loose");
-the kit's `ci.yml` also runs on every push to `main`, so such a failure shows there. Ask
+the kit's `ci.yml` also runs on pushes to `main`, which usually shows such a failure (a
+newer push can cancel a run, and a change to docs only skips the tests). Ask
 the owner, don't decide. If they choose off, send `false` in the body, write the choice
 in `AGENTS.md` §2 beside the merge rule, and let the read-back accept `false` where that
 line is. We have not measured how much the requirement costs with several pull requests
