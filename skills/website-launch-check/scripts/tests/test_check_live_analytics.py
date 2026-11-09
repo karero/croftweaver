@@ -319,10 +319,12 @@ class AgreesWithTheGate(unittest.TestCase):
         # The gate's Perl reads bytes, so a no-break space is no whitespace and é no word character.
         nbsp = f'<html><script\u00a0src="{WANT}"></script></html>'
         accent = '<html><script src="https://analytics.example.com/js/script.\u00e9.js"></script></html>'
+        nbsp_stub = "<html><script\u00a0>plausible.init()</script></html>"
         for name, page, expected in [("guide", GUIDE, (1, 1, 0)), ("webcroft", BARE, (0, 0, 0)),
                                      ("older tag", OLDTAG, (0, 0, 1)), ("comment-only stub", commented, (1, 0, 0)),
                                      ("another id, no data-domain", other_id, (0, 1, 1)),
-                                     ("no-break space", nbsp, (0, 0, 0)), ("accented src", accent, (0, 0, 0))]:
+                                     ("no-break space", nbsp, (0, 0, 0)), ("accented src", accent, (0, 0, 0)),
+                                     ("stub after a no-break space", nbsp_stub, (0, 0, 0))]:
             with self.subTest(name):
                 self.assertEqual(self.gate_counts(page), expected, "the gate's counter")
                 self.assertEqual(cla.count_tags(page, WANT), expected, "check_live_analytics")
