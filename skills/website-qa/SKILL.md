@@ -1,8 +1,9 @@
 ---
 name: website-qa
 description: >
-  The pre-launch QA gate for a new site: run the basic tests (a11y light+dark +
-  seo + navigation + anchors + orphans + images + phone images + tone + positioning + placeholders + email + links), fix to green, then handle technical SEO /
+  The pre-launch QA gate for a new site: run the starter's basic tests (a11y light+dark,
+  seo, navigation, images, tone, positioning, placeholders, email, links and the rest of
+  tests/*.spec.ts), fix to green, then handle technical SEO /
   performance — run Lighthouse on the deployed site (PageSpeed Insights as the
   fallback) and act on First Contentful Paint (FCP)
   and Largest Contentful Paint (LCP). Use before launch (steps 7–8 of the
@@ -26,7 +27,9 @@ preview` — the static output Cloudflare serves). Test the contract, not the
 cosmetics; red → green → commit.
 
 - `a11y.spec.ts` — axe WCAG 2 A/AA + best-practice on every page, **light AND
-  dark**; zero violations.
+  dark**; zero violations. Text axe cannot measure (over an image or a gradient) is not a
+  violation: the spec prints each such element as a warning (selector and axe's reason); look at
+  it by eye in both themes.
 - `seo.spec.ts` — title ≤60 / description 120–160 (hard floor AND cap); og/twitter
   mirror title/description; canonical == og:url == absolute URL; one `<h1>`; JSON-LD
   parses; the sitemap matches `PAGES` exactly (drift alarm: a route missing from
@@ -45,6 +48,9 @@ cosmetics; red → green → commit.
   listing any unreachable page. Deliberately-unlinked pages opt out via `ORPHAN_EXEMPT`.
   Offline. The judgment-side report (inbound count, thin pages, where to add links) is
   the `internal-link-audit` skill.
+- `llms-coverage.spec.ts` — `public/llms.txt` matches `PAGES`: a page missing from the file and
+  an entry for a page that is gone both fail. `LLMS_EXEMPT` opts a page out, with a reason.
+  Whether an entry's wording still fits its page is a `website-review` judgment. Offline.
 - `middleware.spec.ts` — `functions/_middleware.ts`, which `astro preview` never runs,
   called directly: previews noindexed, live-domain responses unchanged, and the project alias
   `<project>.pages.dev` 301ing to the live domain only once `CANONICAL_URL` is set. Offline.
@@ -113,8 +119,7 @@ cosmetics; red → green → commit.
 
 First fill `tests/_helpers.ts` `PAGES` with the real routes. A failure is a real
 defect — fix the page, do not loosen the test (Rule 12: never silently skip). For
-diagnosing a specific failure, `test-failure-triage`; for intermittent ones,
-`flaky-test-debugger`.
+diagnosing one, start with the spec's own message: it names the page and the rule.
 
 ## 1b. TDD — what NEW tests to write for a feature
 
@@ -132,7 +137,7 @@ Feature → the high-value test to add:
 | Feature | Write a test that… |
 |---|---|
 | New page/route | add it to `PAGES`; baseline a11y+SEO+links now assert it (returns 200, one `<h1>`, title/desc in range). Then **link it from a related page** — `orphans.spec.ts` fails if it's reachable from no internal link. |
-| Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. The mail-app contact form: install `website-contact-form`, whose `tests/mail-form.spec.ts` covers exactly this (set its `PAGE` and `TO`). The skill is bundled with a site only when it was scaffolded with a form; otherwise it comes from the toolkit the site was built with. |
+| Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. The mail-app contact form: install `website-contact-form`, whose `tests/mail-form.spec.ts` covers exactly this (set its `PAGE`, `TO`, `SUBJECT` and `GREETING`: the spec fails while one is empty). The skill is bundled with a site only when it was scaffolded with a form; otherwise it comes from the toolkit the site was built with. |
 | Auto-rotating photos (hero carousel) | the rotation timing on a frozen clock, no page jump when the photo changes, the dots readable on a pale and a dark photo, a way to stop it, keyboard focus. Install `website-hero-carousel`, whose `tests/hero-carousel.spec.ts` covers exactly this (set its `PAGE`, `PAUSE` and `SWAP`). In `dots` pause mode a dot choice stops the rotation until reload (keyboard focus entering also stops it, and reduced motion starts it stopped), and the WCAG 2.2.2 trade-off is described in that skill's SKILL.md, section "Pause", which is where an audit looks. |
 | Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). A toggle that stores the choice is storage the privacy page must disclose (section 3). |
 | Site search | a known query returns the expected result; empty query handled. |
@@ -165,7 +170,9 @@ wired there; say so rather than assume it runs.
 
 This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
 so without this hook a red test would still deploy. The hook is what makes "fails → does not
-ship" literally true on a direct-push-to-`main` workflow, without forcing a slower PR flow.
+ship" literally true for every push, including the owner's own direct push to `main` on a
+single-owner site (`PUBLISHING.md`). Assistants never push to `main` that way: they open pull
+requests (`AGENTS.md` §2), and CI checks those.
 
 **Offer it as a choice — never silently impose or remove it (Rule 1/Rule 12).** When setting
 up or handing off a site, surface both directions:
@@ -175,7 +182,7 @@ up or handing off a site, surface both directions:
 - **Tune what it runs:** edit `scripts/hooks/pre-push` (e.g. leave out a slow step; CI still
   runs everything).
 
-A team that wants the speed of direct pushes and the safety of the gate keeps it on; a solo
+An owner who pushes directly and wants the safety of the gate keeps it on; a solo
 builder mid-experiment may want it off. Make the call explicit with the user; don't decide for
 them. (Requires the per-machine `npx playwright install chromium` from SETUP.md, or the test
 step errors — a fail-loud, fixable by setup, not a reason to drop the hook.)

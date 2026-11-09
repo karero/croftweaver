@@ -55,7 +55,7 @@ subject matter.
    This is an explanation, not an offer: positioning is required. Keep it to those
    few sentences and move on to the questions.
 1. **Pull insights first.** Run `customer-research` for the real ICP, jobs-to-be-done
-   and voice-of-customer, and `competitor-alternatives` (or a quick scan) for what
+   and voice-of-customer, and a quick scan of what
    customers use today. Positioning is grounded in those facts, not invented.
 2. **Fill the five components** in `POSITIONING.md` (the Dunford framework):
    1. **Competitive alternatives** — what the customer would use if you did not

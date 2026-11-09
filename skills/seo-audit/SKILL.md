@@ -493,7 +493,6 @@ Same format as above
 ## Related Skills
 
 - **ai-seo**: For optimizing content for AI search engines (AEO, GEO, LLMO)
-- **programmatic-seo**: For building SEO pages at scale
 - **site-architecture**: For page hierarchy, navigation design, and URL structure
 - **schema-markup**: For implementing structured data
 - **page-cro**: For optimizing pages for conversion (not just ranking)

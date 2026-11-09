@@ -45,7 +45,7 @@ not this guide — it's a read-only diagnostic, not a voice/EEAT audit.
 1. Positioning comes first: `website-positioning` has already produced
    `POSITIONING.md` (what you offer, for whom, the market category). Read it and
    build the voice on top of it. Then pull insights: run `customer-research` for
-   ICP + voice-of-customer, and `content-strategy` if topic planning is needed.
+   ICP + voice-of-customer, and `site-architecture` if the topics and page hubs need planning.
    Feed the findings in.
 2. Copy the template to `CONTENT_GUIDE.md` and fill every `[BRACKET]`.
 3. For actual page copy, hand off wording to `copywriting`, then apply the voice

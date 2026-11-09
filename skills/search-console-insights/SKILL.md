@@ -508,7 +508,7 @@ from it that apply every time:
 - **Low-CTR titles/descriptions** → `copywriting` (title) + `website-seo-geo` (the
   50–60 / 140–160 char limits and the og/canonical contract).
 - **Striking-distance terms with no dedicated page** → a new page via the content
-  skills (`website-content-guide`, `programmatic-seo` for many similar pages); for
+  skills (`website-new-page`, `website-content-guide`); for
   an events site, a city events guide + `Event` JSON-LD is the natural home.
 - **Event rich results** → `schema-markup` (the `Event` type on event detail pages).
 - **Bigger technical issues surfaced by coverage** → `seo-audit`.
