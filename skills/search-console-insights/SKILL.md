@@ -85,7 +85,8 @@ Claude session, they just ask:
   - *"what are my quick SEO wins?"* / *"striking-distance keywords"*
   - *"which pages get seen but not clicked?"*
   - *"who's in the Top 10 for `<keyword>`?"* (uses the free Serper add-on)
-  - *"how do I rank on Bing?"* / *"my Copilot/ChatGPT visibility"* (uses the Bing add-on)
+  - *"how do I rank on Bing?"* / *"my Copilot visibility"* (uses the Bing add-on)
+  - *"does ChatGPT name my business?"* / *"ChatGPT search visibility"* (runs the weekly AI check, `geo_check.py`)
   - *"is my ranking improving?"* / *"track my rankings over time"* (runs the weekly tracker)
   - *"track my rankings automatically / every week"* (offers to schedule it, per site)
 

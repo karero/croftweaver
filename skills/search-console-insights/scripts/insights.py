@@ -207,7 +207,7 @@ def main():
         if g and b:
             if b["pos"] <= 10 < g["pos"]:
                 notes.append(f"- **{kw}**: strong on **Bing** (#{b['pos']:.0f}) but weak on "
-                             f"Google (#{g['pos']:.0f}) — a good sign for Copilot, which runs on Bing's index.")
+                             f"Google (#{g['pos']:.0f}).")
             elif g["pos"] <= 10 < b["pos"]:
                 notes.append(f"- **{kw}**: strong on **Google** (#{g['pos']:.0f}) but weak on Bing.")
     if notes:

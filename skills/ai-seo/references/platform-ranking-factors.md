@@ -111,7 +111,7 @@ User-agent: Claude-SearchBot  # Anthropic: indexes pages for Claude's search
 User-agent: Claude-User       # Anthropic: fetches a page when a Claude user asks
 User-agent: PerplexityBot     # Perplexity: shows your pages in its search results
 User-agent: Perplexity-User   # Perplexity: fetches a page when a user asks (generally ignores robots.txt)
-User-agent: Bingbot           # Bing's standard crawler; Copilot runs on Bing's index (our advice, not stated)
+User-agent: Bingbot           # Bing's standard crawler; no Microsoft page names Copilot's crawler, so allowing it is our advice
 Allow: /
 ```
 
