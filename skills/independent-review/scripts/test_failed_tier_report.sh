@@ -1008,8 +1008,8 @@ check "add: a round holding three numbers is refused" refused "--round must be d
 if command -v zsh >/dev/null 2>&1; then
   before_zsh="$(addlines)"
   run addzsh REVIEW_LOG="$AL" ADD="$HERE/review_log.sh" D="$T" zsh -c 'cd "$D"; for r in "1 263 192375" "2 140 98000"; do set -- $r; bash "$ADD" add --seat fresh-eyes --gate diff --depth normal --round $1 --seconds $2 --tokens $3; echo "rc=$?"; done'
-  check "add: a zsh loop over \"1 263 192375\" is refused on every pass" \
-    sh -c '[ "$(grep -c "^rc=2$" "$1/addzsh.out")" = 2 ] && ! grep -q "^rc=0$" "$1/addzsh.out" && ! grep -q "logged:" "$1/addzsh.out"' _ "$T"
+  check "add: a zsh loop over \"1 263 192375\" is refused on every pass, naming the flag each time" \
+    sh -c '[ "$(grep -c "^rc=2$" "$1/addzsh.out")" = 2 ] && ! grep -q "^rc=0$" "$1/addzsh.out" && ! grep -q "logged:" "$1/addzsh.out" && [ "$(grep -cF -- "--seconds got the value" "$1/addzsh.err")" = 2 ]' _ "$T"
   check "add: ...and writes nothing" [ "$(addlines)" = "$before_zsh" ]
 else
   echo "SKIP add: the zsh loop case needs zsh on PATH"
@@ -1056,10 +1056,13 @@ addrun --seat fresh-eyes --gate diff --depth normal --round 1 --seconds 263 --to
 check "add: success names round, seat, seconds, tokens, outcome and gate" written "logged: round 1, fresh-eyes, 263 s, 192375 tokens, OK, gate -"
 addrun --seat codex
 check "add: a value not given shows as -" written "logged: round -, codex, - s, - tokens, OK, gate -"
+addoff_before="$(addlines)"
 run addoff REVIEW_LOG=off bash "$HERE/review_log.sh" add --seat fresh-eyes --round 1
-check "add: REVIEW_LOG=off says not logged" sh -c '[ "$(cat "$1/addoff.out")" = "not logged: REVIEW_LOG=off" ] && [ "$(cat "$1/addoff.rc")" = 0 ]' _ "$T"
+check "add: REVIEW_LOG=off says not logged, quietly, and touches no log" \
+  sh -c '[ "$(cat "$1/addoff.out")" = "not logged: REVIEW_LOG=off" ] && [ "$(cat "$1/addoff.rc")" = 0 ] && [ ! -s "$1/addoff.err" ] && [ ! -e "$1/off" ] && [ ! -e "$PWD/off" ] && [ "$(wc -l <"$2" | tr -d " ")" = "$3" ]' _ "$T" "$AL" "$addoff_before"
 run addoffbad REVIEW_LOG=off bash "$HERE/review_log.sh" add --seat fresh-eyes --round abc
-check "add: a bad value is refused even with the log off" rc_is addoffbad 2
+check "add: a bad value is refused even with the log off, naming the value" \
+  sh -c '[ "$(cat "$1/addoffbad.rc")" = 2 ] && grep -qF "not \"abc\"" "$1/addoffbad.err" && [ ! -s "$1/addoffbad.out" ]' _ "$T"
 # A log that cannot be written keeps its warning and says nothing was logged.
 run addunwritable REVIEW_LOG="$T/notadir/x/costs.tsv" bash "$HERE/review_log.sh" add --seat fresh-eyes
 check "add: an unwritable log warns, exits 0 and prints no logged: line" \
@@ -1084,7 +1087,8 @@ inrepo gate2b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round
 inrepo gate2c bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 3
 inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
 gatefe_id="$(sed -n 1p "$G/.git/independent-review-gate")"
-check "gates: add's line names the gate the row joined" sh -c '[ -n "$2" ] && grep -qF "gate $2" "$1"' _ "$T/gatefe.out" "$gatefe_id"
+check "gates: the open gate has an id" [ -n "$gatefe_id" ]
+check "gates: add's line names the gate the row joined" has gatefe.out "gate $gatefe_id"
 # A wording pass, a final full read or a re-gate is not a round and leaves --round off (SKILL.md step 2):
 # the open gate's id is what it must carry, and it must not start a gate of its own.
 rows_join_gate() {   # rows_join_gate <log> <lines before> <gate id>: there are new rows, and each carries the id
