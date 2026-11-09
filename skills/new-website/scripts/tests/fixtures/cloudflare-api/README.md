@@ -1,15 +1,18 @@
-# Cloudflare's API, as three trials saw it
+# Cloudflare's API, as four trials saw it
 
-Each file here is one call to Cloudflare's API from the three trials of the setup script
+Each file here is one call to Cloudflare's API from the four trials of the setup script
 (`docs/reviews/SKILL-PLAN-cloudflare-setup.md` in the Croftweaver repository, "What is
 known, and how", and, for the third, `docs/reviews/SKILL-PLAN-cloudflare-training-warning.md`):
 the request, the status and the answer, as `{ capture, request, status, response }`.
 `T1-048` is the first trial's capture 048, `T2-061` the second trial's 061, `T3-002` the
-third's 002, the numbers the plans cite. The third trial read Bot Management after each
+third's 002, `T4-001` the fourth's 001, the numbers the plans cite. The third trial read Bot Management after each
 choice in the dashboard's AI bot policies; `T3-006-c5b-robots.txt` is the part Cloudflare
 put in front of the site's `robots.txt` at that capture, the site's own lines cut. The first
 two trials' raw captures are no longer kept, so the third was added alone
-(`clean-captures.mjs --add`), its made-up ids numbered after those already here. The tests' stub of the API (`../../cloudflare-stub.mjs`) builds its
+(`clean-captures.mjs --add`), its made-up ids numbered after those already here. The fourth trial
+(2026-11-09, Cloudflare API v4 through a Node `fetch` helper, not `cf.sh`) was cleaned by hand,
+the zone's and the account's ids replaced by the made-up ones already here; `clean-captures.mjs --add`
+needs `cf.sh`, so it was not used. It read and wrote Bot Management's `ai_agents`. The tests' stub of the API (`../../cloudflare-stub.mjs`) builds its
 answers from them, and `cloudflare-setup.test.mjs` replays the captured calls against the
 stub and compares.
 
@@ -63,6 +66,7 @@ item's latest and canonical deployment set to null: they hold another site's his
 | Attaching keeps the host's A record; one PATCH turns it into a proxied CNAME, with a comment, and keeps its id. Cloudflare's answer to that PATCH says changing a record's type is deprecated | T1-129, T1-132, T2-042, T2-045 to T2-047 |
 | A record comment holds 100 characters; 101 is refused, code 9313 | T2-057, T2-058 |
 | Each dashboard choice of the AI bot policies, as Bot Management reads it: Allow (do not block) is `"disabled"`, Block `"block"`, Block on pages with ads `"only_on_ad_pages"` in Training, Search and Agent; Disallow (Training only) `"disallow"`; choosing Disallow leaves Bot Preference Sync off; with Sync on, `robots.txt` gains Cloudflare's lines | T3-001 to T3-013, T3-006-c5b-robots.txt. With Sync off (C4, C5, C6) the site's own five lines were served unchanged; those reads held nothing but the site's file and are not committed |
+| Bot Management's `ai_agents` is a map of agent name to `"disabled"`, `"block"` or `"only_on_ad_pages"`; a PUT with some agents changes only those (a partial map is merged per key); changing `ai_user` leaves `ai_agents` as it was | T4-001 to T4-011 (T4-008 and T4-009 for the merge; T4-004 to T4-007 for `ai_user`) |
 
 T1-102, the zone's list of records on launch day, is not here: it is the live zone's mail and
 other records. `clean-captures.mjs` takes the captures in batches, the setup stage's, then the launch

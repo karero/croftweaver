@@ -229,7 +229,10 @@ export function handle(state, method, p, query, body, contentType) {
       // the whole object (T2-061).
       const variant = body.cf_robots_variant ?? state.bot.cf_robots_variant;
       if (body.is_robots_txt_managed === true && variant === 'policy_only') return { status: 400, body: answer('T2-065') };
-      Object.assign(state.bot, copy(body));
+      // ai_agents is merged per key: an agent left out keeps its value (T4-008, T4-009).
+      const { ai_agents: agents, ...fields } = copy(body);
+      Object.assign(state.bot, fields);
+      if (agents) state.bot.ai_agents = { ...state.bot.ai_agents, ...agents };
       const b = answer('T2-061');
       b.result = copy(state.bot);
       return { status: 200, body: b };
