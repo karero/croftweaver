@@ -7,7 +7,7 @@ five places in the Cloudflare dashboard, and the report records what they showed
 |---|------|-------|----------|
 | 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09; the Account API tokens list read in round 2 | this file, "Seen in the dashboard" |
 | 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | ✅ 5 rounds, 30 findings (8 BUG), clean at round 5 | "Review trail" below |
-| 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | ⬜ | — |
+| 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | 🔄 built 2026-11-09, also `docs/WHAT-THE-SKILLS-RUN.md` line 243 (it called 12a optional); dry run: all ten scenarios end in their row | 97b00bfc |
 | 4 | DIFF gate (Normal) | ⬜ | — |
 
 ## Why
