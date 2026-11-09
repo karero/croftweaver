@@ -823,11 +823,11 @@ DOCTYPE_DEFINES = (
     "without a DOCTYPE (a plain SVG, without the tool's own editing data)."
 )
 # A file with no DOCTYPE to read (see start_doctype and _strip_doctype) that uses a name nothing defines. Two kinds of file meet
-# this, and the sentence gives each its own way on, the commoner first. (A file whose standard declaration was taken
-# off meets NO_SUCH_NAME_STANDARD: it has not been deleted by anyone, and its owner has nothing to restore.) Pasted code that never had a DOCTYPE and holds a
+# this, and the sentence gives each its own way on, the commoner first. Pasted code that never had a DOCTYPE and holds a
 # web page's name for a character (&nbsp; in a title, &copy; in a label: XML itself defines five names, and a web page
 # many more): "ask for an export without a DOCTYPE" alone asked its owner for the file she had. And a file whose
-# DOCTYPE was deleted as the sentence above says, where the declaration had defined the name.
+# DOCTYPE was deleted as the sentence above says, where the declaration had defined the name. (A file whose standard
+# declaration was taken off meets NO_SUCH_NAME_STANDARD instead: nobody deleted it, so its owner has nothing to restore.)
 NO_SUCH_NAME = (
     "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;, "
     "for example &nbsp;). Where the name stands for a character, as it does on a web page, open the file in a text "
@@ -844,6 +844,11 @@ UNBOUND_PREFIX = (
 UNBOUND_PREFIX_UNNAMED = (
     "The file is not readable as an SVG: it uses a prefix that nothing declares. That happens when only a part of a "
     "drawing was copied. Copy the whole drawing, from <svg to </svg>: the opening tag holds the declarations."
+)
+# Added where the file had a standard DOCTYPE: the SVG 1.1 DTD declares xmlns:xlink as a default of <svg>, which is not read.
+UNBOUND_PREFIX_STANDARD = (
+    " If this is a whole drawing, it may lean on its DOCTYPE to declare the prefix, which this check does not read: ask "
+    "the tool for an export that declares it in the <svg tag."
 )
 NO_SUCH_NAME_STANDARD = (
     "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;, "
@@ -902,7 +907,7 @@ def _unbound_prefix_message(data, at):
     for n in names:
         prefix = n.partition(b":")[0] if b":" in n else None
         if prefix and prefix not in scope:
-            name = prefix.decode("ascii", "replace")[:30]
+            name = prefix.decode("utf-8", "replace")[:30]
             return UNBOUND_PREFIX % (name, name)
     return UNBOUND_PREFIX_UNNAMED
 
@@ -1047,7 +1052,7 @@ def _parse(data, standard_doctype=False):
         if why == expat.errors.XML_ERROR_UNDEFINED_ENTITY:
             said = NO_SUCH_NAME_STANDARD if standard_doctype else NO_SUCH_NAME
         elif why == expat.errors.XML_ERROR_UNBOUND_PREFIX:
-            said = _unbound_prefix_message(data, parser.ErrorByteIndex)
+            said = _unbound_prefix_message(data, parser.ErrorByteIndex) + (UNBOUND_PREFIX_STANDARD if standard_doctype else "")
         else:
             said = "The file is not readable as an SVG (%s)." % why
         raise Refusal("not-xml", said) from None

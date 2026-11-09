@@ -30,7 +30,7 @@ origin/main first (a probe file per row; the output goes in the PR).
 | clip-path ids with a digit first | No: `_IDENT` takes a digit first, and `test_svg_safety.py:162` has the case | Close the row with the PR's probe output (a digit-first id passes on main) and the existing test as the regression guard. No code. |
 | DOCTYPE | Yes: the standard SVG 1.1 DOCTYPE is refused | **Widen, narrowly** (A). |
 | class names, `.sm\:flex` | Yes: any backslash outside quotes is refused | **Widen, narrowly** (B). |
-| no way out: `image-rendering`, `-webkit-print-color-adjust`, `overflow`, `isolation`, `stop-color` in a style; a `fill-opacity: 0` path | Yes (as an attribute, `overflow` is already left out) | Drop the five where they cannot change the drawing (C); a drawing element with `fill-opacity: 0` paints no fill (D). |
+| no way out: `image-rendering`, `-webkit-print-color-adjust`, `overflow`, `isolation`, `stop-color` in a style; a `fill-opacity: 0` path | Yes (as an attribute, `overflow` is already left out) | Drop the five (and two near siblings, `print-color-adjust` and `color-adjust`) where they cannot change the drawing (C); a drawing element with `fill-opacity: 0` paints no fill (D). |
 | pasted code, undeclared prefix | Yes: "not readable as an SVG (unbound prefix)" | The message names the prefix and says to paste the whole drawing (E). |
 | `currentColor` note | Yes: a `currentColor` group holding `<g color="#7a2e0b">` is read under `#7a2e0b` and refused `colour-current` under `#2255aa` (probe, 2026-11-09) | The note says what really helps (F). |
 | refused exports (`<use>`, `<mask>`, opacity) | Yes | **Not in this PR**: see "Left out". |

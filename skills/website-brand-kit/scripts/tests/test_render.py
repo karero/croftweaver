@@ -922,7 +922,8 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
         # on the shape, no class left) and the file as it came are the same picture, for each form that is read
         b, docs = self.BOX, {}
         for selector, name in ((r".sm\:flex", "sm:flex"), (r".sm\3a flex", "sm:flex"), (r".w-1\/2", "w-1/2"), (r".h-0\.5", "h-0.5"), (r".a\2e b", "a.b"),
-                               (r".\31 0", "10"), (r".\41", "A"), (r".md\:h-8.sm\:flex", "md:h-8 sm:flex")):
+                               (r".\31 0", "10"), (r".\41", "A"), (r".md\:h-8.sm\:flex", "md:h-8 sm:flex"),
+                               (r".a\000041", "aA"), (r".a\0000411", "aA1")):   # six digits end an escape: the 1 after them is a letter of the name
             docs["class " + selector] = '<svg %s><style>%s{fill:#f00}</style><rect class="%s" width="6" height="6"/><rect class="%sx" x="6" y="6" width="4" height="4"/></svg>' % (b, selector, name, name.split(" ")[0])
         outcome = self.judge(docs)
         self.assertEqual(set(outcome.values()), {"accepted"}, outcome)

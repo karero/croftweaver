@@ -3589,11 +3589,26 @@ class AnUndeclaredPrefixIsNamed(unittest.TestCase):
         self.assertNotIn("data-x", text)
         self.assertNotIn("the prefix foo", text)
 
-    def test_the_same_file_with_a_standard_declaration_names_the_same_prefix(self):
+    def test_the_same_file_with_a_standard_declaration_names_the_same_prefix_and_says_the_declaration_is_not_read(self):
+        # the SVG 1.1 DTD gives <svg> xmlns:xlink as a default; a file that leans on that is refused, and the owner who did
+        # copy the whole drawing is told what else to ask for
         doc = svg('<rect sodipodi:x="1" width="9" height="9"/>')
         plain = str(refused(self, doc, "not-xml"))
-        self.assertEqual(str(refused(self, S11 + b"\n" + doc, "not-xml")), plain)
+        with_it = str(refused(self, S11 + b"\n" + doc, "not-xml"))
         self.assertIn("the prefix sodipodi ", plain)
+        self.assertTrue(with_it.startswith(plain), with_it)
+        self.assertIn("may lean on its DOCTYPE to declare the prefix", with_it)
+        self.assertNotIn("lean on its DOCTYPE", plain)
+        leaning = S11 + b'\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 9"><path d="M0 0h9v9z" xlink:href="#a"/></svg>'
+        self.assertIn("the prefix xlink ", str(refused(self, leaning, "not-xml")))
+        self.assertIn("lean on its DOCTYPE", str(refused(self, leaning, "not-xml")))
+
+    def test_a_prefix_in_another_script_is_named_as_it_is_written(self):
+        text = str(refused(self, svg('<rect é:x="1" width="9" height="9"/>'), "not-xml"))
+        self.assertIn("the prefix é (a name written é:something)", text)
+
+    def test_the_longest_name_of_a_class_is_the_same_in_the_attribute_and_in_a_selector(self):
+        self.assertEqual(_css.MAX_CLASS, _svg.MAX_CLASS)
 
 
 class AnEscapedClassNameIsOneName(unittest.TestCase):
@@ -3606,7 +3621,7 @@ class AnEscapedClassNameIsOneName(unittest.TestCase):
         return _svg.clean_svg(bare("<style>%s{fill:#ff0000}</style>" % selector + '<rect class="%s" width="9" height="9"/>' % name)).colours
 
     def test_each_form_is_read_as_the_class_a_browser_reads(self):
-        # the right-hand name is what CSS 2.1 makes of the left (a hex escape of 1 to 6 digits and one blank after it,
+        # the right-hand name is what CSS 2.1 makes of the left (a hex escape of 1 to 6 digits and an optional blank after it,
         # or a backslash and one of the characters that cannot stand bare), worked out by hand
         for selector, name in ((r".sm\:flex", "sm:flex"), (r".sm\3a flex", "sm:flex"), (r".w-1\/2", "w-1/2"), (r".h-0\.5", "h-0.5"), (r".a\2e b", "a.b"),
                                (r".\31 0", "10"), (r".\41", "A"), (r".\41 b", "Ab"), (r".a\000041", "aA"), (r".a\0000411", "aA1"), (r".a\5c b", "a\\b"), (r".a\22 ", 'a&quot;'),
