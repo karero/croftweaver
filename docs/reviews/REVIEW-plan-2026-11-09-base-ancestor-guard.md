@@ -12,6 +12,11 @@ alone then passed (99 ok, 0 FAIL, exit 0). The only file added since, the eviden
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |-------|------|----------|-----------|-----------------|--------------|
 | 1 | `e70e090a` | the whole plan | Codex alone; melious out of balance (no rerun owed, owner's rule 2026-10-27) | codex 126 s, 37,007 | 1 / 2 / 0 |
+| 2 | `b440e17b` | the whole plan, `--verify` round 1's findings | Codex alone (`--seat codex`), melious still out of balance | codex 109 s, 67,146 | 0 / 0 / 0 |
+| final read | `b440e17b` | the whole plan, every cited line read against the repo | a host subagent (fresh context) | 243 s, 146,957 | 0 / 1 / 2 |
+
+Fresh-eyes, owed in round 1 at Normal depth, was not run; the final full read is the only
+host read in fresh context, and it came after round 2.
 
 ## Round 1 findings
 
@@ -23,3 +28,13 @@ alone then passed (99 ok, 0 FAIL, exit 0). The only file added since, the eviden
 
 Also reworded: "Verified: every row of E1 and E2" now reads "Run or read by me", after Codex
 marked the claim UNVERIFIABLE (it saw outputs, not reruns).
+
+## Final read findings
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| F1 | RISK | Case 2 refused every base off the branch without `--verify`, but the wording pass after a rebase sends the delta since the old reviewed head with `--base <that head>` and no `--verify` (closeout.md, the prose-only re-gate; an empty `--verify` file is refused, script line 399), so the guard would refuse a use SKILL.md names | fixed: the default-branch test now applies to every run; a base on neither HEAD nor the default branch goes on with or without `--verify`, and the two remedies are told apart by `--verify`; T9f now runs the wording pass after a rebase and expects exit 0; a new mutation (exemption only for `--verify`) must fail T9f; E1 gains row 7w |
+| F2 | NIT | The whole-change refusal gives no remedy for a PR to a non-default branch (E1 case 8) | fixed: one line naming `--base <its merge base with that branch>` |
+| F3 | NIT | "What it does not catch" omits that cases 2 to 4 test the local `refs/remotes/origin/HEAD`, so a newer main base (a local `main` ahead, `FETCH_HEAD`, a pasted SHA) passes as case 4 | fixed: named there |
+
+F1 changes what the guard does, so round 3 verifies it.

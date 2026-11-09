@@ -65,6 +65,8 @@ echo; echo "### 7. Merge link after a rebase onto main (reviewed head F3, no lon
 g checkout -q -b feat-rb "$F3"; g rebase -q origin/main >/dev/null 2>&1; echo "   rebased HEAD: $(g rev-parse HEAD)"
 ( cd "$W" && "$ML" "$A" "$F3" "$M2" ) >"$T/ml-rb.diff"; echo "   merge link touches: $(grep '^diff --git' "$T/ml-rb.diff" | tr '\n' ' ')"
 run "merge link after rebase, --verify --base F3" "$T/ml-rb.diff" --verify "$T/prior.md" --base "$F3" --round 3; anc "$F3" F3; onmain "$F3" F3
+echo; echo "### 7w. Wording pass after the rebase: the same delta, --wording-pass --base F3, no --verify"
+run "wording pass after rebase, --base F3" "$T/ml-rb.diff" --wording-pass --base "$F3"; anc "$F3" F3; onmain "$F3" F3
 
 echo; echo "### 8. PR targets a non-default branch: --base <merge base with that branch>"
 g checkout -q -b release "$A"; printf 'r one\n' >"$W/r.md"; c R1; g push -q origin release
@@ -81,23 +83,23 @@ g fetch -q origin; ( cd "$W" && "$SW" --base origin/main ) 2>&1 | sed 's/^/   /'
 Its output (verbatim; temp paths as printed):
 ```
 command: /bin/bash /private/tmp/claude-501/-Users-matt-Devel-website-builder--claude-worktrees-plan-base-ancestor-guard-4c9cae/d2f71a83-a10b-4cc1-89e4-c097d75c2c1b/scratchpad/base_uses.sh <worktree>/skills/independent-review
-run: 2026-11-09T16:10:59Z, git version 2.54.0 (Apple Git-157), independent_review.sh at croftweaver d0f5c89e, stub codex, REVIEW_LOG=off
-A=534251d60390184d7ab504362f64a73dabf83af9 F1=31ff884c348fb8859f85b29bb3c7c903425f79d9 M1(origin/main)=b61a9ba38ec3c5882fc1fef5b33237fd56aba1f6
+run: 2026-11-09T18:46:19Z, git version 2.54.0 (Apple Git-157), independent_review.sh at croftweaver 6859448c, stub codex, REVIEW_LOG=off
+A=7b496477fb4cceb9ca3aff1403390f1e021bc0c8 F1=01cec4b56368431d78d56a275bdfa8580eebbca2 M1(origin/main)=b1a99ae085acb45a850906ce1c667187c12cc024
 
 ### 1. The misfire: main moved past the branch; two-dot diff, --base origin/main
    two-dot diff touches: diff --git a/a.md b/a.md diff --git a/b.md b/b.md 
 == two-dot, --base origin/main
    args: --base origin/main
    script exit: 0
-   base: b61a9ba38ec3c5882fc1fef5b33237fd56aba1f6 (--base origin/main)
+   base: b1a99ae085acb45a850906ce1c667187c12cc024 (--base origin/main)
    is-ancestor origin/main HEAD: exit 1
    is-ancestor origin/main origin/HEAD (origin/main): exit 0
 
 ### 1v. The incident's round 5: the same two-dot diff and --base origin/main, in a --verify round
 == two-dot, --verify --base origin/main
-   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.BCp4DZ/prior.md --base origin/main --round 2
+   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.M5tQ5h/prior.md --base origin/main --round 2
    script exit: 0
-   base: b61a9ba38ec3c5882fc1fef5b33237fd56aba1f6 (--base origin/main)
+   base: b1a99ae085acb45a850906ce1c667187c12cc024 (--base origin/main)
    is-ancestor origin/main HEAD: exit 1
    is-ancestor origin/main origin/HEAD (origin/main): exit 0
 
@@ -105,60 +107,68 @@ A=534251d60390184d7ab504362f64a73dabf83af9 F1=31ff884c348fb8859f85b29bb3c7c90342
 == three-dot, no --base
    args: 
    script exit: 0
-   base: 534251d60390184d7ab504362f64a73dabf83af9 (merge base with origin's HEAD b61a9ba38ec3c5882fc1fef5b33237fd56aba1f6, fetched; every changed tracked file present)
+   base: 7b496477fb4cceb9ca3aff1403390f1e021bc0c8 (merge base with origin's HEAD b1a99ae085acb45a850906ce1c667187c12cc024, fetched; every changed tracked file present)
    is-ancestor merge-base(=A) HEAD: exit 0
 
 ### 3. Delta since a reviewed head (F1): --verify --base F1
 == delta, --verify --base F1
-   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.BCp4DZ/prior.md --base 31ff884c348fb8859f85b29bb3c7c903425f79d9 --round 2
+   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.M5tQ5h/prior.md --base 01cec4b56368431d78d56a275bdfa8580eebbca2 --round 2
    script exit: 0
-   base: 31ff884c348fb8859f85b29bb3c7c903425f79d9 (--base 31ff884c348fb8859f85b29bb3c7c903425f79d9)
+   base: 01cec4b56368431d78d56a275bdfa8580eebbca2 (--base 01cec4b56368431d78d56a275bdfa8580eebbca2)
    is-ancestor F1 HEAD: exit 0
 
 ### 4. Wording pass since the last reviewed head (F2): --wording-pass --base F2
 == wording pass, --base F2
-   args: --wording-pass --base 531f35b58ac4a2497a8e5c100b940caa1fcf43e0
+   args: --wording-pass --base 0b009a55e2beaff0aad085baab848b8ddeb33cf3
    script exit: 0
-   base: 531f35b58ac4a2497a8e5c100b940caa1fcf43e0 (--base 531f35b58ac4a2497a8e5c100b940caa1fcf43e0)
+   base: 0b009a55e2beaff0aad085baab848b8ddeb33cf3 (--base 0b009a55e2beaff0aad085baab848b8ddeb33cf3)
    is-ancestor F2 HEAD: exit 0
 
 ### 5. Working-tree change on top of HEAD: --base HEAD
 == working tree, --base HEAD
    args: --base HEAD
    script exit: 0
-   base: 19ccb0fb5ab8a2ebaecf034fb504a93d6f249004 (--base HEAD; new sides from the working tree)
+   base: 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d (--base HEAD; new sides from the working tree)
    is-ancestor HEAD HEAD: exit 0
-   M2(origin/main)=e9a7ad5b7e9bf19cf24204f17d9293f842b60671 edits a.md line 5
+   M2(origin/main)=e7e24fe1f489741ddec2cbe73a70cb397936067f edits a.md line 5
 
 ### 6. Merge link after merging main into the branch (reviewed head F3)
 == merge link after merge, --verify --base F3
-   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.BCp4DZ/prior.md --base 19ccb0fb5ab8a2ebaecf034fb504a93d6f249004 --round 3
+   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.M5tQ5h/prior.md --base 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d --round 3
    script exit: 0
-   base: 19ccb0fb5ab8a2ebaecf034fb504a93d6f249004 (--base 19ccb0fb5ab8a2ebaecf034fb504a93d6f249004)
+   base: 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d (--base 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d)
    is-ancestor F3 HEAD: exit 0
 
 ### 7. Merge link after a rebase onto main (reviewed head F3, no longer on the branch)
-   rebased HEAD: 47249aa2edd610ed1053433c2f0b21a7c0b4d51b
+   rebased HEAD: 69ff428e0b7b7f5c98d83f3ac480b67c2cb776dc
    merge link touches: diff --git a/a.md b/a.md 
 == merge link after rebase, --verify --base F3
-   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.BCp4DZ/prior.md --base 19ccb0fb5ab8a2ebaecf034fb504a93d6f249004 --round 3
+   args: --verify /private/var/folders/tv/76d0rgkj0451hxz37vkl9mth0000gn/T/base-uses.M5tQ5h/prior.md --base 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d --round 3
    script exit: 0
-   base: 19ccb0fb5ab8a2ebaecf034fb504a93d6f249004 (--base 19ccb0fb5ab8a2ebaecf034fb504a93d6f249004)
+   base: 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d (--base 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d)
+   is-ancestor F3 HEAD: exit 1
+   is-ancestor F3 origin/HEAD (origin/main): exit 1
+
+### 7w. Wording pass after the rebase: the same delta, --wording-pass --base F3, no --verify
+== wording pass after rebase, --base F3
+   args: --wording-pass --base 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d
+   script exit: 0
+   base: 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d (--base 9ac54b7bd7a1f6b1af4e74a75628305925e6ea8d)
    is-ancestor F3 HEAD: exit 1
    is-ancestor F3 origin/HEAD (origin/main): exit 1
 
 ### 8. PR targets a non-default branch: --base <merge base with that branch>
 == non-default target, --base merge-base
-   args: --base c61b8a539ad5894dda88900796403a14aa2e49a6
+   args: --base ab0f4ffa43f55568060bbbd0cd4494d386c77b8f
    script exit: 0
-   base: c61b8a539ad5894dda88900796403a14aa2e49a6 (--base c61b8a539ad5894dda88900796403a14aa2e49a6)
+   base: ab0f4ffa43f55568060bbbd0cd4494d386c77b8f (--base ab0f4ffa43f55568060bbbd0cd4494d386c77b8f)
    is-ancestor merge-base(origin/release) HEAD: exit 0
 
 ### 9. sweep_claims.sh --base origin/main in the misfire's state (not changed by the guard)
    sweep_claims: 0 sentences to check in 1 file swept.
    sweep exit: 0
    is-ancestor origin/main HEAD: exit 1
-exit: 0
+exit 0
 ```
 
 ## READ E2: the incident (session transcript 3ee41cdd, its saved round outputs, and its repository's history)
