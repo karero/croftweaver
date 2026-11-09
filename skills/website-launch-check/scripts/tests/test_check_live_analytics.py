@@ -242,6 +242,13 @@ class NotChecked(unittest.TestCase):
                 code, out, _ = run(config(mode=mode), None, GUIDE)
                 self.assertEqual(code, 2, out)
                 self.assertIn("mode:", out)
+        for line in ("  mode : 'server',", "  'mode': 'server',", '  "mode": \'server\','):
+            with self.subTest(line):
+                cfg = config().replace("  mode: 'script' as 'script',", line)
+                self.assertIn(line, cfg)
+                code, out, _ = run(cfg, None, BARE)
+                self.assertEqual(code, 2, out)
+                self.assertIn("mode:", out)
 
     def test_a_refused_connection(self):
         s = Server()

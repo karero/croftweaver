@@ -21,7 +21,7 @@ CONFIG = Path("src/config.ts")
 USE_LINE = re.compile(r"^export const USE_ANALYTICS = (true|false);?[ \t]*(//.*)?$")
 HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]""")
 ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]""")
-MODE_KEY = re.compile(r"^\s*mode:")
+MODE_KEY = re.compile(r"""^\s*['"]?mode['"]?\s*:""")
 MODE_LINE = re.compile(r"""^\s*mode:\s*['"]([a-z]+)['"]""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{")
 BLOCK_END = re.compile(r"^\}")
@@ -81,7 +81,7 @@ def read_config():
         raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines in the ANALYTICS block of {CONFIG}")
     mode = first(MODE_LINE)
     if not mode and any(MODE_KEY.match(line) for line in block):
-        raise NotChecked(f"a mode: line in the ANALYTICS block of {CONFIG} is not written as mode: 'script' or 'server'")
+        raise NotChecked(f"a mode: line in the ANALYTICS block of {CONFIG} is not written as mode: 'script' or 'server' (no space before the colon, no quotes round the key)")
     mode = mode or "script"
     if mode not in ("script", "server"):
         raise NotChecked(f"mode in {CONFIG} is '{mode}'; expected 'script' or 'server'")
@@ -180,7 +180,7 @@ def main(argv):
         return 0
     print(f"✗ {CONFIG} has analytics on ({want}), but the live page has {found}; expected 1, 1 and 0.")
     if script == 0 and other == 0:
-        print("  The page does not load the analytics script the config names. Likely causes:")
+        print("  The page carries no analytics script tag the config names. Likely causes:")
         print("  - the build that made the live site had analytics off;")
         print("  - on Workers Builds, the enabled: line must read WORKERS_CI_BRANCH (the 0.35 release notes),")
         print("    or the build needs the variable CF_PAGES_BRANCH=<the value of PROD_BRANCH in src/config.ts>;")
