@@ -13,10 +13,10 @@ plain live check only. Not in scope: proving which build served the page, and an
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | narrowed 2026-11-09 | this file |
-| 2 | PLAN gate, High | rounds 1-5 on the wider plan: Codex alone (melious out of balance), 10 BUG, 9 RISK; round 6 on this narrow plan | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
+| 2 | PLAN gate, High | rounds 1-5 on the wider plan: Codex alone (melious out of balance), 10 BUG, 9 RISK; rounds 6-7 on this narrow plan | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
 | 3 | `skills/website-launch-check/scripts/check_live_analytics.py` and its tests, on real captures | — | — |
 | 4 | `website-launch-check` §8 runs it; BUGLOG release-notes row | — | — |
-| 5 | `make check`, mutation check, DIFF gate, then PR | — | — |
+| 5 | `make check` and `make test-launch-check`, mutation check, DIFF gate, then PR | — | — |
 
 ## What and why
 
@@ -50,14 +50,18 @@ with the other skills, so the script needs no new starter file.
 **A. `scripts/check_live_analytics.py <live address>`**, run in the site's folder (where
 `src/config.ts` is), as `report_html.py` is run. It fetches `<address>/?cb=<random>` (Python's
 `urllib`, redirects followed, 10 s timeout, User-Agent `croftweaver-launch-check`; a refusal such
-as a 403 from a bot rule is exit 2, never a verdict), and reads `src/config.ts`: `USE_ANALYTICS` from its
-top-level line with the gate's pattern (`check_analytics_gate.sh:79`; no line counts as on, as in
-the gate), and `scriptHost`, `scriptId` and `mode` with the gate's patterns (lines 93, 94, 103),
+as a 403 from a bot rule is exit 2, never a verdict), and reads `src/config.ts`: `USE_ANALYTICS` as
+the gate reads it (`check_analytics_gate.sh:78-90`): one line `export const USE_ANALYTICS = true;`
+or `= false;` (a `//` comment after it allowed); a file that never names `USE_ANALYTICS` counts
+as on (a site made before the switch); a file that names it in any other form, or on more than one
+such line, is exit 2. Then `scriptHost`, `scriptId` and `mode` with the gate's patterns (lines 93, 94, 103),
 but only inside the `export const ANALYTICS = { … }` block, so a `mode:` in another object cannot
 fail a healthy site. In the page, with HTML comments removed, it counts what the gate's counter
 counts (`check_analytics_gate.sh:194-237`): `<script>` tags whose `src` is exactly
-`<scriptHost>/js/<scriptId>.js`; inline scripts whose text contains `plausible.init(` (a mention:
-whether the stub runs is the gate's `stub_runs`, at build time); and other analytics tags, a `src`
+`<scriptHost>/js/<scriptId>.js`; inline scripts (no `type`, or `text/javascript`,
+`application/javascript` or `module`) whose text matches `\bplausible\.init\s*\(`, as at
+`check_analytics_gate.sh:220-221` (a mention: a JSON-LD script does not count, a commented call
+does; whether the stub runs is the gate's `stub_runs`, at build time); and other analytics tags, a `src`
 matching the gate's expression `/js/(?:script(?:\.[\w.-]+)?|pa-[\w-]+)\.js(?:[?#]|$)` (line 214:
 `script.js`, `script.<parts>.js`, `pa-<id>.js`) or a `data-domain` attribute.
 
@@ -65,7 +69,7 @@ matching the gate's expression `/js/(?:script(?:\.[\w.-]+)?|pa-[\w-]+)\.js(?:[?#
 |---|---|---|
 | on, script mode | 1 script, 1 stub, 0 other | ✓, exit 0 |
 | on, script mode | anything else | ✗, exit 1: what was found, then the causes below |
-| off | 0 of each, and neither `/js/<id>.js` nor the id anywhere | ✓, or ✗ exit 1: "the live site loads analytics that `src/config.ts` has off" |
+| off | 0 of each, and neither `/js/<id>.js` nor the id anywhere | ✓, or ✗ exit 1, saying which it found: an analytics tag ("the live page carries an analytics tag that `src/config.ts` has off"), or only the script's path or id in the text ("the live page names the analytics script or id; check whether it loads analytics") |
 | on, server mode | 0 of each | ✓, or ✗ exit 1: "browser analytics on the page in server mode" |
 | config lines it cannot read, or the page cannot be fetched (an error, a non-2xx answer, an empty body) | — | ✗, exit 2, naming what failed |
 
@@ -82,7 +86,9 @@ It reads one page, the home page: the tag comes from `Base.astro`, and each caus
 build-wide. A page on another layout is the gate's job at build time.
 
 **B. `website-launch-check` §8**, one bullet beside HTTPS and the 404 status: run the script with
-the live address. ✗ is a 🔴 (visits uncounted, or counted with analytics off), quoting its lines;
+the live address. ✗ is a 🔴, quoting its lines (a tag missing: visits uncounted; a tag present with
+analytics off: visits may be counted without the privacy page saying so; only the path or id seen:
+🔴 until someone looks);
 exit 2 is 🟡 "not checked: <its reason>". It reads the site folder's `src/config.ts`, so that
 file must be the live one: after `git fetch`, `git diff --quiet origin/<PROD_BRANCH> --
 src/config.ts`, run in the site folder, must succeed; otherwise the row is 🟡 "not checked:
@@ -120,13 +126,16 @@ analytics tag.
      has analytics on: the guide's failure.
    - `live-home-m-squad.com-2026-11-09.html`: a real older tag (`data-domain`, `/js/script.js`).
    Expected values are written by hand from these notes, never copied from the script's output.
-2. **`scripts/tests/test_check_live_analytics.py`** (`unittest`, found by `make check`,
-   `Makefile:67`). Each test runs the script as §8 does, `python3 <script> <address>` in a site
+2. **`scripts/tests/test_check_live_analytics.py`** (`unittest`, run by `make test-launch-check`,
+   `Makefile:66-67`, and by CI, `.github/workflows/clean.yml:449`; not part of `make check`). Each test runs the script as §8 does, `python3 <script> <address>` in a site
    folder, against a local `http.server` that serves the captures, so it enters through the real
    call: every row of the table, both off cases, server mode with an older tag, a config with an
    unrelated object that has its own `mode:` (still ✓), a 404, a 403, an empty 200 and a refused
    connection (each exit 2),
-   and that the request carries a `cb` query. One more case runs the gate's counter (the Perl
+   and that the request carries a `cb` query; `USE_ANALYTICS` written `export const USE_ANALYTICS:
+   boolean = false;` (exit 2, not "on"), a JSON-LD script naming `plausible.init()` (not a stub),
+   `plausible.init ()` (a stub), and a page that only names the id in a paragraph (the second off
+   message). One more case runs the gate's counter (the Perl
    heredoc inside `tags_program()` in `check_analytics_gate.sh`, read out of that file) on the same
    captures and a comment-only stub page, and requires the same three counts: agreement on these
    inputs only, not on every page.
@@ -140,7 +149,7 @@ analytics tag.
 Verified on 2026-11-09: the guide's config line and `PUBLISHING.md:36` (in
 `~/Devel/croftweaver-guide` at 87ad12e); the live page now has the tag; the gate's readers and
 counter (Codex ran the counter on the edge cases in rounds 1 to 4); the cache headers above; the
-launch check's §8 and `Makefile:67`. Judgment: that the home page alone is enough; that the launch
+launch check's §8 and `Makefile:66-67`. Judgment: that the home page alone is enough; that the launch
 check, not ship, is the right home (Daniel's call).
 
 Against: the guide's failure came after launch, and nothing runs the launch check then, so this

@@ -10,6 +10,8 @@ depth: High (the starter's publish script) · seats: Codex + GLM 5.3 on melious
 | 2 | `833da670` | codex alone; melious out of balance | codex 221 s, 70,750 | 2 / 4 / 0 |
 | 3 | `eff6aa9a` | codex alone; melious out of balance | codex 195 s, 77,754 | 1 / 2 / 0 |
 | 4 | `3bdb9892` | codex alone; melious out of balance; earned by server-mode-tags, page-freshness, stop-handling; cut: the second build.txt read | codex 187 s, 77,908 | 2 / 1 / 0 |
+| 5 | `19a19dee` | codex alone; melious out of balance | codex 281 s, 114,578 | 3 / 0 / 0 |
+| 6 | `29ea02d1` (narrow plan) | codex alone; melious out of balance | codex 236 s, 73,384 | 3 / 1 / 0 |
 
 ## Round 1
 
@@ -83,3 +85,15 @@ run (§8). Cut: the build stamp, the `build.txt` re-reads, `--config <id>`, and 
 change. The plan says plainly that a cached page right after a publish can mislead, and to run it
 again a minute later. Server mode stays as one rule (no tag on the page). Round 6 reviews the
 narrow plan.
+
+## Round 6
+
+Head `29ea02d1` (the narrow plan) · codex alone; melious out of balance · codex 236 s, 73,384
+tokens · 3 BUG, 1 RISK.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| R6-1 | BUG | `make check` does not run the skill's tests; `Makefile:66-67` has `test-launch-check`, which CI runs at `.github/workflows/clean.yml:449`. | fixed: test 2 and step 5 name `make test-launch-check`. |
+| R6-2 | BUG | "No line counts as on" drops the gate's refusal of a line in another form (`check_analytics_gate.sh:78-90`): `export const USE_ANALYTICS: boolean = false;` would read as on. | fixed: A copies the gate's whole rule (no mention: on; another form or more than one line: exit 2); a test case. |
+| R6-3 | BUG | The stub rule differs from the gate's counter (Codex ran it: a JSON-LD `plausible.init()` gives 0 stubs, `plausible.init ()` gives 1). | fixed: A states the type filter and `\bplausible\.init\s*\(` (lines 220-221); test cases for both. |
+| R6-4 | RISK | A bare id in the page text (`<p>pa-test</p>`) fails the off case with "loads analytics", which it does not show. | fixed: two off messages, a tag or only the path or id named, and §8's severity text says which; a test case. |
