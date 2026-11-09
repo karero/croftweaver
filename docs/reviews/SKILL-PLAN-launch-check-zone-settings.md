@@ -6,7 +6,7 @@ five places in the Cloudflare dashboard, and the report records what they showed
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09; the Account API tokens list read in round 2 | this file, "Seen in the dashboard" |
-| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | 🔄 3 rounds, 28 findings (7 BUG), none open | "Review trail" below |
+| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | 🔄 4 rounds, 30 findings (8 BUG), none open | "Review trail" below |
 | 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | ⬜ | — |
 | 4 | DIFF gate (Normal) | ⬜ | — |
 
@@ -107,15 +107,13 @@ after launch day sees what is still open.
 
 - **A setting that differs from the checklist** (Bot Fight Mode, AI Labyrinth, the AI policies
   with Personal Agents, Bot Preference Sync, a Block Crawler switch): ask the owner whether it was
-  their choice (intent decides, launch check `SKILL.md` §4). Content bots are not read: the Bot
-  traffic group on webcroft.dev listed five settings and none for content bots, and the checklist
-  sends an owner who finds no switch to the API, which this check does not use. If the group
-  does show a content-bots switch, it is read like the others. Yes: recorded as "owner's choice, <date>", with the
+  their choice (intent decides, launch check `SKILL.md` §4). Yes: recorded as "owner's choice, <date>", with the
   checklist's trade-off in one line, quoted from the checklist and credited to it (for Training on
   Block, section 4 quotes Cloudflare that it also reaches Googlebot, Bingbot and Applebot; for a
   Block Crawler switch on Googlebot or BingBot, that it is named to block that search engine's
   crawler). No or don't know: 🔴, with the checklist item that sets it right.
-- **A security rule:** each rule is listed with its name, action, what it matches, and "this
+- **A security rule:** every rule on the Security rules page, in whichever section (custom, rate
+  limiting, managed, IP access), is listed with its name, action, what it matches, and "this
   domain" or "all websites in account". The assistant says in plain words what each does, from
   what the owner reads out.
   - A rule that blocks or challenges, whose effect or owner nobody can state, or that could stop
@@ -185,8 +183,11 @@ The change is skill text and checklist prose; there is no code to test.
 - Changing any setting for the owner. The check reads; the checklist fixes.
 - The setup script does not set or read the per-crawler switches; whether it should is a
   follow-up (a BUGLOG row), not this change.
-- Rate limiting, managed rules and other paid-plan sections: they show on the same Security rules
-  page, and the owner reads out whatever is listed; the kit sets none of them.
+- Content bots. The Bot traffic group on webcroft.dev listed five settings and none for content
+  bots, and the checklist sends an owner who finds no switch to the API, which this check does
+  not use. The check never reads it, switch or not; the setup script sets it off.
+- Sections of the Security rules page beyond the ones above: rules in any section are read and
+  judged as "A security rule" says; the kit sets none of them.
 - The guide site's own two rules and its tokens: the 0.35 session's, not the kit's.
 
 ## Review trail
@@ -211,3 +212,7 @@ The change is skill text and checklist prose; there is no code to test.
   3 NIT. Fixed: content bots, added in round 2, are not read (no dashboard switch on
   webcroft.dev), so S2's ✅ needs nothing it cannot see; §4 named with its file; S2b covers the
   waiting token line; S7 names its run.
+- **Round 4** (earned by content-bots-read; Codex and GLM 5.3, 55,764 tokens; 257,185 over four
+  rounds): 1 BUG (content bots again: a shown switch left S2 open), 1 NIT. Cut, not patched:
+  content bots are out of the check entirely, switch or not (Out of scope says why). The NIT:
+  rules in every section of the Security rules page are judged alike.
