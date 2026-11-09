@@ -298,11 +298,15 @@ cookies, scripts or tracking you didn't choose.
   On a spare domain on 30 October 2026 the dashboard marked Allow as Recommended for all
   three and showed no older **Block AI bots** setting. Look at what yours shows; if it still
   shows Block AI bots, make sure it is Off.
-  Under **Agent**, the dashboard also lists personal AI agents one by one. The setup script
-  sets each one Cloudflare lists to the API's `disabled` as well, through the API, because
-  changing the Agent policy alone leaves them as they were (a capture on 9 November 2026).
-  Cloudflare's documentation calls them Personal Agents, under the Agent policy; the kit
-  has not looked at them in the dashboard, so it says only that the API reads `disabled`.
+  The same panel lists **Personal Agents**, assistants named one per line: set each to
+  **Allow**, as for Agent. Cloudflare also has one **Block Crawler** switch per crawler, at
+  Your domain → **AI Crawl Control** → **Security**, Googlebot and BingBot among them: tick
+  **Show inactive crawlers** and keep every switch off, unless you chose to block that
+  crawler. Its name says it blocks that crawler, a search engine's included.
+  The setup script sets each Personal Agent Cloudflare lists to the API's `disabled` as
+  well, through the API, because changing the Agent policy alone leaves them as they were (a
+  capture on 9 November 2026). The kit has not looked at them in the dashboard, so it says
+  only that the API reads `disabled`.
   Three more switches can keep AI crawlers out. Set each to off, with the one exception
   under Bot Preference Sync:
   - **Bot Preference Sync: Off, unless you chose Disallow for Training.** Same place:
@@ -407,6 +411,30 @@ not to your domain. Tell your assistant; we have found no way to remove them the
 - **TLS:** run your domain through ssllabs.com/ssltest. TLS 1.0 and 1.1 should say "No".
 - **No outside check exists** for Crawler Hints (Caching → Configuration) or Fail open
   (your project → Settings → Runtime). Look at both in the dashboard.
+
+**Read in the dashboard.** No outside check sees these five places either. Read them as soon as
+your domain is on Cloudflare; the launch check (`website-launch-check`) asks you for them. Seen
+on a free-plan domain on 9 November 2026: Cloudflare moves these pages, so if one has moved,
+look for its name.
+
+1. **Bot Fight Mode and AI Labyrinth:** Your domain → Security → Settings, the **Bot traffic**
+   group. Both off (section 3, "Bot Fight Mode: Off"; section 4, "AI Labyrinth: Off").
+2. **AI crawler policies:** same group → **AI Crawler and Agent access policies**: Search,
+   Agent, Training, each Personal Agent and **Enable Bot Preference Sync**, as section 4's
+   "AI crawlers: allow" says.
+3. **Per-crawler blocks:** Your domain → **AI Crawl Control** → **Security**, with **Show
+   inactive crawlers** ticked: every **Block Crawler** switch off (section 4).
+4. **Security rules:** Your domain → Security → **Security rules**. Every rule in every section
+   (Custom rules, Rate limiting rules, Managed rules, IP access rules), with its name, its
+   action, what it matches and what it applies to. The kit sets none of them: know each one and
+   whose it is. A rule whose **Applies to** reads "All websites in account" is, by that label,
+   for every site in your account, whichever site it was made for. Cloudflare's own notes on the page, such as "Cloudflare
+   default protection applied" under Response rules, stay as they are.
+5. **Tokens, once launch day's work is done:** My Profile → **API Tokens**
+   (`https://dash.cloudflare.com/profile/api-tokens`), and Manage account → **Account API
+   tokens**. Each token has a dot: green Active, orange Expires soon, red Expired. Every token
+   made for this site's setup or launch day should be gone; an expired one stays in the list
+   until you delete it (⋯ → Delete, section 6).
 
 Not covered here: DNS and email records (see "Going live" in
 [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md))
