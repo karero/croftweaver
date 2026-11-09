@@ -126,6 +126,8 @@
 #     changed file the diff leaves out.
 #   - --base <rev>: any diff that is not the whole change, such as a delta since the last
 #     reviewed head, a merge link or the wording pass. A --verify round on a diff must name it.
+#     The base must be a commit HEAD contains, or one on neither HEAD nor the default branch (the
+#     old head after a rebase, as the merge link and the wording pass need); else refused (exit 2).
 #   - --base none: no check, for a diff not made by git diff in this repository; said so on the
 #     base: line.
 # Every diff run ends with that base: line, beside reviewers: and timings:. Plan:
@@ -607,16 +609,50 @@ else
   # After top is known, so the printed command makes the delta from the repository root with the
   # flags of the mismatch refusal's remedy below, which override prefix, colour, external-diff and
   # textconv config.
+  # Both refusals of a --verify round that names no usable base print these commands (one helper,
+  # so their text cannot drift).
+  verify_base_refuse() {   # <why>
+    base_refuse "$1" "Pass --base <last-reviewed-head>, with the diff made from that head:" \
+      "  git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ <last-reviewed-head> HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT_DIR/${0##*/}") - --verify $(printf '%q' "$VERIFY_FILE") --base <last-reviewed-head> <your other options>" \
+      "After a merge of the base or a rebase, send the merge link instead, with the same --base (SKILL.md step 6):" \
+      "  $(printf '%q' "$SCRIPT_DIR/merge_link.sh") <old-merge-base> <last-reviewed-head> <new-merge-base>"
+  }
   [ -n "$BASE" ] || [ -z "$VERIFY_FILE" ] \
-    || base_refuse "a verification round reviews the change since the last reviewed head, so it must name that head." "Pass --base <last-reviewed-head>, with the diff made from that head:" \
-         "  git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ <last-reviewed-head> HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT_DIR/${0##*/}") - --verify $(printf '%q' "$VERIFY_FILE") --base <last-reviewed-head> <your other options>" \
-         "After a merge of the base or a rebase, send the merge link instead, with the same --base (SKILL.md step 6):" \
-         "  $(printf '%q' "$SCRIPT_DIR/merge_link.sh") <old-merge-base> <last-reviewed-head> <new-merge-base>"
+    || verify_base_refuse "a verification round reviews the change since the last reviewed head, so it must name that head."
   coverage=0
   if [ -n "$BASE" ]; then
     base_id="$(git -C "$top" rev-parse --verify --quiet "$BASE^{commit}")" \
       || base_refuse "--base $BASE is not a commit in this repository." "Name the commit the diff starts from, or none."
     base_how="--base $BASE"
+    # A base HEAD does not contain makes git's diff show every commit HEAD lacks as removed. One
+    # that is on the default branch is the stale-main mistake; one on neither is the old head after
+    # a rebase, which the merge link and the wording pass need. Local refs only, no fetch.
+    anc_rc=0; git -C "$top" merge-base --is-ancestor "$base_id" "$head_id" 2>/dev/null || anc_rc=$?
+    case $anc_rc in
+      0) ;;
+      1)
+        main_tip="$(git -C "$top" rev-parse --verify --quiet 'refs/remotes/origin/HEAD^{commit}')" || main_tip=""
+        if [ -z "$main_tip" ]; then
+          base_refuse "--base $BASE ($base_id) is not on this branch, and origin/HEAD is not set here, so the script cannot tell a base left behind by a rebase from one on the default branch." \
+            "Set it, then run again: git -C $(printf '%q' "$top") remote set-head origin --auto"
+        fi
+        main_rc=0; git -C "$top" merge-base --is-ancestor "$base_id" "$main_tip" 2>/dev/null || main_rc=$?
+        case $main_rc in
+          0)
+            if [ -n "$VERIFY_FILE" ]; then
+              verify_base_refuse "--base $BASE ($base_id) is on the default branch, not on this branch; a verification round names the last reviewed head."
+            fi
+            default_name="$(git -C "$top" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" || default_name="origin/<default-branch>"
+            base_refuse "--base $BASE ($base_id) is not on this branch: HEAD does not contain it, so a diff from it shows every commit HEAD lacks as removed." \
+              "For the whole change, drop --base and make the diff from the merge base (three dots):" \
+              "  git -C $(printf '%q' "$top") diff --no-ext-diff --no-color --no-textconv -M --src-prefix=a/ --dst-prefix=b/ $default_name...HEAD -- . ':(exclude)docs/reviews/' | $(printf '%q' "$SCRIPT_DIR/${0##*/}") - <your other options>" \
+              "For a delta, name the last reviewed head, a commit on this branch: --base <last-reviewed-head>." \
+              "For a PR to another branch, name its merge base with that branch: --base <that merge base>." ;;
+          1) ;;
+          *) base_refuse "git could not tell whether --base $BASE ($base_id) is on the default branch (exit $main_rc)." "Check the repository, or pass --base none for a diff not made by git here." ;;
+        esac ;;
+      *) base_refuse "git could not tell whether --base $BASE ($base_id) is on this branch (exit $anc_rc)." "Check the repository, or pass --base none for a diff not made by git here." ;;
+    esac
   else
     coverage=1
     local_tip="$(git -C "$top" rev-parse --verify --quiet 'refs/remotes/origin/HEAD^{commit}')" || local_tip=""
