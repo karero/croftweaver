@@ -10,7 +10,7 @@ Session: the one that built it ("Croftweaver release 0.35" started it).
 | # | Finding | Answer |
 |---|---------|--------|
 | 1 | BUG HIGH: a failing selector of 24 `\41` escapes took 14.6 s (a hex escape of `{1,6}` digits splits many ways) | Fixed: six digits, or 1 to 5 not followed by a hex digit. Timing test over five runs fails on the old regex (80 s), passes now (2 to 8 ms) |
-| 2 | BUG LOW: the BUGLOG refused-exports row said unit opacity is refused | Fixed; the unsupported "editor ... of #498" credit dropped |
+| 2 | BUG LOW: the BUGLOG refused-exports row said unit opacity is refused | Fixed; the unsupported "editor ... of #513" credit dropped |
 | 3 | BUG LOW: grammar text and test docstring said all three opacities must be 1 | Fixed: both name the shape `fill-opacity` 0 exception |
 | 4 | RISK: dropping `overflow` assumes the cleaned file is never inline | Checked: the starter uses `favicon.svg` only as `<link rel="icon">` (`Base.astro:148`) and sharp draws the PNGs. Comment names them |
 | 5, 6 | NIT: unused variable; BUGLOG "editor" wording | Fixed |
