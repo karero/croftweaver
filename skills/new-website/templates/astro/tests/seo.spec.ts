@@ -189,13 +189,16 @@ test('sitemap matches PAGES (drift alarm)', async ({ request, baseURL }) => {
 
 // robots.txt names the one sitemap file that lists the pages, not the index. @astrojs/sitemap
 // always writes sitemap-index.xml, but it lists a second file only past 45,000 URLs; until
-// then the index is an extra fetch that Bing has reported as "not accessible". Written for one
-// file: if this fails because the site now has a second one, name the index again and drop it.
+// then the index is an extra fetch, which Bing once reported as "not accessible" on one site.
+// Written for one file: if this fails because the site now has a second one, name the index
+// again and drop it.
 // The host is not checked here (the placeholder passes); cloudflare-check compares it live.
 test('robots.txt names the one sitemap file, sitemap-0.xml', async ({ request, baseURL }) => {
   const robots = await request.get(`${baseURL}/robots.txt`);
   expect(robots.status(), 'robots.txt should exist (public/robots.txt)').toBe(200);
-  const lines = [...(await robots.text()).matchAll(/^\s*Sitemap:\s*(\S+)\s*$/gim)].map((m) => m[1]);
+  // Comments end a line in robots.txt, so strip them before looking for directives.
+  const lines = (await robots.text()).split(/\r?\n/).map((l) => l.replace(/#.*$/, '').trim())
+    .map((l) => /^Sitemap:\s*(\S+)$/i.exec(l)?.[1]).filter((u): u is string => !!u);
   expect(lines, 'robots.txt needs exactly one Sitemap line: https://<domain>/sitemap-0.xml').toHaveLength(1);
 
   const path = new URL(lines[0]).pathname;

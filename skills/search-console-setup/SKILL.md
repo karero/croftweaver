@@ -57,9 +57,9 @@ Bing's index fresh automatically.
      preferred — broader coverage, survives scheme/subdomain changes.
 4. **Submit the sitemap:** GSC → **Sitemaps** → enter `sitemap-0.xml` → Submit.
    The kit's `@astrojs/sitemap` emits `/sitemap-0.xml` at the site root; confirm it
-   loads in a browser first. Google discovers pages from it over the next days. Submit
-   `sitemap-0.xml`, not `sitemap-index.xml`: one file holds every page, and the index
-   is an extra fetch that Bing has reported as "not accessible".
+   loads in a browser first. Google discovers pages from it over the next days. Not
+   `sitemap-index.xml`: one file holds every page, and the index is an extra fetch that
+   Bing once reported as "not accessible" on one site.
 5. **Look at "Search generative AI"** in the property's settings, and opt out only if
    the owner wants out of Google's AI answers. A property can inherit it from a parent
    property, so check what yours shows. Opting out keeps your content out of AI
