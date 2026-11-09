@@ -132,10 +132,17 @@ class OnScriptMode(unittest.TestCase):
         cfg = config().replace("  scriptHost:", "  /* the mode is read below */\n  scriptHost:")
         cfg = cfg.replace("process.env.WORKERS_CI_BRANCH === PROD_BRANCH,", "process.env.WORKERS_CI_BRANCH === PROD_BRANCH, // script mode")
         cfg = cfg.replace("  mode: 'script' as 'script',", "  mode: 'script' as 'script' | 'server', // mode of the tag")
-        for text in ("the mode is read", "// script mode", "// mode of the tag"):
+        cfg = cfg.replace("  scriptHost:", "  /* a longer note\n  mode is set below\n  */\n  scriptHost:")
+        for text in ("the mode is read", "// script mode", "// mode of the tag", "mode is set below"):
             self.assertIn(text, cfg)
         code, out, _ = run(cfg, None, GUIDE)
         self.assertEqual(code, 0, out)
+
+    def test_a_comment_with_no_end_is_refused(self):
+        cfg = config().replace("  scriptHost:", "  /* never closed\n  scriptHost:")
+        code, out, _ = run(cfg, None, GUIDE)
+        self.assertEqual(code, 2, out)
+        self.assertIn("has no end", out)
 
     def test_no_mode_line_means_script_mode(self):
         cfg = config().replace("  mode: 'script' as 'script',\n", "")
@@ -252,7 +259,8 @@ class NotChecked(unittest.TestCase):
                 self.assertEqual(code, 2, out)
                 self.assertIn("mode:", out)
         for line in ("  mode : 'server',", "  'mode': 'server',", '  "mode": \'server\',',
-                     "  mode /* c */: 'server',", "  ['mode']: 'server',", "  mode: 'script' && 'server',"):
+                     "  mode /* c */: 'server',", "  ['mode']: 'server',", "  mode: 'script' && 'server',",
+                     "  [ 'mode' ]: 'server',", "  [`mode`]: 'server',", "  ['mo' + 'de']: 'server',"):
             with self.subTest(line):
                 cfg = config().replace("  mode: 'script' as 'script',", line)
                 self.assertIn(line, cfg)

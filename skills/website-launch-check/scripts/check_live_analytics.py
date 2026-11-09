@@ -23,7 +23,7 @@ HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]""")
 ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]""")
 # A line that starts with the mode key must be exactly one of the starter's forms, else the file is
 # refused: anything cleverer (an expression, a computed or quoted key) is not read, never guessed.
-MODE_START = re.compile(r"""^\s*[\['"]*mode\b""")
+MODE_START = re.compile(r"""^\s*(?:\[|['"`]*mode\b)""")
 MODE_LINE = re.compile(
     r"""^\s*mode:\s*'(script|server)'(?:\s+as\s+'(?:script|server)'(?:\s*\|\s*'(?:script|server)')?)?\s*,?\s*(?://.*)?$""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{")
@@ -43,6 +43,30 @@ JS_TYPES = {"", "text/javascript", "application/javascript", "module"}
 
 class NotChecked(Exception):
     pass
+
+
+def code_of(lines):
+    """The lines with /* */ and // comments blanked; a /* with no end is refused, not guessed."""
+    out, inside = [], False
+    for line in lines:
+        code = ""
+        while line:
+            if inside:
+                end = line.find("*/")
+                line, inside = ("", True) if end < 0 else (line[end + 2:], False)
+                continue
+            m = re.search(r"/\*|(?:^|\s)//", line)
+            if not m:
+                code += line
+                break
+            code += line[:m.start()]
+            if m.group().strip() == "//":
+                break
+            line, inside = line[m.end():], True
+        out.append(code)
+    if inside:
+        raise NotChecked(f"a /* comment in the ANALYTICS block of {CONFIG} has no end")
+    return out
 
 
 def read_config():
@@ -82,7 +106,7 @@ def read_config():
     host = host[:-1] if host.endswith("/") else host
     if not host or not sid:
         raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines in the ANALYTICS block of {CONFIG}")
-    starts = [line for line in block if MODE_START.match(line)]
+    starts = [line for line, code in zip(block, code_of(block)) if MODE_START.match(code)]
     found = [m.group(1) for m in map(MODE_LINE.match, starts) if m]
     if len(found) != len(starts) or len(starts) > 1:
         raise NotChecked(f"the mode line in the ANALYTICS block of {CONFIG} is not one line written as "
