@@ -35,3 +35,17 @@ Head `833da670` · codex alone; melious out of balance · codex 221 s, 70,750 to
 | R2-4 | RISK | A failed second `build.txt` read had no outcome. | fixed: ✗, exit 1, with its own line and a ship case. |
 | R2-5 | RISK | The loader claim is still a quoted suffix, not a traced run. (Second time raised.) | fixed by narrowing: "1 script and 1 stub" is now the starter's markup contract (`Base.astro:174-177`, which the gate also requires); the loader reading is kept as "read, not run". |
 | R2-6 | RISK | The cache claim rests on `PUBLISHING.md` repeating itself. (Second time raised, so tested.) | measured, 2026-11-09, `curl -I`: croftweaver.com (Pages) `DYNAMIC` for `/` and `/?cb=`; guide.croftweaver.com (Workers static assets) `HIT` for both, so on Workers the query makes no fresh key. The plan now names the one assumption the read rests on (a Workers deployment serves `build.txt` and the HTML from one version) and adds test 6, a live leg on a webcroft.dev throwaway, before the DIFF gate. |
+
+## Round 3
+
+Head `fbd0c7f9` · codex alone; melious out of balance · codex 195 s, 77,754 tokens · 1 BUG, 2 RISK.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| R3-1 | RISK | Freshness, third time: `build.txt` reads do not show which build the HTML came from, and two `HIT` headers prove nothing about the cache key. A stale page could pass a build that lost its tag (a silent wrong result). | fixed by design: `build-marker.mjs` stamps `<!-- build: <sha> -->` into `dist/index.html`; the check judges only a page stamped `$id`, retries a page from another build 6 times, 10 s apart, then ✗. The second `build.txt` read is gone. Test 6 now samples how often the page lags; the stamp is the guard. |
+| R3-2 | BUG | The server-mode row accepted an older analytics tag (`0 0 1`, Codex ran the gate's counter). | fixed: server mode requires `0 other` too; a test case. |
+| R3-3 | RISK | The new fetches, Node run and waits had no stop handling; `ship.sh:446` only notes a signal. | fixed: `stop_asked` is looked at after each, as the `build.txt` loop does; the stop line; TERM cases during the fetch and the wait. |
+
+Follow-on changes from the host's own check: the captures carry no stamp, so the test stamps a
+temporary copy and leaves the committed captures as fetched; a build with no `dist/index.html`
+warns and goes on; a `/` that redirects to a page with no stamp is ⚠, not checked.
