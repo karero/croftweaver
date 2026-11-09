@@ -21,7 +21,7 @@ depth: High (the starter's publish script) · seats: Codex + GLM 5.3 on melious
 | R1-1 | BUG | A matching `build.txt` does not show that the home page read next comes from the same build; another publish can follow (`ship.sh:995-1001`). | fixed: B reads `build.txt` again after the page and judges it only when it still shows `$id`; otherwise ⚠, not checked. The fromGitHub "newer publish" branch skips the judgment too. A new ship case covers it. The remaining window is named under "Not covered". |
 | R1-2 | BUG | "Inline scripts that call `plausible.init(`" overclaims: the counter counts a mention, a comment included (Codex ran it: `1 1 0` on a commented call). | fixed: A says it counts a mention, as the gate's counter does, and claims only that the markup is there; whether the stub runs stays the gate's `stub_runs`. |
 | R1-3 | RISK | "The two counters cannot drift apart unnoticed" is more than three captures can show. | fixed: the claim now says the two agree on these inputs only; the comparison takes the "other" count too, and adds a comment-only stub page. |
-| R1-4 | RISK | That the real Plausible loader needs the init stub rests on repo comments. | answered by reading (not running) the real loader, fetched 2026-11-09 from `analytics.m-squad.com` (6,188 bytes), ends `plausible.o&&S(plausible.o),plausible.init=S`. It starts only when the stub's `init()` has set `plausible.o`, or when `plausible.init` is called later. Quoted in A. |
+| R1-4 | RISK | That the real Plausible loader needs the init stub rests on repo comments. | answered by reading (not running) the real loader, fetched 2026-11-09 from the site's analytics host (6,188 bytes), ends `plausible.o&&S(plausible.o),plausible.init=S`. It starts only when the stub's `init()` has set `plausible.o`, or when `plausible.init` is called later. Quoted in A. |
 
 Codex's "unsupported claims" list: the cache-bust claim is now limited to Cloudflare's default
 cache key, citing `PUBLISHING.md:368-370`; a zone rule that ignores the query string is listed as
@@ -73,11 +73,11 @@ Head `19a19dee` · codex alone; melious out of balance · codex 281 s, 114,578 t
 
 | # | Kind | Finding | Disposition |
 |---|---|---|---|
-| R5-1 | BUG | Ship does not always push a new commit (`ship.sh:948` checks the live site on a nothing-to-push run), so a cached page can pass after a same-commit rebuild. | out of scope (narrowed by Daniel, 2026-11-09): build proof is cut. |
-| R5-2 | BUG | The stamp check ran before the empty-page check, so an empty page gave exit 3 and a ⚠ instead of exit 2. | out of scope (narrowed by Daniel, 2026-11-09): the stamp is cut. The narrow plan keeps an empty 200 as exit 2, with a test. |
-| R5-3 | BUG | `git show <id>:src/config.ts` reads a repository-root path, so it fails for a site in a subfolder (Codex ran it: `HEAD:./src/config.ts` works). | out of scope (narrowed by Daniel, 2026-11-09): `--config` is cut. The narrow plan's config test uses `git diff -- src/config.ts`, whose pathspec is relative to the folder. |
+| R5-1 | BUG | Ship does not always push a new commit (`ship.sh:948` checks the live site on a nothing-to-push run), so a cached page can pass after a same-commit rebuild. | out of scope (narrowed by the maintainer, 2026-11-09): build proof is cut. |
+| R5-2 | BUG | The stamp check ran before the empty-page check, so an empty page gave exit 3 and a ⚠ instead of exit 2. | out of scope (narrowed by the maintainer, 2026-11-09): the stamp is cut. The narrow plan keeps an empty 200 as exit 2, with a test. |
+| R5-3 | BUG | `git show <id>:src/config.ts` reads a repository-root path, so it fails for a site in a subfolder (Codex ran it: `HEAD:./src/config.ts` works). | out of scope (narrowed by the maintainer, 2026-11-09): `--config` is cut. The narrow plan's config test uses `git diff -- src/config.ts`, whose pathspec is relative to the folder. |
 
-## Narrowed by Daniel, 2026-11-09
+## Narrowed by the maintainer, 2026-11-09
 
 His words, relayed by the manager session (Croftweaver Feature Planning): "Yes, narrow it". The plan
 now covers the plain live check only: a script in `website-launch-check` that fetches the live

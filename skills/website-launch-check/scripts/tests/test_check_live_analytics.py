@@ -1,13 +1,14 @@
 """Tests for check_live_analytics.py. Each test runs the script the way the launch check does,
 `python3 check_live_analytics.py <address>` in a site folder, against a local server that serves
-real captures of live pages (tests/fixtures, fetched 2026-11-09, cut never edited). Standard library
+captures of live pages (tests/fixtures, fetched 2026-11-09; the only edits are made-up names,
+hosts and script ids in place of real ones). Standard library
 only; no real requests.
 
     python3 -m unittest discover -s skills/website-launch-check/scripts/tests
 
 Expected counts are written by hand from the captures: the guide page has one script tag
-(/js/pa-3TCz….js) and one plausible.init stub; the webcroft.dev page has no analytics tag;
-the m-squad.com page has one older tag (data-domain, /js/script.js) and no stub.
+(/js/pa-<id>.js) and one plausible.init stub; the webcroft.dev page has no analytics tag;
+the older-tag page has one older tag (data-domain, /js/script.js) and no stub.
 """
 import os
 import re
@@ -27,10 +28,10 @@ import check_live_analytics as cla  # noqa: E402
 
 GUIDE = (FIX / "live-home-guide.croftweaver.com-2026-11-09.html").read_text(encoding="utf-8")
 BARE = (FIX / "live-home-webcroft.dev-2026-11-09.html").read_text(encoding="utf-8")
-OLDTAG = (FIX / "live-home-m-squad.com-2026-11-09.html").read_text(encoding="utf-8")
+OLDTAG = (FIX / "live-home-older-tag-2026-11-09.html").read_text(encoding="utf-8")
 
-HOST = "https://analytics.m-squad.com"
-SID = "pa-3TCzGbdT5EVkDDWPnuvGI"
+HOST = "https://analytics.example.com"
+SID = "pa-ExampleId0000000000000"
 WANT = f"{HOST}/js/{SID}.js"
 STARTER = HERE.parents[2] / "new-website" / "templates" / "astro"
 GATE = STARTER / "tests" / "check_analytics_gate.sh"
@@ -267,7 +268,7 @@ class AgreesWithTheGate(unittest.TestCase):
         commented = (f'<html><head><script async src="{WANT}"></script>'
                      "<!-- <script>plausible.init()</script> --></head></html>")
         for name, page, expected in [("guide", GUIDE, (1, 1, 0)), ("webcroft", BARE, (0, 0, 0)),
-                                     ("m-squad", OLDTAG, (0, 0, 1)), ("comment-only stub", commented, (1, 0, 0))]:
+                                     ("older tag", OLDTAG, (0, 0, 1)), ("comment-only stub", commented, (1, 0, 0))]:
             with self.subTest(name):
                 self.assertEqual(self.gate_counts(page), expected, "the gate's counter")
                 self.assertEqual(cla.count_tags(page, WANT), expected, "check_live_analytics")

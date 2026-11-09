@@ -5,7 +5,7 @@ instruction file agents load, a check script; the first five rounds reviewed a v
 changed `ship.sh`) · red team: none (the change reads one public page and a local file; it
 deletes, logs in to and moves nothing).
 
-**Scope, narrowed by Daniel, 2026-11-09** ("Yes, narrow it", relayed by the manager session): the
+**Scope, narrowed by the maintainer, 2026-11-09** ("Yes, narrow it", relayed by the manager session): the
 plain live check only. Not in scope: proving which build served the page, and any change to
 `npm run ship`. Rounds 1 to 5 reviewed the wider plan; their trail stays in
 `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md`.
@@ -42,7 +42,7 @@ built HTML, not the live page.
 
 In `website-launch-check`, as a script beside `report_html.py`, run by the live run (§8) and
 whenever the owner asks ("is analytics on the live site?", after turning it on or moving to
-Workers). Not in `npm run ship`: Daniel's decision. The launch check is copied into every site
+Workers). Not in `npm run ship`: the maintainer's decision. The launch check is copied into every site
 with the other skills, so the script needs no new starter file.
 
 ## How
@@ -108,7 +108,7 @@ analytics tag.
 
 ## Not covered (named so nothing passes for checked)
 
-- Which build served the page (out of scope, Daniel 2026-11-09): a cached page can mislead, as B
+- Which build served the page (out of scope, the maintainer 2026-11-09): a cached page can mislead, as B
   says.
 - `npm run ship` does not run it (out of scope): a publish that turns analytics on is checked only
   when someone runs the launch check or the script.
@@ -123,11 +123,14 @@ analytics tag.
 1. **Real captures** (the rule of 2026-10-26), committed under the skill's `scripts/tests/fixtures/`,
    trimmed by cutting, not editing, with host and date in the name:
    - `live-home-guide.croftweaver.com-2026-11-09.html`: the live page with the tag (curl on
-     2026-11-09: 200, `build.txt` 87ad12e0, one `src=".../js/pa-3TCz….js"` tag, one `plausible.init`).
+     2026-11-09: 200, `build.txt` 87ad12e0, one `src=".../js/pa-ExampleId….js"` tag, one `plausible.init`).
    - `live-home-webcroft.dev-2026-11-09.html`: a live kit page with no tag, paired with a config that
      has analytics on: the guide's failure.
-   - `live-home-m-squad.com-2026-11-09.html`: a real older tag (`data-domain`, `/js/script.js`).
+   - `live-home-older-tag-2026-11-09.html`: a real older tag (`data-domain`, `/js/script.js`).
    Expected values are written by hand from these notes, never copied from the script's output.
+   The pages are whole: nothing needed cutting. `scripts/check_clean.sh` refuses a client's or a
+   person's name in this public repo, so names, hosts and script ids in them are replaced with made-up
+   ones (the one edit allowed), and the third capture is named for what it holds, not its host.
 2. **`scripts/tests/test_check_live_analytics.py`** (`unittest`, run by `make test-launch-check`,
    `Makefile:66-67`, and by CI, `.github/workflows/clean.yml:449`; not part of `make check`). Each test runs the script as §8 does, `python3 <script> <address>` in a site
    folder, against a local `http.server` that serves the captures, so it enters through the real
@@ -152,7 +155,7 @@ Verified on 2026-11-09: the guide's config line and `PUBLISHING.md:36` (in
 `~/Devel/croftweaver-guide` at 87ad12e); the live page now has the tag; the gate's readers and
 counter (Codex ran the counter on the edge cases in rounds 1 to 4); the cache headers above; the
 launch check's §8 and `Makefile:66-67`. Judgment: that the home page alone is enough; that the launch
-check, not ship, is the right home (Daniel's call).
+check, not ship, is the right home (the maintainer's call).
 
 Against: the guide's failure came after launch, and nothing runs the launch check then, so this
 check catches it only when someone thinks to run it. A check in `npm run ship` would run at every
