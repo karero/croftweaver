@@ -161,9 +161,9 @@ Codex's effort for any run.
    Before round 1 of a gate that runs the script, a claim in the artifact about what a system
    does when it runs (a timeout firing, a killed client, a lock held, what a migration
    rewrites) gets a run on a throwaway or test instance, never production, sent in that file
-   as a READ: the command, the instance and its version, the time, and the output verbatim. A
-   claim that cannot be run, such as a plan's claim about code not yet written, says "not
-   tested" in the artifact itself.
+   as a READ: the command, the instance and its version, the time, and the output verbatim,
+   secrets replaced as above. A claim that cannot be run, such as a plan's claim about code not
+   yet written, says "not tested" in the artifact itself.
    Send the same file every round its claims are under review; a
    quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
