@@ -2073,6 +2073,10 @@ for tier in codex ollama; do
   f="$T/content.marks/$tier-prompt"
   check "content, $tier: the content prompt comes first" sh -c 'head -c 41 "$1" | grep -qF "You are an adversarial content reviewer."' _ "$f"
   check "content, $tier: it holds the reader lens" has content.marks/$tier-prompt "Is a picture the faster way to explain something"
+  # the moved-page question (point 4): nothing else stops it being cut from the quoted block
+  check "content, $tier: it holds the moved-page question" has content.marks/$tier-prompt "4. A PAGE MOVED FROM AN OLD SITE. Only when the brief gives an old address"
+  check "content, $tier: ...and its section-table question" has content.marks/$tier-prompt "Does the brief's section table account for every section of the saved old page"
+  check "content, $tier: ...and its query question" has content.marks/$tier-prompt "Does the draft still answer each query that earned the old"
   check "content, $tier: the page document is between the content markers" sh -c 'sed -n "/^--- BEGIN content ---/,/^--- END content ---/p" "$1" | grep -qF "A home baker whose first starter smells like nail polish."' _ "$f"
   check "content, $tier: the research file is between the EVIDENCE markers" sh -c 'sed -n "/^--- BEGIN EVIDENCE ---/,/^--- END EVIDENCE ---/p" "$1" | grep -qF "None gives a"' _ "$f"
   check "content, $tier: the correctness prompt is not sent" lacks content.marks/$tier-prompt "Adversarial independent reviewer of the"

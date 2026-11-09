@@ -355,14 +355,15 @@ run t5ff "$W" "$T/t4.diff" --seat codex --depth normal
 check "T5 a fetch that fails: refused" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "fetching origin'"'"'s HEAD failed" "$1.err"' _ "$T/t5ff"
 check "T5 ... offering the local origin/HEAD's merge base" has t5ff.err "To go on with the local origin/HEAD instead: --base $E0"
 g "$W" config protocol.ext.allow always
-g "$W" remote set-url origin "ext::sh -c sleep% 6"
+g "$W" remote set-url origin "ext::sh -c sleep% 60"
 RUN_ENV=(REVIEW_FETCH_TIMEOUT=2)
 started=$SECONDS
 run t5hang "$W" "$T/t4.diff" --seat codex --depth normal
 took=$((SECONDS - started))
 RUN_ENV=()
 check "T5 a fetch that hangs: refused within the limit" sh -c 'grep -q "^2$" "$1.rc" && grep -qF "did not finish within 2 seconds" "$1.err"' _ "$T/t5hang"
-check "T5 ... in under 6 seconds (took ${took}s)" [ "$took" -lt 6 ]
+# Loose on purpose: allows start-up slack under load, yet fails a full wait for the 60 s fetch.
+check "T5 ... in under 30 seconds, not the fetch's 60 (took ${took}s)" [ "$took" -lt 30 ]
 check "T5 ... and no reviewer ran on any refusal" sh -c 'for m in "$1"/marks/t5*; do case "$m" in *t5none|*t5wt) continue ;; esac; [ ! -e "$m/codex-ran" ] || exit 1; done' _ "$T"
 
 # --- repository 3: git -M's own rename of a binary file to a text one --------------------------
