@@ -175,6 +175,27 @@ test('the stub answers Bot Management as Cloudflare did: refusals, fields left o
   for (const c of ['T1-080', 'T2-059', 'T2-061', 'T2-063', 'T2-065', 'T2-073']) assert.ok('is_robots_txt_managed' in fixture(c).request.body, c);
 });
 
+test('G: the stub replays the fourth trial: a partial ai_agents is merged per key, as Cloudflare did (T4-001 to T4-011)', () => {
+  const state = freshState();
+  state.bot = fixture('T4-001').response.result;
+  const call = (capture) => {
+    const f = fixture(capture);
+    return { f, r: handle(state, f.request.method, '/zones/z/bot_management', new URLSearchParams(), f.request.body) };
+  };
+  for (const [put, after] of [['T4-002', 'T4-003'], ['T4-004', 'T4-005'], ['T4-006', 'T4-007'], ['T4-008', 'T4-009'], ['T4-010', 'T4-011']]) {
+    const { f, r } = call(put);
+    assert.equal(r.status, f.status, `${put}: status`);
+    assert.deepEqual(r.body.result, f.response.result, `${put}: the answer to the PUT`);
+    const { f: g, r: back } = call(after);
+    assert.equal(back.status, g.status, `${after}: status`);
+    assert.deepEqual(back.body.result, g.response.result, `${after}: Bot Management read back after ${put}`);
+  }
+  // Written out by hand, so the loop above cannot pass by comparing the stub with itself: T4-008 sent
+  // only google_agent, and anthropic_agent, blocked at T4-002, stayed blocked.
+  assert.deepEqual(fixture('T4-008').request.body.ai_agents, { google_agent: 'block' });
+  assert.deepEqual(fixture('T4-009').response.result.ai_agents, { anthropic_agent: 'block', google_agent: 'block', instinct: 'disabled', muse: 'disabled', openai_agent: 'disabled' });
+});
+
 test('the stub answers zone settings and records as Cloudflare did (T1-067 to T1-078, T1-143 to T1-146)', () => {
   const state = freshState();
   for (const n of ['067', '068', '069', '070']) {
@@ -247,7 +268,7 @@ test('the deployments the stub serves are the captured ones, and the script read
 // for looking harmless: a value not on the list fails, and is added only after a person has looked.
 const ALLOWED = JSON.parse(readFileSync(path.join(FIXTURES, 'allowed-values.json'), 'utf8'));
 const MADE_UP = [/^c0ffee0{16}\d{10}$/, /^ba5e0{26}\d{10}$/, /^f00d0{50}\d{10}$/, /^d\d{7}-0000-4000-8000-000000000000$/, /^d\d{7}$/,
-  /^100000\d$/, /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/, /^Made-up commit message \d+$/, /^T[1-3]-\d{3}$/];
+  /^100000\d$/, /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/, /^Made-up commit message \d+$/, /^T[1-4]-\d{3}$/];
 function notMadeUp(fixtures) {
   const strings = new Set(ALLOWED.strings);
   const tokens = new Set(ALLOWED.tokens);
@@ -283,7 +304,7 @@ test('every string, key and number in the fixtures is a made-up value or on the 
   assert.ok(fixtures.length > 50, 'the fixtures are there');
   // A file's name is the capture's number and the trial's own label for the call, nothing else.
   for (const { file } of fixtures) {
-    assert.match(file, /^T[1-3]-\d{3}-[a-z0-9_-]+\.json$/, file);
+    assert.match(file, /^T[1-4]-\d{3}-[a-z0-9_-]+\.json$/, file);
     assert.doesNotMatch(file, /[0-9a-f]{16}/i, `${file}: a run of hexadecimal digits in a file name`);
   }
   assert.deepEqual(notMadeUp(fixtures), []);
@@ -343,6 +364,7 @@ test('decision 2: each line the script writes is the checklist\'s item, with its
   };
   for (const s of SETTINGS) assert.deepEqual(valueIn(s.api), s.value, `section 6 gives ${s.api} another value, or none`);
   for (const b of BOT_LINES) for (const [field, v] of Object.entries(b.fields)) assert.deepEqual(valueIn(field), v, `section 6 gives ${field} another value, or none`);
+  assert.deepEqual(valueIn('ai_agents'), 'disabled', 'section 6 gives ai_agents another value, or none (each agent the first read lists)');
   assert.ok(/Zone → DNS → Edit/.test(six), 'section 6\'s table has the DNS row the setup writes records with');
 });
 
@@ -801,13 +823,13 @@ test('S5a: the zone\'s records could not be read: Training is not written, and t
   await scenario(freshState({ bot: botOf(AI.block), refuse: { 'GET dns': 403 } }), async ({ api, go }) => {
     const ask = await go();
     const done = await go(['--confirm', codeOf(ask)]);
-    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. The zone's records could not be read, so this run did not change it\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and run this with --skip ai\./);
+    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run could not change it; the AI crawlers line says why\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and run this with --skip ai\./);
     assert.ok(!api.writes().some((e) => e.method === 'PUT'), 'Bot Management is not written');
     assert.ok(api.writes().length > 0, 'the yes wrote something else, the case "nothing was written" got wrong');
   });
   // Disallow in the same state: the same claim, and S7's note when Sync is off.
   const notes = aiNotes(botOf(AI.disallowSyncOff), 'unread');
-  assert.match(notes[0], /^Training is set to Disallow\. The zone's records could not be read, so this run did not change it/);
+  assert.match(notes[0], /^Training is set to Disallow\. This run could not change it; the AI crawlers line says why\./);
   assert.match(notes[1], /^Bot Preference Sync is off, so Disallow writes no/);
 });
 
@@ -1346,6 +1368,231 @@ const finishedLaunch = (h, bot) => {
 };
 const botCalls = (api) => api.log.filter((e) => /bot_management/.test(e.path)).map((e) => e.method);
 const AI_HEADING = 'The AI bot policies, as Cloudflare reads them now:';
+
+// ---------------------------------------------------------------- personal agents (ai_agents)
+// Release 0.35 PR 4. T4-001 is a zone with every agent disabled, T4-003 the same with anthropic_agent
+// on block: Cloudflare's own captures of 2026-11-09, where changing ai_user left ai_agents alone.
+// other_agent is made up, to catch code that knows only the five names Cloudflare listed that day.
+const ALL_DISABLED = { anthropic_agent: 'disabled', google_agent: 'disabled', instinct: 'disabled', muse: 'disabled', openai_agent: 'disabled' };
+const agentBot = (agents = {}, over = {}) => {
+  const b = botOf('T4-003');
+  b.ai_agents = { ...b.ai_agents, ...agents };
+  return Object.assign(b, over);
+};
+// What setup sends for T4-003 with the ai line changed and nothing else: the fields as read, the
+// ai line's own, and only the agent that changes.
+const PUT_ONE_AGENT = {
+  fight_mode: false, enable_js: false, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
+  crawler_protection: 'disabled', content_bots_protection: 'disabled', cf_robots_variant: 'policy_only', bot_preference_sync_enabled: false,
+  ai_agents: { anthropic_agent: 'disabled' },
+};
+// The ask, then the yes, for a zone holding `bot`: both outputs, every PUT, and the stub.
+const agentsRun = (bot, args = [], { before } = {}) => scenario(freshState({ bot }), async ({ api, go, state }) => {
+  const ask = await go(args);
+  if (before) before(state);
+  const done = await go([...args, '--confirm', codeOf(ask)]);
+  return { ask, done, puts: api.writes().filter((e) => e.method === 'PUT').map((e) => e.body), state };
+});
+const ASK_NOT_KNOWN_FORM = /By hand: AI crawlers: allow\. Cloudflare's ai_agents reads .*, a form this kit does not know\. Dashboard: /;
+const DONE_NOT_KNOWN_FORM = /by hand\s+AI crawlers: allow: Cloudflare's ai_agents reads .*, a form this kit does not know\. Dashboard: /;
+
+test('A: one agent on block, everything else allowed: the ask lists it, the PUT sends only it, the line reads back done and the report names it', async () => {
+  const r = await agentsRun(agentBot());
+  assert.match(r.ask.out, /\d+\. AI crawlers: allow \(ai_agents\.anthropic_agent block → disabled\)\./);
+  assert.match(r.ask.out, /each personal AI agent Cloudflare lists is set to the API's disabled/);
+  assert.match(r.ask.out, /Every personal agent ends disabled\./);
+  assert.doesNotMatch(r.ask.out, /ai_agents\.google_agent|Already as the checklist wants: .*AI crawlers: allow/);
+  assert.deepEqual(r.puts, [PUT_ONE_AGENT]);
+  assert.deepEqual(r.state.bot.ai_agents, ALL_DISABLED);
+  assert.match(r.done.out, /done\s+AI crawlers: allow \(personal agents were: anthropic_agent block\)\. Read back through the API only\./);
+  assert.doesNotMatch(r.done.out, /by hand\s+AI crawlers/);
+});
+
+test('A0: every agent disabled and every other AI field allowed: the ai line reads "as is", with no ask and no PUT', async () => {
+  const r = await agentsRun(botOf('T4-001'));
+  assert.match(r.ask.out, /Already as the checklist wants: .*AI crawlers: allow/);
+  assert.doesNotMatch(r.ask.out, /\d+\. AI crawlers: allow|ai_agents\./);
+  assert.deepEqual(r.puts, []);
+  assert.match(r.done.out, /as is\s+AI crawlers: allow\./);
+});
+
+test('B: the blocked agent with --skip ai: no ai_agents in the PUT, the agent stays, and the notes name it', async () => {
+  const r = await agentsRun(agentBot({}, { fight_mode: true }), ['--skip', 'ai']);
+  assert.equal(r.puts.length, 1);
+  assert.ok(!('ai_agents' in r.puts[0]), JSON.stringify(r.puts[0]));
+  assert.equal(r.state.bot.ai_agents.anthropic_agent, 'block');
+  for (const out of [r.ask.out, r.done.out]) assert.match(out, /Personal agent anthropic_agent read block at the start of this run, and this run leaves it as it is\. Section 4 of the Cloudflare checklist/);
+});
+
+test('C: a zone whose Bot Management has no ai_agents: the PUT is the one test 13 pins, with none, and the line reads back done', async () => {
+  const r = await aiRun(botOf(AI.block));
+  assert.deepEqual(r.put.body, {
+    fight_mode: false, enable_js: false, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
+    crawler_protection: 'disabled', content_bots_protection: 'disabled', cf_robots_variant: 'policy_only', bot_preference_sync_enabled: false,
+  });
+  assert.match(r.done.out, /done\s+AI crawlers: allow\. Read back/);
+  assert.doesNotMatch(r.done.out, /personal agent|Personal agent|by hand/);
+});
+
+test('C2: Bot Fight Mode is "as is" when off, whatever ai_agents holds', async () => {
+  for (const bot of [agentBot(), botOf('T4-001'), agentBot({}, { ai_agents: 'block' })]) {
+    const r = await agentsRun(bot);
+    assert.match(r.ask.out, /Already as the checklist wants: .*Bot Fight Mode: Off/, JSON.stringify(bot.ai_agents));
+  }
+});
+
+test('D, I and M: an ai_agents that is not a plain object of strings: the ai line is "by hand" before any write, and no PUT carries ai_agents', async () => {
+  const forms = { string: 'block', null: null, array: [], nested: { anthropic_agent: { x: 'block' } }, number: { anthropic_agent: 1 } };
+  for (const [what, value] of Object.entries(forms)) {
+    const r = await agentsRun(agentBot({}, { fight_mode: true, ai_agents: value }));
+    assert.match(r.ask.out, ASK_NOT_KNOWN_FORM, what);
+    assert.match(r.done.out, DONE_NOT_KNOWN_FORM, what);
+    assert.match(r.done.out, /done\s+Bot Fight Mode: Off/, `${what}: the other line goes on`);
+    assert.equal(r.puts.length, 1, what);
+    assert.ok(!('ai_agents' in r.puts[0]), `${what}: ${JSON.stringify(r.puts[0])}`);
+    assert.equal(r.done.code, 1, what);
+    assert.match(r.done.out, /Personal agents \(ai_agents\) read .* at the start of this run: a value this kit does not know/, what);
+  }
+  // --skip ai wins over the refusal; the note names the unknown form.
+  const skipped = await agentsRun(agentBot({}, { fight_mode: true, ai_agents: 'block' }), ['--skip', 'ai']);
+  assert.doesNotMatch(skipped.ask.out + skipped.done.out, /a form this kit does not know\. Dashboard/);
+  assert.match(skipped.done.out, /Personal agents \(ai_agents\) read block at the start of this run: a value this kit does not know/);
+});
+
+test('D2: ai_agents null with Training on Block: the notes do not blame the records, and the line says the ai_agents reason', async () => {
+  // The "unread" state has several causes; here the zone's records were read fine.
+  const bot = agentBot({}, { ai_training: botOf(AI.block).ai_training, ai_agents: null });
+  const r = await agentsRun(bot);
+  for (const out of [r.ask.out, r.done.out]) {
+    assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run could not change it; the AI crawlers line says why\./);
+    assert.doesNotMatch(out, /records could not be read/);
+  }
+  assert.match(r.ask.out, ASK_NOT_KNOWN_FORM);
+  assert.match(r.done.out, DONE_NOT_KNOWN_FORM);
+});
+
+test('M: an empty map has nothing to do and gives no note; an unknown string value gets a note, and the yes sets it to disabled', async () => {
+  const empty = await agentsRun(agentBot({}, { ai_agents: {} }));
+  assert.match(empty.ask.out, /Already as the checklist wants: .*AI crawlers: allow/);
+  assert.deepEqual(empty.puts, []);
+  assert.doesNotMatch(empty.ask.out + empty.done.out, /[Pp]ersonal agent/);
+  const odd = await agentsRun(agentBot({ anthropic_agent: 'challenge' }));
+  assert.match(odd.ask.out, /Personal agent anthropic_agent reads challenge at the start of this run: a value this kit does not know/);
+  assert.match(odd.ask.out, /ai_agents\.anthropic_agent challenge → disabled/);
+  assert.deepEqual(odd.puts, [PUT_ONE_AGENT]);
+  assert.deepEqual(odd.state.bot.ai_agents, ALL_DISABLED);
+});
+
+test('E, E2 and E3: the PUT is accepted but ai_agents reads back otherwise: the ai line is "by hand" and names what it read', async () => {
+  const wanted = '{"anthropic_agent":"disabled","google_agent":"disabled","instinct":"disabled","muse":"disabled","openai_agent":"disabled"}';
+  const cases = {
+    'E: one agent still on block': [(s) => { s.bot.ai_agents.anthropic_agent = 'block'; }, `ai_agents reads {"anthropic_agent":"block","google_agent":"disabled","instinct":"disabled","muse":"disabled","openai_agent":"disabled"}, not ${wanted}`],
+    'E2: an agent the first read listed is gone': [(s) => { delete s.bot.ai_agents.google_agent; }, `ai_agents reads {"anthropic_agent":"disabled","instinct":"disabled","muse":"disabled","openai_agent":"disabled"}, not ${wanted}`],
+    'E3: an array': [(s) => { s.bot.ai_agents = []; }, `ai_agents reads [], not ${wanted}`],
+  };
+  for (const [name, [set, words]] of Object.entries(cases)) {
+    const r = await agentsRun(agentBot(), [], { before: (s) => { s.after = (e) => { if (e.method === 'PUT') set(s); }; } });
+    assert.equal(r.done.code, 1, name);
+    assert.ok(r.done.out.includes(`by hand  AI crawlers: allow: Cloudflare accepted the change, but ${words}.`), `${name}: ${r.done.out}`);
+  }
+});
+
+test('F: launch on a zone with one agent blocked: the note names it, and nothing is written', () =>
+  launchScenario((h) => finishedLaunch(h, agentBot()), async ({ api, launch }) => {
+    const r = await launch();
+    assert.equal(r.code, 0, r.out);
+    const notes = r.out.slice(r.out.indexOf(AI_HEADING), r.out.indexOf('Live: '));
+    assert.match(notes, /Personal agent anthropic_agent read block at the start of this run, and launch day leaves it as it is\./);
+    assert.doesNotMatch(notes, /google_agent/);
+    assert.ok(!api.writes().some((e) => /bot_management/.test(e.path)));
+  }));
+
+test('H: a sixth agent the kit has never heard of: the ask, the PUT, the done line, the skip note and the launch note all name it', async () => {
+  const bot = () => agentBot({ other_agent: 'block' });
+  const r = await agentsRun(bot());
+  assert.match(r.ask.out, /\(ai_agents\.anthropic_agent block → disabled, ai_agents\.other_agent block → disabled\)\./);
+  assert.deepEqual(r.puts, [{ ...PUT_ONE_AGENT, ai_agents: { anthropic_agent: 'disabled', other_agent: 'disabled' } }]);
+  assert.equal(r.state.bot.ai_agents.other_agent, 'disabled');
+  assert.match(r.done.out, /\(personal agents were: anthropic_agent block, other_agent block\)/);
+  const skipped = await agentsRun(bot(), ['--skip', 'ai']);
+  assert.match(skipped.done.out, /Personal agent other_agent read block at the start of this run, and this run leaves it as it is/);
+  await launchScenario((h) => finishedLaunch(h, bot()), async ({ launch }) => {
+    const l = await launch();
+    assert.match(l.out, /Personal agent other_agent read block at the start of this run, and launch day leaves it as it is/);
+  });
+});
+
+test('J: an agent added between the ask and the yes makes a new code: the old one writes nothing, and the new question lists both', () =>
+  scenario(freshState({ bot: agentBot() }), async ({ api, go, state }) => {
+    const first = codeOf(await go());
+    state.bot.ai_agents.other_agent = 'block';
+    const r = await go(['--confirm', first]);
+    assert.match(r.out, /does not fit this question/);
+    assert.deepEqual(api.writes(), []);
+    assert.notEqual(codeOf(r), first);
+    assert.match(r.out, /ai_agents\.anthropic_agent block → disabled, ai_agents\.other_agent block → disabled/);
+  }));
+
+test('J2: another listed agent blocked between the ask and the yes: the yes still sets it, the end state the question named', () =>
+  scenario(freshState({ bot: agentBot() }), async ({ api, go, state }) => {
+    const first = codeOf(await go());
+    state.bot.ai_agents.google_agent = 'block';
+    const r = await go(['--confirm', first]);
+    assert.doesNotMatch(r.out, /does not fit this question/);
+    assert.deepEqual(api.writes().find((e) => e.method === 'PUT').body.ai_agents, { anthropic_agent: 'disabled', google_agent: 'disabled' });
+    assert.deepEqual(state.bot.ai_agents, ALL_DISABLED);
+    assert.match(r.out, /\(personal agents were: anthropic_agent block, google_agent block\)/);
+  }));
+
+test('K: the owner blocks another agent between the run\'s read and its PUT: the PUT leaves it out, nothing overwrites it, and the line is "by hand"', () =>
+  scenario(freshState({ bot: agentBot() }), async ({ api, go, state }) => {
+    const code = codeOf(await go());
+    let hit = false;
+    state.after = (e) => { if (!hit && e.method === 'GET' && /bot_management/.test(e.path)) { hit = true; state.bot.ai_agents.google_agent = 'block'; } };
+    const r = await go(['--confirm', code]);
+    assert.deepEqual(api.writes().find((e) => e.method === 'PUT').body.ai_agents, { anthropic_agent: 'disabled' });
+    assert.equal(state.bot.ai_agents.google_agent, 'block');
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /by hand\s+AI crawlers: allow: Cloudflare accepted the change, but ai_agents reads \{"anthropic_agent":"disabled","google_agent":"block"/);
+  }));
+
+test('L: no ai_agents in the first read, but one agent blocked in the read-back: the ai line is "by hand" and names it', async () => {
+  const r = await aiRun(botOf(AI.block), [], { before: (s) => { s.after = (e) => { if (e.method === 'PUT') s.bot.ai_agents = { anthropic_agent: 'block' }; }; } });
+  assert.equal(r.done.code, 1, r.done.out);
+  assert.ok(r.done.out.includes('Cloudflare accepted the change, but ai_agents reads {"anthropic_agent":"block"}, not {"anthropic_agent":"disabled"}.'), r.done.out);
+});
+
+test('N: Bot Fight Mode on and one agent blocked, the PUT refused: both bot lines are "by hand" with the refusal, and the note names the agent', async () => {
+  const r = await agentsRun(agentBot({}, { fight_mode: true }), [], { before: (s) => { s.refuse['PUT bot'] = 403; } });
+  assert.equal(r.done.code, 1, r.done.out);
+  assert.match(r.done.out, /by hand\s+Bot Fight Mode: Off: Cloudflare refused it \(403/);
+  assert.match(r.done.out, /by hand\s+AI crawlers: allow: Cloudflare refused it \(403/);
+  assert.match(r.done.out, /Personal agent anthropic_agent read block at the start of this run; Cloudflare did not confirm the change, so look at it in the dashboard/);
+  assert.equal(r.state.bot.ai_agents.anthropic_agent, 'block');
+});
+
+test('aiNotes for personal agents: a blocked, an ads-only and an unknown-valued agent, per state', () => {
+  const where = BOT_LINES.find((b) => b.id === 'ai').path;
+  const now = (agents) => ({ ...botOf('T4-001'), ai_agents: agents });
+  const leaves = (v, who) => `Personal agent ${v[0]} read ${v[1]} at the start of this run, and ${who} leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.`;
+  for (const value of ['block', 'only_on_ad_pages']) {
+    const n = now({ anthropic_agent: value, google_agent: 'disabled' });
+    assert.deepEqual(aiNotes(n, 'skipped'), [leaves(['anthropic_agent', value], 'this run')]);
+    assert.deepEqual(aiNotes(n, 'unread'), [leaves(['anthropic_agent', value], 'this run')]);
+    assert.deepEqual(aiNotes(n, 'launch'), [leaves(['anthropic_agent', value], 'launch day')]);
+    assert.deepEqual(aiNotes(n, 'hand'), [`Personal agent anthropic_agent read ${value} at the start of this run; Cloudflare did not confirm the change, so look at it in the dashboard: ${where}.`]);
+    for (const st of ['change', 'done', 'as-is']) assert.deepEqual(aiNotes(n, st), [], `${value} ${st}`);
+  }
+  const unknown = now({ anthropic_agent: 'challenge', google_agent: 'block' });
+  for (const st of ['change', 'done', 'skipped', 'hand']) {
+    assert.ok(aiNotes(unknown, st).includes(`Personal agent anthropic_agent reads challenge at the start of this run: a value this kit does not know, so it cannot say what it means for search. Look at it in the dashboard: ${where}.`), st);
+  }
+  assert.deepEqual(aiNotes(now(null), 'change'), [`Personal agents (ai_agents) read null at the start of this run: a value this kit does not know, so it cannot say what it means for search. Look at it in the dashboard: ${where}.`]);
+  const absent = botOf('T4-001');
+  delete absent.ai_agents;
+  assert.deepEqual(aiNotes(absent, 'skipped'), []);
+  assert.deepEqual(aiNotes(now({}), 'skipped'), []);
+});
 
 test('LA1: Training on Block at launch: the report says what Block costs and how to keep a choice; nothing written', () =>
   launchScenario((h) => finishedLaunch(h, botOf(AI.block)), async ({ api, launch }) => {
