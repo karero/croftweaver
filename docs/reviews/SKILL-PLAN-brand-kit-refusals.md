@@ -13,8 +13,8 @@ maintainer, 2026-11-09: "Yes, sweep first").
 | 1 | This plan | ▶ revised after PLAN round 1 and the red team | this file |
 | 2 | PLAN gate (Normal) | ▶ round 1: 4 BUG, 5 RISK; round 2: 2 BUG, 9 RISK, 5 NIT; round 3: 1 BUG (a wording slip), 2 RISK, 4 NIT; all answered here | 122,048 + 126,490 tokens |
 | 3 | Red team (an Opus subagent told to attack the plan) | ✅ 10 findings, answered here | 211,159 tokens |
-| 4 | The maintainer's go to build (it widens what a sanitizer of untrusted files accepts) | ⏸ | — |
-| 5 | Build, tests, `make check` | ⏸ | — |
+| 4 | The maintainer's go to build (it widens what a sanitizer of untrusted files accepts) | ✅ 2026-11-09, "Build + matplotlib" | his answer in the building session |
+| 5 | Build, tests, `make check` | ✅ full suite 1,106 tests (with sharp 0.35.5): all pass but timing tests that failed under a load average of 95–190 and pass alone; `make check` passes; Chromium 152 draws 59 original/cleaned pairs the same | this PR |
 | 6 | DIFF gate (Normal: shipped code and skill text) | ⏸ | — |
 | 7 | PR, merge go, merge | ⏸ | — |
 

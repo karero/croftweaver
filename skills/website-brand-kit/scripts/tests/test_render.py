@@ -870,6 +870,63 @@ class WhatIsAcceptedIsDrawnAsItWas(unittest.TestCase):
         for name in ("viewBox: an em space", "viewBox: a no-break space", "viewBox: a point"):
             self.assertEqual(outcome[name], "refused: bad-view-box", name)
 
+    def test_a_style_that_cannot_change_the_drawing_is_left_out_and_the_drawing_is_the_same(self):
+        # The properties of _svg.PROPS_NO_EFFECT are left out of a style whatever their value. If the renderer read one of
+        # them, the file as it came would be drawn differently from the cleaned one, and this comparison would fail.
+        b, docs = self.BOX, {}
+        spare = '<rect fill="#00f" x="6" y="6" width="4" height="4"/>'
+        for prop in sorted(_svg.PROPS_NO_EFFECT):
+            for value in ("auto", "isolate", "exact", "visible", "pixelated", "crisp-edges", "#f00", "economy"):
+                docs["%s:%s on a shape" % (prop, value)] = '<svg %s><rect fill="#f00" style="%s:%s" width="6" height="6"/>%s</svg>' % (b, prop, value, spare)
+                docs["%s:%s in a rule" % (prop, value)] = '<svg %s><style>rect{%s:%s}</style><rect fill="#f00" width="6" height="6"/>%s</svg>' % (b, prop, value, spare)
+        # overflow of the outer svg, with a shape that reaches outside its view box: the picture is the view box in both
+        for value in ("visible", "hidden", "scroll", "auto"):
+            docs["overflow:%s with a shape outside the view box" % value] = ('<svg %s style="overflow:%s"><rect fill="#f00" x="-5" y="-5" width="20" height="8"/>%s</svg>' % (b, value, spare))
+            docs["overflow:%s in a rule" % value] = ('<svg %s><style>svg{overflow:%s}</style><rect fill="#f00" x="-5" y="-5" width="20" height="8"/>%s</svg>' % (b, value, spare))
+        docs["stop-color on a shape"] = '<svg %s><rect fill="#f00" style="stop-color:#00f" width="6" height="6"/>%s</svg>' % (b, spare)
+        outcome = self.judge(docs)
+        for name, got in outcome.items():
+            self.assertEqual(got, "accepted", name)
+        self.assertGreater(len(outcome), 60)
+
+    def test_a_fill_opacity_of_nothing_is_no_fill_and_the_drawing_is_the_same(self):
+        # matplotlib writes the page as a path with fill-opacity 0; the cleaned file has fill="none" in its place
+        b, docs = self.BOX, {}
+        mark = '<rect fill="#00f" x="2" y="2" width="4" height="4"/>'
+        docs["the page, then the mark"] = '<svg %s><rect fill="#ffffff" fill-opacity="0" width="10" height="10"/>%s</svg>' % (b, mark)
+        docs["a coloured page, then the mark"] = '<svg %s><rect fill="#f00" fill-opacity="0" width="10" height="10"/>%s</svg>' % (b, mark)
+        docs["in a style"] = '<svg %s><rect fill="#f00" style="fill-opacity:0" width="10" height="10"/>%s</svg>' % (b, mark)
+        docs["in a rule"] = '<svg %s><style>rect.p{fill-opacity:0}</style><rect class="p" fill="#f00" width="10" height="10"/>%s</svg>' % (b, mark)
+        docs["with an outline of its own"] = ('<svg %s><rect fill="#f00" fill-opacity="0" stroke="#0a0" stroke-width="1" x="1" y="1" width="8" height="8"/>'
+                                              '<rect fill="#00f" x="4" y="4" width="2" height="2"/></svg>' % b)
+        docs["a path"] = '<svg %s><path fill="#f00" fill-opacity="0" d="M0 0h10v10H0z"/>%s</svg>' % (b, mark)
+        docs["a circle"] = '<svg %s><circle fill="#f00" fill-opacity="0.0" cx="5" cy="5" r="5"/>%s</svg>' % (b, mark)
+        docs["0 overridden by a style"] = '<svg %s><rect fill="#f00" fill-opacity="0" style="fill-opacity:1" x="6" y="6" width="4" height="4"/>%s</svg>' % (b, mark)
+        docs["0 overridden by a rule"] = '<svg %s><style>rect.p{fill-opacity:1}</style><rect class="p" fill="#f00" fill-opacity="0" x="6" y="6" width="4" height="4"/>%s</svg>' % (b, mark)
+        outcome = self.judge(docs)
+        self.assertEqual(set(outcome.values()), {"accepted"}, outcome)
+        # the two that stay painted are painted in the cleaned file too (the comparison above held it to the original)
+        self.assertEqual(_svg.clean_svg(docs["0 overridden by a style"].encode()).colours, ["#ff0000", "#0000ff"])
+        self.assertEqual(_svg.clean_svg(docs["a coloured page, then the mark"].encode()).colours, ["#0000ff"])
+
+    def test_a_real_export_with_the_standard_doctype_is_drawn_as_it_came(self):
+        # matplotlib 3.11.2's own file (tests/fixtures): the declaration is taken off, and the picture is the same
+        with open(os.path.join(T.SCRIPTS, "tests", "fixtures", "matplotlib-3.11.2-svg11-doctype.svg"), encoding="utf-8") as f:
+            text = f.read()
+        self.assertIn("<!DOCTYPE svg PUBLIC", text)
+        outcome = self.judge({"matplotlib 3.11.2": text})
+        self.assertEqual(outcome, {"matplotlib 3.11.2": "accepted"})
+
+    def test_a_class_named_with_escapes_is_the_class_the_renderer_reads(self):
+        # the site's renderer reads `.sm\:flex` as the class "sm:flex", as this check does: the cleaned file (the colour written
+        # on the shape, no class left) and the file as it came are the same picture, for each form that is read
+        b, docs = self.BOX, {}
+        for selector, name in ((r".sm\:flex", "sm:flex"), (r".sm\3a flex", "sm:flex"), (r".w-1\/2", "w-1/2"), (r".h-0\.5", "h-0.5"), (r".a\2e b", "a.b"),
+                               (r".\31 0", "10"), (r".\41", "A"), (r".md\:h-8.sm\:flex", "md:h-8 sm:flex")):
+            docs["class " + selector] = '<svg %s><style>%s{fill:#f00}</style><rect class="%s" width="6" height="6"/><rect class="%sx" x="6" y="6" width="4" height="4"/></svg>' % (b, selector, name, name.split(" ")[0])
+        outcome = self.judge(docs)
+        self.assertEqual(set(outcome.values()), {"accepted"}, outcome)
+
 
 # --- the value grammar, drawn ----------------------------------------------------------------------
 # One row for every form of every line of the value grammar (_svg.py, at its top). A row is

@@ -160,13 +160,13 @@ class ThroughTheCommand(unittest.TestCase):
             ("display on a clip path", bare(clip.replace("<clipPath ", '<clipPath display="none" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), "clip-display"),
             ("a clip-path on the outer svg", bare(clip + '<rect width="9" height="9"/>', root='clip-path="url(#c)"'), "root-clip-path"),
             ("a plain clip path whose id starts with a digit", bare(clip.replace('"c"', '"8ce47d5fb1"') + '<g clip-path="url(#8ce47d5fb1)"><rect width="9" height="9"/></g>'), None),
-            ("a DOCTYPE on a line of its own", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg(), "doctype"),
+            ("a DOCTYPE on a line of its own", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">\n' + svg(), "doctype"),
             ("an editor's leftovers in a style", bare('<path style="fill:#111111;marker:none;isolation:auto;image-rendering:auto;-inkscape-stroke:none" d="M0 0h9v9z"/>'), None),
             ("the class names of a style library", svg(root='class="h-6 w-6 md:h-8 hover:text-gray-500"'), None),
             ("a label that reads like a piece of a style", svg(root='role="img" aria-label="JavaScript: the logo" data-name="expression(layer)"'), None),
             # the rules of round 6
-            ("a DOCTYPE over two lines", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg(), "doctype"),
-            ("a DOCTYPE on the line of the svg", b'<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">' + svg(), "doctype"),
+            ("a DOCTYPE over two lines", b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">\n' + svg(), "doctype"),
+            ("a DOCTYPE on the line of the svg", b'<?xml version="1.0"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">' + svg(), "doctype"),
             ("a DOCTYPE with definitions of its own", b'<!DOCTYPE svg [\n<!ENTITY ns_svg "http://www.w3.org/2000/svg">\n]>\n' + svg(ns='xmlns="&ns_svg;"'), "doctype"),
             ("a clip path measured by the box of what it clips", bare(clip.replace("<clipPath ", '<clipPath clipPathUnits="objectBoundingBox" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), "clip-units"),
             ("the same clip path in the drawing's own units", bare(clip.replace("<clipPath ", '<clipPath clipPathUnits="userSpaceOnUse" ') + '<rect clip-path="url(#c)" width="9" height="9"/>'), None),
@@ -270,7 +270,7 @@ class ThroughTheCommand(unittest.TestCase):
     def test_a_refusal_of_a_file_in_a_package_says_which_file_it_is(self):
         # a package hands over two files, the mark and its one-colour version: a refusal that named neither left the owner
         # to open both (and the assistant's instructions said so)
-        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + svg()
+        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">\n' + svg()
         package = T.build_zip([("pack/mark.svg", svg()), ("pack/mark-mono.svg", doctype), ("pack/gr\u00f6\u00dfe.svg", svg("<text>x</text>"))])
         for pick, mono, code, about, sentence in (("pack/mark.svg", "pack/mark-mono.svg", "doctype", "pack/mark-mono.svg", _svg.DOCTYPE),
                                                   ("pack/mark-mono.svg", "pack/mark.svg", "doctype", "pack/mark-mono.svg", _svg.DOCTYPE),
@@ -320,7 +320,7 @@ class Hostile(unittest.TestCase):
             ("DOCTYPE with an external entity",
              b'<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]>' + svg(), "doctype", svg()),
             ("a plain public DOCTYPE with no entity at all",
-             b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">' + svg(),
+             b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">' + svg(),
              "doctype", svg()),
             ("xml-stylesheet instruction", b'<?xml-stylesheet href="https://x.example/a.css"?>' + svg(), "xml-stylesheet", svg()),
             ("another processing instruction", b'<?php echo 1 ?>' + svg(), "processing-instruction", svg()),
@@ -406,7 +406,7 @@ class Hostile(unittest.TestCase):
         # without it" was no way out. The declaration can be taken out by hand.
         # What is taken out is the DECLARATION, not "the line that starts <!DOCTYPE": that sentence deleted the whole
         # drawing where the declaration shares its line with the <svg, and left half a declaration where it runs over two.
-        public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
+        public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">'
         xml = b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>'
         plain = {
             "on a line of its own": xml + b"\n" + public + b"\n" + svg(),
@@ -490,7 +490,7 @@ class Hostile(unittest.TestCase):
         # that the drawing is the same with the declaration deleted; such a file was then "not readable (undefined entity)",
         # which named no way on. Now the first sentence says what to do if the file cannot be read after that, and the
         # refusal that file meets says the same: both end with the export.
-        public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n'
+        public = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">\n'
         coloured = svg().replace(b'fill="#b4531a"', b'fill="&brand;"')
         self.assertIn(b"&brand;", coloured)
         needs_it = {
@@ -1194,14 +1194,18 @@ class Css(unittest.TestCase):
 
     def test_a_backslash_cannot_change_which_elements_a_rule_matches_or_which_property_it_sets(self):
         two = '<rect class="a" width="9" height="9"/><rect class="b" width="9" height="9"/>'
-        for rule in (".a\\2e b{fill:#f00}", ".a\\,b{fill:#f00}", "\\2e a{fill:#f00}", "re\\63t{fill:#f00}", "#\\61{fill:#f00}",
+        for rule in (".a\\,b{fill:#f00}", "\\2e a{fill:#f00}", "re\\63t{fill:#f00}", "#\\61{fill:#f00}", ".a\\2f b\\{fill:#f00}",
                      "rect\\7b fill:#f00\\7d", ".a{fill:#f00\\7d .b{fill:#00f}"):
             with self.subTest(rule=rule):
                 with self.assertRaises(_svg.Refusal) as cm:
                     _svg.clean_svg(bare("<style>%s</style>" % rule + two))
                 self.assertIn(cm.exception.code, ("css-unreadable", "bad-value"), str(cm.exception))
-        for rule in (".a\\2e b{fill:#f00}", ".a\\,b{fill:#f00}"):
+        for rule in (".a\\,b{fill:#f00}",):
             refused(self, bare("<style>%s</style>" % rule + two), "css-unreadable")
+        # an escape in a class name of a selector is one character of ONE name: `.a\2e b` is the class "a.b", which
+        # neither shape has, so no shape is painted by it (it was `.a` then `.b`, or both, if the escape were cut out)
+        self.assertEqual(_svg.clean_svg(bare("<style>.a\\2e b{fill:#f00}</style>" + two)).colours, ["#000000"])
+        self.assertEqual(_svg.clean_svg(bare("<style>.a\\.b{fill:#f00}</style>" + two)).colours, ["#000000"])
         for style in ("fi\\6cl:#f00", "fill\\3a #f00", "\\66ill:#f00", "fill:#f00;str\\6fke:#00f"):
             with self.subTest(style=style):
                 refused(self, bare('<rect style="%s" width="9" height="9"/>' % style), "css-unreadable")
@@ -2604,11 +2608,12 @@ class ClipWork(unittest.TestCase):
 
 
 class AClass(Line):
-    """class: names of visible ASCII characters with spaces between them; 200 characters at most. A name a style rule
-    can name (letters, digits, `_ -`, begun as a CSS name is) is read for the rules; any other is passed over. Never written."""
+    """class: names of visible ASCII characters with spaces between them; 200 characters at most. Every name is kept for the
+    rules, whatever it holds: a selector that spells it (with an escape for each character CSS cannot take bare) matches it.
+    Never written."""
 
     def test_what_it_takes(self):
-        for value, names in (("a", {"a"}), ("a b", {"a", "b"}), (" a  b ", {"a", "b"}), ("cls-1 st0", {"cls-1", "st0"}), ("a.b _c -d 0", {"_c", "-d"}),
+        for value, names in (("a", {"a"}), ("a b", {"a", "b"}), (" a  b ", {"a", "b"}), ("cls-1 st0", {"cls-1", "st0"}), ("a.b _c -d 0", {"a.b", "_c", "-d", "0"}), ("md:h-8 w-1/2", {"md:h-8", "w-1/2"}),
                              ("", set()), (" ", set()), ("a a", {"a"}), ("x" * 200, {"x" * 200}), (" ".join(["ab"] * 66), {"ab"})):
             with self.subTest(value=value):
                 clean = _svg.clean_svg(bare("<style>.a{fill:#ff0000}</style>" + '<rect class="%s" width="9" height="9"/>' % value))
@@ -2616,9 +2621,9 @@ class AClass(Line):
                 self.assertNotIn("class", clean.text)
                 self.assertEqual(_svg._classes(_svg._validate("class", value)), names)
 
-    def test_a_name_no_style_rule_can_name_is_passed_over(self):
+    def test_a_name_no_plain_selector_can_name_is_kept_and_matches_nothing_else(self):
         # A pasted icon carries the names of a style library (`h-6 w-6 md:h-8 hover:text-gray-500`): the drawing was refused
-        # for the colon. No selector this check reads can name such a class, and a class is never written.
+        # for the colon. A class is never written; a rule reaches such a name only by a selector that escapes its characters.
         odd = ("md:h-8", "hover:text-gray-500", "w-1/2", "top-0.5", "!mt-0", "[&amp;&gt;path]:fill-current", "text-[#b4531a]", "bg-[url(/hero.png)]", "sm:max-w-[200px]",
                "a,b", "a;b", "a#b", "#a", ".a", "a.b", "a(b)", "a'b", "a&quot;b", "a&lt;b", "a*", "a+b", "a%", "a\\62", "a!", "a@b", "a=b", "0", "1a", "-", "--", "-1", "a{b}",
                "javascript:a", "expression(a)", "@import")
@@ -2632,11 +2637,16 @@ class AClass(Line):
                     self.assertNotIn("class", clean.text)
         clean = _svg.clean_svg(bare(sheet + '<rect class="%s" width="9" height="9"/>' % "h-6 w-6 md:h-8 hover:text-gray-500 a", root='class="h-6 w-6 md:h-8 hover:text-gray-500"'))
         self.assertEqual(clean.colours, ["#ff0000"])
-        self.assertEqual(_svg._classes("a md:h-8 b.c -d  _e 0 a"), {"a", "-d", "_e"})
-        # a rule cannot name one of them: written so that a browser would, it is a selector this check does not read
-        for selector in (".md\\:h-8", ".w-1\\/2", ".\\31 a", ".0", ".a\\.b"):
+        self.assertEqual(_svg._classes("a md:h-8 b.c -d  _e 0 a"), {"a", "md:h-8", "b.c", "-d", "_e", "0"})
+        # a rule names one of them the way a browser reads it: an escape for each character a class cannot hold bare
+        for selector, name in ((".md\\:h-8", "md:h-8"), (".w-1\\/2", "w-1/2"), (".\\31 a", "1a"), (".a\\.b", "a.b"), (".a\\2e b", "a.b"), (".sm\\3a flex", "sm:flex")):
             with self.subTest(selector=selector):
-                refused(self, bare("<style>%s{fill:#ff0000}</style>" % selector + '<rect class="md:h-8" width="9" height="9"/>'), "css-unreadable")
+                rule = "<style>%s{fill:#ff0000}</style>" % selector
+                self.assertEqual(_svg.clean_svg(bare(rule + '<rect class="%s" width="9" height="9"/>' % name)).colours, ["#ff0000"])
+                self.assertEqual(_svg.clean_svg(bare(rule + '<rect class="%sx" width="9" height="9"/>' % name)).colours, ["#000000"])
+                self.assertEqual(_svg.clean_svg(bare(rule + '<rect class="a" width="9" height="9"/>')).colours, ["#000000"])
+        # one that cannot be spelled is refused, as every selector this check cannot read is
+        refused(self, bare("<style>.0{fill:#ff0000}</style>" + '<rect class="0" width="9" height="9"/>'), "css-unreadable")
         # through the door the intake uses, as a file and inside a package
         doc = ('<svg %s class="h-6 w-6 md:h-8 hover:text-gray-500" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#111111">'
                '<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>' % NS).encode()
@@ -2848,7 +2858,7 @@ class NothingHere(Line):
                     self.assertEqual(clean.notes, ["left out styles that only an editor reads (their names start -inkscape-)"])
                     self.assertNotIn("inkscape", clean.text)
         # another program's prefix is not this one, and what such a value holds is still a piece of a style
-        for style, code in (("-webkit-print-color-adjust:exact", "css-property"), ("-moz-inkscape-stroke:none", "css-property"), ("inkscape-stroke:none", "css-property"),
+        for style, code in (("-webkit-text-stroke:1px", "css-property"), ("-moz-inkscape-stroke:none", "css-property"), ("inkscape-stroke:none", "css-property"),
                             ("-inkscape-stroke:url(https://x.example/a)", "css-url"), ("-inkscape-stroke:expression(1)", "css-script"), ("-Inkscape-stroke:none", "css-unreadable")):
             with self.subTest(style=style):
                 refused(self, bare('<path style="%s" d="M0 0h9v9z"/>' % style), code)
@@ -2873,13 +2883,37 @@ class NothingHere(Line):
                     if value:
                         refused(self, bare('<path style="%s:%s" d="M0 0h9"/>' % (name, value)), "marker")
                         refused(self, bare("<style>.unused{%s:%s}</style><path d='M0 0h9'/>" % (name, value)), "marker")
-        # isolation and image-rendering are no attributes of a shape: another value is refused in a style, and as an
-        # attribute it is left out with a note, like any attribute this check does not use
+        # as an attribute a name this check does not use is left out with a note, like any other
         for name, value in (("isolation", "isolate"), ("isolation", "Auto"), ("image-rendering", "pixelated"), ("image-rendering", "optimizeQuality"), ("image-rendering", "auto auto")):
             with self.subTest(name=name, value=value):
-                refused(self, bare('<rect style="%s:%s" width="9" height="9"/>' % (name, value)), "css-property")
-                refused(self, bare("<style>.unused{%s:%s}</style><rect width='9' height='9'/>" % (name, value)), "css-property")
                 self.assertEqual(_svg.clean_svg(bare('<rect %s="%s" width="9" height="9"/>' % (name, value))).notes, ["left out attributes this check does not use: " + name])
+
+    def test_a_style_that_cannot_change_this_drawing_is_left_out_with_a_note_whatever_its_value(self):
+        # An export from a drawing program carries these in the style of its shapes (matplotlib writes image-rendering,
+        # a browser's print dialog print-color-adjust); no element this check allows is drawn differently for any of them.
+        self.assertEqual(sorted(_svg.PROPS_NO_EFFECT), ["-webkit-print-color-adjust", "color-adjust", "image-rendering", "isolation", "overflow", "print-color-adjust", "stop-color"])
+        for name in sorted(_svg.PROPS_NO_EFFECT):
+            for value in ("auto", "isolate", "exact", "visible", "pixelated", "#f00", "auto auto", "x(1)"):
+                for doc in (bare('<rect style="fill:#111111;%s:%s" width="9" height="9"/>' % (name, value)),
+                            bare("<style>rect{%s:%s}</style><rect fill='#111111' width='9' height='9'/>" % (name, value)),
+                            bare("<style>.unused{%s:%s}</style><rect fill='#111111' width='9' height='9'/>" % (name, value))):
+                    with self.subTest(name=name, value=value, doc=doc[110:170]):
+                        clean = _svg.clean_svg(doc)
+                        self.assertEqual(clean.colours, ["#111111"])
+                        self.assertNotIn(name, clean.text)
+                        if name in _svg.NO_EFFECT and value == _svg.NO_EFFECT[name]:
+                            self.assertEqual(clean.notes, [])
+                        else:
+                            self.assertEqual(clean.notes, ["left out a style that cannot change this drawing (%s)" % name])
+        # a stylesheet property this list does not hold is still refused, and so is isolation beside a blend mode
+        refused(self, bare('<rect style="isolation:isolate;mix-blend-mode:multiply" width="9" height="9"/>'), "blend")
+        refused(self, bare('<rect style="fill:#111111;mask-image:none" width="9" height="9"/>'), "css-property")
+
+    def test_what_those_styles_rest_on_is_the_exact_set_of_allowed_elements(self):
+        # PROPS_NO_EFFECT is true only while the elements are these; a new element must be read against it first
+        self.assertEqual(sorted(_svg.ALLOWED_ELEMENTS), sorted(["svg", "g", "defs", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "clipPath", "style"]))
+        # a nested svg is not one of them: only the root is
+        exc = refused(self, svg('<svg width="5" height="5" style="overflow:visible"><rect width="9" height="9"/></svg>'), "nested-svg")
 
 
 class TheGrammarIsTheTable(unittest.TestCase):
@@ -3415,6 +3449,221 @@ class NoWebPages(unittest.TestCase):
         bare_pieces = [(piece * (300000 // len(piece))).encode() for piece in pieces] + [b"<svg/>" * (10 * 1024 * 1024 // 6)]
         for piece, out in zip(pieces + ("10 MB",), judged(self, bare_pieces, how="intake")):
             self.assertIn(out["code"], ("web-page", "unknown-file", "not-xml", "too-large", "no-size"), piece)
+
+
+S11 = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">'
+S10 = b"<!DOCTYPE svg PUBLIC '-//W3C//DTD SVG 1.0//EN' 'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>"
+
+
+class TheStandardDoctypeIsTakenOff(unittest.TestCase):
+    """A real export of a plotting library, a drawing program or a design tool starts with the W3C's own DOCTYPE for SVG 1.1
+    (or 1.0), and the check refused it as one that "asks for other files". The one standard declaration, written exactly,
+    is taken off before the file is read: no entity is declared, let alone expanded. Every other declaration is refused
+    as before (BUGLOG 2026-10-13, the DOCTYPE row)."""
+
+    def test_the_standard_declaration_is_read_in_every_way_it_is_written(self):
+        want = _svg.clean_svg(svg()).text
+        for what, data in (
+                ("SVG 1.1", S11 + b"\n" + svg()),
+                ("SVG 1.0, in single quotes", S10 + b"\n" + svg()),
+                ("one quote of each kind", S11.replace(b'"-//W3C//DTD SVG 1.1//EN"', b"'-//W3C//DTD SVG 1.1//EN'") + svg()),
+                ("over two lines", S11.replace(b'" "', b'"\n  "') + svg()),
+                ("XML's four blanks between the words", S11.replace(b"DOCTYPE svg PUBLIC \"", b"DOCTYPE\t svg\r\n PUBLIC\n \"").replace(b'EN" "', b'EN"\r\n\t "') + svg()),
+                ("a blank before the >", S11[:-1] + b" \n>" + svg()),
+                ("after an XML declaration", b'<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n' + S11 + b"\n" + svg()),
+                ("after a byte order mark", b"\xef\xbb\xbf" + S11 + svg()),
+                ("after a comment (Illustrator writes it first)", b"<!-- Generator: Adobe Illustrator 27.0 -->\n" + S11 + b"\n" + svg()),
+                ("after an XML declaration and two comments", b'<?xml version="1.0"?>\n<!-- a -->\n<!-- b - c -->\n' + S11 + svg())):
+            with self.subTest(what=what):
+                clean = _svg.clean_svg(data)
+                self.assertEqual(clean.text, want, "the cleaned file is the file without its declaration, byte for byte")
+                self.assertEqual((clean.colours, clean.notes), (["#b4531a"], []))
+                self.assertNotIn("DOCTYPE", clean.text)
+        # a real file of the first kind: matplotlib 3.11.2's SVG (trimmed of nothing), through the check and through the command
+        with open(os.path.join(T.SCRIPTS, "tests", "fixtures", "matplotlib-3.11.2-svg11-doctype.svg"), "rb") as f:
+            data = f.read()
+        self.assertIn(b"<!DOCTYPE svg PUBLIC", data)
+        clean = _svg.clean_svg(data)
+        self.assertEqual(clean.colours, ["#ffffff", "#7a2e0b"])   # the white ground (line 28) and the line (line 34) of the file
+        self.assertIn(through_the_command(self, data, name="plot.svg")["code"], READ)
+
+    def test_a_package_keeps_the_file_name_in_a_refusal_of_a_stripped_file(self):
+        # clean_svg strips into a name of its own: `data` is still the Member that carries the package's file name
+        bad = S11 + b"\n" + svg().replace(b'fill="#b4531a"', b'fill="&brand;"')
+        answer = through_the_command(self, T.build_zip([("pack/logo.svg", bad)]), name="pack.zip")
+        self.assertEqual((answer["status"], answer["code"]), ("refused", "not-xml"))
+        self.assertTrue(answer["message"].startswith("In the package, the file 'pack/logo.svg': "), answer["message"])
+
+    def test_a_stripped_file_that_uses_a_name_the_declaration_would_define_gets_a_sentence_that_fits(self):
+        # the declaration was not deleted by anyone: the owner has nothing to restore and nothing to ask the tool for
+        err = refused(self, S11 + b"\n" + svg("<title>&nbsp;</title>"), "not-xml")
+        self.assertEqual(str(err), _svg.NO_SUCH_NAME_STANDARD)
+        self.assertNotIn("deleted", str(err))
+        self.assertNotIn("export without a DOCTYPE", str(err))
+        # without a declaration the old sentence, which does say so
+        self.assertEqual(str(refused(self, svg("<title>&nbsp;</title>"), "not-xml")), _svg.NO_SUCH_NAME)
+        # and the five names XML itself defines read as they did
+        clean = _svg.clean_svg(S11 + b"\n" + svg("<title>a &amp; b &lt; c</title>"))
+        self.assertEqual(clean.colours, ["#b4531a"])
+
+    def test_a_name_the_declaration_would_define_is_never_read_as_empty(self):
+        # Measured with Python 3.13 / expat 2.7.4: a kept DOCTYPE made fill="&brand;" read as fill="" with no error, so
+        # the shape would have been drawn another colour than the file says. Stripped, the name is undefined: refused.
+        for doc in (S11 + svg().replace(b'fill="#b4531a"', b'fill="&brand;"'), S10 + svg().replace(b'fill="#b4531a"', b'fill="&brand;"'),
+                    S11 + svg().replace(b'fill="#b4531a"', b'style="fill:&brand;"')):
+            with self.subTest(doc=doc[-80:]):
+                self.assertEqual(str(refused(self, doc, "not-xml")), _svg.NO_SUCH_NAME_STANDARD)
+
+    def test_every_other_declaration_is_refused_as_before(self):
+        for what, data, code in (
+                ("another address", S11.replace(b"svg11.dtd", b"svg11-copy.dtd") + svg(), "doctype"),
+                ("another public id", S11.replace(b"SVG 1.1", b"SVG 1.2") + svg(), "doctype"),
+                ("the 1.1 id with the 1.0 address", S11.replace(b"Graphics/SVG/1.1/DTD/svg11.dtd", b"TR/2001/REC-SVG-20010904/DTD/svg10.dtd") + svg(), "doctype"),
+                ("an address of a host of its own", S11.replace(b"www.w3.org", b"w3.org.example") + svg(), "doctype"),
+                ("SYSTEM alone", b'<!DOCTYPE svg SYSTEM "svg11.dtd">' + svg(), "doctype"),
+                ("the shortest there is", b"<!DOCTYPE svg>" + svg(), "doctype"),
+                ("square brackets after the standard words", S11[:-1] + b" [<!ENTITY a 'x'>]>" + svg(), "doctype"),
+                ("empty square brackets", S11[:-1] + b" []>" + svg(), "doctype"),
+                ("a second declaration", S11 + b"\n" + S11 + b"\n" + svg(), "doctype"),
+                ("a second declaration after the first was taken off", S11 + b"<!DOCTYPE svg>" + svg(), "doctype"),
+                ("one after the root", svg() + S11, "not-xml"),
+                ("one after the root and comments", b"<!-- a -->" + svg() + b"<!-- b -->" + S11, "not-xml"),
+                ("a small-letter doctype", S11.replace(b"DOCTYPE", b"doctype") + svg(), "not-xml"),
+                ("a small-letter public", S11.replace(b"PUBLIC", b"public") + svg(), "not-xml"),
+                ("a form feed between the words", S11.replace(b"svg PUBLIC", b"svg\x0cPUBLIC") + svg(), "not-xml"),
+                ("a no-break space between the words", S11.replace(b"svg PUBLIC", b"svg\xc2\xa0PUBLIC") + svg(), "not-xml"),
+                ("a processing instruction of a style sheet in front", b'<?xml-stylesheet href="a.css" type="text/css"?>' + S11 + svg(), "xml-stylesheet"),
+                ("a file in UTF-16", (S11.decode() + svg().decode()).encode("utf-16"), "doctype")):
+            with self.subTest(what=what):
+                err = refused(self, data, code)
+                if code == "doctype":
+                    self.assertIn(str(err), (_svg.DOCTYPE, _svg.DOCTYPE_DEFINES))
+
+    def test_the_reading_of_a_file_without_a_standard_declaration_costs_one_pass(self):
+        # The pattern's repeated groups each start every alternative with another byte, so what does not match is
+        # given up in one pass (no backtracking over the blanks or comments that came first).
+        near = b"<!DOCTYPE svg PUBLIC "
+        docs = [b" " * 100000 + b"junk" + b" " * 400000,
+                b"<!-- a -->" * 40000 + b"junk",
+                b"<!-- a -->" * 30000 + near + b'"-//W3C//DTD SVG 1.1//EN" "x"',
+                b"<!--" + b"-a" * 250000,
+                b"<?xml " + b"x" * 500000,
+                b"\n\t \r" * 60000 + b"<!DOCTYPE svg PUBLIC" + b" " * 200000 + b"x",
+                near + b" " * 500000,
+                b"<!-- " + b"-" * 500000]
+        for i, out in enumerate(judged(self, docs)):
+            self.assertIn(out["code"], ("not-xml", "doctype", "xml-stylesheet"), "document %d" % i)
+
+
+class AnUndeclaredPrefixIsNamed(unittest.TestCase):
+    """Pasted code is often a part of a drawing, cut out of a page. A prefix whose declaration was left behind in the
+    opening tag was reported as "not well-formed (unbound prefix)": now the sentence names the prefix and says what to copy."""
+
+    def test_the_prefix_the_failing_tag_uses_is_named(self):
+        for what, doc, name in (
+                ("a link to a shape, with the declaration left behind", '<g xmlns:xlink="urn:x"/><rect xlink:href="#a" width="9" height="9"/>', "xlink"),
+                ("an editor's name in an attribute", '<rect inkscape:label="a" width="9" height="9"/>', "inkscape"),
+                ("in the name of the element", '<sodipodi:namedview/>', "sodipodi"),
+                ("the first of two", '<rect sodipodi:x="1" inkscape:y="2" width="9" height="9"/>', "sodipodi"),
+                ("one declared, one not", '<rect xmlns:sodipodi="urn:s" sodipodi:x="1" inkscape:y="2" width="9" height="9"/>', "inkscape")):
+            with self.subTest(what=what):
+                text = str(refused(self, svg(doc).replace(XLINK.encode(), b""), "not-xml"))
+                self.assertIn("the prefix %s (a name written %s:something)" % (name, name), text)
+                self.assertIn("Copy the whole drawing, from <svg to </svg>", text)
+
+    def test_a_prefix_that_is_declared_is_not_named(self):
+        # xlink is declared on the root (svg() does it): the one that is not is named
+        text = str(refused(self, svg('<rect xlink:href="#a" sodipodi:x="1" width="9" height="9"/>'), "not-xml"))
+        self.assertIn("the prefix sodipodi ", text)
+        # xml and xmlns need no declaration; a declaration on an open ancestor reaches its children; a closed sibling's does not
+        text = str(refused(self, svg('<g xmlns:q="urn:q"><rect q:a="1" xml:space="preserve" width="9" height="9"/></g><rect q:a="1" width="9" height="9"/>'), "not-xml"))
+        self.assertIn("the prefix q ", text)
+
+    def test_a_tag_this_cannot_read_gets_the_sentence_without_a_name(self):
+        for doc in ('<rect data-x="foo:bar=" width="9" height="9"/><x:y/>', '<rect data-x="a>b" width="9" height="9"/><x:y/>'):
+            with self.subTest(doc=doc):
+                text = str(refused(self, svg(doc), "not-xml"))
+                self.assertIn("the prefix x ", text)   # the name is in the tag's NAME, found past a value that holds ":", "=" and ">"
+        # a ":" in a value is no prefix: the tag holds no name that is unbound, so the sentence names none
+        text = str(refused(self, svg('<rect data-x="foo:bar" width="9" height="9"/><x:y/>'), "not-xml"))
+        self.assertNotIn("data-x", text)
+        self.assertNotIn("the prefix foo", text)
+
+    def test_the_same_file_with_a_standard_declaration_names_the_same_prefix(self):
+        doc = svg('<rect sodipodi:x="1" width="9" height="9"/>')
+        plain = str(refused(self, doc, "not-xml"))
+        self.assertEqual(str(refused(self, S11 + b"\n" + doc, "not-xml")), plain)
+        self.assertIn("the prefix sodipodi ", plain)
+
+
+class AnEscapedClassNameIsOneName(unittest.TestCase):
+    """A style library's names (`sm:flex`, `w-1/2`, `h-0.5`) are written in a selector with an escape for each character
+    a class cannot hold bare, and a drawing exported with them was refused whole (BUGLOG 2026-10-13, the class-names row).
+    An escape is read in the class part of a selector, and only there: as one character of one name that is decoded as a
+    unit, never cut or split again, so a rule can reach no shape the browser's reading of it would not."""
+
+    def colours_of(self, selector, name):
+        return _svg.clean_svg(bare("<style>%s{fill:#ff0000}</style>" % selector + '<rect class="%s" width="9" height="9"/>' % name)).colours
+
+    def test_each_form_is_read_as_the_class_a_browser_reads(self):
+        # the right-hand name is what CSS 2.1 makes of the left (a hex escape of 1 to 6 digits and one blank after it,
+        # or a backslash and one of the characters that cannot stand bare), worked out by hand
+        for selector, name in ((r".sm\:flex", "sm:flex"), (r".sm\3a flex", "sm:flex"), (r".w-1\/2", "w-1/2"), (r".h-0\.5", "h-0.5"), (r".a\2e b", "a.b"),
+                               (r".\31 0", "10"), (r".\41", "A"), (r".\41 b", "Ab"), (r".a\000041", "aA"), (r".a\5c b", "a\\b"), (r".a\22 ", 'a&quot;'),
+                               (r".a\%\!\#\+\=\~\*\$\>\?\^\|", "a%!#+=~*$>?^|"), (r".md\:h-8.sm\:flex", None)):
+            if name is None:
+                continue
+            with self.subTest(selector=selector):
+                self.assertEqual(self.colours_of(selector, name), ["#ff0000"])
+                self.assertEqual(self.colours_of(selector, name + "x"), ["#000000"], "a longer name is another class")
+                self.assertEqual(self.colours_of(selector, "a"), ["#000000"])
+        # two classes of one selector, each with an escape
+        one = _svg.clean_svg(bare(r"<style>.md\:h-8.sm\:flex{fill:#ff0000}</style>" + '<rect class="sm:flex md:h-8" width="9" height="9"/>'
+                                  '<rect class="md:h-8" x="20" width="9" height="9"/>'))
+        self.assertEqual(one.colours, ["#ff0000", "#000000"])
+        # in a list and with a descendant, the escape is read in each piece
+        two = _svg.clean_svg(bare(r"<style>.a\:b, .c\/d{fill:#ff0000}</style>" + '<rect class="a:b" width="9" height="9"/><rect class="c/d" x="20" width="9" height="9"/>'))
+        self.assertEqual(two.colours, ["#ff0000"])
+        self.assertEqual(len(two.text.split("fill=")) - 1, 2)
+
+    def test_what_is_no_escape_of_a_class_is_refused_whole(self):
+        for selector in (r".sm\3aflex",        # hex digits run on: 3af is no ASCII character
+                         r"p\61 th", r"re\63t", r"\72 ect",     # an escape in a tag
+                         r"#a\:b", r"#\61",    # in an id
+                         r".a\-", r".a\ b", r".a\,b", r".a\;b", r".a\{b", r".a\}b", r".a\\", r".a\(b", r".a\)b", r".a\[b", r".a\]b", r".a\'b",
+                         r".a\0 b", r".a\a b", r".a\d b", r".a\20 b", r".a\7f b", r".a\3", r".a\3 ", r".a\e9 b", r".a\10ffff b", r".a\110000 b",
+                         r".a\0000411 x\g"):
+            with self.subTest(selector=selector):
+                refused(self, bare("<style>%s{fill:#ff0000}</style>" % selector + '<rect class="a" width="9" height="9"/>'), "css-unreadable")
+        # not in a declaration: it is still refused there, and the value is not decoded
+        for decl in (r"fill:\72 ed", r"fi\6cl:#f00", r"fill:#f00\3b stroke:#00f"):
+            with self.subTest(decl=decl):
+                refused(self, bare("<style>.a{%s}</style>" % decl + '<rect class="a" width="9" height="9"/>'), "css-unreadable")
+        # the number of characters of a name is 200 at most, and a name with a leading digit alone is no class
+        self.assertEqual(self.colours_of("." + "x" * 200, "x" * 200), ["#ff0000"])
+        refused(self, bare("<style>.0{fill:#ff0000}</style>" + '<rect class="0" width="9" height="9"/>'), "css-unreadable")
+        refused(self, bare("<style>.%s{fill:#ff0000}</style>" % ("x" * 201) + '<rect class="x" width="9" height="9"/>'), "css-unreadable")
+
+    def test_a_rule_with_an_escape_reaches_only_the_shapes_with_that_class(self):
+        # what the rule sets lands on the one shape that has the class: not on `flex` nor on `a`, which a split at the escape would name
+        doc = (r"<style>.sm\:flex{display:none} .a\2e b{stroke:#0000ff;stroke-width:3}</style>"
+               '<rect class="sm:flex" width="9" height="9" fill="#111111"/><rect class="flex" x="20" width="9" height="9" fill="#222222"/>'
+               '<rect class="a.b" x="40" width="9" height="9" fill="#333333"/><rect class="a" x="50" width="9" height="9" fill="#444444"/>')
+        text = _svg.clean_svg(bare(doc)).text
+        shapes = re.findall(r"<rect [^>]*/>", text)
+        self.assertEqual(len(shapes), 4)
+        self.assertIn('display="none"', shapes[0])
+        self.assertNotIn("display", shapes[1] + shapes[2] + shapes[3])
+        self.assertIn('stroke="#0000ff"', shapes[2])
+        self.assertNotIn("stroke", shapes[0] + shapes[1] + shapes[3])
+        self.assertNotIn("class", text)
+        self.assertNotIn("\\", text)
+
+    def test_a_pasted_icon_with_a_style_librarys_names_is_read_through_the_intake(self):
+        icon = ('<svg %s class="h-6 w-6" fill="none" viewBox="0 0 24 24"><style>.md\\:h-8{stroke:#111111}</style>'
+                '<path class="md:h-8 hover:text-gray-500" stroke-width="1.5" d="M12 4.5v15m7.5-7.5h-15"/></svg>' % NS).encode()
+        self.assertEqual(_svg.clean_svg(_input.mark(_input.load(icon)).colour).colours, ["#111111"])
+        self.assertIn(through_the_command(self, icon, name="icon.svg")["code"], READ)
 
 
 if __name__ == "__main__":

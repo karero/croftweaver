@@ -443,7 +443,7 @@ class WhatIsInAPackageIsWhatItsBytesAre(unittest.TestCase):
         # a package hands over up to two files (the mark and its one-colour version): a refusal that named neither left
         # the owner to open both. What the bytes are, and what the check finds in them: the same sentence as for a file
         # handed over by itself, with the file's name before it.
-        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + SVG
+        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"\n "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">\n' + SVG
         page = b"<html><body>" + SVG + b"</body></html>"
         clipped = SVG.replace(b"<path ", b'<clipPath id="c" clipPathUnits="objectBoundingBox"><rect width="1" height="1"/></clipPath><path clip-path="url(#c)" ')
         for what, data, code in (("a picture", b"\x89PNG\r\n\x1a\n" + b"\0" * 20, "raster-logo"), ("a page", page, "web-page"), ("a DOCTYPE", doctype, "doctype"),
@@ -479,7 +479,7 @@ class WhatIsInAPackageIsWhatItsBytesAre(unittest.TestCase):
         # The name was cut at 80 characters. A tool's long export names begin alike and differ at the end (`...-colour.svg`,
         # `...-mono.svg`): of the mark and its one-colour version the refusal then named neither. A name a package may
         # hold is 120 characters at most (_zipin.MAX_NAME) and holds nothing that cannot be seen, so it is shown whole.
-        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n' + SVG
+        doctype = b'<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">\n' + SVG
         words = b"just some words, in a file that is only called .svg"
         for stem in ("pack/" + "n" * 90, "pack/" + "n" * 75, "n" * (_zipin.MAX_NAME - len("-colour.svg")), "pack/gr\u00f6\u00dfe-" + "n" * 80):
             colour, mono = stem + "-colour.svg", stem + "-mono.svg"
@@ -1434,7 +1434,7 @@ class SvgCode(unittest.TestCase):
     def test_what_stands_before_the_root_is_still_refused_for_its_own_reason(self):
         for lead, code in ((b'<?xml-stylesheet href="https://x.example/a.css"?>', "xml-stylesheet"),
                            (DECLARATION + b'<!-- a --><?xml-stylesheet href="a.css"?>', "xml-stylesheet"),
-                           (b'<!-- a --><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">', "doctype"),
+                           (b'<!-- a --><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11-copy.dtd">', "doctype"),
                            (DECLARATION + b'<!DOCTYPE svg [<!ENTITY a "x">]>', "doctype")):
             with self.subTest(lead=lead[:40]):
                 src = _input.load(lead + SVG)

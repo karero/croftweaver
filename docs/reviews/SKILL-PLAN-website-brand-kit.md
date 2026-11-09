@@ -498,7 +498,7 @@ palette.
   standard library only, 3.9 or newer**, and it does everything that decides: it reads the
   zip (`zipfile`, from bytes in memory, the caps checked on the central directory before
   anything is inflated), parses the SVG (`expat` directly, which reports a DOCTYPE before it
-  expands anything; the intake refuses every DOCTYPE, so every entity), resolves colours,
+  expands anything; the intake refuses every DOCTYPE but the standard one, which it takes off first, so no entity is declared; changed 2026-11-09, SKILL-PLAN-brand-kit-refusals.md), resolves colours,
   runs the contrast matrix, and writes and rolls back. One small **Node file renders and
   nothing else**: the intake starts it with the site as its working folder, so `sharp`
   resolves from the site's own `node_modules` (D2), gives it the cleaned SVG text on
@@ -522,7 +522,7 @@ palette.
   `py -3` launcher on Windows), its tests need both runtimes where an all-Node intake needs
   one, and Python's own documentation sends untrusted XML to its "XML security" section
   (billion laughs, quadratic blowup, decompression bombs; read 2026-10-11), so the defence
-  here is only as good as its tests: refuse every DOCTYPE before anything expands, cap the size
+  here is only as good as its tests: refuse every DOCTYPE before anything expands (the standard one is taken off first: see above), cap the size
   and the depth. What an all-Node intake would offer is the site's own toolchain (`npm test`,
   `npm run og`) and one language; what it would cost is a zip reader and an XML parser for the
   two inputs trusted least, written here or vendored. A judgment, not a measurement: the

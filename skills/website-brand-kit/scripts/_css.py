@@ -6,8 +6,8 @@ attribute. This reads those the way the intake needs: simple selectors (`*`, a t
 by name, everything that could fetch or run something (an @import or any other @-rule, a url()
 that is not a #fragment, an image(), image-set() or src()) and everything it does not read (a
 combinator, a pseudo-class, an attribute selector, !important, a property in capital letters, a
-backslash escape outside quotes, and any quoted text or bracket that could hide where a rule or
-a value ends). Standard library only.
+backslash escape outside quotes except in a .class name of a selector (`.sm\\:flex`), and any
+quoted text or bracket that could hide where a rule or a value ends). Standard library only.
 """
 
 from __future__ import annotations
@@ -28,9 +28,13 @@ _FRAGMENT = re.compile(r"""[ \t\r\n]*(?:#NAME|"#NAME"|'#NAME')[ \t\r\n]*\)""".re
 # longer word that ends in one of them (background-image, mask-image).
 _FETCH = re.compile(r"(?<![A-Za-z0-9_\-])(?:-[a-z]+-)?(?:image-set|image|src)\(", re.I)
 _IDENT = r"-?[A-Za-z_][A-Za-z0-9_\-]*"
-_SIMPLE = re.compile(r"^(\*|%s)?((?:[.#]%s)*)$" % (_IDENT, _IDENT))
-_NAME = re.compile(_IDENT)
-_PART = re.compile(r"([.#])(%s)" % _IDENT)
+# An escape a .class name may hold: a hex escape (with the one blank that ends it), or a backslash and one of
+# these 17 characters. Any other backslash is left for check_split to refuse.
+_CLASS_ESCAPE = re.compile(r"\\[0-9a-fA-F]{1,6}(?:\r\n|[ \t\r\n\f])?|\\[:/.%!#+=~*&$<>?^|]")
+_CLASS_IDENT = r"-?(?:[A-Za-z_]|%s)(?:[A-Za-z0-9_\-]|%s)*" % (_CLASS_ESCAPE.pattern, _CLASS_ESCAPE.pattern)
+_SIMPLE = re.compile(r"(\*|%s)?((?:\.%s|#%s)*)" % (_IDENT, _CLASS_IDENT, _IDENT))
+_PART = re.compile(r"\.(%s)|#(%s)" % (_CLASS_IDENT, _IDENT))
+MAX_CLASS = 200   # characters of a class name once decoded: the `class` attribute's own cap (_svg.MAX_CLASS)
 _PROPERTY = re.compile(r"-?[a-z][a-z0-9\-]*")
 MAX_PARTS = 8   # the .class and #id names one selector may join
 _BLANKS = " \t\r\n"   # what CSS calls white space; Python's strip() would also take a no-break space
@@ -53,11 +57,6 @@ def unescape(text):
 def _name_chr(m):
     c = _chr(m)
     return c if c.isalnum() or c in "-_" else "\ufffd"
-
-
-def is_name(text):
-    """Could a selector this reader takes name `text`, as a class or as an id?"""
-    return _NAME.fullmatch(text) is not None
 
 
 def strip_comments(text):
@@ -172,29 +171,68 @@ def parse_declarations(text):
     return out
 
 
+def _class_chr(m):
+    """One escape of a class name as the character it stands for; a mark that is no visible ASCII character as NUL."""
+    if m.group()[1] in "0123456789abcdefABCDEF":   # (none of the 17 characters is a hex digit)
+        n = int(m.group().strip(" \t\r\n\f")[1:], 16)
+        return chr(n) if 0x21 <= n <= 0x7E else "\0"
+    return m.group()[1]
+
+
+def _class_name(raw):
+    """The class a name of a selector stands for, or None where it is none this reader takes: escapes are decoded
+    inside the name and the decoded text is never cut or read again (`a\\2e b` is the one class `a.b`)."""
+    name = _CLASS_ESCAPE.sub(_class_chr, raw)
+    return name if 0 < len(name) <= MAX_CLASS and "\0" not in name else None
+
+
+def _mask_escapes(t):
+    """`t` with each escape a class name may hold, where it stands before a `{` (in a selector), as underscores of its
+    own length. Anywhere else, and any other backslash, stays for check_split to refuse."""
+    out, i, in_selector = [], 0, True
+    while i < len(t):
+        c = t[i]
+        m = _CLASS_ESCAPE.match(t, i) if c == "\\" and in_selector else None
+        if m:
+            out.append("_" * (m.end() - i))
+            i = m.end()
+            continue
+        if c == "{":
+            in_selector = False
+        elif c == "}":
+            in_selector = True
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
 def parse_stylesheet(text):
     """The rules of a <style> element: [(selectors, declarations, order)], where a selector
     is (tag_or_None, [ids], [classes]) and the specificity is read from those."""
     t = check_text(text)
     if "@" in t:
         raise Refusal("css-at-rule", "A style in the file uses an @-rule (@media, @font-face and the like). Ask the tool for a plainer export.")
-    check_split(t, sheet=True)
+    masked = _mask_escapes(t)   # same length as `t`, so every position below holds for both
+    check_split(masked, sheet=True)
     rules = []
     pos = 0
     while True:
-        o = t.find("{", pos)
+        o = masked.find("{", pos)
         if o < 0:
-            if t[pos:].strip(_BLANKS):
+            if masked[pos:].strip(_BLANKS):
                 raise Refusal("css-unreadable", "A style in the file is cut short.")
             break
-        c = t.find("}", o)
-        if c < 0 or "{" in t[o + 1:c]:
+        c = masked.find("}", o)
+        if c < 0 or "{" in masked[o + 1:c]:
             raise Refusal("css-unreadable", "A style in the file is nested or cut short, which this check does not read.")
         selectors = []
-        for sel in t[pos:o].split(","):
-            sel = sel.strip(_BLANKS)
-            m = _SIMPLE.match(sel)
-            if not sel or not m:
+        start = pos
+        for piece in masked[pos:o].split(","):
+            sel = t[start:start + len(piece)].strip(_BLANKS)
+            start += len(piece) + 1
+            m = _SIMPLE.fullmatch(sel)
+            names = [(kind, name) for kind, name in ((("." if cls else "#"), _class_name(cls) if cls else idn) for cls, idn in _PART.findall(m.group(2)))] if m else []
+            if not sel or not m or any(name is None for _kind, name in names):
                 raise Refusal(
                     "css-unreadable",
                     "A style rule in the file uses a selector this check does not read (%r). Only a tag, "
@@ -202,7 +240,7 @@ def parse_stylesheet(text):
                 )
             tag = m.group(1) if m.group(1) not in (None, "*") else None
             ids, classes = [], []
-            for kind, name in _PART.findall(m.group(2)):
+            for kind, name in names:
                 (ids if kind == "#" else classes).append(name)
             if len(ids) + len(classes) > MAX_PARTS:
                 raise Refusal(

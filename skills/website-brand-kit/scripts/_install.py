@@ -70,6 +70,11 @@ ONE_COLOUR_ICONS = ("this tool cannot tell what the installed app icons sit on, 
 # installed, and this tool recolours nothing. A mark with both kinds of colour can get both notes.
 KEPT_CURRENT = ("the logo was given in `currentColor` and was drawn in %s. It keeps that colour: this tool draws it in %s only from the package it came in. For that, run "
                 "this again with the package: --input, with --pick and --mono as before")
+# For a mark with a part in `currentColor` that has the colour as its own as well (MARK_CURRENT_OWN): run with the package
+# under another Primary, it can be refused over `color` set inside a group painted with `currentColor`, and no file
+# of the same drawing, whatever is written out, is read in another colour. The note says so.
+KEPT_CURRENT_OWN = (". If that run is refused over `color` set inside a group painted with `currentColor`, this logo cannot be drawn in another "
+                    "colour from this file: ask the design tool for the mark in the new colour with every colour written out, or in `currentColor` alone")
 KEPT_FOR = ("the Primary the palette has now (%s)", "the light theme's Accent the palette has now (%s: it gives no Primary)",
             "the stylesheet's `--brand` (%s)")   # (the third: there is no palette in BRAND.md to ask, and the stylesheet's `--brand` is the Primary)
 # A run that leaves BRAND.md's palette out (--keep-colours, or a palette that is not complete) goes by the site's own
@@ -918,7 +923,7 @@ def _install(a, site, out, data):
     # A mark given in `currentColor` was drawn in that colour as it was on the day, and no run without its package draws it in another.
     # (Where neither a Primary nor an Accent is to be had, there is no colour to name, and the note is not given.)
     if kept is not None and not a.input and primary and drawn not in (None, primary):
-        notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[2 if brand and state == "none" else not brand] % primary))
+        notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[2 if brand and state == "none" else not brand] % primary) + (KEPT_CURRENT_OWN if own_too else ""))
     if master_bytes is not None and want_colours and not asked_for_logo:
         now = palette_from_css(css)
         moves = _icons.backgrounds(pal) != _icons.backgrounds(now)
