@@ -33,11 +33,11 @@
     {
       "id": 3,
       "prompt": "How do I rank on Bing, and is my site visible to Copilot?",
-      "expected_output": "Should run bing_query.py (which uses the simple BING_API_KEY, not OAuth) and report Bing positions for the target keywords, framing Bing as a rough pointer to Copilot visibility and not claiming it covers ChatGPT. Should note Bing volume is much smaller than Google. If no BING_API_KEY is set, should explain the ~2-minute API-key setup (Bing Webmaster Tools → Settings → API Access) and that one key covers all sites, without blocking the Google data.",
+      "expected_output": "Should run bing_query.py (which uses the simple BING_API_KEY, not OAuth) and report Bing positions for the target keywords, saying that Microsoft's Copilot runs on Bing's index but a Bing ranking does not measure Copilot visibility (the AI Performance report does), and not claiming it covers ChatGPT. Should note Bing volume is much smaller than Google. If no BING_API_KEY is set, should explain the ~2-minute API-key setup (Bing Webmaster Tools → Settings → API Access) and that one key covers all sites, without blocking the Google data.",
       "assertions": [
         "Runs bing_query.py (API key, not OAuth)",
         "Reports Bing keyword positions",
-        "Frames Bing as a rough pointer to Copilot visibility, not ChatGPT",
+        "Does not present Bing rankings as a Copilot or ChatGPT measure",
         "Notes Bing volume is smaller than Google",
         "If no key: explains the API-key setup and that it's account-wide, without blocking GSC"
       ],

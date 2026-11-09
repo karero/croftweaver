@@ -42,7 +42,7 @@ Gather this context (ask if not provided):
 
 ### The AI Search Landscape
 
-Each row with a link is what that company's page lets you act on; in the Copilot row, Microsoft does not say which crawler feeds a Copilot answer. Step 4 of the audit has the bots in full.
+Each row with a link is what that company's page lets you act on; in the Copilot row, no Microsoft page we read says which crawler feeds a Copilot answer. Step 4 of the audit has the bots in full.
 
 | Platform | What you can act on | The company's page |
 |----------|---------------------|--------------------|
@@ -50,7 +50,7 @@ Each row with a link is what that company's page lets you act on; in the Copilot
 | **ChatGPT (with search)** | Allow OAI-SearchBot | [OpenAI](https://developers.openai.com/api/docs/bots) |
 | **Perplexity** | Allow PerplexityBot | [Perplexity](https://docs.perplexity.ai/guides/bots) |
 | **Gemini** | Decide Google-Extended on its own: it covers Gemini training and grounding (content from the Google Search index given to the model at prompt time), and Google says it does not affect Search (Step 4) | [Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) |
-| **Copilot** | Allow Bingbot and use IndexNow. Microsoft says Copilot is powered by Bing's search index, that Bing respects robots.txt and that IndexNow keeps AI answers current; it does not say which crawler feeds a Copilot answer | [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview), [Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers) |
+| **Copilot** | Allow Bingbot and use IndexNow. Microsoft Advertising says Copilot is powered by Bing's search index; Bing's post says Bing respects robots.txt and that IndexNow keeps AI answers current. No page we read says which crawler feeds a Copilot answer | [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview), [Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers) |
 | **Claude** | Allow Claude-SearchBot | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
 
 For what each company's page says and what to do for each platform, see [references/platform-ranking-factors.md](references/platform-ranking-factors.md).

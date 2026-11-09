@@ -221,7 +221,7 @@ def main():
                     "Ask me to *onboard Search Console* (~10 min, I do most of it).")
     if bing is None:
         sugg.append("- 💡 **Bing not connected** — a ~2-minute API key (Bing Webmaster Tools → "
-                    "Settings → API Access). It's a rough pointer to Copilot visibility and you "
+                    "Settings → API Access). You "
                     "often rank *better* on Bing than Google. Add `BING_API_KEY` to "
                     "`~/.config/gsc-insights/.env`.")
     if not serper:

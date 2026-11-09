@@ -73,8 +73,7 @@ plus a keyword-data call for volumes. Out of scope until the free tier is outgro
 - **Low-volume playbook** — the 5 tactics for a thin/niche site (track position not
   clicks, convert striking-distance one at a time, fix titles before chasing rankings,
   mine unexpected queries, use SERP+Bing for weak-competition terms).
-- **Bing Webmaster Tools** — a second free source and a rough pointer to Copilot
-  visibility; often you rank far better on Bing than Google (verified on the worked example:
+- **Bing Webmaster Tools** — a second free source; often you rank far better on Bing than Google (verified on the worked example:
   pos ~2–3 on Bing vs ~6+/absent on Google).
 - **Track positions over time** — `track.sh`, or any ordinary query-script run (history
   now records by default), make "is my position improving?" a single command instead of
