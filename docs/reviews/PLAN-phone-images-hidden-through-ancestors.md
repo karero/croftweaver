@@ -102,4 +102,4 @@ Review depth after build: Normal (the diff changes a test that ships into users'
 | PLAN gate | passed: 5 rounds (Codex alone each round, melious out of balance; fresh-eyes Sonnet in round 1) and a final full read (Opus) | `docs/reviews/REVIEW-plan-2026-10-30-phone-images-hidden-through-ancestors.md` |
 | Build: spec change, fixture cases, website-qa sentence, BUGLOG row | done | this branch's build commit |
 | Local before/after run | done: before, the green line fails and the new red cases stay green; after, all pass and turn red, and `npm test` passes | the PR description |
-| PR, DIFF gate (Normal), CI green | merged: DIFF gate clean after 3 rounds, CI green on 6989823b | karero/croftweaver#454, merge 9fcce2cc; `docs/reviews/REVIEW-diff-2026-10-30-phone-images-hidden-through-ancestors.md` |
+| PR, DIFF gate (Normal), CI green | merged: DIFF gate clean after 3 rounds, CI green on 6989823b | karero/croftweaver#454 (merge 9fcce2cc); `docs/reviews/REVIEW-diff-2026-10-30-phone-images-hidden-through-ancestors.md` |
