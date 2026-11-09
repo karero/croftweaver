@@ -29,8 +29,10 @@ _FRAGMENT = re.compile(r"""[ \t\r\n]*(?:#NAME|"#NAME"|'#NAME')[ \t\r\n]*\)""".re
 _FETCH = re.compile(r"(?<![A-Za-z0-9_\-])(?:-[a-z]+-)?(?:image-set|image|src)\(", re.I)
 _IDENT = r"-?[A-Za-z_][A-Za-z0-9_\-]*"
 # An escape a .class name may hold: a hex escape (with the one blank that ends it), or a backslash and one of
-# these 17 characters. Any other backslash is left for check_split to refuse.
-_CLASS_ESCAPE = re.compile(r"\\[0-9a-fA-F]{1,6}(?:\r\n|[ \t\r\n\f])?|\\[:/.%!#+=~*&$<>?^|]")
+# these 17 characters. Any other backslash is left for check_split to refuse. A hex escape takes six digits
+# or stops before a non-digit, as CSS reads it: with no other way to split the digits, a failed match is
+# fast (`{1,6}` alone lets a long run of escapes be split in exponentially many ways).
+_CLASS_ESCAPE = re.compile(r"\\(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{1,5}(?![0-9a-fA-F]))(?:\r\n|[ \t\r\n\f])?|\\[:/.%!#+=~*&$<>?^|]")
 _CLASS_IDENT = r"-?(?:[A-Za-z_]|%s)(?:[A-Za-z0-9_\-]|%s)*" % (_CLASS_ESCAPE.pattern, _CLASS_ESCAPE.pattern)
 _SIMPLE = re.compile(r"(\*|%s)?((?:\.%s|#%s)*)" % (_IDENT, _CLASS_IDENT, _IDENT))
 _PART = re.compile(r"\.(%s)|#(%s)" % (_CLASS_IDENT, _IDENT))

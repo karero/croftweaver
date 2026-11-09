@@ -1669,7 +1669,7 @@ NOT_NUMBERS = ["", "5.", ".", "+", "-", "5e", "5e+", "5e-", ".e1", "5.e1", "e5",
 
 
 class ANumber(Line):
-    """number: stroke-miterlimit (1 or more), and the three opacities (which the paint reader then holds to exactly 1)."""
+    """number: stroke-miterlimit (1 or more), and the three opacities (which the paint reader then holds to exactly 1, bar a shape's fill-opacity of 0)."""
 
     FORMS = ["5", "5.0", "+5", ".5e1", "5e0", "5E0", "5E+00", "50e-1", "0.05e02", "05", " 5 ", "\t5\n", "5.000000000000000000000000000000000000000000000000000000000000"]
 
@@ -2913,7 +2913,7 @@ class NothingHere(Line):
         # PROPS_NO_EFFECT is true only while the elements are these; a new element must be read against it first
         self.assertEqual(sorted(_svg.ALLOWED_ELEMENTS), sorted(["svg", "g", "defs", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "clipPath", "style"]))
         # a nested svg is not one of them: only the root is
-        exc = refused(self, svg('<svg width="5" height="5" style="overflow:visible"><rect width="9" height="9"/></svg>'), "nested-svg")
+        refused(self, svg('<svg width="5" height="5" style="overflow:visible"><rect width="9" height="9"/></svg>'), "nested-svg")
 
 
 class TheGrammarIsTheTable(unittest.TestCase):
@@ -3609,7 +3609,7 @@ class AnEscapedClassNameIsOneName(unittest.TestCase):
         # the right-hand name is what CSS 2.1 makes of the left (a hex escape of 1 to 6 digits and one blank after it,
         # or a backslash and one of the characters that cannot stand bare), worked out by hand
         for selector, name in ((r".sm\:flex", "sm:flex"), (r".sm\3a flex", "sm:flex"), (r".w-1\/2", "w-1/2"), (r".h-0\.5", "h-0.5"), (r".a\2e b", "a.b"),
-                               (r".\31 0", "10"), (r".\41", "A"), (r".\41 b", "Ab"), (r".a\000041", "aA"), (r".a\5c b", "a\\b"), (r".a\22 ", 'a&quot;'),
+                               (r".\31 0", "10"), (r".\41", "A"), (r".\41 b", "Ab"), (r".a\000041", "aA"), (r".a\0000411", "aA1"), (r".a\5c b", "a\\b"), (r".a\22 ", 'a&quot;'),
                                (r".a\%\!\#\+\=\~\*\$\>\?\^\|", "a%!#+=~*$>?^|"), (r".md\:h-8.sm\:flex", None)):
             if name is None:
                 continue
@@ -3625,6 +3625,15 @@ class AnEscapedClassNameIsOneName(unittest.TestCase):
         two = _svg.clean_svg(bare(r"<style>.a\:b, .c\/d{fill:#ff0000}</style>" + '<rect class="a:b" width="9" height="9"/><rect class="c/d" x="20" width="9" height="9"/>'))
         self.assertEqual(two.colours, ["#ff0000"])
         self.assertEqual(len(two.text.split("fill=")) - 1, 2)
+
+    def test_a_long_run_of_escapes_that_ends_in_no_selector_is_refused_in_bounded_time(self):
+        # `\41` can be read as one escape or as `\4` and the digit 1; when the selector then fails, a match that tries
+        # every split took 14 seconds for 24 escapes (found by a reviewer, DIFF round 1). Each digit run has one reading.
+        runs = [r"\41" * 24, r"\4" + "1" * 60, r"\41 " * 60, r"\4a" * 100, r"\1234567" * 30]
+        docs = [bare("<style>.a%s?{fill:#f00}</style>" % run + '<rect width="9" height="9"/>') for run in runs]
+        for run, out in zip(runs, judged(self, docs)):
+            with self.subTest(run=run[:12]):
+                self.assertNotEqual(out["code"], "ok")
 
     def test_what_is_no_escape_of_a_class_is_refused_whole(self):
         for selector in (r".sm\3aflex",        # hex digits run on: 3af is no ASCII character

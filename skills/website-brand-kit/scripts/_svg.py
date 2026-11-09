@@ -31,7 +31,7 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  5. or .5.e1 or 5e100 or 0x5 or 1_0. At most 64 characters, and no larger than
                  a thousand million either way (the renderer takes a larger one for no number).
                    stroke-miterlimit (1 or more); opacity, fill-opacity, stroke-opacity (the
-                   paint reader then asks for exactly 1)
+                   paint reader then asks for exactly 1, bar a shape's fill-opacity of 0)
   length         a number, or a number and `px`; 64 characters at most. No other unit: the
                  renderer sizes pt, pc, mm, cm, in, em and ex by the icon it is drawing, so one
                  file gave two pictures.
@@ -334,8 +334,9 @@ PROPS_DROP = {
     "cursor", "pointer-events", "enable-background",
 }
 # Properties that cannot change a drawing of the shapes this check allows, left out of a style with a note whatever their
-# value: pictures (<image> is refused), print only, the outer svg's own clip (the cleaned file is only ever an <img> or a
-# favicon), stacking beside blend modes and opacity (each refused or removed), and the colour of a <stop> (refused).
+# value: pictures (<image> is refused), print only, the outer svg's own clip (the starter draws public/favicon.svg only
+# as the icon <link>, and sharp draws the PNGs from it: nothing puts it inline in a page), stacking beside blend modes
+# and opacity (each refused or removed), and the colour of a <stop> (refused).
 # tests/test_svg_safety.py holds the elements these rest on to the exact set ALLOWED_ELEMENTS.
 PROPS_NO_EFFECT = {
     "image-rendering", "print-color-adjust", "-webkit-print-color-adjust", "color-adjust", "overflow", "isolation", "stop-color",
