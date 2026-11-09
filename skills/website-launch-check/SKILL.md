@@ -220,7 +220,8 @@ moves. The report records each place as seen, dated.
 - The setup tokens, live run only (never ask at pre-launch: launch day may still need one): the
   owner reads both token lists and names every token made for this site's setup and launch day.
   Active or Expires soon: 🔴, delete it now. Expired: 🟡, delete it. In neither list: fine. The
-  owner cannot tell which they were: 🟡, delete any token they cannot place. Name no other token
+  owner cannot tell which they were: 🟡, find out what each token they cannot place is for, and
+  delete it only once it proves to be this site's setup token. Name no other token
   in the report. If launch day still needs the token, read the rest and list "the setup tokens:
   deferred: launch day still needs it; read again when it is done" under "Not checked yet", with
   no finding.

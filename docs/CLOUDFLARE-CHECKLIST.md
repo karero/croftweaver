@@ -420,8 +420,8 @@ look for its name.
 4. **Security rules:** Your domain → Security → **Security rules**. Every rule in every section
    (Custom rules, Rate limiting rules, Managed rules, IP access rules), with its name, its
    action, what it matches and what it applies to. The kit sets none of them: know each one and
-   whose it is. "All websites in account" means the rule reaches every site in your account,
-   whichever site it was made for. Cloudflare's own notes on the page, such as "Cloudflare
+   whose it is. A rule whose **Applies to** reads "All websites in account" is, by that label,
+   for every site in your account, whichever site it was made for. Cloudflare's own notes on the page, such as "Cloudflare
    default protection applied" under Response rules, stay as they are.
 5. **Tokens, once launch day's work is done:** My Profile → **API Tokens**
    (`https://dash.cloudflare.com/profile/api-tokens`), and Manage account → **Account API

@@ -127,8 +127,8 @@ after launch day sees what is still open.
   Manage account → Account API tokens) and names every token made for this site's setup and
   launch day; the checklist allows two. Each one Active or Expires soon: 🔴, delete it now
   (checklist section 6, "When it is done"). Expired: 🟡, delete it. In neither list: fine. An
-  owner who cannot tell which tokens they were: 🟡, with the advice to delete any token they
-  cannot place. Other tokens are the owner's own business and are not named in the report.
+  owner who cannot tell which tokens they were: 🟡: find out what each token they cannot place
+  is for, and delete it only once it proves to be this site's (DIFF round 1). Other tokens are the owner's own business and are not named in the report.
 - **Not read** (no dashboard access, or the owner stops): "not checked: <reason>", never a pass;
   🟡 at both the pre-launch and the live run. This is not the pre-launch deferral above, which
   has its own wording and no finding.
@@ -219,3 +219,10 @@ The change is skill text and checklist prose; there is no code to test.
 - **Round 5** (earned by content-bots-read, cut: content bots taken out of the check entirely;
   Codex and GLM 5.3, 71,423 tokens; 328,608 over five rounds): no findings. Both seats checked
   the round 4 dispositions and found them landed. Clean.
+- **DIFF round 1** (Codex alone: GLM 5.3's Melious balance was empty, and by the owner's rule
+  of 2026-10-27 no rerun is owed; 71,656 tokens): 1 BUG, 1 RISK. Fixed: an owner who cannot
+  place a token finds out what it is for before deleting it, so another site's token is never
+  deleted by default. The RISK (behaviour read from labels): the Block Crawler line already
+  credits the switch's name; the "All websites in account" line now credits the Applies to label
+  too. `make check` passed on 3cd73571 before the round; after the fixes, the launch check's own
+  17 unit tests (a full `make check` waits on the manager's slot, the Mac's load being high).
