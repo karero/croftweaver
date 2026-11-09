@@ -9,8 +9,8 @@ description: >-
   docs/launch/ as Markdown plus a self-contained HTML page. When the site replaces an older
   one, also a current-vs-new comparison with a redirect map for every old address. Runs three
   times in new-website (baseline after the scaffold, the verdict before launch, the live
-  re-check once launch day's work is done) and on its own. Trigger phrases: "launch check", "ready to launch", "what's
-  missing before launch", "pre-launch", "go live", "launch audit", "relaunch", "compare the old
+  re-check once launch day's work is done) and on its own. Trigger phrases: "launch check",
+  "ready to launch", "what's missing before launch", "pre-launch", "go live", "launch audit", "relaunch", "compare the old
   and the new site", "post-launch gap analysis".
 ---
 

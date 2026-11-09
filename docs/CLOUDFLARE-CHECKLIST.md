@@ -413,7 +413,7 @@ look for its name.
 1. **Bot Fight Mode and AI Labyrinth:** Your domain → Security → Settings, the **Bot traffic**
    group. Both off (section 3, "Bot Fight Mode: Off"; section 4, "AI Labyrinth: Off").
 2. **AI crawler policies:** same group → **AI Crawler and Agent access policies**: Search,
-   Training, Agents, each Personal Agent and **Enable Bot Preference Sync**, as section 4's
+   Agent, Training, each Personal Agent and **Enable Bot Preference Sync**, as section 4's
    "AI crawlers: allow" says.
 3. **Per-crawler blocks:** Your domain → **AI Crawl Control** → **Security**, with **Show
    inactive crawlers** ticked: every **Block Crawler** switch off (section 4).
