@@ -219,7 +219,7 @@ test('robots.txt names the one sitemap file, sitemap-0.xml', async ({ request, b
   const children = [...(await idx.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
   expect(
     children,
-    'sitemap-index.xml lists more than one file, so the site needs the index now: name sitemap-index.xml in robots.txt again and drop this test',
+    'sitemap-index.xml lists more than one file, so the site needs the index now: name sitemap-index.xml in robots.txt again, submit it in Search Console and Bing, and drop this test',
   ).toEqual([path]);
 });
 

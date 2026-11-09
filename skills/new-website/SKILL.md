@@ -777,7 +777,7 @@ hold Search Console Request Indexing until then.
 - [ ] **No orphaned pages** — `tests/orphans.spec.ts` green (every page reachable from
       home). For a multi-page site, run `internal-link-audit` and resolve orphans + thin
       pages; deliberately-unlinked pages listed in `ORPHAN_EXEMPT` with a reason.
-- [ ] `sitemap-0.xml` present and named in `robots.txt`; `llms.txt` accurate. (llms.txt
+- [ ] `sitemap-0.xml` present; `robots.txt` (naming it) + `llms.txt` accurate. (llms.txt
       *coverage* — every `PAGES` route listed, no stale entry for a removed or
       renamed page — is enforced both ways by `tests/llms-coverage.spec.ts`;
       wording accuracy stays a human check.)
