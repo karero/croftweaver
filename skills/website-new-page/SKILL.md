@@ -183,17 +183,17 @@ Console hides from the query rows, often most of them. Before, the old address's
 new address's row plus the old address's row for the same days (from the old address's property if
 it is another one). Fold the spellings as under "More than ten pages". A page with at least 10
 clicks before is a finding when its after total is less than half of them. On a small site this is
-often the only rule that can fire: its pages seldom have a query with 10 clicks. Where two rows were added, leave the total's position blank: positions do not add.
+often the only rule that can fire: its pages seldom have a query with 10 clicks. Where two rows
+were added, leave the total's position blank: positions do not add.
 
-Give the owner a table that starts with the page total, then every query the before report lists with at least 1 click, largest first,
-with clicks, impressions and position for both windows. Mark each row *main* (10 or more clicks
-before, the page total included) or *for information*.
-A row for information is never a finding, whatever its numbers: at a few clicks a month a fall can
-be chance. It is there so the owner sees what moved, and the note says so. Where its query has no
-row in the after report, write "not in the table", not 0; a main query's missing row follows the
-rule above. If either report says "Showing 100 of N
-queries", the note says how many were left out. Give the findings below the table. They go to the
-owner, not into an automatic rewrite.
+Give the owner a table that starts with the page total, then every query the before report lists
+with at least 1 click, largest first, with clicks, impressions and position for both windows. Mark
+each row, the page total too, *main* (10 or more clicks before) or *for information*. A row for
+information is never a finding, whatever its numbers: at a few clicks a month a fall can be chance.
+It is there so the owner sees what moved, and the note says so. Where its query has no row in the
+after report, write "not in the table", not 0; a main query's missing row follows the rule above.
+If either report says "Showing 100 of N queries", the note says how many were left out. Give the
+findings below the table. They go to the owner, not into an automatic rewrite.
 
 **More than ten pages.** Sort the pages before the full mode runs. Start from the full address list
 (`wp_inventory.py`'s `urls.csv`, or the sitemap for another tool) and join the clicks and impressions
