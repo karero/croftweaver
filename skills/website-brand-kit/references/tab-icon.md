@@ -6,7 +6,8 @@ bar, or when a site wants its own tile by hand.
 
 A new site no longer needs this for an interim letter-mark: the starter draws one at
 setup (`node scripts/make-icons.mjs --setup`: the site's first letter on its `--brand`
-colour, in this same tile with an inner outline), and a logo run replaces it. Run the
+colour, on this tile but without the inner outline, which at 16 pixels leaves a single letter
+too little room), and a logo run replaces it. Run the
 script again after a colour change.
 
 ## Why this shape

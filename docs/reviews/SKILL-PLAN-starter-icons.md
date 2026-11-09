@@ -21,11 +21,11 @@ green test run, and a test keeps it so.
 
 | Id | Given | When | Then |
 |---|---|---|---|
-| S1 | A new site "Bäckerei Krume", `--brand` still the starter's `#000000`, the scaffold's Astro logo in `public/` | setup runs `node scripts/make-icons.mjs --setup` | the seven files exist; the icon is a black tile, a white inner outline and a white "B"; `npm test` is green |
+| S1 | A new site "Bäckerei Krume", `--brand` still the starter's `#000000`, the scaffold's Astro logo in `public/` | setup runs `node scripts/make-icons.mjs --setup` | the seven files exist; the icon is a black tile with a large white "B" and no outline; `npm test` is green |
 | S2 | A site named "Ölmühle Rapp" | the same | the letter is "O": accents are folded (`Ö` → `O`; also `ß` → `S`, `Æ` → `A`, `Ø` → `O`, `Œ` → `O`, `Ł` → `L`, `Đ`/`Ð` → `D`) |
 | S3 | A site named "3D-Druck Weber", or "„Café Mohn“" | the same | "3" is drawn for the first, "C" for the second: the first letter or digit counts; quotes, spaces and signs before it are skipped |
 | S4 | A site named "Жар-птица" (Cyrillic) | the same | it writes nothing and says: the name starts with "Ж", which it has no drawing for; ask the owner for one letter A–Z or digit, and run it again with `--letter X`. A name with no letter or digit at all gets its own sentence, with the same way out |
-| S5 | A light brand colour, `#f2d16b` | the same | the outline and the letter are black, since white is under 3 to 1 on that tile (black then always reaches it: one of the two always reaches 4.58 to 1 or better) |
+| S5 | A light brand colour, `#f2d16b` | the same | the letter is black, since white is under 3 to 1 on that tile (black then always reaches it: one of the two always reaches 4.58 to 1 or better) |
 | S6 | `SITE.name` is still the starter's `Example`, or an unfilled `[BRACKET]` slot, or cannot be read as a plain string | the same | it writes nothing and says to set `SITE.name` first |
 | S7 | `sharp` does not load in the site | the same | it writes nothing and prints the brand kit's advice (`npm install --include=optional`, then check `node -e "require('sharp')"`); it never adds `sharp` to `package.json` |
 | S8 | The site's icons came from the brand kit, or from anywhere but this script (an existing site run from `whats-new`, without `--setup`) | `node scripts/make-icons.mjs` | it writes nothing and names the files that are not its own; for brand-kit files (their `favicon.svg` starts with `<!-- Installed by the website-brand-kit skill`, the start all three forms of the brand kit's line share: `MARK`, `MARK_CURRENT`, `MARK_CURRENT_OWN` in `_install.py`) it says to use the brand kit. `--replace` overrides, and an assistant passes it only on the owner's yes |
@@ -51,9 +51,9 @@ Both come before step 5's first green run, because the icon test is part of that
   must yield one quoted literal or be refused as S6), and the light theme's `--brand` from `src/styles/global.css` with a literal
   regex. A value that is not `#rrggbb` is refused with a sentence, and `--colour #rrggbb`
   overrides. Both readers, and the letter rule, are exported, so the icon test uses the same code;
-- draws `public/favicon.svg` by the tab icon recipe (`website-brand-kit/references/tab-icon.md`):
-  the tile in `--brand` with `rx="104"`, the inner outline 72 to 440 with a 32-wide stroke, and
-  the letter inside it. The letter is drawn as strokes from a table of 36 glyphs (A–Z, 0–9) on the
+- draws `public/favicon.svg` on the tab icon recipe's tile (`website-brand-kit/references/tab-icon.md`):
+  the tile in `--brand` with `rx="104"` and the letter large on it, 64 units or more clear of each
+  edge, with no inner outline (see "Open questions closed here"). The letter is drawn as strokes from a table of 36 glyphs (A–Z, 0–9) on the
   512 grid, one stroke width, so no font is needed and the letter does not depend on the fonts a
   machine has. The first line is a comment that names the script, the letter and the colour;
 - renders the PNGs from that SVG with the site's own `sharp` (checked in the starter's
@@ -61,7 +61,7 @@ Both come before step 5's first green run, because the icon test is part of that
   `optionalDependencies`; the brand kit renders with the same one; where it does not load, S7). It makes `icon-512.png`,
   `icon-192.png`,
   `apple-touch-icon.png` (180), each flattened on the tile colour; `icon-maskable-512.png`, the
-  whole icon (tile, outline and letter) at 70 % on the tile colour (the recipe's safe-zone figure); `images/logo.png`, the same
+  whole icon (tile and letter) at 70 % on the tile colour (the recipe's safe-zone figure); `images/logo.png`, the same
   picture as `icon-512.png`, as the brand kit does;
 - writes `favicon.ico` itself: PNG frames of 16, 32, 48 and 64 pixels behind a 6-byte header and
   one 16-byte entry each (the brand kit's `ico_from_png` does one frame the same way);
@@ -132,13 +132,13 @@ is not a hex value. Nothing is guessed: no transliteration, no "first Latin lett
   so the suite meets a site as setup leaves it. The suite runs nowhere else in the toolkit (the
   Makefile and the other workflows do not run it; checked by grep); the builder lists the jobs in
   the PR. For each glyph, it renders the icon at 32 and 64 pixels and checks
-  that the letter's pixels stay inside the outline with clear space, and that no two glyphs give
-  the same picture at 32.
+  that the letter's pixels stay inside the tile, 64 units clear of each edge, and that no two
+  glyphs give the same picture at 16 or at 32.
 - The brand kit: one test in its suite for S9, on a site whose icons came from `make-icons.mjs`.
   It also asserts the seven paths and sizes the icon test pins on the files the intake wrote, so
   a later change to `_icons.py`'s sizes fails there before brand-kitted sites go red.
-- The 16-pixel frame is checked by eye only (the sheet below); the automated glyph checks run at
-  32 and 64.
+- The 16-pixel frame is checked by eye (the sheet below) and by the same-picture check; the
+  clear-space check runs at 32 and 64.
 - By eye, once, before the PR is marked ready: the 36 glyphs on one sheet at 16, 32 and 180
   pixels, on a light and a dark tab bar, attached to the PR for the maintainer's look.
 
@@ -149,12 +149,19 @@ is not a hex value. Nothing is guessed: no transliteration, no "first Latin lett
   ignore the owner's own colour; the decision says "on its own colour", which reads as the site's.
 - `images/logo.png` is made too, so the schema `logo` is not a 404. Google may show it beside
   the site in search; it shows the favicon there already.
+- No inner outline (the maintainer, 2026-11-09, after the glyph sheet: "ok to: drop the inner
+  white outline and draw the letter bigger, in all seven files"). At 16 pixels the recipe's
+  outline left a single letter about 6 pixels across, and pairs such as 5 and S or 8 and B
+  differed in 4 pixels; the letter now spans about 9 of the 16, and the closest pairs differ in 9.
+  The cost: on a dark tab bar a dark tile's edge no longer shows. The large letter in white or
+  black still does.
 
 ## Status
 
 | Step | State | Evidence |
 |---|---|---|
 | Plan, PLAN gate | done: 4 rounds, no BUG open | `docs/reviews/REVIEW-plan-2026-11-09-starter-icons.md` |
-| The maintainer's go | waiting | — |
-| Build: script, test, setup lines, brand kit, whats-new | not started | — |
-| DIFF gate, merge | not started | — |
+| The maintainer's go | done: "Go" (2026-11-09) | — |
+| Build: script, test, setup lines, brand kit, whats-new | done | PR 510 |
+| DIFF gate | rounds 1 to 6 done; the letter redrawn without the outline after the glyph sheet, then reviewed again | `docs/reviews/REVIEW-diff-2026-11-09-starter-icons.md` |
+| The maintainer's look at the glyph sheet, merge | waiting | — |

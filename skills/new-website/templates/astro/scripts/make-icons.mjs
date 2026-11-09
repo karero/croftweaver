@@ -98,12 +98,13 @@ export const GLYPHS = {
   9: 'M0 5L1 6L3 6L4 5L4 1L3 0L1 0L0 1L0 2L1 3L4 3',
 };
 
-// The grid on the 512 square: centred, stroke 34, so the pixels stay within 169-350 across and
-// 152-369 down (the tail of Q reaches furthest), inside the outline's inner edge at 88 and 424.
+// The grid centred on the 512 square, columns 56 apart and rows 46.4, drawn STROKE wide. No outline:
+// at 16 px an outline left too little room for the letter, so the letter fills the tile instead.
+export const STROKE = 54;
 export function glyphPath(letter) {
   const num = (n) => String(Math.round(n * 10) / 10);
   return GLYPHS[letter]
-    .replace(/(-?[\d.]+) (-?[\d.]+)/g, (_m, c, r) => `${num(186 + 35 * Number(c))} ${num(169 + 29 * Number(r))}`);
+    .replace(/(-?[\d.]+) (-?[\d.]+)/g, (_m, c, r) => `${num(256 + 56 * (Number(c) - 2))} ${num(256 + 46.4 * (Number(r) - 3))}`);
 }
 
 // ---- colours ----------------------------------------------------------------------------
@@ -193,8 +194,7 @@ export function drawSvg(letter, tile) {
   return `<!-- Made by scripts/make-icons.mjs: the letter ${letter} on ${tile}. Run it again after a colour change. -->\n` +
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">\n' +
     `  <rect width="512" height="512" rx="104" fill="${tile}"/>\n` +
-    `  <rect x="72" y="72" width="368" height="368" rx="56" fill="none" stroke="${mark}" stroke-width="32"/>\n` +
-    `  <path d="${glyphPath(letter)}" fill="none" stroke="${mark}" stroke-width="34" stroke-linejoin="round" stroke-linecap="round"/>\n` +
+    `  <path d="${glyphPath(letter)}" fill="none" stroke="${mark}" stroke-width="${STROKE}" stroke-linejoin="round" stroke-linecap="round"/>\n` +
     '</svg>\n';
 }
 

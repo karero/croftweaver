@@ -115,10 +115,9 @@ test('S1: a new site gets its initial in white on the starter\'s black, and a re
   assert.ok(svg.startsWith('<!-- Made by scripts/make-icons.mjs: the letter B on #000000.'), svg.split('\n')[0]);
   const png = read(site, 'public/icon-512.png');
   near(await pixel(png, 20, 20), [0, 0, 0], 'the tile');
-  near(await pixel(png, 72, 256), [255, 255, 255], 'the outline');
-  near(await pixel(png, 120, 256), [0, 0, 0], 'the tile inside the outline');
-  near(await pixel(png, 186, 300), [255, 255, 255], "the stem of the B, lower half");
-  near(await pixel(png, 256, 300), [0, 0, 0], "the lower counter of the B is open");
+  near(await pixel(png, 72, 256), [0, 0, 0], 'plain tile between the edge and the letter: no outline');
+  near(await pixel(png, 144, 330), [255, 255, 255], "the stem of the B, lower half");
+  near(await pixel(png, 256, 330), [0, 0, 0], "the lower counter of the B is open");
   const rec = record(site);
   assert.deepEqual([rec.letter, rec.colour], [{ value: 'B', from: 'name' }, { value: '#000000', from: 'brand' }]);
   for (const rel of FILES) assert.deepEqual(rec.files[rel], [sha(read(site, rel))], rel);
@@ -172,18 +171,19 @@ test('S5: black on a light tile, white on a dark one', () => {
   for (const [tile, want] of cases) assert.equal(script.markColour(tile), want, tile);
 });
 
-test('S5: on #f2d16b the outline and the letter are black, in every file', async () => {
+test('S5: on #f2d16b the letter is black, in every file', async () => {
   const site = makeSite({ brand: '#f2d16b' });
   const r = run(site, '--setup');
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /in black on #f2d16b/);
   const png = read(site, 'public/icon-512.png');
   near(await pixel(png, 20, 20), [242, 209, 107], 'the tile');
-  near(await pixel(png, 72, 256), [0, 0, 0], 'the outline');
-  // The maskable icon draws the tile at 70 % on the tile colour: the outline lands at 116 to 139 across.
+  near(await pixel(png, 144, 256), [0, 0, 0], 'the stem of the K');
+  near(await pixel(png, 72, 256), [242, 209, 107], 'plain tile between the edge and the letter: no outline');
+  // The maskable icon draws the whole icon at 70 % on the tile colour: the K's stem lands at 178 across.
   const maskable = read(site, 'public/icon-maskable-512.png');
-  near(await pixel(maskable, 127, 256), [0, 0, 0], 'the outline, scaled to 70 %');
-  near(await pixel(maskable, 105, 256), [242, 209, 107], 'the tile between the outline and the edge of the drawing');
+  near(await pixel(maskable, 178, 256), [0, 0, 0], 'the stem of the K, scaled to 70 %');
+  near(await pixel(maskable, 127, 256), [242, 209, 107], 'plain tile left of the letter');
   near(await pixel(maskable, 20, 256), [242, 209, 107], 'the colour the drawing sits on');
 });
 
@@ -444,16 +444,16 @@ const lumaAt = async (svg, size) => {
   return data;
 };
 const alone = (letter) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" fill="#000000"/>` +
-  `<path d="${script.glyphPath(letter)}" fill="none" stroke="#ffffff" stroke-width="34" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+  `<path d="${script.glyphPath(letter)}" fill="none" stroke="#ffffff" stroke-width="${script.STROKE}" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
 
 test('there are 36 glyphs: A to Z and 0 to 9', () => {
   assert.deepEqual(Object.keys(script.GLYPHS).sort(), [...'0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'].sort());
 });
 
 for (const size of [32, 64]) {
-  test(`every glyph, drawn at ${size} px, shows and stays inside the outline with clear space`, async () => {
-    // The outline's inner edge is at 88 and 424 of 512; the letter must stay 24 units clear of it.
-    const lo = Math.floor((112 / 512) * size), hi = Math.ceil((400 / 512) * size) - 1;
+  test(`every glyph, drawn at ${size} px, shows and stays inside the tile with clear space`, async () => {
+    // 64 units clear of each edge of the 512 tile, which also keeps it off the rounded corners (rx 104).
+    const lo = Math.floor((64 / 512) * size), hi = Math.ceil((448 / 512) * size) - 1;
     for (const letter of Object.keys(script.GLYPHS)) {
       const data = await lumaAt(alone(letter), size);
       let lit = 0, x0 = size, x1 = -1, y0 = size, y1 = -1;
@@ -469,9 +469,10 @@ for (const size of [32, 64]) {
   });
 }
 
-test('no two glyphs give the same picture at 32 px', async () => {
+// Fewer differing pixels than this, and two glyphs blur into one at that size in a tab.
+for (const [size, floor] of [[16, 6], [32, 16]]) test(`no two glyphs give the same picture at ${size} px`, async () => {
   const pictures = {};
-  for (const letter of Object.keys(script.GLYPHS)) pictures[letter] = await lumaAt(script.drawSvg(letter, '#000000'), 32);
+  for (const letter of Object.keys(script.GLYPHS)) pictures[letter] = await lumaAt(script.drawSvg(letter, '#000000'), size);
   const letters = Object.keys(pictures);
   let least = Infinity;
   for (let i = 0; i < letters.length; i++) {
@@ -480,9 +481,8 @@ test('no two glyphs give the same picture at 32 px', async () => {
       let differ = 0;
       for (let k = 0; k < a.length; k++) if (Math.abs(a[k] - b[k]) > 64) differ++;
       least = Math.min(least, differ);
-      // A stroke across the letter's width is about 8 pixels at 32.
-      assert.ok(differ >= 8, `${letters[i]} and ${letters[j]} differ in ${differ} pixels at 32`);
+      assert.ok(differ >= floor, `${letters[i]} and ${letters[j]} differ in ${differ} pixels at ${size}`);
     }
   }
-  console.log(`# the two most alike glyphs differ in ${least} pixels at 32`);
+  console.log(`# the two most alike glyphs differ in ${least} pixels at ${size}`);
 });
