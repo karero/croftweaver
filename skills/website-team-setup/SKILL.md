@@ -251,8 +251,8 @@ differences: in the `pull_request` rule `allowed_merge_methods` (all three),
 in the `required_status_checks` rule `do_not_enforce_on_create` (false). GitHub's
 [REST reference](https://docs.github.com/en/rest/repos/rules) lists all four. The
 extra-approval key makes a pull request that Copilot opened for no person need one more
-approval than the count; GitHub's rules page says it has no effect while the count is 0, as here, and it starts to
-apply once the owner raises it. A value other than those defaults is a difference: ask the
+approval than the count; GitHub's rules page says it has no effect while the count is 0,
+as here, and it starts to apply once the owner raises it. A value other than those defaults is a difference: ask the
 owner if it is on purpose. Put all four keys in the PUT body, so the PUT does not decide
 them: with the values the read-back showed, or the default for a key the owner says was
 not on purpose. What a PUT that leaves them out does to them has not been checked.
