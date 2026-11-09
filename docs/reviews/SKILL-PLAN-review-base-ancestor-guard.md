@@ -7,7 +7,7 @@ user data, login, money, deletion or schema), so no red team.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-09 | this file |
-| 2 | PLAN gate, Normal depth | ⏳ | `REVIEW-plan-2026-11-09-base-ancestor-guard.md` |
+| 2 | PLAN gate, Normal depth | ⏳ round 1 done (Codex alone): 1 BUG, 2 RISK, fixed | `REVIEW-plan-2026-11-09-base-ancestor-guard.md` |
 | 3 | The maintainer's go | ⏳ | — |
 | 4 | Build: guard, two doc sentences, tests (one PR) | ⏳ | — |
 | 5 | DIFF gate | ⏳ | — |
@@ -33,7 +33,8 @@ sessions in 5 days passing `--base origin/main` anyway (not rechecked here).
 merge link after a rebase keeps working. But the incident's round 5 was itself a `--verify`
 round (E2), so that exemption would have let the one confirmed case through. The guard below
 exempts a narrower case instead: a `--verify` run whose base is on neither HEAD nor the default
-branch, which is what the old reviewed head is after a rebase (E1, case 7).
+branch. That is what the old reviewed head is after a rebase (E1, case 7); it is a rule of
+thumb, not proof of a merge link (see "What it does not catch").
 
 ## How
 
@@ -45,14 +46,15 @@ before `diff_headers.pl` runs), with `git merge-base --is-ancestor`:
 3. Exit 1, `--verify`, and `base_id` is an ancestor of `refs/remotes/origin/HEAD` (the local
    ref, no fetch): refuse. A verification round names the last reviewed head, never the
    default branch.
-4. Exit 1, `--verify`, `base_id` not an ancestor of `refs/remotes/origin/HEAD`: go on (the merge
-   link after a rebase).
+4. Exit 1, `--verify`, `base_id` not an ancestor of `refs/remotes/origin/HEAD`: go on. The
+   merge link after a rebase looks like this; so does a `--verify` run whose base is another
+   branch's head, which the guard cannot tell apart from it.
 5. Exit 1, `--verify`, and `refs/remotes/origin/HEAD` not set: refuse, saying the script cannot
    tell a merge link from a diff against the default branch, with the command that sets it:
    `git -C <top> remote set-head origin --auto`.
 6. Any exit other than 0 or 1, from either call: refuse, quoting git's exit code.
 
-The refusal in 2 and 3 follows the mismatch refusal's style: what is wrong, then the commands.
+The refusal in 2 follows the mismatch refusal's style: what is wrong, then the commands.
 
 ```
 Base check: --base <BASE> (<sha>) is not on this branch: HEAD does not contain it, so a diff
@@ -63,17 +65,26 @@ For a delta, name the last reviewed head, a commit on this branch: --base <last-
 ```
 
 `<default>` is `git symbolic-ref --short refs/remotes/origin/HEAD` (such as `origin/main`), or
-the literal `origin/<default-branch>` when that ref is not set. Case 3 adds one line before the
-commands: "A verification round names the last reviewed head, not the default branch."
+the literal `origin/<default-branch>` when that ref is not set.
+
+Case 3 prints its own refusal, since dropping `--base` there is itself refused (a `--verify`
+run must name a base, script lines 610 to 614): "--base <BASE> (<sha>) is on the default
+branch, not on this branch; a verification round names the last reviewed head.", then the
+same command lines the refusal of `--verify` without `--base` prints there: the delta from
+`<last-reviewed-head>` piped back with `--verify <file> --base <last-reviewed-head>`, and the
+merge link for after a merge or rebase. The build moves those lines into one helper both
+refusals call, so their text cannot drift.
 
 Docs, one sentence each: SKILL.md step 2, after "passes `--base <the commit it starts from>`"
 (lines 148 to 151), and the script header's `--base <rev>` bullet (lines 127 and 128), saying
-the base must be on the branch, except a merge link after a rebase. No other caller needs a
+the base must be a commit HEAD contains; in a `--verify` round it may instead be a commit on
+neither HEAD nor the default branch, as the merge link after a rebase needs. No other caller needs a
 change: `website-review` says "a diff of only some commits names its start with `--base
 <commit>`", which still holds.
 
-What it does not catch: a `--verify` round sent with `--base origin/<a non-default target
-branch>` (case 4 lets it through; such PRs are rare here), and a stale base that is still on
+What it does not catch: a `--verify` round whose base is on neither HEAD nor the default
+branch but is no merge link, such as another branch's head or `origin/<a non-default target
+branch>` (case 4 lets both through; neither is a use SKILL.md names), and a stale base that is still on
 the branch (the reviewers then see main's merged commits as added, not removed).
 `sweep_claims.sh --base` is a separate script and already takes the merge base itself (E1,
 case 9), so it is unchanged.
@@ -88,7 +99,8 @@ repository, a bare origin, a stub codex). In a repository where main moves past 
 | T9a | two-dot `git diff origin/main HEAD`, `--base origin/main` | exit 2, "is not on this branch", the three-dot command naming `origin/main...HEAD`; no reviewer ran |
 | T9b | three-dot `git diff origin/main...HEAD`, no `--base` | exit 0, the reviewer ran |
 | T9c | the command T9a printed, run as printed, then sent with no `--base` | exit 0: the remedy works |
-| T9d | T9a's diff with `--verify prior.md --base origin/main --round 2` (the incident) | exit 2, the verification-round line |
+| T9d | T9a's diff with `--verify prior.md --base origin/main --round 2` (the incident) | exit 2, "a verification round names the last reviewed head", the delta command and the merge link; no "drop --base" line |
+| T9d2 | the delta command T9d printed, with the branch's reviewed head for `<last-reviewed-head>`, run as printed, piped with `--verify prior.md --base <that head> --round 2` | exit 0, the reviewer ran: the remedy works |
 | T9e | after a rebase, `merge_link.sh` sent with `--verify --base <old reviewed head>` | exit 0, the reviewer ran |
 | T9f | T9e's diff and base without `--verify` | exit 2 |
 | T9g | T9e with `refs/remotes/origin/HEAD` deleted | exit 2, names `remote set-head origin --auto` |
@@ -96,7 +108,8 @@ repository, a bare origin, a stub codex). In a repository where main moves past 
 The existing cases must stay green unchanged: they pass `--base` with reviewed heads and
 merge bases. The build also runs `mutation-check` on the guard: deleting it must fail T9a, T9d
 and T9f; exempting every `--verify` (the brief's design) must fail T9d; dropping the exemption
-must fail T9e; a two-dot remedy must fail T9c. `make check` runs before each review round.
+must fail T9e; a two-dot remedy must fail T9c; case 3 printing case 2's "drop --base" remedy
+must fail T9d and T9d2. `make check` runs before each review round.
 
 ## Evidence
 
@@ -129,7 +142,7 @@ gate printed base `934bcc12`, then on the branch: the guard would have let them 
 
 ## Judgment, and the strongest case against
 
-Verified: every row of E1 and E2. Judgment: that a rebase merge link is the only legitimate
+Run or read by me: every row of E1 and E2 (the reviewers saw the output, not a rerun). Judgment: that a rebase merge link is the only legitimate
 `--base` off the branch (E1 found no other, and SKILL.md names no other), and that refusing
 beats a warning here.
 
@@ -143,4 +156,4 @@ the default branch.
 
 Cost: the PLAN gate at Normal depth, Codex and GLM 5.3; a recent plan round logged about
 200,000 tokens, so 2 to 4 rounds is roughly 0.4 to 0.8 million tokens (an estimate). The build
-is about 20 lines of script, two sentences and seven test cases.
+is about 20 lines of script, two sentences and eight test cases.
