@@ -115,7 +115,7 @@ export function aiNotes(now, state) {
     if (state === 'done') { notes.push(`Training was ${label} and is now Allow (do not block). ${STAY_IN_SEARCH}`); continue; }
     if (v === 'disallow') {
       if (state === 'change') notes.push('Training is set to Disallow. If you say yes, it becomes Allow (do not block), and AI training crawlers are let in. To keep Disallow, run this with --skip ai.');
-      if (state === 'unread') notes.push('Training is set to Disallow. The zone\'s records could not be read, so this run did not change it; to keep Disallow on a later run, run it with --skip ai.');
+      if (state === 'unread') notes.push('Training is set to Disallow. This run could not change it; the AI crawlers line says why. To keep Disallow on a later run, run it with --skip ai.');
       if (state === 'skipped' || state === 'unread' || state === 'launch') {
         const sync = now.bot_preference_sync_enabled;
         if (sync === false) notes.push(`Bot Preference Sync is off, so Disallow writes no no-training preference into robots.txt. To publish it there, turn Sync on in the dashboard: ${where}.`);
@@ -127,7 +127,7 @@ export function aiNotes(now, state) {
     const said = `Training is set to ${label}. Cloudflare says ${label} also keeps Googlebot, Bingbot and Applebot out${ads}, which affects search.`;
     if (state === 'change') notes.push(`${said} If you say yes, it becomes Allow (do not block). ${STAY_IN_SEARCH}`);
     else if (state === 'skipped') notes.push(`${said} This run leaves it as it is. ${stayInSearch(true)}`);
-    else if (state === 'unread') notes.push(`${said} The zone's records could not be read, so this run did not change it. ${STAY_IN_SEARCH}`);
+    else if (state === 'unread') notes.push(`${said} This run could not change it; the AI crawlers line says why. ${STAY_IN_SEARCH}`);
     else if (state === 'launch') notes.push(`${said} Launch day changes no AI setting. ${stayInSearch('launch')}`);
   }
   if (Object.hasOwn(now, 'ai_agents')) notes.push(...agentNotes(now.ai_agents, state, where));

@@ -823,13 +823,13 @@ test('S5a: the zone\'s records could not be read: Training is not written, and t
   await scenario(freshState({ bot: botOf(AI.block), refuse: { 'GET dns': 403 } }), async ({ api, go }) => {
     const ask = await go();
     const done = await go(['--confirm', codeOf(ask)]);
-    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. The zone's records could not be read, so this run did not change it\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and run this with --skip ai\./);
+    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run could not change it; the AI crawlers line says why\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and run this with --skip ai\./);
     assert.ok(!api.writes().some((e) => e.method === 'PUT'), 'Bot Management is not written');
     assert.ok(api.writes().length > 0, 'the yes wrote something else, the case "nothing was written" got wrong');
   });
   // Disallow in the same state: the same claim, and S7's note when Sync is off.
   const notes = aiNotes(botOf(AI.disallowSyncOff), 'unread');
-  assert.match(notes[0], /^Training is set to Disallow\. The zone's records could not be read, so this run did not change it/);
+  assert.match(notes[0], /^Training is set to Disallow\. This run could not change it; the AI crawlers line says why\./);
   assert.match(notes[1], /^Bot Preference Sync is off, so Disallow writes no/);
 });
 
@@ -1457,6 +1457,18 @@ test('D, I and M: an ai_agents that is not a plain object of strings: the ai lin
   const skipped = await agentsRun(agentBot({}, { fight_mode: true, ai_agents: 'block' }), ['--skip', 'ai']);
   assert.doesNotMatch(skipped.ask.out + skipped.done.out, /a form this kit does not know\. Dashboard/);
   assert.match(skipped.done.out, /Personal agents \(ai_agents\) read block at the start of this run: a value this kit does not know/);
+});
+
+test('D2: ai_agents null with Training on Block: the notes do not blame the records, and the line says the ai_agents reason', async () => {
+  // The "unread" state has several causes; here the zone's records were read fine.
+  const bot = agentBot({}, { ai_training: botOf(AI.block).ai_training, ai_agents: null });
+  const r = await agentsRun(bot);
+  for (const out of [r.ask.out, r.done.out]) {
+    assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run could not change it; the AI crawlers line says why\./);
+    assert.doesNotMatch(out, /records could not be read/);
+  }
+  assert.match(r.ask.out, ASK_NOT_KNOWN_FORM);
+  assert.match(r.done.out, DONE_NOT_KNOWN_FORM);
 });
 
 test('M: an empty map has nothing to do and gives no note; an unknown string value gets a note, and the yes sets it to disabled', async () => {
