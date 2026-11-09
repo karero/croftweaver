@@ -26,6 +26,10 @@ real icon's last 12 bytes (all of IEND) fails the spec; cutting the last 4 or 1 
 passes, and the browser shows that file in full. A file a visitor sees whole is a working icon, so
 nothing to add.
 
+After round 6, CI's `scorecard-skill` job failed: it refuses a tree with uncommitted files, and the
+icons step had just written seven. Fixed in the workflow (the step commits the icons). A three-line
+change, not sent to a reviewer; CI's rerun is its check.
+
 Not tested (in the PR as well): Node 22.23.4 (only v26.13.0 here); the run-time fallback for a
 failed import of `src/config.ts` is covered by the self-test.
 

@@ -513,6 +513,9 @@ jobs:
           perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
           grep -q "^  name: 'Example Site'," src/config.ts
           node scripts/make-icons.mjs --setup
+          # The scorecard describes a commit, so the icons are committed too.
+          git add -A
+          git commit -q -m "icons"
       - name: Type check, write the card, run the suite with it
         working-directory: ${{ runner.temp }}/site
         run: |
