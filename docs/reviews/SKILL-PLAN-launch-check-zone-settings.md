@@ -8,7 +8,7 @@ five places in the Cloudflare dashboard, and the report records what they showed
 | 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09; the Account API tokens list read in round 2 | this file, "Seen in the dashboard" |
 | 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | ✅ 5 rounds, 30 findings (8 BUG), clean at round 5 | "Review trail" below |
 | 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | 🔄 built 2026-11-09, also `docs/WHAT-THE-SKILLS-RUN.md` line 243 (it called 12a optional); dry run: all ten scenarios end in their row | 97b00bfc |
-| 4 | DIFF gate (Normal) | ⬜ | — |
+| 4 | DIFF gate (Normal) | 🔄 2 rounds, 2 findings (1 BUG), none open; GLM seat pending | "Review trail" below |
 
 ## Why
 
@@ -226,3 +226,6 @@ The change is skill text and checklist prose; there is no code to test.
   credits the switch's name; the "All websites in account" line now credits the Applies to label
   too. `make check` passed on 3cd73571 before the round; after the fixes, the launch check's own
   17 unit tests (a full `make check` waits on the manager's slot, the Mac's load being high).
+- **DIFF round 2** (Codex alone again, Melious still empty; 25,066 tokens; 96,722 over two
+  rounds): no findings. Codex checked both round 1 fixes and found them landed. The GLM seat
+  reviews the whole diff once Melious refills (round 3), so the gate is not left Codex-only.
