@@ -2,9 +2,9 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.25
-#   The website-builder release this revision ships in. Sites get their copy at
-#   scaffold time and then diverge, so this is how you tell whether a site is current:
+# template-version: 0.26
+#   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
+#   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
 #   tests/check_ship_push.sh's marker in step — that test asserts the two agree.
 #
@@ -73,7 +73,7 @@ site_of() { # <astro.config.mjs text>
 }
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
-# an old address kept in a comment counts. With many, site_of may return the commented one.
+# an old address kept in a comment counts. Many means no one address can be named or checked.
 site_count() { # <astro.config.mjs text>
   local h
   h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
@@ -830,7 +830,8 @@ for attempt in $(seq 1 "$push_tries"); do
   if [ "$stop_asked" = 1 ]; then break; fi
 done
 
-site="$(site_of "$(config_text "${wt:-.}")")"
+cfg="$(config_text "${wt:-.}")"; site_n="$(site_count "$cfg")"; site=""
+if [ "$site_n" = one ]; then site="$(site_of "$cfg")"; fi
 build_txt="${site:-your live site}/build.txt"
 # A *.pages.dev address is Cloudflare's own address for the project: serving the build there
 # does not show the site is live on its own domain, so the success line must not say LIVE.
@@ -957,7 +958,11 @@ fi
 # cache can't show us a stale answer. In worktree mode the site's address is read from
 # the published copy.
 if [ -z "$site" ]; then
-  echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
+  if [ "$site_n" = many ]; then
+    echo "⚠ astro.config.mjs has more than one site: address (an old one in a comment counts), so there is no one address to check — can't verify the deploy."
+  else
+    echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
+  fi
   if [ "$from_github" = 1 ]; then
     finish "  Check it yourself in a few minutes: your live URL should show GitHub's main as of the fetch ($short)."
   else

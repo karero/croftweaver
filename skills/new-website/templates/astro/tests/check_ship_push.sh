@@ -37,7 +37,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.25   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.26   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -915,7 +915,7 @@ url_case hostonly "$repo_fallback" "https://github.com/site.git"
 url_case scpnoowner "$repo_fallback" "git@github.com:site.git"
 url_case oddchars "$repo_fallback" "git@github.com:owner/s%te.git"
 # An old address kept in a comment beside the live one: more than one match, on two lines and on
-# one. Each stops at the fetch (noorigin), which is before the live check would read the old one.
+# one. Each stops at the fetch (noorigin); P6 and P7 check that the live check then checks none and says why.
 two_sites="→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: $repo_fallback"
 mark twosite1 noorigin; mark twosite2 noorigin
 printf "// site: 'https://old.example'\nexport default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
@@ -943,7 +943,7 @@ fi
 # lock, worktree or line of ship's own list behind (but a run killed hard, which is the case
 # that leaves them).
 real_git_cases() {
-  rg_n=0 rg_skipped=""
+  rg_n=0 rg_skipped="" t_ran=""
   local gv REAL_SLEEP NODE PERL ps_starts G git_major git_minor
   # skip_all <why>: none of these cases can run here. Said out loud, and a failure where CI
   # requires the bash 3.2 case.
@@ -1798,9 +1798,10 @@ GATE
   # not show the site is live on its own domain, so the line must not say LIVE; a real domain
   # keeps it. P3 and P4 run with the setting off; P5 writes the host in capitals with a final dot.
   last_starts() { case "$(last_line)" in "$1"*) return 0 ;; esac; return 1; }
-  site_case() { # <case> <github|folder> <the site's address>
+  site_case() { # <case> <github|folder> <the site's address> [the whole astro.config.mjs instead]
     fixture "$1"
-    printf "export default { site: '%s' };\n" "$3" > "$S/astro.config.mjs"
+    if [ -n "${4:-}" ]; then printf '%s\n' "$4" > "$S/astro.config.mjs"
+    else printf "export default { site: '%s' };\n" "$3" > "$S/astro.config.mjs"; fi
     git -C "$S" commit -q --allow-empty -am "site address"; git -C "$S" push -q origin main
     git -C "$C" pull -q --ff-only
     if [ "$2" = folder ]; then
@@ -1835,6 +1836,20 @@ GATE
   site_case p5 github https://Ship-Test.PAGES.DEV.
   want "a host in capitals with a final dot is a pages.dev address too" last_starts "✓ Published — verified on the pages.dev address: https://Ship-Test.PAGES.DEV. is serving"
   want "never says LIVE" lacks "✓ LIVE"
+  # P6: an old address kept in a comment; P7: two `site:` keys. Either way the live check checks
+  # neither address, since it cannot tell which one the build uses, and says so.
+  many="⚠ astro.config.mjs has more than one site: address (an old one in a comment counts), so there is no one address to check — can't verify the deploy."
+  site_case p6 github https://ship-test.example.invalid "// site: 'https://old.example.invalid'
+export default { site: 'https://ship-test.example.invalid' };"
+  want "the first line says there are several addresses" eq "$(first_line)" "→ Site: (more than one site: address in astro.config.mjs — check which one is live) · GitHub repo: p6/origin"
+  want "says why it checks none" has "$many"
+  want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show GitHub's main as of the fetch (${m:0:12})."
+  want "checks no address" test ! -e "$M/curl"
+  site_case p7 folder https://ship-test.example.invalid "const old = { site: 'https://old.example.invalid' };
+export default { site: 'https://ship-test.example.invalid' };"
+  want "says why it checks none" has "$many"
+  want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show the change."
+  want "checks no address" test ! -e "$M/curl"
 
   # --- T1–T8: the question, on a fake terminal (`script`); only where SHIP_TEST_TTY=1 ---------
   # The question needs no `script`, only these cases do: so an owner's push or a site's CI, where
@@ -1849,6 +1864,7 @@ GATE
     rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T8 skipped: SHIP_GATE_SKIP_WORDING is set"
     echo "  note: T1 to T8 are skipped: they find the question by its text, and SHIP_GATE_SKIP_WORDING is set."
   else
+    t_ran=1
     # The refusals: T2, T3 and T4 differ only in how the answer is not a yes.
     refused() {
       want "exits 1 (got $rc)" eq "$rc" 1
@@ -1936,7 +1952,15 @@ STAND
 
 real_git_cases
 
+# The ✓ line names only the real-git checks that ran; the reasons for any skipped follow it.
+rg_list="the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, the list of commits that go live,"
+if [ -n "$t_ran" ]; then
+  rg_list="$rg_list the first line naming the site and repo, and the question on a fake terminal"
+else
+  rg_list="$rg_list and the first line naming the site and repo"
+fi
+if [ "$rg_n" = 0 ]; then rg_what="no checks on real git"; else rg_what="$rg_n checks on real git ($rg_list)"; fi
 if [ "$fail" -eq 0 ]; then
-  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_n checks on real git (the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, the list of commits that go live, the first line naming the site and repo, and the question on a fake terminal)${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
+  echo "✓ ship push gate: $checked publish outcomes classified correctly (fetch, ahead/behind, divergence, race, network, mid-transfer drop, red gate, access, stop, clean), and $rg_what${rg_skipped:+ ($rg_skipped)}${stub_skipped:+; skipped: $stub_skipped}"
 fi
 exit "$fail"
