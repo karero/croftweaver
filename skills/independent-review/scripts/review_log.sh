@@ -106,7 +106,7 @@ add() {
     nv="${!nf}"
     case "$nv" in
       ''|-) ;;
-      *[!0-9]*) echo "review_log.sh add: --$nf must be digits, \"-\" or empty, not \"$nv\"; nothing was logged." >&2; return 2 ;;
+      *[!0123456789]*) echo "review_log.sh add: --$nf must be digits, \"-\" or empty, not \"$nv\"; nothing was logged." >&2; return 2 ;;
     esac
   done
   case "$outcome" in

@@ -949,7 +949,7 @@ run costnc REVIEW_LOG="$T/costs2b.tsv" OLLAMA_MODEL=stub-local bash "$SCRIPT" "$
 check "costlog: a not-counted seat is logged as NOT-COUNTED" awk -F'\t' '$8=="ollama-local" && $13=="NOT-COUNTED" {f=1} END {exit !f}' "$T/costs2b.tsv"
 for n in costlog costfail costnc; do
   check "costlog: $n — stdout holds no add line" lacks "$n.out" "logged:"
-  check "costlog: $n — stderr holds no refusal from add" lacks "$n.err" "review_log.sh add"
+  check "costlog: $n — stderr holds nothing from review_log.sh" lacks "$n.err" "review_log.sh"
 done
 run costskip REVIEW_LOG="$T/costs3.tsv" OLLAMA_STUB=listfail bash "$SCRIPT" "$T/change.diff" --base none
 check "costlog: a skipped seat is not logged" [ "$(wc -l <"$T/costs3.tsv" | tr -d ' ')" = 2 ]
@@ -993,8 +993,9 @@ refused() {   # refused <text stderr must hold> — the run just made exited 2, 
   [ "$(cat "$T/$addname.rc")" = 2 ] && [ "$(addlines)" = "$(cat "$T/$addname.before")" ] \
     && [ ! -s "$T/$addname.out" ] && grep -qF -- "$1" "$T/$addname.err"
 }
-written() {   # written [stdout line] — exit 0, exactly one line more, and the line it printed
+written() {   # written [stdout line] — exit 0, exactly one line more, nothing on stderr, and the line it printed
   [ "$(cat "$T/$addname.rc")" = 0 ] && [ "$(addlines)" = "$(($(cat "$T/$addname.before") + 1))" ] \
+    && [ ! -s "$T/$addname.err" ] \
     && { [ $# -eq 0 ] || [ "$(cat "$T/$addname.out")" = "$1" ]; }
 }
 # The measured case, as zsh hands it over: the whole of "$r" in $1, then $2 and $3 gone.
@@ -1017,11 +1018,18 @@ fi
 for flag in round seconds tokens; do
   for v in abc 1.5 12,000 -5 --x; do
     addrun --seat fresh-eyes "--$flag" "$v"
-    check "add: --$flag \"$v\" is refused" refused "--$flag"
+    case "$v" in
+      --*) want="--$flag got the value \"$v\"" ;;
+      *)   want="--$flag must be digits, \"-\" or empty, not \"$v\"" ;;
+    esac
+    check "add: --$flag \"$v\" is refused" refused "$want"
   done
   for v in "" - 0 263; do
     addrun --seat fresh-eyes "--$flag" "$v"
-    check "add: --$flag \"$v\" is written" written
+    shown="${v:--}"; r=-; sec=-; tok=-
+    case "$flag" in round) r="$shown" ;; seconds) sec="$shown" ;; tokens) tok="$shown" ;; esac
+    check "add: --$flag \"$v\" is written, and named in the logged: line" \
+      written "logged: round $r, fresh-eyes, $sec s, $tok tokens, OK, gate -"
   done
 done
 # Outcome: only the three the script logs.
@@ -1032,7 +1040,9 @@ done
 for v in OK FAILED NOT-COUNTED; do
   addrun --seat fresh-eyes --outcome "$v"
   check "add: --outcome $v is written, in the outcome column" \
-    sh -c '[ "$(cat "$1/$2.rc")" = 0 ] && [ "$(tail -n 1 "$3" | cut -f13)" = "$4" ]' _ "$T" "$addname" "$AL" "$v"
+    sh -c '[ "$(tail -n 1 "$1" | cut -f13)" = "$2" ]' _ "$AL" "$v"
+  check "add: --outcome $v is written, and named in the logged: line" \
+    written "logged: round -, fresh-eyes, - s, - tokens, $v, gate -"
 done
 # A text flag handed the next flag.
 addrun --seat fresh-eyes --model --seconds 5
@@ -1073,7 +1083,8 @@ inrepo gate2a bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round
 inrepo gate2b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
 inrepo gate2c bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 3
 inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
-check "gates: add's line names the gate the row joined" has gatefe.out "gate $(sed -n 1p "$G/.git/independent-review-gate")"
+gatefe_id="$(sed -n 1p "$G/.git/independent-review-gate")"
+check "gates: add's line names the gate the row joined" sh -c '[ -n "$2" ] && grep -qF "gate $2" "$1"' _ "$T/gatefe.out" "$gatefe_id"
 # A wording pass, a final full read or a re-gate is not a round and leaves --round off (SKILL.md step 2):
 # the open gate's id is what it must carry, and it must not start a gate of its own.
 rows_join_gate() {   # rows_join_gate <log> <lines before> <gate id>: there are new rows, and each carries the id
