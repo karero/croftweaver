@@ -21,7 +21,7 @@ CONFIG = Path("src/config.ts")
 USE_LINE = re.compile(r"^export const USE_ANALYTICS = (true|false);?[ \t]*(//.*)?$")
 HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]""")
 ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]""")
-MODE_KEY = re.compile(r"""^\s*['"]?mode['"]?\s*:""")
+MODE_WORD = re.compile(r"\bmode\b")
 MODE_LINE = re.compile(r"""^\s*mode:\s*['"]([a-z]+)['"]""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{")
 BLOCK_END = re.compile(r"^\}")
@@ -80,8 +80,11 @@ def read_config():
     if not host or not sid:
         raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines in the ANALYTICS block of {CONFIG}")
     mode = first(MODE_LINE)
-    if not mode and any(MODE_KEY.match(line) for line in block):
-        raise NotChecked(f"a mode: line in the ANALYTICS block of {CONFIG} is not written as mode: 'script' or 'server' (no space before the colon, no quotes round the key)")
+    # Any other line that names mode is a form this check cannot read: refuse, never default.
+    if any(MODE_WORD.search(line) and not MODE_LINE.match(line) and not line.lstrip().startswith("//")
+           for line in block):
+        raise NotChecked(f"a line in the ANALYTICS block of {CONFIG} names mode but is not written as "
+                         "mode: 'script' or 'server' (no space before the colon, no quotes round the key)")
     mode = mode or "script"
     if mode not in ("script", "server"):
         raise NotChecked(f"mode in {CONFIG} is '{mode}'; expected 'script' or 'server'")

@@ -242,7 +242,8 @@ class NotChecked(unittest.TestCase):
                 code, out, _ = run(config(mode=mode), None, GUIDE)
                 self.assertEqual(code, 2, out)
                 self.assertIn("mode:", out)
-        for line in ("  mode : 'server',", "  'mode': 'server',", '  "mode": \'server\','):
+        for line in ("  mode : 'server',", "  'mode': 'server',", '  "mode": \'server\',',
+                     "  mode /* c */: 'server',", "  ['mode']: 'server',"):
             with self.subTest(line):
                 cfg = config().replace("  mode: 'script' as 'script',", line)
                 self.assertIn(line, cfg)
