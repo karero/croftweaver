@@ -197,9 +197,9 @@ cookies, scripts or tracking you didn't choose.
      ID, is logged in clear text for anyone with access to the monitor's dashboard
      ([settings page](https://developers.cloudflare.com/client-side-security/reference/settings/));
      if you choose it, say that on your privacy page too. We found nothing that says what
-     the Global tag covers: if you change the setting, tell your assistant. We have not
-     checked whether the consent rule in the *Why off* at the top of this item (§ 25 TDDDG)
-     reaches the monitor. Log host only and a sentence on your privacy page do not answer
+     the Global tag covers, or what the browser sends under each choice: if you change the
+     setting, tell your assistant. We have not checked whether the consent rule in the
+     *Why off* at the top of this item (§ 25 TDDDG) reaches the monitor. Log host only and a sentence on your privacy page do not answer
      that: this is a risk, not a verdict, and this is not legal advice. Off avoids the
      question.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,

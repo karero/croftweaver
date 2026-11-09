@@ -9,18 +9,25 @@ drives assembly; this README is the manual reference.
 
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
+package-lock.json             # the exact dependency versions; commit it, CI uses `npm ci`
 .nvmrc                        # Node 24 — the starter needs >=22.23.4 (Cloudflare Pages reads it)
 .gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
 CROFTWEAVER-LICENSE.md        # the licence of the Croftweaver files in this folder (tests, scripts, hooks); keep it when you hand the source on
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
+src/env.d.ts                  # the type of `Astro.locals.lang`, which Base.astro sets for the components inside a page
 src/layouts/Base.astro        # title/OG/Twitter/canonical/JSON-LD/no-FOUC theme spine
+src/components/EmailLink.astro # crawler-resistant email link: the address is never plain in the HTML; counted in analytics server mode
+src/lib/obfuscate.ts          # build-time encoding for EmailLink (refuses a non-ASCII address)
 src/styles/global.css         # light/dark theme tokens (mirror BRAND.md)
 src/styles/tables.css         # the table style (website-design-system, "Tables")
 src/pages/index.astro         # minimal home so the suite is green from commit 1
 src/pages/privacy.astro       # GDPR privacy draft (fill [BRACKET] slots before launch)
 src/pages/legal-notice.astro  # English Legal Notice (§ 5 DDG draft; fill [BRACKET] slots before launch)
 src/pages/_impressum.astro    # German Impressum, unrouted: swapped in per its header, for owners based in Germany
+src/pages/_datenschutz.astro  # German privacy page, unrouted: swapped in per its header, for German-only sites
+src/pages/404.astro           # branded 404 page, noindex
 public/{robots.txt,llms.txt,_headers,manifest.webmanifest}
+public/images/og/default.jpg  # the default 1200×630 share card (`npm run og` makes one per page)
 functions/_middleware.ts      # noindex *.pages.dev previews; 301 <project>.pages.dev once CANONICAL_URL is set; page views in analytics server mode
 functions/go/email.ts         # analytics server mode: counts the email tap, then opens the mail program
 .github/workflows/ci.yml      # astro check + the suite on push/PR
@@ -36,7 +43,8 @@ scripts/ship.sh                  # `npm run ship`: two-stage sites only, promote
 scripts/hooks/pre-push           # blocks a push when the site's checks fail
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server,tables,served-build}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,phone-images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server,tables,served-build}.spec.ts
+tests/fixtures/               # captures of real tool output that a check reads (workers-builds-2026-11-08.txt, axe-core-4.14.0-playwright-4.14.0-incomplete.json)
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis, and its ship.fromGitHub mode on throwaway local repos (pre-push hook + CI)
 tests/check_analytics_gate.sh # counter self-test, CSP check, builds as Pages and as Workers Builds would: off in all with USE_ANALYTICS = false (as shipped), or on only when the branch being built (CF_PAGES_BRANCH, else Workers Builds' WORKERS_CI_BRANCH) is PROD_BRANCH; in server mode no script and email links to /go/email on the live Pages build only, and a live build on Workers Builds or without functions/go/email.ts is refused (the suite's own CI)
 ```
@@ -137,7 +145,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    The privacy page and the imprint also carry a draft notice, which counts as a
    leftover and leaves only as `AGENTS.md` §5 says, before the entry comes out.
 5. `npm run verify` (`npm run check`, then the tests, which build once) — the overlay passes strict TS +
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware/analytics-server out of the box. Then build pages
+   the whole suite (`tests/*.spec.ts`) out of the box. Then build pages
    test-first (`<Base title="…" description="…">`).
 
 > `links.spec.ts` is the **offline** guard: it only blocks domains you've already

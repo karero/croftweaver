@@ -76,7 +76,9 @@ positioning and the story, and it never runs unasked.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
-in `AGENTS.md`); a single owner never needs it.
+in `AGENTS.md`); a single owner needs none of it, though one who works alone but runs several assistant
+sessions at once, or lets the assistant merge, may choose its §4 and §5 (CI starts, then the
+`main` ruleset); its opening note says what to set first. An option, not a step.
 A private repo gets 2 000 free CI minutes a month on GitHub Free (about 400 runs of the kit's
 `ci.yml`); past that, jobs stop with a message that reads like a failed payment. Tell the
 owner to check **Budgets and alerts** for an Actions budget (`website-team-setup` §3b has
@@ -336,7 +338,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 6 | Build: head metadata within limits, schema, llms.txt | **`website-seo-geo`** (+ `schema-markup`, `ai-seo`) |
 | 6 | Build: per-page OG share cards (`npm run og` → 1200×630 ≤300 KB, tested) | **`og-images`** |
 | 6 | Build: testimonials / Review schema from one data file (if the site has quotes) | **`website-testimonials`** |
-| 7 | QA: a11y (light+dark) / seo / navigation / anchors / orphans / images / tone / positioning / placeholders / email / links | **`website-qa`** |
+| 7 | QA: the starter's test suite (a11y light+dark, seo, navigation, images, tone, positioning, placeholders, email, links and more) | **`website-qa`** |
 | 8 | Performance: Lighthouse / PageSpeed for FCP & LCP | **`website-qa`** perf section (+ `seo-audit`) |
 | 9 | **Double-Knuth review** (correctness + cross-file consistency) | **`website-review`** |
 | 10 | Outgoing-link liveness sweep — **only if the site links out** (see §3a) | **`outgoing-link-audit`** |
@@ -685,8 +687,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    README beside the decision-interview answers, and, where she chose or brought a palette, fill `BRAND.md`'s
    colour tables with it (`website-brand-kit` §5a says what goes where). These documents
    are all that step 2b writes before the tests are green.
-5. **Confirm green:** `npm run build && npm test` (the overlay passes the
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware suite out of the box). Then build pages
+5. **Confirm green:** `npm run build && npm test` (the overlay passes its whole suite,
+   `tests/*.spec.ts`, out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.
@@ -780,7 +782,7 @@ hold Search Console Request Indexing until then.
 - [ ] **No orphaned pages** — `tests/orphans.spec.ts` green (every page reachable from
       home). For a multi-page site, run `internal-link-audit` and resolve orphans + thin
       pages; deliberately-unlinked pages listed in `ORPHAN_EXEMPT` with a reason.
-- [ ] `sitemap-index.xml` present; `robots.txt` + `llms.txt` accurate. (llms.txt
+- [ ] `sitemap-0.xml` present; `robots.txt` (naming it) + `llms.txt` accurate. (llms.txt
       *coverage* — every `PAGES` route listed, no stale entry for a removed or
       renamed page — is enforced both ways by `tests/llms-coverage.spec.ts`;
       wording accuracy stays a human check.)
@@ -862,7 +864,7 @@ hold Search Console Request Indexing until then.
       alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
-      `sitemap-index.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
+      `sitemap-0.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
       Hints toggle). Register the production domain only — never a preview host.
 - [ ] **Business listings claimed, if applicable** (`business-listings-setup`,
       §4a): `sameAs` verification done for any named entity — every URL in
