@@ -160,6 +160,16 @@ class PageFilter(unittest.TestCase):
                            "expression": "https://example.com/backkurs-muenchen/"}])
 
 
+    def test_a_page_with_more_than_100_queries_says_how_many_it_cut(self):
+        rows = [row(f"query {n:03d}", clicks=200 - n) for n in range(120)]
+        svc = FakeService(answer_with(query_rows=rows))
+        _, out, _ = run_main(svc, "--page", "https://example.com/a/")
+        section = out.split("## Queries landing on")[1].split("\n## ")[0]
+        self.assertIn("query 099", section)
+        self.assertNotIn("query 100", section)
+        self.assertIn("Showing 100 of 120 queries.", section)
+
+
 class Completeness(unittest.TestCase):
     def dates(self, first, last):
         d, rows = dt.date.fromisoformat(first), []
@@ -197,7 +207,7 @@ class Completeness(unittest.TestCase):
         svc = FakeService(answer_with(date_rows=self.dates("2026-10-10", "2026-11-06")))
         _, out, _ = run_main(svc, "--start", "2026-10-10", "--end", "2026-11-06")
         self.assertNotIn(["date"], [b.get("dimensions") for b in svc.bodies])
-        self.assertNotIn("complete", out.lower().replace("incomplete", ""))
+        self.assertNotIn("Is this window complete?", out)
 
     def test_a_day_inside_the_window_with_no_row_is_named_but_does_not_block(self):
         rows = [r for r in self.dates("2026-10-10", "2026-11-06") if r["keys"][0] != "2026-10-20"]

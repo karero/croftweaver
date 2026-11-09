@@ -181,6 +181,7 @@ def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""
     return resp.get("rows", [])
 
 
+PAGE_DRILL_LIMIT = 100  # queries listed for --page; a longer list says how many it cut
 MAX_PAGED_REQUESTS = 40  # 1,000,000 rows: a stop for a loop that is not advancing
 
 
@@ -235,7 +236,7 @@ def completeness_section(date_rows, start, end):
         d += dt.timedelta(days=1)
     if gaps and complete:
         L.append(f"\n_Days inside the window with no row: {', '.join(gaps)}. Search Console "
-                 "leaves out a day with nothing to report._")
+                 "returned no row for these days (nothing to report, or not filled in yet)._")
     L.append("")
     return "\n".join(L)
 
@@ -510,7 +511,9 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     if page_url:
         L.append(f"## Queries landing on {page_url}\n")
         if page_drill:
-            L.append(fmt_rows(page_drill, "Query", limit=15))
+            L.append(fmt_rows(page_drill, "Query", limit=PAGE_DRILL_LIMIT))
+            if len(page_drill) > PAGE_DRILL_LIMIT:
+                L.append(f"\n_Showing {PAGE_DRILL_LIMIT} of {len(page_drill)} queries._")
             L.append("\n_Attribution from GSC itself (query rows filtered to this "
                      "page). Rare queries can still be anonymized away, so rows here "
                      "may not sum to the page's total impressions._")
@@ -570,8 +573,8 @@ def main():
                     help="Also say whether the window is complete: the property's own rows by "
                          "date must reach its last day.")
     ap.add_argument("--pages-csv", default="",
-                    help="Write every page with clicks, impressions, CTR and position to this "
-                         "CSV, paging on past 25,000 rows. Overwrites the file.")
+                    help="Write every page the API returns, with clicks, impressions, CTR and "
+                         "position, to this CSV, paging on past 25,000 rows. Overwrites the file.")
     ap.add_argument("--keywords", default="",
                     help="Comma-separated target keywords.")
     ap.add_argument("--out", default="", help="Write the Markdown report to this file.")

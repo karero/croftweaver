@@ -117,13 +117,15 @@ notices. Everything above applies. These steps change, and one is added:
 
 **1. Intake** also asks for the old address, written as Search Console lists it (closing slash
 included), whether the old site had Search Console and under which property, and the planned
-go-live date. The old and the new address may sit in different properties.
+go-live date. The old and the new address may sit in different properties. If the new address is on
+another domain, the old host has to forward each old address itself: the new site's redirect file
+cannot answer for it. This mode does not set that up; the page document and the go say who does.
 
 **2. Research** starts from the old page.
 
 - *Search Console.* With the `search-console-insights` skill, run its `gsc_query.py` with
   `--site <property> --page <old address> --days 90 --no-csv` for the queries, clicks, impressions
-  and position, and copy its query table into the research file under **Old page, Search
+  and position, and copy its query table (up to 100 queries; it says when it cut some) into the research file under **Old page, Search
   Console**. Once the old site is gone, give the 90 days as `--start` and `--end` instead, ending
   the day before go-live. Without Search Console, say so in the research file: the owner names the
   queries and sections that matter, and the four-week check below is skipped, with that reason
@@ -154,30 +156,35 @@ their dates into the note.
 file with the old address on one line, `--draft moves.csv`, then fill in the new path and run
 `make_redirects.py old.txt moves.csv --site <new site> --out redirects.txt`. It writes a line for
 the address and one for its closing-slash twin. Add those lines to the site's `public/_redirects`
-yourself, above any catch-all; the script refuses to write over a file it did not write. After
+yourself, above any catch-all, without the two `#` header lines (they say the file is regenerated).
+Read the script's counts and exit code first. The script refuses to write over a file it did not write. After
 go-live, run that skill's `check_move.py old.txt <new site> --moves moves.csv` and read its report.
 
 **9. The four-week check.** The page document records two fixed windows of 28 days. *Before* ends
 the day before go-live and is pulled on the old address. *After* starts the day after go-live and is
-pulled on the new address. Pull each with `--start`, `--end` and `--by-date`, so a rerun reads the
-same days and the report says whether the window is complete: the property's own rows by date must
-reach its last day. Until it says so, judge nothing and pull again a few days later; three days after
-the end is when to try first, not proof. Run this at the date the page document and the go note
+pulled on the new address. Pull each with `gsc_query.py --site <property> --page <address> --start <day> --end <day>
+--by-date --no-csv`, so a rerun reads the same days and the report says whether the window is
+complete: the property's own rows by date must reach its last day. Until it says so, judge nothing and pull again a few days later; three days after
+the end is when to try first, not proof. If it still says "Not complete" a week after the end, say
+so in the note to the owner and judge by hand in the Performance report. Run this at the date the page document and the go note
 name; the owner runs it, nothing is scheduled. The old address's own *after* window is for
 information only: after a working redirect its numbers fall by design.
 
 A *main query* has at least 10 clicks in the before window. It is a finding when the after window
-shows less than half those clicks, or when its row is missing and Search Console's pages report for
-the new address shows the query gone, not just hidden. Search Console leaves out rows with nothing
-to report and hides rare queries, so a missing row is never read as zero alone. A complete after
+shows less than half those clicks, or when its row is missing from the new address's query table and
+`gsc_query.py --query "<query>"` with the same dates shows the new address gone from the pages that
+serve it. Search Console hides rare queries, so a missing row is never read as zero: where the owner
+cannot see the query in the Performance report either, write "unknown". A complete after
 window with no rows for the new address at all is a finding too, never a reason to wait. Give the
 owner a table of the main queries with clicks, impressions and position for both windows, and the
 findings. They go to the owner, not into an automatic rewrite.
 
 **More than ten pages.** Sort the pages before the full mode runs. Start from the full address list
 (`wp_inventory.py`'s `urls.csv`, or the sitemap for another tool) and join the clicks and impressions
-of every page over 90 days: `gsc_query.py --pages-csv pages.csv` writes them. An address with no row
-had no impressions in those 90 days; the triage deletes nothing. Every address lands in one group:
+of every page over 90 days: `gsc_query.py --pages-csv pages.csv` writes them. Search Console lists
+the same page under several spellings (scheme, www, closing slash): fold them and add the variants up
+before joining, and list every row of `pages.csv` that matches no address. An address with no row
+after folding had no impressions in those 90 days; the triage deletes nothing. Every address lands in one group:
 
 - **Move with care:** the pages that together bring 80% of the clicks. They get the full mode.
 - **Let go?** Pages with no clicks and no impressions, listed for the owner. Only the owner decides,
