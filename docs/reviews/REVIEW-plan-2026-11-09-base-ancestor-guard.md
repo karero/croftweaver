@@ -14,6 +14,7 @@ alone then passed (99 ok, 0 FAIL, exit 0). The only file added since, the eviden
 | 1 | `e70e090a` | the whole plan | Codex alone; melious out of balance (no rerun owed, owner's rule 2026-10-27) | codex 126 s, 37,007 | 1 / 2 / 0 |
 | 2 | `b440e17b` | the whole plan, `--verify` round 1's findings | Codex alone (`--seat codex`), melious still out of balance | codex 109 s, 67,146 | 0 / 0 / 0 |
 | final read | `b440e17b` | the whole plan, every cited line read against the repo | a host subagent (fresh context) | 243 s, 146,957 | 0 / 1 / 2 |
+| 3 | `af42364e` | the whole plan, `--verify` the final read's findings | Codex alone (`--seat codex`), melious still out of balance | codex 120 s, 51,318 | 1 / 0 / 0 (outside the changed sections) |
 
 Fresh-eyes, owed in round 1 at Normal depth, was not run; the final full read is the only
 host read in fresh context, and it came after round 2.
@@ -38,3 +39,13 @@ marked the claim UNVERIFIABLE (it saw outputs, not reruns).
 | F3 | NIT | "What it does not catch" omits that cases 2 to 4 test the local `refs/remotes/origin/HEAD`, so a newer main base (a local `main` ahead, `FETCH_HEAD`, a pasted SHA) passes as case 4 | fixed: named there |
 
 F1 changes what the guard does, so round 3 verifies it.
+
+## Round 3 findings
+
+Round 3 confirmed F1 to F3 fixed, and found one BUG outside the changed sections.
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| C1 | BUG | Judgment still said a rebase merge link is the only legitimate `--base` off the branch, which the wording pass after a rebase (closeout.md, E1 case 7w) contradicts | fixed: Judgment names both, the old reviewed head sent as a merge link or as a wording pass |
+
+C1 is a prose fix to a claim, so the wording pass checks it.
