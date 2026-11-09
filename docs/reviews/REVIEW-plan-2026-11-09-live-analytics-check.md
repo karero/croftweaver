@@ -63,3 +63,23 @@ Earned by round 3's kinds `server-mode-tags`, `page-freshness`, `stop-handling`;
 | R4-1 | BUG | A commit id names a commit, not a build: two builds of one commit with different variables carry the same stamp (Codex ran the marker twice: identical). | fixed by narrowing, a cut of the claim: the plan says the stamp names the commit; a same-commit rebuild (a dashboard Retry) is outside ship's flow, which always pushes a new commit, and is listed as not checked. |
 | R4-2 | RISK | The launch check would judge the live page against the working copy's `src/config.ts`, not the stamped commit's. | fixed: `--config <path>`; the launch check passes `git show <id>:src/config.ts` (fetching first), 🟡 when the commit cannot be read; a test case. Ship already reads the published copy. |
 | R4-3 | BUG | "Counted twice" for a tag in server mode overclaims: `functions/_middleware.ts:85-98` skips server counting when its variables are missing. | fixed: the message says visits "may be" counted twice. |
+
+## Round 5
+
+Head `19a19dee` · codex alone; melious out of balance · codex 281 s, 114,578 tokens · 3 BUG.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| R5-1 | BUG | Ship does not always push a new commit (`ship.sh:948` checks the live site on a nothing-to-push run), so a cached page can pass after a same-commit rebuild. | out of scope (narrowed by Daniel, 2026-11-09): build proof is cut. |
+| R5-2 | BUG | The stamp check ran before the empty-page check, so an empty page gave exit 3 and a ⚠ instead of exit 2. | out of scope (narrowed by Daniel, 2026-11-09): the stamp is cut. The narrow plan keeps an empty 200 as exit 2, with a test. |
+| R5-3 | BUG | `git show <id>:src/config.ts` reads a repository-root path, so it fails for a site in a subfolder (Codex ran it: `HEAD:./src/config.ts` works). | out of scope (narrowed by Daniel, 2026-11-09): `--config` is cut. The narrow plan's config test uses `git diff -- src/config.ts`, whose pathspec is relative to the folder. |
+
+## Narrowed by Daniel, 2026-11-09
+
+His words, relayed by the manager session (Croftweaver Feature Planning): "Yes, narrow it". The plan
+now covers the plain live check only: a script in `website-launch-check` that fetches the live
+home page with a cache-busting query and compares its tag with `src/config.ts`, run by the live
+run (§8). Cut: the build stamp, the `build.txt` re-reads, `--config <id>`, and every `ship.sh`
+change. The plan says plainly that a cached page right after a publish can mislead, and to run it
+again a minute later. Server mode stays as one rule (no tag on the page). Round 6 reviews the
+narrow plan.
