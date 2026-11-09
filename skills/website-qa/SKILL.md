@@ -161,7 +161,7 @@ The baseline only protects the site if it actually runs before a deploy. The sca
 a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `scripts/verify.mjs` (the same
 as `npm run verify`: `npm ci` only on its first run or when `package.json` or `package-lock.json` changed, `npm run check`, then
 `npm test`, which builds once; short output) and `check_seo.py` (if present), and **refuses the
-push if anything is red** — so a broken build never reaches the deploy branch. A site without
+push if anything is red**. A site without
 `scripts/verify.mjs` gets the older `npm run build` + `npm test`. It's wired automatically: the `prepare` script in
 `package.json` (`node scripts/wire-hooks.mjs`, a line with no shell syntax) points
 `core.hooksPath` at `scripts/hooks` on `npm install` — when the site is the root of its git
@@ -169,8 +169,8 @@ repo. In a subfolder of a bigger repo it leaves that repo's hooks alone, so the 
 wired there; say so rather than assume it runs.
 
 This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
-so without this hook a red test would still deploy. The hook runs before every push from a
-clone where it is installed, including the owner's own direct push to `main` on a single-owner
+so without this hook a red test would still deploy. The hook runs before each push from a
+clone where it is installed (unless skipped with `--no-verify`), including the owner's own direct push to `main` on a single-owner
 site (`PUBLISHING.md`). It tests the files on disk, not the commit being pushed, so a fix left
 uncommitted can hide a red commit: commit before you push. Apart from the site's first
 upload, assistants never push to `main` that way: they open pull requests (`AGENTS.md` §2), and
