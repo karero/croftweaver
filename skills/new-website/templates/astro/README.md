@@ -43,7 +43,8 @@ scripts/ship.sh                  # `npm run ship`: two-stage sites only, promote
 scripts/hooks/pre-push           # blocks a push when the site's checks fail
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,phone-images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server,tables,served-build}.spec.ts
+scripts/make-icons.mjs           # setup runs it once (`--setup`): draws the site's first letter into the seven icon files, recorded in scripts/icons-made.json
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,icons,phone-images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,middleware,analytics-server,tables,served-build}.spec.ts
 tests/fixtures/               # captures of real tool output that a check reads (workers-builds-2026-11-08.txt, axe-core-4.14.0-playwright-4.14.0-incomplete.json)
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis, and its ship.fromGitHub mode on throwaway local repos (pre-push hook + CI)
 tests/check_analytics_gate.sh # counter self-test, CSP check, builds as Pages and as Workers Builds would: off in all with USE_ANALYTICS = false (as shipped), or on only when the branch being built (CF_PAGES_BRANCH, else Workers Builds' WORKERS_CI_BRANCH) is PROD_BRANCH; in server mode no script and email links to /go/email on the live Pages build only, and a live build on Workers Builds or without functions/go/email.ts is refused (the suite's own CI)
@@ -87,7 +88,10 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    same host in `script-src` and `connect-src` of `public/_headers`, and a `PROD_BRANCH`
    that matches the branch Cloudflare Pages will call "Production", or analytics never
    loads. No analytics: leave it off and delete the privacy page's analytics paragraphs.
-   Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
+   Run `node scripts/make-icons.mjs --setup`: it draws the site's first letter on its `--brand` colour
+   (`src/styles/global.css`) into the seven icon files the starter links, and the first `npm test` fails
+   without them (a name that starts with no letter A–Z or digit needs `--letter X`). Edit the placeholder
+   `manifest.webmanifest`. Set the BRAND
    block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
    1200×630 share cards (`public/images/og/`; the starter ships a default).
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`

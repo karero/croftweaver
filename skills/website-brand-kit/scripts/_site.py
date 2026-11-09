@@ -31,6 +31,27 @@ SCAFFOLD_DEFAULTS = {
 }
 
 
+ICONS_MADE = "scripts/icons-made.json"
+
+
+def icons_record(site):
+    """The starter's record of the icons its scripts/make-icons.mjs drew, or None where the site has none or
+    it cannot be read (then no file counts as one the starter made, and an icon already there is asked about)."""
+    try:
+        with open(os.path.join(site, *ICONS_MADE.split("/")), encoding="utf-8") as f:
+            record = json.load(f)
+        return record if isinstance(record["files"], dict) else None
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def is_starter_icon(site, rel, data):
+    """Whether this is a file scripts/make-icons.mjs drew: its SHA-256 is in the site's record for that path."""
+    record = icons_record(site)
+    hashes = record["files"].get(rel) if record else None
+    return isinstance(hashes, list) and hashlib.sha256(data).hexdigest() in hashes
+
+
 def is_scaffold_default(rel, data):
     return hashlib.sha256(data).hexdigest() in SCAFFOLD_DEFAULTS.get(rel, ())
 
