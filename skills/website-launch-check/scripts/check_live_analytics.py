@@ -21,8 +21,11 @@ CONFIG = Path("src/config.ts")
 USE_LINE = re.compile(r"^export const USE_ANALYTICS = (true|false);?[ \t]*(//.*)?$")
 HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]""")
 ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]""")
-MODE_WORD = re.compile(r"\bmode\b")
-MODE_LINE = re.compile(r"""^\s*mode:\s*['"]([a-z]+)['"]""")
+# A line that starts with the mode key must be exactly one of the starter's forms, else the file is
+# refused: anything cleverer (an expression, a computed or quoted key) is not read, never guessed.
+MODE_START = re.compile(r"""^\s*[\['"]*mode\b""")
+MODE_LINE = re.compile(
+    r"""^\s*mode:\s*'(script|server)'(?:\s+as\s+'(?:script|server)'(?:\s*\|\s*'(?:script|server)')?)?\s*,?\s*(?://.*)?$""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{")
 BLOCK_END = re.compile(r"^\}")
 
@@ -79,15 +82,12 @@ def read_config():
     host = host[:-1] if host.endswith("/") else host
     if not host or not sid:
         raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines in the ANALYTICS block of {CONFIG}")
-    mode = first(MODE_LINE)
-    # Any other line that names mode is a form this check cannot read: refuse, never default.
-    if any(MODE_WORD.search(line) and not MODE_LINE.match(line) and not line.lstrip().startswith("//")
-           for line in block):
-        raise NotChecked(f"a line in the ANALYTICS block of {CONFIG} names mode but is not written as "
-                         "mode: 'script' or 'server' (no space before the colon, no quotes round the key)")
-    mode = mode or "script"
-    if mode not in ("script", "server"):
-        raise NotChecked(f"mode in {CONFIG} is '{mode}'; expected 'script' or 'server'")
+    starts = [line for line in block if MODE_START.match(line)]
+    found = [m.group(1) for m in map(MODE_LINE.match, starts) if m]
+    if len(found) != len(starts) or len(starts) > 1:
+        raise NotChecked(f"the mode line in the ANALYTICS block of {CONFIG} is not one line written as "
+                         "mode: 'script' or 'server' (a // comment after it is fine)")
+    mode = found[0] if found else "script"
     return uses[0] == "true", f"{host}/js/{sid}.js", sid, mode
 
 

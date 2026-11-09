@@ -128,6 +128,15 @@ class OnScriptMode(unittest.TestCase):
                 self.assertEqual(code, 1, out)
                 self.assertIn("0 analytics script tag(s), 1 init stub(s), 1 other", out)
 
+    def test_the_word_mode_in_comments_does_not_fail_a_healthy_site(self):
+        cfg = config().replace("  scriptHost:", "  /* the mode is read below */\n  scriptHost:")
+        cfg = cfg.replace("process.env.WORKERS_CI_BRANCH === PROD_BRANCH,", "process.env.WORKERS_CI_BRANCH === PROD_BRANCH, // script mode")
+        cfg = cfg.replace("  mode: 'script' as 'script',", "  mode: 'script' as 'script' | 'server', // mode of the tag")
+        for text in ("the mode is read", "// script mode", "// mode of the tag"):
+            self.assertIn(text, cfg)
+        code, out, _ = run(cfg, None, GUIDE)
+        self.assertEqual(code, 0, out)
+
     def test_no_mode_line_means_script_mode(self):
         cfg = config().replace("  mode: 'script' as 'script',\n", "")
         self.assertNotIn("mode:", cfg)
@@ -243,7 +252,7 @@ class NotChecked(unittest.TestCase):
                 self.assertEqual(code, 2, out)
                 self.assertIn("mode:", out)
         for line in ("  mode : 'server',", "  'mode': 'server',", '  "mode": \'server\',',
-                     "  mode /* c */: 'server',", "  ['mode']: 'server',"):
+                     "  mode /* c */: 'server',", "  ['mode']: 'server',", "  mode: 'script' && 'server',"):
             with self.subTest(line):
                 cfg = config().replace("  mode: 'script' as 'script',", line)
                 self.assertIn(line, cfg)
