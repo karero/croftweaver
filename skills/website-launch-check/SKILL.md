@@ -3,12 +3,13 @@ name: website-launch-check
 description: >-
   Launch readiness check for a site built with this toolkit: runs the site's own build and
   tests first, then checks only what they cannot (legal pages, E-E-A-T and local signals,
-  content the site's settings call for, testimonial consent, what only a deployed site shows),
+  content the site's settings call for, testimonial consent, what only a deployed site shows,
+  the Cloudflare zone settings the owner reads in the dashboard),
   asks only where the owner's intent decides, and writes a dated report with a verdict to
   docs/launch/ as Markdown plus a self-contained HTML page. When the site replaces an older
   one, also a current-vs-new comparison with a redirect map for every old address. Runs three
-  times in new-website (baseline after the scaffold, the verdict before launch, an optional
-  live re-check) and on its own. Trigger phrases: "launch check", "ready to launch", "what's
+  times in new-website (baseline after the scaffold, the verdict before launch, the live
+  re-check once launch day's work is done) and on its own. Trigger phrases: "launch check", "ready to launch", "what's
   missing before launch", "pre-launch", "go live", "launch audit", "relaunch", "compare the old
   and the new site", "post-launch gap analysis".
 ---
@@ -26,7 +27,7 @@ When it runs:
 |---|---|---|
 | **baseline** | `new-website` step 5a: after the scaffold is green (and after the brand-kit intake, where there is one) | `launch-check-<date>-baseline.md`, verdict "Baseline, not a launch verdict" |
 | **pre-launch** | `new-website` step 10c: after steps 7 to 10b, before §4's deploy | `launch-check-<date>-prelaunch.md`, verdict 🟢 / 🟡 / 🔴; §4 starts after 🟢, or a 🟡 the owner accepts |
-| **live** | `new-website` step 12a, optional: once the production build is Active on the live domain | `launch-check-<date>-live.md` |
+| **live** | `new-website` step 12a: once launch day's work is done (the production build Active on the live domain, the domain attached); not optional, since the zone read (§3) runs only here for a new domain | `launch-check-<date>-live.md` |
 
 It also runs on its own, on any site built with this toolkit, whenever the owner asks.
 
@@ -193,6 +194,38 @@ everywhere, `LocalBusiness` markup, the city or region in titles and headings, `
 where `site_languages` has several, a map or directions link. `website-seo-geo`'s "GEO" is
 generative engine optimization, not local SEO.
 
+**Cloudflare zone settings** (the pre-launch run when the domain is already on Cloudflare; the
+live run always; never the baseline): the owner reads five places in the Cloudflare dashboard,
+or shows a screenshot. The assistant never signs in and never asks for a token. The places, and
+what each should show, are in `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section
+5, "Read in the dashboard": point the owner there rather than copy the paths, which Cloudflare
+moves. The report records each place as seen, dated.
+- Pre-launch, domain not on Cloudflare yet: under "Not checked yet", "Cloudflare zone settings:
+  deferred to the live re-check: the domain is not on Cloudflare yet". It does not count in the
+  verdict.
+- A setting that differs from the checklist (Bot Fight Mode, AI Labyrinth, the AI policies with
+  Personal Agents, Bot Preference Sync, a Block Crawler switch): ask whether it was the owner's
+  choice (§4). Yes: "owner's choice, <date>", with the checklist's trade-off in one line, quoted
+  and credited to the checklist. No or don't know: 🔴, with the checklist item that sets it right.
+- Security rules: every rule on the page, in any section, listed with its name, its action, what
+  it matches and "this domain" or "all websites in account", and what it does in plain words,
+  from what the owner reads out.
+  - It blocks or challenges, and nobody can say what it does or whose it is, or it could stop
+    visitors or crawlers the owner wants: 🔴 until the owner keeps, changes or removes it.
+  - Its action is Allow or Skip and nobody can say whose it is: 🟡, until the owner finds out
+    (an account-wide rule may be another site's).
+  - The owner knows it and keeps it: "owner's choice, <date>".
+  - Cloudflare's own notes (Response rules' "Cloudflare default protection applied", a banner
+    about rules Cloudflare deployed): quoted, no finding.
+- The setup tokens, live run only (never ask at pre-launch: launch day may still need one): the
+  owner reads both token lists and names every token made for this site's setup and launch day.
+  Active or Expires soon: 🔴, delete it now. Expired: 🟡, delete it. In neither list: fine. The
+  owner cannot tell which they were: 🟡, delete any token they cannot place. Name no other token
+  in the report. If launch day still needs the token, read the rest and list "the setup tokens:
+  deferred: launch day still needs it; read again when it is done" under "Not checked yet", with
+  no finding.
+- Not read (no dashboard access, or the owner stops): "not checked: <reason>", 🟡, never ✅.
+
 ## 4. Questions and findings
 
 Ask only where the owner's intent decides; everything else is a finding with an offer to fix.
@@ -257,7 +290,9 @@ live domain before its build is Active": a first request caches a 404). Reading 
 existing addresses before the switch is fine. Then check HTTPS, the 404 status, console errors
 on the live pages and the consent question, measure the live domain's speed as `website-qa` §2
 does (the assistant runs Lighthouse; its fallbacks are PageSpeed Insights, then the owner), and
-fill the comparison's new-site row. For a WordPress move,
+fill the comparison's new-site row. Then read the Cloudflare zone settings (§3). The speed and
+comparison parts may be skipped; the zone read may not, since for a new domain nothing else
+reads it. For a WordPress move,
 point at `wordpress-inspector`'s `scripts/check_move.py --moves` where that skill is installed;
 a site's bundled skills do not include it, so otherwise say it comes from Croftweaver.
 
