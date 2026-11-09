@@ -80,13 +80,15 @@ loader.
 The causes printed for "on, tag missing": the build that made the live site had analytics off; on
 Workers Builds, the `enabled:` line must read `WORKERS_CI_BRANCH` (the 0.35 release notes) or the
 build needs the variable `CF_PAGES_BRANCH=<PROD_BRANCH>`; on Pages, the project's production
-branch must be `<PROD_BRANCH>`; until then the live site counts no visits.
+branch must be `<PROD_BRANCH>`. Until then the page sends no visits from the browser; whether
+anything counts them is not checked (a Pages site with `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set
+still counts on the server, `functions/_middleware.ts:85-86,170-178`, whatever `src/config.ts` says).
 
 It reads one page, the home page: the tag comes from `Base.astro`, and each cause above is
 build-wide. A page on another layout is the gate's job at build time.
 
 **B. `website-launch-check` §8**, one bullet beside HTTPS and the 404 status: run the script with
-the live address. ✗ is a 🔴, quoting its lines (a tag missing: visits uncounted; a tag present with
+the live address. ✗ is a 🔴, quoting its lines (a tag missing: the browser sends no visits; a tag present with
 analytics off: visits may be counted without the privacy page saying so; only the path or id seen:
 🔴 until someone looks);
 exit 2 is 🟡 "not checked: <its reason>". It reads the site folder's `src/config.ts`, so that

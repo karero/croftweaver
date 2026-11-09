@@ -12,6 +12,7 @@ depth: High (the starter's publish script) · seats: Codex + GLM 5.3 on melious
 | 4 | `3bdb9892` | codex alone; melious out of balance; earned by server-mode-tags, page-freshness, stop-handling; cut: the second build.txt read | codex 187 s, 77,908 | 2 / 1 / 0 |
 | 5 | `19a19dee` | codex alone; melious out of balance | codex 281 s, 114,578 | 3 / 0 / 0 |
 | 6 | `29ea02d1` (narrow plan) | codex alone; melious out of balance | codex 236 s, 73,384 | 3 / 1 / 0 |
+| 7 | `15294673` | codex alone; melious out of balance; earned by test-runner, use-analytics-reader, stub-rule, off-message | codex 237 s, 59,124 | 1 / 0 / 0 |
 
 ## Round 1
 
@@ -97,3 +98,17 @@ tokens · 3 BUG, 1 RISK.
 | R6-2 | BUG | "No line counts as on" drops the gate's refusal of a line in another form (`check_analytics_gate.sh:78-90`): `export const USE_ANALYTICS: boolean = false;` would read as on. | fixed: A copies the gate's whole rule (no mention: on; another form or more than one line: exit 2); a test case. |
 | R6-3 | BUG | The stub rule differs from the gate's counter (Codex ran it: a JSON-LD `plausible.init()` gives 0 stubs, `plausible.init ()` gives 1). | fixed: A states the type filter and `\bplausible\.init\s*\(` (lines 220-221); test cases for both. |
 | R6-4 | RISK | A bare id in the page text (`<p>pa-test</p>`) fails the off case with "loads analytics", which it does not show. | fixed: two off messages, a tag or only the path or id named, and §8's severity text says which; a test case. |
+
+## Round 7
+
+Head `15294673` · codex alone; melious out of balance · codex 237 s, 59,124 tokens · 1 BUG. Earned
+by round 6's kinds `test-runner`, `use-analytics-reader`, `stub-rule`, `off-message`. Codex ran
+the gate's Perl counter again: ordinary markup `1 1 0`, JSON-LD `0 0 0`, a commented call `0 1 0`,
+HTML comments `0 0 0`, older tags `0 0 1`, as the plan says.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| R7-1 | BUG | "The live site counts no visits" overclaims: on Pages the middleware still counts on the server when `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` are set, whatever `src/config.ts` says (`functions/_middleware.ts:85-86,170-178`, read by the host). | fixed: the cause text and §8 say the browser sends no visits; whether anything counts them is not checked. A wording fix, no change to what the check does. |
+
+Codex's unverifiable list (the script, the git comparison, live headers, the guide incident) is
+the build's to settle: steps 3 and 4 and test 4, the live run.
