@@ -163,21 +163,37 @@ go-live, run that skill's `check_move.py old.txt <new site> --moves moves.csv` a
 **9. The four-week check.** The page document records two fixed windows of 28 days. *Before* ends
 the day before go-live and is pulled on the old address. *After* starts the day after go-live and is
 pulled on the new address. Pull each with `gsc_query.py --site <property> --page <address> --start <day> --end <day>
---by-date --no-csv`, so a rerun reads the same days and the report says whether the window is
+--by-date --no-csv --pages-csv <window>-pages.csv`, so a rerun reads the same days and the report says whether the window is
 complete: the property's own rows by date must reach its last day. Until it says so, judge nothing and pull again a few days later; three days after
 the end is when to try first, not proof. If it still says "Not complete" a week after the end, say
 so in the note to the owner and judge by hand in the Performance report. Run this at the date the page document and the go note
 name; the owner runs it, nothing is scheduled. The old address's own *after* window is for
-information only: after a working redirect its numbers fall by design.
+information only: after a working redirect its numbers fall by design. Its clicks still count in
+the page total below.
 
 A *main query* has at least 10 clicks in the before window. It is a finding when the after window
 shows less than half those clicks, or when its row is missing from the new address's query table and
 `gsc_query.py --query "<query>"` with the same dates shows the new address gone from the pages that
 serve it. Search Console hides rare queries, so a missing row is never read as zero: where the owner
 cannot see the query in the Performance report either, write "unknown". A complete after
-window with no rows for the new address at all is a finding too, never a reason to wait. Give the
-owner a table of the main queries with clicks, impressions and position for both windows, and the
-findings. They go to the owner, not into an automatic rewrite.
+window with no rows for the new address at all is a finding too, never a reason to wait.
+
+The *page total* is the page's own row in each window's pages file: it holds the clicks Search
+Console hides from the query rows, often most of them. Before, the old address's row; after, the
+new address's row plus the old address's row for the same days (from the old address's property if
+it is another one). Fold the spellings as under "More than ten pages". A page with at least 10
+clicks before is a finding when its after total is less than half of them. On a small site this is
+often the only rule that can fire: its pages seldom have a query with 10 clicks. Where two rows were added, leave the total's position blank: positions do not add.
+
+Give the owner a table that starts with the page total, then every query the before report lists with at least 1 click, largest first,
+with clicks, impressions and position for both windows. Mark each row *main* (10 or more clicks
+before, the page total included) or *for information*.
+A row for information is never a finding, whatever its numbers: at a few clicks a month a fall can
+be chance. It is there so the owner sees what moved, and the note says so. Where its query has no
+row in the after report, write "not in the table", not 0; a main query's missing row follows the
+rule above. If either report says "Showing 100 of N
+queries", the note says how many were left out. Give the findings below the table. They go to the
+owner, not into an automatic rewrite.
 
 **More than ten pages.** Sort the pages before the full mode runs. Start from the full address list
 (`wp_inventory.py`'s `urls.csv`, or the sitemap for another tool) and join the clicks and impressions
