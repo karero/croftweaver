@@ -21,3 +21,16 @@ Codex's "unsupported claims" list: the cache-bust claim is now limited to Cloudf
 cache key, citing `PUBLISHING.md:368-370`; a zone rule that ignores the query string is listed as
 not covered. The guide's state, the open PRs and the branch check were read on 2026-11-09 and are
 named in the plan; the captures and tests do not exist yet (build steps 3 and 4).
+
+## Round 2
+
+Head `833da670` · codex alone; melious out of balance · codex 221 s, 70,750 tokens · 2 BUG, 4 RISK.
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| R2-1 | BUG | "Another build went live meanwhile" is wrong for the fromGitHub branch: a different GitHub `production` shows a newer push, not a live change. | fixed: two messages, one for a changed live `build.txt`, one for a newer push. |
+| R2-2 | BUG | "The gate's own `/js/script*.js`" misstates the gate's expression (`check_analytics_gate.sh:214` does not match `scriptfoo.js`; Codex ran it: `0 0 0`). | fixed: A quotes the expression and what it matches. |
+| R2-3 | RISK | The gate's patterns read the whole file, so another object's `mode:` makes a healthy publish fail. | fixed: `scriptHost`, `scriptId` and `mode` are read inside the `ANALYTICS` block only; a test case with an unrelated `mode:`. The gate has the same whole-file read; not changed here (a gate change is out of this plan's scope). |
+| R2-4 | RISK | A failed second `build.txt` read had no outcome. | fixed: ✗, exit 1, with its own line and a ship case. |
+| R2-5 | RISK | The loader claim is still a quoted suffix, not a traced run. (Second time raised.) | fixed by narrowing: "1 script and 1 stub" is now the starter's markup contract (`Base.astro:174-177`, which the gate also requires); the loader reading is kept as "read, not run". |
+| R2-6 | RISK | The cache claim rests on `PUBLISHING.md` repeating itself. (Second time raised, so tested.) | measured, 2026-11-09, `curl -I`: croftweaver.com (Pages) `DYNAMIC` for `/` and `/?cb=`; guide.croftweaver.com (Workers static assets) `HIT` for both, so on Workers the query makes no fresh key. The plan now names the one assumption the read rests on (a Workers deployment serves `build.txt` and the HTML from one version) and adds test 6, a live leg on a webcroft.dev throwaway, before the DIFF gate. |
