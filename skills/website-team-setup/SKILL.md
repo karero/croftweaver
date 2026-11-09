@@ -253,9 +253,9 @@ in the `required_status_checks` rule `do_not_enforce_on_create` (false). GitHub'
 extra-approval key makes a pull request that Copilot opened for no person need one more
 approval than the count; it does nothing while the count is 0, as here, and starts to
 apply once the owner raises it. A value other than those defaults is a difference: ask the
-owner if it is on purpose, and if not, send the key with its default in the PUT body.
-Add the four keys to that body with the values the read-back showed, so the PUT does not
-decide them; what a PUT that leaves them out does to them has not been checked.
+owner if it is on purpose. Put all four keys in the PUT body, so the PUT does not decide
+them: with the values the read-back showed, or the default for a key the owner says was
+not on purpose. What a PUT that leaves them out does to them has not been checked.
 Anything that differs — `enforcement` not `active`, a non-empty `bypass_actors`, a
 missing rule, a `strict_required_status_checks_policy` that is not the owner's choice
 (`true` unless the next paragraph applies), a `context` that is not the CI job's name — is fixed with
