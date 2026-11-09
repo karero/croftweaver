@@ -1773,7 +1773,8 @@ codex_tokens() {
   awk '/^[[:space:]]*tokens used[[:space:]]*$/ { if ((getline nxt) > 0 && nxt ~ /^[[:space:]]*[0-9][0-9,]*[[:space:]]*$/) { gsub(/[^0-9]/, "", nxt); last = nxt } } END { if (last != "") print last }' "$RAW_DIR/codex.err" 2>/dev/null
 }
 # One cost-log line per attempted seat (review_log.sh). Absent helper (an older vendored copy):
-# nothing is logged, nothing fails.
+# nothing is logged, nothing fails. add's "logged:" line goes to /dev/null: this script's stdout
+# is the review the host reads. Its stderr stays, so a refused value would show.
 log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
   local model="" effort="-" oc="${5%% (*}" reason="-"
   case "$5" in *" ("*) reason="${5#* (}"; reason="${reason%)}" ;; esac
@@ -1787,7 +1788,7 @@ log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
   esac
   bash "$SCRIPT_DIR/review_log.sh" add --seat "$1" --model "${model:--}" --effort "$effort" \
     --seconds "$3" --tokens "$4" --gate "$TYPE" --depth "$DEPTH" --round "$ROUND" \
-    --outcome "$(printf '%s' "$oc" | tr ' ' '-')" --earned-by "$EARNED_BY" --cut "$CUT" --reason "$reason"
+    --outcome "$(printf '%s' "$oc" | tr ' ' '-')" --earned-by "$EARNED_BY" --cut "$CUT" --reason "$reason" >/dev/null
 }
 # attempt <label> <file stem> <run function> — one tier, in the foreground
 attempt() { run_tier "$2" "$3"; report_tier "$1" "$2"; }

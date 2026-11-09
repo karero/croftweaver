@@ -10,6 +10,12 @@
 #       Append one line. independent_review.sh calls this for codex, ollama, melious and agy; the host
 #       calls it for the seats it runs itself (fresh-eyes, code-review, double-knuth, owner).
 #       Repo, branch and head come from the current directory's git checkout, if any.
+#       Accepted: --round, --seconds and --tokens digits only, "-" or empty; --outcome OK, FAILED
+#       or NOT-COUNTED (default OK); no value starting with "--" (that is the next flag, taken
+#       because a variable was empty or, in zsh, not split into words). Anything else exits 2
+#       with a message on stderr and writes nothing. On success it prints one line on stdout,
+#       "logged: round R, SEAT, S s, T tokens, OUTCOME, gate ID" ("-" for a value not given), or
+#       "not logged: REVIEW_LOG=off".
 #       --earned-by lists the kinds of finding (comma-separated) that earned a round past round 3,
 #       and --cut says what the fix since the last round removed or refused (SKILL.md step 6);
 #       independent_review.sh checks both before a round runs. --reason is the text inside the
@@ -45,8 +51,8 @@
 #   awk -F'\t' '$13=="FAILED"{print ($17=="" ? "-" : $17)}' runs.tsv | sort | uniq -c
 #
 # Log file: $REVIEW_LOG, else ${XDG_STATE_HOME:-$HOME/.local/state}/independent-review/runs.tsv.
-# REVIEW_LOG=off turns logging off. A failure to log warns and exits 0: bookkeeping never fails
-# a review.
+# REVIEW_LOG=off turns logging off. A bad value in `add` exits 2 and writes nothing; a failure to
+# write the log warns and exits 0: bookkeeping never fails a review.
 set -u
 HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason'
 log_path() {   # empty when logging is off
@@ -86,14 +92,30 @@ add() {
     case "$1" in
       --seat|--model|--effort|--seconds|--tokens|--gate|--depth|--round|--outcome|--gate-id|--earned-by|--cut|--reason)
         [ $# -ge 2 ] || { echo "review_log.sh: $1 needs a value" >&2; return 2; }
+        case "$2" in
+          --*) echo "review_log.sh add: $1 got the value \"$2\", which looks like the next flag; nothing was logged. A shell variable was probably empty, or (in zsh) not split into words." >&2
+               return 2 ;;
+        esac
         local k="${1#--}"; k="${k//-/_}"; printf -v "$k" '%s' "$2"; shift 2 ;;
       *) echo "review_log.sh: unknown argument: $1" >&2; return 2 ;;
     esac
   done
   [ -n "$seat" ] || { echo "review_log.sh add: --seat is required" >&2; return 2; }
+  local nf nv
+  for nf in round seconds tokens; do
+    nv="${!nf}"
+    case "$nv" in
+      ''|-) ;;
+      *[!0-9]*) echo "review_log.sh add: --$nf must be digits, \"-\" or empty, not \"$nv\"; nothing was logged." >&2; return 2 ;;
+    esac
+  done
+  case "$outcome" in
+    OK|FAILED|NOT-COUNTED) ;;
+    *) echo "review_log.sh add: --outcome must be OK, FAILED or NOT-COUNTED, not \"$outcome\"; nothing was logged." >&2; return 2 ;;
+  esac
   local f repo="-" branch="-" head="-" top
   f="$(log_path)"
-  [ -n "$f" ] || return 0
+  [ -n "$f" ] || { echo "not logged: REVIEW_LOG=off"; return 0; }
   if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     repo="$(basename -- "$top")"
     branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo -)"
@@ -114,7 +136,8 @@ add() {
       "$(clean "$gate")" "$(clean "$depth")" "$(clean "$round")" "$(clean "$seat")" \
       "$(clean "$model")" "$(clean "$effort")" "$(clean "$seconds")" "$(clean "$tokens")" \
       "$(clean "$outcome")" "$(clean "$gate_id")" "$(clean "$earned_by")" "$(clean "$cut")" "$(clean "$reason")" >>"$f"; } 2>/dev/null \
-    || echo "note: could not write the review cost log ($f) — the review itself is unaffected." >&2
+    || { echo "note: could not write the review cost log ($f) — the review itself is unaffected." >&2; return 0; }
+  echo "logged: round $(clean "$round"), $(clean "$seat"), $(clean "$seconds") s, $(clean "$tokens") tokens, $(clean "$outcome"), gate $(clean "$gate_id")"
   return 0
 }
 
@@ -139,7 +162,7 @@ summary() {
     want != "" && $2 != want { next }
     {
       k = $6 "\t" $8
-      n[k]++; if ($13 == "OK") ok[k]++
+      n[k]++; if ($13 == "OK" || $13 == "ok") ok[k]++
       if ($11 ~ /^[0-9]+$/) { s[k] += $11; sn[k]++; if (!(k in mx) || $11 + 0 > mx[k]) mx[k] = $11 + 0 }
       if ($12 ~ /^[0-9]+$/) { t[k] += $12; tn[k]++ }
       # One gate: its id, or for lines from before ids existed, repo + branch + gate type.
