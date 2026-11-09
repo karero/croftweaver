@@ -1007,7 +1007,7 @@ check "add: a round holding three numbers is refused" refused "--round must be d
 # The same loop in zsh itself, which is where the incident happened. Not every CI image has zsh.
 if command -v zsh >/dev/null 2>&1; then
   before_zsh="$(addlines)"
-  run addzsh REVIEW_LOG="$AL" ADD="$HERE/review_log.sh" D="$T" zsh -c 'cd "$D"; for r in "1 263 192375" "2 140 98000"; do set -- $r; bash "$ADD" add --seat fresh-eyes --gate diff --depth normal --round $1 --seconds $2 --tokens $3; echo "rc=$?"; done'
+  run addzsh REVIEW_LOG="$AL" ADD="$HERE/review_log.sh" D="$T" zsh -f -c 'cd "$D"; for r in "1 263 192375" "2 140 98000"; do set -- $r; bash "$ADD" add --seat fresh-eyes --gate diff --depth normal --round $1 --seconds $2 --tokens $3; echo "rc=$?"; done'
   check "add: a zsh loop over \"1 263 192375\" is refused on every pass, naming the flag each time" \
     sh -c '[ "$(grep -c "^rc=2$" "$1/addzsh.out")" = 2 ] && ! grep -q "^rc=0$" "$1/addzsh.out" && ! grep -q "logged:" "$1/addzsh.out" && [ "$(grep -cF -- "--seconds got the value" "$1/addzsh.err")" = 2 ]' _ "$T"
   check "add: ...and writes nothing" [ "$(addlines)" = "$before_zsh" ]
@@ -1056,13 +1056,15 @@ addrun --seat fresh-eyes --gate diff --depth normal --round 1 --seconds 263 --to
 check "add: success names round, seat, seconds, tokens, outcome and gate" written "logged: round 1, fresh-eyes, 263 s, 192375 tokens, OK, gate -"
 addrun --seat codex
 check "add: a value not given shows as -" written "logged: round -, codex, - s, - tokens, OK, gate -"
-addoff_before="$(addlines)"
-run addoff REVIEW_LOG=off bash "$HERE/review_log.sh" add --seat fresh-eyes --round 1
+deflines() { if [ -e "$DEFLOG" ]; then wc -l <"$DEFLOG" | tr -d ' '; else echo 0; fi; }
+addoff_before="$(addlines)"; defoff_before="$(deflines)"
+run addoff REVIEW_LOG=off sh -c 'cd "$0" && exec "$@"' "$T" bash "$HERE/review_log.sh" add --seat fresh-eyes --round 1
 check "add: REVIEW_LOG=off says not logged, quietly, and touches no log" \
-  sh -c '[ "$(cat "$1/addoff.out")" = "not logged: REVIEW_LOG=off" ] && [ "$(cat "$1/addoff.rc")" = 0 ] && [ ! -s "$1/addoff.err" ] && [ ! -e "$1/off" ] && [ ! -e "$PWD/off" ] && [ "$(wc -l <"$2" | tr -d " ")" = "$3" ]' _ "$T" "$AL" "$addoff_before"
-run addoffbad REVIEW_LOG=off bash "$HERE/review_log.sh" add --seat fresh-eyes --round abc
+  sh -c '[ "$(cat "$1/addoff.out")" = "not logged: REVIEW_LOG=off" ] && [ "$(cat "$1/addoff.rc")" = 0 ] && [ ! -s "$1/addoff.err" ] && [ ! -e "$1/off" ] && [ "$(wc -l <"$2" | tr -d " ")" = "$3" ] && [ "$4" = "$5" ]' _ "$T" "$AL" "$addoff_before" "$defoff_before" "$(deflines)"
+defbad_before="$(deflines)"
+run addoffbad REVIEW_LOG=off sh -c 'cd "$0" && exec "$@"' "$T" bash "$HERE/review_log.sh" add --seat fresh-eyes --round abc
 check "add: a bad value is refused even with the log off, naming the value" \
-  sh -c '[ "$(cat "$1/addoffbad.rc")" = 2 ] && grep -qF "not \"abc\"" "$1/addoffbad.err" && [ ! -s "$1/addoffbad.out" ]' _ "$T"
+  sh -c '[ "$(cat "$1/addoffbad.rc")" = 2 ] && grep -qF "not \"abc\"" "$1/addoffbad.err" && [ ! -s "$1/addoffbad.out" ] && [ ! -e "$1/off" ] && [ "$2" = "$3" ]' _ "$T" "$defbad_before" "$(deflines)"
 # A log that cannot be written keeps its warning and says nothing was logged.
 run addunwritable REVIEW_LOG="$T/notadir/x/costs.tsv" bash "$HERE/review_log.sh" add --seat fresh-eyes
 check "add: an unwritable log warns, exits 0 and prints no logged: line" \
