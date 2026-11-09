@@ -187,6 +187,39 @@ test('sitemap matches PAGES (drift alarm)', async ({ request, baseURL }) => {
   ).toEqual([...PAGES].sort());
 });
 
+// robots.txt names the one sitemap file that lists the pages, not the index. @astrojs/sitemap
+// always writes sitemap-index.xml, but it lists a second file only past 45,000 URLs; until
+// then the index is an extra fetch that Bing has reported as "not accessible". Written for one
+// file: if this fails because the site now has a second one, name the index again and drop it.
+// The host is not checked here (the placeholder passes); cloudflare-check compares it live.
+test('robots.txt names the one sitemap file, sitemap-0.xml', async ({ request, baseURL }) => {
+  const robots = await request.get(`${baseURL}/robots.txt`);
+  expect(robots.status(), 'robots.txt should exist (public/robots.txt)').toBe(200);
+  const lines = [...(await robots.text()).matchAll(/^\s*Sitemap:\s*(\S+)\s*$/gim)].map((m) => m[1]);
+  expect(lines, 'robots.txt needs exactly one Sitemap line: https://<domain>/sitemap-0.xml').toHaveLength(1);
+
+  const path = new URL(lines[0]).pathname;
+  const res = await request.get(new URL(path, baseURL!).href);
+  expect(res.status(), `robots.txt names ${path}, which should exist`).toBe(200);
+  const xml = await res.text();
+  expect(
+    xml,
+    `robots.txt names ${path}, which is not a page list — change the Sitemap line to https://<domain>/sitemap-0.xml`,
+  ).toContain('<urlset');
+  expect(
+    [...xml.matchAll(/<loc>[^<]+<\/loc>/g)].length,
+    `${path} lists no pages`,
+  ).toBeGreaterThan(0);
+
+  const idx = await request.get(`${baseURL}/sitemap-index.xml`);
+  expect(idx.status(), 'sitemap-index.xml should exist (@astrojs/sitemap)').toBe(200);
+  const children = [...(await idx.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
+  expect(
+    children,
+    'sitemap-index.xml lists more than one file, so the site needs the index now: name sitemap-index.xml in robots.txt again and drop this test',
+  ).toEqual([path]);
+});
+
 // Twin-page hreflang reciprocity (the LIGHT i18n path — Base.astro's `alternates`
 // prop; the heavy locale-prefix path gets the fuller tests/i18n.spec.ts from the
 // astro-i18n-setup skill instead). Opt-in: pages without `alternates` emit no

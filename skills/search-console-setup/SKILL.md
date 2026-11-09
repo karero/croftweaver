@@ -4,7 +4,7 @@ description: >
   Post-launch: register the LIVE site with Google Search Console and Bing Webmaster
   Tools, verify ownership, submit the sitemap, and turn on IndexNow so Bing/Yandex
   get pinged the moment content changes. For a Cloudflare-hosted Astro site: GSC
-  Domain property verified by a Cloudflare DNS TXT record + submit `sitemap-index.xml`;
+  Domain property verified by a Cloudflare DNS TXT record + submit `sitemap-0.xml`;
   Bing the easy way via "Import from Google Search Console" (auto-verifies + pulls the
   sitemap); IndexNow by flipping ONE toggle — Cloudflare Crawler Hints — no key file
   to host. Account creation + the DNS record are human actions the agent drafts but
@@ -55,9 +55,11 @@ Bing's index fresh automatically.
    - *Alternative:* a **URL-prefix** property verified by the HTML `<meta>` tag (drop
      it in `Base.astro`'s `<head>`) or an HTML file in `public/`. Domain+TXT is
      preferred — broader coverage, survives scheme/subdomain changes.
-4. **Submit the sitemap:** GSC → **Sitemaps** → enter `sitemap-index.xml` → Submit.
-   The kit's `@astrojs/sitemap` emits `/sitemap-index.xml` at the site root; confirm it
-   loads in a browser first. Google discovers pages from it over the next days.
+4. **Submit the sitemap:** GSC → **Sitemaps** → enter `sitemap-0.xml` → Submit.
+   The kit's `@astrojs/sitemap` emits `/sitemap-0.xml` at the site root; confirm it
+   loads in a browser first. Google discovers pages from it over the next days. Submit
+   `sitemap-0.xml`, not `sitemap-index.xml`: one file holds every page, and the index
+   is an extra fetch that Bing has reported as "not accessible".
 5. **Look at "Search generative AI"** in the property's settings, and opt out only if
    the owner wants out of Google's AI answers. A property can inherit it from a parent
    property, so check what yours shows. Opting out keeps your content out of AI
@@ -75,7 +77,7 @@ sitemap, so no second verification dance):
    account that owns the GSC property, grant access, **select the site → Import**.
 3. Within minutes the site is added, **auto-verified**, and existing sitemaps are
    imported. Confirm under **Sitemaps**; if it didn't carry over, **Submit sitemap →**
-   `https://<domain>/sitemap-index.xml`.
+   `https://<domain>/sitemap-0.xml`.
 
 *Manual alternative (no Google account):* **Add a site**, verify by the XML file
 (place in `public/`), the `<meta>` tag (in `Base.astro`), or a CNAME DNS record, then
