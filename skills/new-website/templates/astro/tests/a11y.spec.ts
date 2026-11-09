@@ -35,7 +35,7 @@ for (const path of PAGES) {
   }
 }
 
-// A real answer from axe (text over a background image, a gradient and an <img>), read
+// The `incomplete` list from a real axe run (text over a background image, a gradient and an <img>), read
 // through the same function as above: the warning names each element and axe's reason.
 test('a11y — contrast axe could not decide is reported from a real axe answer', () => {
   const capture = JSON.parse(readFileSync(join(process.cwd(), 'tests', 'fixtures', 'axe-core-4.14.0-playwright-4.14.0-incomplete.json'), 'utf8'));

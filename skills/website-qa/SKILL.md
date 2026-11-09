@@ -170,9 +170,10 @@ wired there; say so rather than assume it runs.
 
 This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
 so without this hook a red test would still deploy. The hook is what makes "fails → does not
-ship" literally true for every push, including the owner's own direct push to `main` on a
-single-owner site (`PUBLISHING.md`). Assistants never push to `main` that way: they open pull
-requests (`AGENTS.md` §2), and CI checks those.
+ship" literally true for every push from a clone where it is installed, including the owner's
+own direct push to `main` on a single-owner site (`PUBLISHING.md`). Apart from the site's first
+upload, assistants never push to `main` that way: they open pull requests (`AGENTS.md` §2), and
+CI checks those.
 
 **Offer it as a choice — never silently impose or remove it (Rule 1/Rule 12).** When setting
 up or handing off a site, surface both directions:
