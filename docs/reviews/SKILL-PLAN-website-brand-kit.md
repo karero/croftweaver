@@ -126,7 +126,7 @@ that render, which are the logo ones.
   thresholds of its own.
 - **SVG safety.** The file comes from outside and is served from the owner's own address.
   Parse it as XML, namespace-aware, and accept only drawing elements and attributes on an
-  allowlist. Refuse: a DOCTYPE or entities; any `href` that is not a same-document
+  allowlist. Refuse: a DOCTYPE (but the standard SVG 1.1 or 1.0 one, which is taken off first; changed 2026-11-09) or entities; any `href` that is not a same-document
   `#fragment`; `<script>`, event attributes, `<foreignObject>`, `<text>`; CSS `@import`
   and `url()` outside a fragment; `<?xml-stylesheet?>`; animation elements that set an
   href; anything over a size cap. Render only from the cleaned text held in memory, never
@@ -269,7 +269,7 @@ the test exists; a row without a test is a promise, not a fact.
 | 10 | a colour arrives as `#FFF`, `rgb(255, 255, 255)`, a colour name, `hsl()` or `oklch()`; or the mark paints with a gradient, a pattern or alpha | the colour helper runs (in the contrast check, and in the intake on a mark) | each colour is read as the same six-digit hex by one helper; a gradient, a pattern, alpha or a format it cannot resolve is refused by name | `test_colour.py`, `test_palette.py`, `test_paint.py` (`Resolving`, `CurrentColour`, `Refusals`) |
 | 11 | an SVG with a `viewBox` arrives | the intake runs | the seven files exist at the sizes the starter links, the manifest icons are 192, 512 and 512 maskable, and the 32 px icon is not blank | `test_icons.py`: `TheSevenFiles` (the seven files, the sizes the starter's manifest declares, the 32 px icon not blank); through the intake as a whole: `test_install.py` `OnlyALogo.test_the_seven_files_come_from_her_zip_...`, `test_e2e_site.py` |
 | 12 | a PNG, JPG or PDF arrives instead of an SVG | the intake runs | it says plainly that this version reads only an SVG and cannot use a PNG, JPG or PDF, and what to do: ask whoever made the logo for an SVG, or let steps 4 and 5 make her a new one; nothing is written | `test_input_forms.py`: `RasterAndFriendsAreRefused`, `ZipRefusals.test_a_zip_with_no_svg_names_the_way_out` |
-| 13 | an SVG contains `<script>`, an event attribute, a DOCTYPE or entity, a CSS `@import`, or a link that is not a `#fragment` (another host, a local path, `data:`, `javascript:`) | the intake runs | it is refused with the reason, nothing is copied into `public/`, and the file was only ever parsed and rendered from memory, never from a path | `test_svg_safety.py`: `Hostile`, `Bombs` |
+| 13 | an SVG contains `<script>`, an event attribute, a DOCTYPE (other than the standard one, taken off first) or entity, a CSS `@import`, or a link that is not a `#fragment` (another host, a local path, `data:`, `javascript:`) | the intake runs | it is refused with the reason, nothing is copied into `public/`, and the file was only ever parsed and rendered from memory, never from a path | `test_svg_safety.py`: `Hostile`, `Bombs` |
 | 14 | an SVG contains a `<text>` element | the intake runs | it is refused with: ask the tool to turn the letters into shapes | `test_svg_safety.py`: `Hostile.test_text_is_refused_with_the_way_out` |
 | 15 | the mark is dark on a dark theme background | the intake runs | it names the theme where the mark falls under 3 to 1 against `--bg`, and offers the one-colour version for that theme | partly: `test_paint.py` `AgainstThePalette` (the theme and the ratio are named, at 3 to 1, unrounded); the theme, the ratio and the one-colour way out, through the intake: `test_install.py` `OnlyALogo.test_scenario_15_...` |
 | 16 | the owner asks for a new palette after launch | the intake runs again | it asks before replacing the icon files it installed last time, and before replacing any icon file it did not install itself; where a logo was installed it starts from `public/favicon.svg`, the master the README decision record names, never from the scaffold's placeholder | `test_install.py`: `OnlyALogo.test_scenario_16_...` (an icon that is not a placeholder is asked about, and replaced only with `--replace-icons`), `BothParts.test_a_palette_after_launch_...` (a later palette starts from the installed `public/favicon.svg`); as built the question covers any icon file that is not a scaffold placeholder, and no record of "installed last time" is kept (see "What the build changed") |
@@ -498,7 +498,7 @@ palette.
   standard library only, 3.9 or newer**, and it does everything that decides: it reads the
   zip (`zipfile`, from bytes in memory, the caps checked on the central directory before
   anything is inflated), parses the SVG (`expat` directly, which reports a DOCTYPE before it
-  expands anything; the intake refuses every DOCTYPE, so every entity), resolves colours,
+  expands anything; the intake refuses every DOCTYPE but the standard one, which it takes off first, so no entity is declared; changed 2026-11-09, SKILL-PLAN-brand-kit-refusals.md), resolves colours,
   runs the contrast matrix, and writes and rolls back. One small **Node file renders and
   nothing else**: the intake starts it with the site as its working folder, so `sharp`
   resolves from the site's own `node_modules` (D2), gives it the cleaned SVG text on
@@ -522,7 +522,7 @@ palette.
   `py -3` launcher on Windows), its tests need both runtimes where an all-Node intake needs
   one, and Python's own documentation sends untrusted XML to its "XML security" section
   (billion laughs, quadratic blowup, decompression bombs; read 2026-10-11), so the defence
-  here is only as good as its tests: refuse every DOCTYPE before anything expands, cap the size
+  here is only as good as its tests: refuse every DOCTYPE before anything expands (the standard one is taken off first: see above), cap the size
   and the depth. What an all-Node intake would offer is the site's own toolchain (`npm test`,
   `npm run og`) and one language; what it would cost is a zip reader and an XML parser for the
   two inputs trusted least, written here or vendored. A judgment, not a measurement: the

@@ -386,12 +386,12 @@ common ones:
   image tool does not read** (`oklch()`, `hsl()` without `%` signs). They are refused
   because the icons would not be drawn as the file is meant. She asks for plain numbers
   and hex colours.
-- **A DOCTYPE at the top of the file.** Several drawing programs write one into every
-  file. She deletes it in a text editor, or tells you to: all of it, from `<!DOCTYPE` up
-  to and including the `>` that ends the declaration (it can run over several lines; an `<svg` after
-  it on the same line stays), then you run the check again. Where it holds square
-  brackets (the refusal then says so), or the file cannot be read once it is gone, the
-  drawing needs it: ask for an export without a DOCTYPE.
+- **A DOCTYPE at the top of the file.** The standard SVG 1.1 or 1.0 one that drawing
+  programs write is read as it stands. Any other is refused: she deletes it in a text editor, or
+  tells you to: all of it, from `<!DOCTYPE` up to and including the `>` that ends the declaration
+  (it can run over several lines; an `<svg` after it on the same line stays), then you run the
+  check again. Where it holds square brackets (the refusal then says so), or the file cannot be
+  read once it is gone, the drawing needs it: ask for an export without a DOCTYPE.
 - **A name that nothing defines (`&nbsp;`, `&copy;`).** Pasted code can hold a web
   page's name for a character, written between `&` and `;`. She puts the character
   itself in its place (`&amp;` and `&lt;` for `&` and `<`, which cannot stand alone) or

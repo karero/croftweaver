@@ -28,6 +28,7 @@ import _colour
 import _install
 import _palette
 import _proc
+import _refusal
 import _render
 import _site
 import _svg
@@ -5426,6 +5427,9 @@ class WhatIsAskedAndWhen(SiteCase):
     ACCEPT = ("--accept-colours", "--accept-low-contrast", "both")
     IN_CURRENT = ("the logo was given in `currentColor` and was drawn in %s. It keeps that colour: this tool draws it in the Primary the palette has now (%s) only from the package it came "
                   "in. For that, run this again with the package: --input, with --pick and --mono as before")
+    # for a mark with a part in `currentColor` that has the colour as its own as well: written out by hand, as the user reads it
+    IN_CURRENT_OWN = IN_CURRENT + (". If that run is refused over `color` set inside a group painted with `currentColor`, this logo cannot be drawn in another colour from this file: "
+                                   "ask the design tool for the mark in the new colour with every colour written out, or in `currentColor` alone")
     IN_ACCENT = IN_CURRENT.replace("the Primary the palette has now (%s)", "the light theme's Accent the palette has now (%s: it gives no Primary)")
     ITS_OWN = ("the logo keeps the colour it was installed with (%s), which the palette no longer holds: this run changes the site's colours and leaves the logo's files as they are, and "
                "this tool recolours nothing. For the logo in the new colours, ask the design tool for the mark in them, then run this again with that package: --input")
@@ -5580,16 +5584,17 @@ class WhatIsAskedAndWhen(SiteCase):
         self.assertEqual(own_line, _install.MARK[:-5] + " The logo was given in currentColor and is drawn here in #7a2e0b. A part of it has that colour as its own. -->\n")
         self.assertNotIn("--", own_line[4:-4], "two hyphens would end the comment early")
         current, own = self.IN_CURRENT % ("#7a2e0b", "#5c2208"), self.ITS_OWN % "#7a2e0b"
+        current_own = self.IN_CURRENT_OWN % ("#7a2e0b", "#5c2208")
         link = ("| Link | `#a14a14` |", "| Link | `#96440f` |")   # the light theme's Link
         self.assertEqual(self.LATER.count(link[0]), 1)
         group = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="currentColor"><rect x="2" y="2" width="14" height="28"/>'
                  b'<rect color="#7a2e0b" x="16" y="2" width="14" height="28"/></g></svg>')
         kinds = (   # (what the mark is, the mark, the line its favicon gets, the palette of the later run, what that run notes)
-            ("a part in currentColor and a part written in the Primary of the day", self.two_parts('fill="#7a2e0b"'), own_line, self.LATER, ([current], [own])),
+            ("a part in currentColor and a part written in the Primary of the day", self.two_parts('fill="#7a2e0b"'), own_line, self.LATER, ([current_own], [own])),
             ("the same, with a stroke in another colour of its own, which leaves the palette too", self.two_parts('fill="#7a2e0b" stroke="#a14a14"'), own_line, self.LATER.replace(*link),
-             ([current], [self.ITS_OWN.replace("keeps the colour it", "keeps the colours it") % "#7a2e0b, #a14a14"])),
+             ([current_own], [self.ITS_OWN.replace("keeps the colour it", "keeps the colours it") % "#7a2e0b, #a14a14"])),
             ("inside a group in currentColor, a part that sets `color` to the Primary of the day (cleaned with another colour, that mark is refused)", group, own_line, self.LATER,
-             ([current], [own])),
+             ([current_own], [own])),
             # as before round 9: the three kinds of mark that hold no colour twice
             ("a part in currentColor and a part in another colour of its own", self.two_parts('fill="#a14a14"'), plain_line, self.LATER.replace(*link), ([current], [self.ITS_OWN % "#a14a14"])),
             ("in currentColor alone", self.CURRENT, plain_line, self.LATER, ([current], [])),
@@ -5623,6 +5628,27 @@ class WhatIsAskedAndWhen(SiteCase):
                 self.assertEqual(_install._given_in_current(svg, _svg.clean_svg(svg, current=primary), primary), said)
         self.assertFalse(_install._given_in_current(self.two_parts('fill="#7a2e0b"', 'fill="#7a2e0b"'), _svg.clean_svg(self.two_parts('fill="#7a2e0b"', 'fill="#7a2e0b"'), current="#7a2e0b"), "#7a2e0b")[0])
 
+    def test_the_note_for_a_mark_with_a_colour_of_its_own_says_what_a_run_with_the_package_can_come_to(self):
+        # The extra sentence is true: the mark below, cleaned under another Primary, is refused (`color` changed inside a group
+        # painted with currentColor), and cleaned under the Primary of the day it reads. A mark without the colour as its own gets no extra sentence.
+        group = (b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><g fill="currentColor"><rect x="2" y="2" width="14" height="28"/>'
+                 b'<rect color="#7a2e0b" x="16" y="2" width="14" height="28"/></g></svg>')
+        self.assertEqual(_svg.clean_svg(group, current="#7a2e0b").colours, ["#7a2e0b"])
+        with self.assertRaises(_refusal.Refusal) as cm:
+            _svg.clean_svg(group, current="#5c2208")
+        self.assertEqual(cm.exception.code, "colour-current")
+        self.assertTrue(self.IN_CURRENT_OWN.startswith(self.IN_CURRENT) and self.IN_CURRENT_OWN != self.IN_CURRENT)
+        self.assertNotIn("KEPT", self.IN_CURRENT_OWN)
+        self.brand_md(self.DAY_ONE)
+        code, out = self.intake("--input", self.package("mark.svg", group), "--with-colours", "--replace-icons", *self.ACCEPT)
+        self.assertEqual(code, 0, out)
+        self.brand_md(self.LATER)
+        self.assertEqual(self.kept(self.intake("--dry-run", "--json")[1])[0], [self.IN_CURRENT_OWN % ("#7a2e0b", "#5c2208")])
+        # the run the note speaks of: the package again, under the later Primary
+        code, out = self.intake("--input", self.package("mark.svg", group), "--json", "--replace-icons", *self.ACCEPT)
+        self.assertNotEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["code"], "colour-current", out)
+
     def test_the_reviewers_mark_of_round_8_gets_both_notes_when_the_palette_drops_its_colour_and_each_way_out_does_what_its_note_says(self):
         # both parts are #b4531a on the day: the bakery's Primary, and its light theme's Accent too
         mark = self.package("mixed.svg", self.two_parts('fill="#b4531a"'))
@@ -5631,7 +5657,7 @@ class WhatIsAskedAndWhen(SiteCase):
         self.assertEqual(code, 0, out)
         favicon, icons = self.bytes("public/favicon.svg"), self.icons()
         self.assertTrue(favicon.startswith((_install.MARK_CURRENT_OWN % "#b4531a").encode("utf-8")) and favicon.count(b'fill="#b4531a"') == 2, favicon[:500])
-        current, own = self.IN_CURRENT % ("#b4531a", "#7a2e0b"), self.ITS_OWN % "#b4531a"
+        current, own = self.IN_CURRENT_OWN % ("#b4531a", "#7a2e0b"), self.ITS_OWN % "#b4531a"
         # another Primary, and the palette still holds the colour (as the light theme's Accent): the part of its own is in the palette, and has no note
         primary = BAKERY_BRAND_MD.replace("| Primary | `#b4531a` |", "| Primary | `#7a2e0b` |")
         self.assertEqual((primary.count("#b4531a"), primary.count("| Accent | `#b4531a` |")), (1, 1))
@@ -5682,7 +5708,7 @@ class WhatIsAskedAndWhen(SiteCase):
         self.assertEqual((code, self.kept(out), self.bytes("public/favicon.svg")), (0, ([], []), favicon), out)
         icons = self.icons()
         # the second run about colours: the Primary changes, and the line that came through both drawings still gets the mark both notes
-        notes = ([self.IN_CURRENT % ("#7a2e0b", "#5c2208")], [self.ITS_OWN % "#7a2e0b"])
+        notes = ([self.IN_CURRENT_OWN % ("#7a2e0b", "#5c2208")], [self.ITS_OWN % "#7a2e0b"])
         self.brand_md(self.LATER.replace(*moved))
         (dry_code, dry), (code, out) = self.both_runs("--json")
         self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, notes, notes), out)

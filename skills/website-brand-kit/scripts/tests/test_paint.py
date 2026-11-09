@@ -368,6 +368,48 @@ class Refusals(unittest.TestCase):
     def test_alpha_on_a_group_is_alpha(self):
         refused(self, '<g opacity="0.5"><path fill="#111111" %s/></g>' % D, "colour-alpha")
 
+    def test_a_shape_with_no_fill_at_all_is_not_alpha(self):
+        # A drawing program writes the page as a rectangle with fill-opacity 0 (matplotlib's "patch_1" of a figure with a
+        # transparent ground): the shape paints nothing, so it is a shape with no fill, and the mark's colours are the mark's.
+        page = '<path d="M0 0h64v64H0z" fill="#ffffff" fill-opacity="0"/>'
+        mark = '<path fill="#b4531a" %s/>' % D
+        clean = _svg.clean_svg(svg(page + mark))
+        self.assertEqual(clean.colours, ["#b4531a"])
+        self.assertEqual(clean.text.count("fill="), 2)
+        self.assertIn('d="M0 0h64v64H0z" fill="none"', clean.text)
+        self.assertNotIn("opacity", clean.text)
+        for what, body, expected in (
+                ("a rect", '<rect width="64" height="64" fill="#ff0000" fill-opacity="0"/>' + mark, ["#b4531a"]),
+                ("the value from a style", '<path style="fill-opacity:0" fill="#ff0000" d="M0 0h64v64H0z"/>' + mark, ["#b4531a"]),
+                ("the value from a rule", '<style>.p{fill-opacity:0}</style><path class="p" fill="#ff0000" d="M0 0h64v64H0z"/>' + mark, ["#b4531a"]),
+                ("its outline stays", '<path d="M0 0h64v64H0z" fill="#ffffff" fill-opacity="0" stroke="#0000ff" stroke-width="2"/>' + mark, ["#0000ff", "#b4531a"])):
+            with self.subTest(what=what):
+                self.assertEqual(_svg.clean_svg(svg(body)).colours, expected)
+
+    def test_a_fill_opacity_of_nothing_that_a_later_value_overrides_still_paints(self):
+        # the cascade (style over rule over attribute) runs first: the zero is only what is left standing
+        for what, body in (("a style", '<path d="M0 0h64v64H0z" fill="#ff0000" fill-opacity="0" style="fill-opacity:1"/>'),
+                           ("a rule", '<style>.p{fill-opacity:1}</style><path class="p" d="M0 0h64v64H0z" fill="#ff0000" fill-opacity="0"/>')):
+            with self.subTest(what=what):
+                clean = _svg.clean_svg(svg(body))
+                self.assertEqual(clean.colours, ["#ff0000"])
+                self.assertIn('fill="#ff0000"', clean.text)
+
+    def test_everything_else_that_lets_the_ground_show_through_is_still_alpha(self):
+        # only a SHAPE's fill-opacity of exactly 0 is "no fill": a group's is inherited by shapes that may set their own,
+        # any other value shows a colour half through, and the outline and the whole shape are other properties
+        mark = '<path fill="#b4531a" %s/>' % D
+        for what, body in (("on a group", '<g fill-opacity="0"><path fill="#ff0000" d="M0 0h64v64H0z"/></g>' + mark),
+                           ("on a group over a shape of its own", '<g fill-opacity="0"><path fill="#ff0000" fill-opacity="1" d="M0 0h64v64H0z"/></g>' + mark),
+                           ("a half", '<path fill="#ff0000" fill-opacity=".5" d="M0 0h64v64H0z"/>' + mark),
+                           ("almost nothing", '<path fill="#ff0000" fill-opacity="0.001" d="M0 0h64v64H0z"/>' + mark),
+                           ("the outline", '<path fill="none" stroke="#ff0000" stroke-opacity="0" d="M0 0h64v64H0z"/>' + mark),
+                           ("the whole shape", '<path fill="#ff0000" opacity="0" d="M0 0h64v64H0z"/>' + mark)):
+            with self.subTest(what=what):
+                refused(self, body, "colour-alpha")
+        # a mark that is only such shapes has nothing to show
+        refused(self, '<path d="M0 0h64v64H0z" fill="#ffffff" fill-opacity="0"/>', "blank-mark")
+
     def test_a_colour_it_cannot_read(self):
         for fill in ("notacolour", "rgb(1,2)", "lab(50% 40 59)", "var(--brand)"):
             with self.subTest(fill=fill):

@@ -9,7 +9,8 @@ out and listed in `notes`.
 
 What is refused and why is in the plan (docs/reviews/SKILL-PLAN-website-brand-kit.md, "SVG
 safety"). The parser is expat, used directly: it reports a DOCTYPE before it reads what the
-DOCTYPE defines, and every DOCTYPE is refused, so no entity is ever declared, let alone expanded.
+DOCTYPE defines, and every DOCTYPE is refused but one: the standard SVG 1.1 or 1.0 declaration, which is
+taken off before the parse (_strip_doctype), so no entity is ever declared, let alone expanded.
 Nothing here recurses deeper than MAX_DEPTH. Standard library only (Python 3.9+).
 
 THE VALUE GRAMMAR. What this check reads is what is drawn: every value it keeps, and every value
@@ -30,7 +31,7 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
                  5. or .5.e1 or 5e100 or 0x5 or 1_0. At most 64 characters, and no larger than
                  a thousand million either way (the renderer takes a larger one for no number).
                    stroke-miterlimit (1 or more); opacity, fill-opacity, stroke-opacity (the
-                   paint reader then asks for exactly 1)
+                   paint reader then asks for exactly 1, bar a shape's fill-opacity of 0)
   length         a number, or a number and `px`; 64 characters at most. No other unit: the
                  renderer sizes pt, pc, mm, cm, in, em and ex by the icon it is drawing, so one
                  file gave two pictures.
@@ -147,8 +148,9 @@ attribute, in a style or in a rule (there a comment inside a value counts as so 
 
 The values that only say "nothing here" are left out without a word: filter, mask, vector-effect,
 marker, marker-start, marker-mid or marker-end of `none`, mix-blend-mode of `normal`, and
-isolation or image-rendering of `auto`. A property whose name starts `-inkscape-` (one editor's
-own, which no program draws) is left out of a style, all of them with one note.
+isolation or image-rendering of `auto`. Left out of a style with a note, whatever their value: the
+properties that cannot change a drawing of these shapes (PROPS_NO_EFFECT). A property whose name starts
+`-inkscape-` (one editor's own, which no program draws) is left out of a style, all of them with one note.
 
 What is left out is not read. An attribute this check does not use (an `aria-label`, a
 `data-name`, another program's own), like an id that nothing names, is never written, so it can
@@ -331,6 +333,14 @@ PROPS_DROP = {
     "letter-spacing", "word-spacing", "line-height", "text-anchor", "text-decoration", "text-rendering",
     "cursor", "pointer-events", "enable-background",
 }
+# Properties that cannot change a drawing of the shapes this check allows, left out of a style with a note whatever their
+# value: pictures (<image> is refused), print only, the outer svg's own clip (the starter draws public/favicon.svg only
+# as the icon <link>, and sharp draws the PNGs from it: nothing puts it inline in a page), stacking beside blend modes
+# and opacity (each refused or removed), and the colour of a <stop> (refused).
+# tests/test_svg_safety.py holds the elements these rest on to the exact set ALLOWED_ELEMENTS.
+PROPS_NO_EFFECT = {
+    "image-rendering", "print-color-adjust", "-webkit-print-color-adjust", "color-adjust", "overflow", "isolation", "stop-color",
+}
 # One editor's own properties, which no program draws (-inkscape-stroke, -inkscape-font-specification): any
 # property whose name starts so is dropped from a style, all of them with the one note.
 EDITOR_PREFIX = "-inkscape-"
@@ -361,8 +371,7 @@ for _n in ("systemLanguage", "requiredExtensions", "requiredFeatures"):
     REFUSED_ATTRS[_n] = ("conditional", "A part of the drawing is shown only under a condition (%s), so one program draws it and another "
                                         "leaves it out. Ask the tool for a plain SVG without it." % _n)
 # The one value of each that says "nothing here": left out without a word, where any other value is refused
-# (another value of `isolation` or `image-rendering` is refused in a style, as any property this check does not
-# read is, and as an attribute it is left out with a note, as any attribute this check does not use is).
+# (but `isolation` and `image-rendering` with another value in a style are left out with a note: see PROPS_NO_EFFECT).
 NO_EFFECT = {
     "filter": "none", "mask": "none", "vector-effect": "none", "mix-blend-mode": "normal",
     "marker": "none", "marker-start": "none", "marker-mid": "none", "marker-end": "none",
@@ -626,10 +635,9 @@ def _class(v):
 
 
 def _classes(v):
-    """The names of a class value a style rule can name. Any other (`md:h-8`, `w-1/2`: the names of a
-    style library, on a pasted icon) is passed over: no selector this check reads could name it, a
-    program splits a class value at its blanks and nowhere else, and a class is never written."""
-    return frozenset(name for name in v.split(" ") if _css.is_name(name))
+    """The names of a class value, for the style rules (a selector can spell any visible ASCII name with
+    escapes: `.md\\:h-8`). A program splits a class value at its blanks and nowhere else, and a class is never written."""
+    return frozenset(name for name in v.split(" ") if name)
 
 
 def _root_size(v):
@@ -795,6 +803,12 @@ class Clean(object):
 # A declaration without square brackets can bring names in as well, from the outside file it names (SYSTEM "brand.dtd",
 # and then fill="&brand;"): so the first sentence does not promise that the file reads once the declaration is gone.
 # It says what to do if it does not, and NO_SUCH_NAME, the refusal such a file then meets, says the same.
+# The two standard declarations of the W3C (SVG 1.1 and 1.0, public id and address as a pair; neither DTD holds a general
+# entity) are the exception: they are taken off the front of the bytes before the parse, so what is parsed is the file
+# as if the declaration had never been written. Kept and accepted, expat would read fill="&brand;" as fill="" with
+# no error (measured 2026-11-09), which is why it is taken off and not accepted. The pattern is XML-exact in what it
+# skips (the four blanks, comments as XML writes them): a looser one could run on across the root and strip a
+# declaration that stands after it. Everything else keeps the refusals below.
 NEEDS_AN_EXPORT = "drawing needs what the declaration brought in: ask the tool for an export without a DOCTYPE."
 DOCTYPE = (
     "The file has a DOCTYPE declaration. That is how a file asks for other files to be pulled in, so it is refused. "
@@ -808,11 +822,12 @@ DOCTYPE_DEFINES = (
     "of the file may use the names it defines, and is then not readable without them. Ask the tool for an export "
     "without a DOCTYPE (a plain SVG, without the tool's own editing data)."
 )
-# A file with no DOCTYPE (none is ever read: see start_doctype) that uses a name nothing defines. Two kinds of file meet
+# A file with no DOCTYPE to read (see start_doctype and _strip_doctype) that uses a name nothing defines. Two kinds of file meet
 # this, and the sentence gives each its own way on, the commoner first. Pasted code that never had a DOCTYPE and holds a
 # web page's name for a character (&nbsp; in a title, &copy; in a label: XML itself defines five names, and a web page
 # many more): "ask for an export without a DOCTYPE" alone asked its owner for the file she had. And a file whose
-# DOCTYPE was deleted as the sentence above says, where the declaration had defined the name.
+# DOCTYPE was deleted as the sentence above says, where the declaration had defined the name. (A file whose standard
+# declaration was taken off meets NO_SUCH_NAME_STANDARD instead: nobody deleted it, so its owner has nothing to restore.)
 NO_SUCH_NAME = (
     "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;, "
     "for example &nbsp;). Where the name stands for a character, as it does on a web page, open the file in a text "
@@ -820,6 +835,81 @@ NO_SUCH_NAME = (
     "cannot stand alone), or take the name out, its & and its ; too. Where the file had "
     "a DOCTYPE declaration that was deleted, the " + NEEDS_AN_EXPORT
 )
+# Pasted code is often a part of a drawing, cut out of a page: it uses a prefix (xlink:href) that the opening tag, which was
+# left behind, declares. Said with the prefix when it can be found, and without it where it cannot.
+UNBOUND_PREFIX = (
+    "The file is not readable as an SVG: it uses the prefix %s (a name written %s:something) and nothing declares it. That happens when "
+    "only a part of a drawing was copied. Copy the whole drawing, from <svg to </svg>: the opening tag holds the declarations."
+)
+UNBOUND_PREFIX_UNNAMED = (
+    "The file is not readable as an SVG: it uses a prefix that nothing declares. That happens when only a part of a "
+    "drawing was copied. Copy the whole drawing, from <svg to </svg>: the opening tag holds the declarations."
+)
+# Added where the file had a standard DOCTYPE: the SVG 1.1 DTD declares xmlns:xlink as a default of <svg>, which is not read.
+UNBOUND_PREFIX_STANDARD = (
+    " If this is a whole drawing, it may lean on its DOCTYPE to declare the prefix, which this check does not read: ask "
+    "the tool for an export that declares it in the <svg tag."
+)
+NO_SUCH_NAME_STANDARD = (
+    "The file is not readable as an SVG: it uses a name that nothing in it defines (a name written between & and ;, "
+    "for example &nbsp;). This check reads the standard DOCTYPE at the top of the file without the definitions it "
+    "would bring in. Open the file in a text editor and put the character itself in the place of the name (but write "
+    "& as &amp; and < as &lt;, in small letters: those two cannot stand alone), or take the name out, its & and its ; too."
+)
+
+# The two standard declarations, as a pair of public id and address. XML's four blanks only (never \s, which takes a
+# form feed), case as written, no flags. Every repeated group starts each of its alternatives with another byte, so a
+# file that does not match costs one pass: the prolog it skips is an optional BOM, an optional XML declaration, and
+# blanks and comments (Illustrator writes its comment first).
+_STANDARD_DOCTYPE = re.compile(
+    rb"\A(?:\xef\xbb\xbf)?(?:<\?xml[ \t\r\n][^>]*\?>)?(?:[ \t\r\n]|<!--(?:[^-]|-[^-])*-->)*"
+    rb"(<!DOCTYPE[ \t\r\n]+svg[ \t\r\n]+PUBLIC[ \t\r\n]+(?:"
+    rb"(?:\"-//W3C//DTD SVG 1\.1//EN\"|'-//W3C//DTD SVG 1\.1//EN')[ \t\r\n]+"
+    rb"(?:\"http://www\.w3\.org/Graphics/SVG/1\.1/DTD/svg11\.dtd\"|'http://www\.w3\.org/Graphics/SVG/1\.1/DTD/svg11\.dtd')"
+    rb"|(?:\"-//W3C//DTD SVG 1\.0//EN\"|'-//W3C//DTD SVG 1\.0//EN')[ \t\r\n]+"
+    rb"(?:\"http://www\.w3\.org/TR/2001/REC-SVG-20010904/DTD/svg10\.dtd\"|'http://www\.w3\.org/TR/2001/REC-SVG-20010904/DTD/svg10\.dtd')"
+    rb")[ \t\r\n]*>)"
+)
+
+
+def _strip_doctype(data):
+    """`data` without its standard SVG DOCTYPE, and whether there was one. `data` itself is not changed."""
+    m = _STANDARD_DOCTYPE.match(data)
+    if m is None:
+        return data, False
+    return data[:m.start(1)] + data[m.end(1):], True
+
+
+# A start tag: its name, then its attributes, a value in quotes skipped whole (so `data-x="a:b=" >` holds no name).
+_START_TAG = re.compile(rb"<([^\s/>\"'=<]+)((?:\s+[^\s/>\"'=<]+(?:\s*=\s*(?:\"[^\"]*\"|'[^']*'))?)*)\s*/?>")
+_ATTR_NAME = re.compile(rb"\s+([^\s/>\"'=<]+)(?:\s*=\s*(?:\"[^\"]*\"|'[^']*'))?")
+
+
+def _unbound_prefix_message(data, at):
+    """The refusal for a prefix nothing declares: it names the first one the start tag at byte `at` uses that is not
+    in scope there (expat's own record of the declarations of the open elements), or none where the tag does not read."""
+    m = _START_TAG.match(data, at)
+    if m is None:
+        return UNBOUND_PREFIX_UNNAMED
+    names = [m.group(1)] + _ATTR_NAME.findall(m.group(2))
+    scope = {b"xml", b"xmlns"} | {n[6:] for n in names if n.startswith(b"xmlns:")}
+    seen = expat.ParserCreate(namespace_separator=" ")
+    open_prefixes = []
+    seen.StartNamespaceDeclHandler = lambda prefix, _uri: open_prefixes.append(prefix)
+    seen.EndNamespaceDeclHandler = lambda prefix: open_prefixes.remove(prefix)
+    try:
+        seen.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+        seen.UseForeignDTD(False)
+        seen.Parse(data, True)
+    except expat.ExpatError:
+        pass   # it stops at the same place: what is open there is what is in scope
+    scope |= {p.encode() for p in open_prefixes if p}
+    for n in names:
+        prefix = n.partition(b":")[0] if b":" in n else None
+        if prefix and prefix not in scope:
+            name = prefix.decode("utf-8", "replace")[:30]
+            return UNBOUND_PREFIX % (name, name)
+    return UNBOUND_PREFIX_UNNAMED
 
 
 def _split(name):
@@ -836,7 +926,7 @@ def _note(notes, text):
     notes.append(text if len(notes) < MAX_NOTES else "more was left out than is listed here")
 
 
-def _parse(data):
+def _parse(data, standard_doctype=False):
     """expat, event by event: refusals happen in document order, before anything is built that
     a later step could trip over."""
     notes = []
@@ -959,7 +1049,13 @@ def _parse(data):
         parser.Parse(data, True)
     except expat.ExpatError as e:
         why = expat.errors.messages.get(e.code, "bad XML")
-        raise Refusal("not-xml", NO_SUCH_NAME if why == expat.errors.XML_ERROR_UNDEFINED_ENTITY else "The file is not readable as an SVG (%s)." % why) from None
+        if why == expat.errors.XML_ERROR_UNDEFINED_ENTITY:
+            said = NO_SUCH_NAME_STANDARD if standard_doctype else NO_SUCH_NAME
+        elif why == expat.errors.XML_ERROR_UNBOUND_PREFIX:
+            said = _unbound_prefix_message(data, parser.ErrorByteIndex) + (UNBOUND_PREFIX_STANDARD if standard_doctype else "")
+        else:
+            said = "The file is not readable as an SVG (%s)." % why
+        raise Refusal("not-xml", said) from None
     except (ValueError, LookupError):
         # the parser asks Python for an encoding it does not know itself: utf-7, big5, one that does not exist
         raise Refusal(
@@ -1089,6 +1185,9 @@ def _accept(prop, value, notes):
         _note(notes, "left out styles that only an editor reads (their names start %s)" % EDITOR_PREFIX)
         return None
     if NO_EFFECT.get(prop) == value.strip(_BLANKS):
+        return None
+    if prop in PROPS_NO_EFFECT:
+        _note(notes, "left out a style that cannot change this drawing (%s)" % prop)
         return None
     if prop in REFUSED_ATTRS:
         code, msg = REFUSED_ATTRS[prop]
@@ -1531,7 +1630,8 @@ def clean_svg(data, source="svg", current=None):
             raise Refusal("web-page", WEB_PAGE)
         if len(data) > MAX_BYTES:
             raise Refusal("too-large", "The file is larger than %d KB, far more than a logo needs." % (MAX_BYTES // 1024))
-        root, notes, ids = _parse(data)
+        text, standard = _strip_doctype(data)   # `data` stays as it came: a Member keeps its name
+        root, notes, ids = _parse(text, standard)
         return _finish(root, notes, ids, current)
     except Refusal as r:
         if not isinstance(data, Member):
