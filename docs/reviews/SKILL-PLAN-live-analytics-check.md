@@ -13,7 +13,7 @@ plain live check only. Not in scope: proving which build served the page, and an
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | narrowed 2026-11-09 | this file |
-| 2 | PLAN gate, High | rounds 1-5 on the wider plan: Codex alone (melious out of balance), 10 BUG, 9 RISK; rounds 6-7 on this narrow plan | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
+| 2 | PLAN gate, High | rounds 1-5 on the wider plan: Codex alone (melious out of balance), 10 BUG, 9 RISK; rounds 6-7 on this narrow plan, 4 BUG, 1 RISK; total 14 BUG, 10 RISK, all fixed; round 7's one BUG fixed by wording, not yet re-reviewed | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
 | 3 | `skills/website-launch-check/scripts/check_live_analytics.py` and its tests, on real captures | — | — |
 | 4 | `website-launch-check` §8 runs it; BUGLOG release-notes row | — | — |
 | 5 | `make check` and `make test-launch-check`, mutation check, DIFF gate, then PR | — | — |
