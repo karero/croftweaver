@@ -6,7 +6,7 @@ description: >
   queries (pos ~8-20), and high-impression/low-CTR pages flagged for snippet/SERP
   investigation (title/meta rewrite only if the live-SERP check shows a snippet
   problem you control). Optional add-ons: the live competitor Top-10 via a SERP
-  API, Bing Webmaster Tools as a Copilot proxy, and a weekly check of
+  API, Bing Webmaster Tools as a rough pointer to Copilot visibility, and a weekly check of
   whether AI engines name the business (GEO). First use runs a guided onboarding
   for non-technical owners. Trigger phrases: "GSC insights", "Search Console
   data", "connect GSC", "where do I rank", "top queries", "striking distance

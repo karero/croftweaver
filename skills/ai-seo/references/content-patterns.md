@@ -1,6 +1,6 @@
 # AEO and GEO Content Patterns
 
-Reusable content block patterns optimized for answer engines and AI citation.
+Reusable content block patterns that make a passage easy to lift out and quote.
 
 ---
 
