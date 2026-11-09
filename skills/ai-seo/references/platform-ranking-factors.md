@@ -11,7 +11,7 @@ Sources cited throughout: [Princeton GEO study](https://arxiv.org/abs/2311.09735
 Three things to do for every platform:
 
 1. **Get your content indexed** — for Google, being indexed and eligible to be shown in Google Search with a snippet is the technical requirement for AI Overviews and AI Mode ([Google](https://developers.google.com/search/docs/appearance/ai-features)). For the other platforms, see their sections below.
-2. **Let the search bots in** — allow each company's search bot in robots.txt (see "Allowing AI Bots in robots.txt" below for which bot does what; Microsoft's is unchecked).
+2. **Let the search bots in** — allow each company's search bot in robots.txt (see "Allowing AI Bots in robots.txt" below for which bot does what; for Microsoft, see the Copilot section).
 3. **Your content should read well in pieces** — use clear structure and self-contained paragraphs, so a passage makes sense without the page around it.
 
 Where a company's page or a study backs a statement, the source is beside it; the rest is advice.
@@ -30,8 +30,7 @@ Google says a page must be indexed and eligible to be shown in Google Search wit
 - Schema markup — Article, FAQPage, HowTo, and Product schemas describe your page to machines. We found no study that measures how much it lifts AI visibility, and Google says no special schema.org structured data is needed for AI Overviews or AI Mode, so treat it as good hygiene, not a guaranteed boost. Google no longer shows HowTo rich results (since September 2023, [Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)) or FAQ rich results (since 7 May 2026, [Google](https://developers.google.com/search/updates#faq-deprecation)) for any site
 - Build topical authority through content clusters with strong internal linking
 - Include named, sourced citations in your content (not just claims)
-- Add author bios with real credentials
-- Get into Google's Knowledge Graph where possible
+- Add author bylines that lead to a bio (Google's people-first content guidance asks whether pages carry a byline where one might be expected, [Google](https://developers.google.com/search/docs/fundamentals/creating-helpful-content), read 2026-11-09)
 - Target "how to" and "what is" query patterns, with a direct answer first
 
 ---
@@ -46,7 +45,7 @@ An SE Ranking analysis of 129,000 domains found backlinks were the strongest sig
 
 **Content-answer fit weighed most in one model.** A Sellm analysis of 400,000 pages found that how well your content's style and structure matches ChatGPT's own response format carried about 55% of the weight in its model predicting which pages get cited, against 12% for domain authority and 14% for on-page structure. The study shows a correlation, not a tested cause, so treat writing the way ChatGPT answers as a cheap thing to try.
 
-**Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations across ChatGPT, Google AI Overviews and Perplexity (August 2024 to June 2025), Wikipedia was 7.8% of the ChatGPT citations Profound counted, Reddit 1.8% and Forbes 1.1%.
+**Where ChatGPT looks beyond your site:** In Profound's study of 680 million citations across ChatGPT, Google AI Overviews and Perplexity (August 2024 to June 2025), Wikipedia was 7.8% of the ChatGPT citations Profound counted, Reddit 1.8% and Forbes 1.1%. Profound's later study of ChatGPT.com ([Profound](https://www.tryprofound.com/blog/chatgpt-citation-sources); US-based, English-language users, October to December 2025; about 730,000 conversations with a web citation) puts Wikipedia at 5% and Reddit at 3% of all citations, in whole numbers. The samples differ, so don't line the two sets up.
 
 **What to focus on:**
 - Allow OAI-SearchBot in robots.txt (OpenAI says a site opted out of it is not shown in ChatGPT's search answers; GPTBot is the training bot)
@@ -63,15 +62,13 @@ An SE Ranking analysis of 129,000 domains found backlinks were the strongest sig
 Perplexity says PerplexityBot is designed to surface and link websites in its search results and is not used to crawl content for AI foundation models ([Perplexity](https://docs.perplexity.ai/guides/bots)).
 
 **Habits worth adopting:**
-- **FAQ Schema (JSON-LD)** — Often recommended for Perplexity, though we found no study showing it raises citations (SE Ranking found ChatGPT cited pages with FAQ schema slightly less often). It still describes your Q&A to machines
-- **PDF documents** — Publish authoritative PDFs (whitepapers, research reports) publicly. If yours sit behind a form, consider making a version public.
+- **FAQ Schema (JSON-LD)** — Perplexity's bots page says nothing about schema, and we found no study showing it raises Perplexity citations (SE Ranking found ChatGPT cited pages with FAQ schema slightly less often). It still describes your Q&A to machines
 - **Publishing rhythm** — Publish on a steady schedule you can keep
 - **Self-contained paragraphs** — Write atomic, semantically complete paragraphs a reader can quote cleanly
 
 **What to focus on:**
 - Allow PerplexityBot in robots.txt
 - Implement FAQPage schema on any page with Q&A content (it describes the Q&A to machines; Google has shown no FAQ rich results since 7 May 2026 — [Google](https://developers.google.com/search/updates#faq-deprecation))
-- Host PDF resources publicly (whitepapers, guides, reports)
 - Add Article schema with publication and modification timestamps
 - Write in clear, self-contained paragraphs that work as standalone answers
 - Build deep topical authority in your specific niche
@@ -80,13 +77,12 @@ Perplexity says PerplexityBot is designed to surface and link websites in its se
 
 ## Microsoft Copilot
 
-Bing's post introducing its AI Performance report (10 February 2026, [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)) says the report counts citations in Copilot, Bing's AI summaries and some partner services, that Bing respects robots.txt, and that IndexNow keeps search and AI answers current. It does not say which crawler Copilot uses, so the `Bingbot` line in the robots.txt section is our guess.
+Microsoft says Copilot is powered by Bing's search index ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025). Bing's post introducing its AI Performance report (10 February 2026, [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)) says the report counts citations in Copilot, Bing's AI summaries and some partner services, that Bing respects robots.txt, and that IndexNow keeps search and AI answers current. Bing's crawler page names Bingbot as its standard crawler ([Bing](https://www.bing.com/webmasters/help/which-crawlers-does-bing-use-8c184ec0)). No Microsoft page we read says which crawler fetches a page for a Copilot answer, so the `Bingbot` line in the robots.txt section is our advice. All read 2026-11-09 except the Bing post (read 2026-10-11).
 
 **What to focus on:**
 - Submit your site to Bing Webmaster Tools
 - Use the IndexNow protocol to tell search engines about new and updated content
 - Write clear entity definitions — when your content defines a term or concept, make the definition explicit and extractable
-- Build presence on LinkedIn (publish articles, maintain company page) and GitHub if relevant
 - Ensure Bingbot has full crawl access
 
 ---
@@ -97,7 +93,7 @@ Anthropic says Claude-SearchBot indexes pages for Claude's search results, and t
 
 **What to focus on:**
 - Allow Claude-SearchBot and Claude-User in robots.txt (ClaudeBot is the training bot; see "Allowing AI Bots in robots.txt" below)
-- Maximize factual density — specific numbers, named sources, dated statistics
+- Use specific numbers, named sources and dated statistics (advice: the Princeton study supports statistics and sources on its simulated engine and on Perplexity, and nothing we read tests it on Claude)
 - Use clear, extractable structure with descriptive headings
 - Cite authoritative sources within your content
 - Aim to be the most accurate source on your topic
@@ -106,7 +102,7 @@ Anthropic says Claude-SearchBot indexes pages for Claude's search results, and t
 
 ## Allowing AI Bots in robots.txt
 
-The companies' own pages (read on 2026-10-11; the Bingbot line is our guess, as Bing's post does not say which crawler Copilot uses; links in the Step 4 list of `SKILL.md`) split their bots by job, so allow the search and user bots by name:
+The companies' own pages (read on 2026-10-11, and the Bingbot line on 2026-11-09; the Bingbot line is our advice, as no Microsoft page says which crawler feeds Copilot; links in the Step 4 list of `SKILL.md`) split their bots by job, so allow the search and user bots by name:
 
 ```
 User-agent: OAI-SearchBot     # OpenAI: shows your pages in ChatGPT search
@@ -115,7 +111,7 @@ User-agent: Claude-SearchBot  # Anthropic: indexes pages for Claude's search
 User-agent: Claude-User       # Anthropic: fetches a page when a Claude user asks
 User-agent: PerplexityBot     # Perplexity: shows your pages in its search results
 User-agent: Perplexity-User   # Perplexity: fetches a page when a user asks (generally ignores robots.txt)
-User-agent: Bingbot           # Bing search; likely Copilot too (Microsoft doesn't say)
+User-agent: Bingbot           # Bing's standard crawler; Copilot runs on Bing's index (our advice, not stated)
 Allow: /
 ```
 
@@ -150,9 +146,9 @@ Order the platforms by where your own audience searches: ask your customers, or 
 
 **Then ChatGPT** — Allow OAI-SearchBot, then work on freshness, backlinks and matching your content structure to how ChatGPT formats its responses (the studies above).
 
-**Then Perplexity** — Allow PerplexityBot. Add FAQ schema if you have Q&A to describe, publish PDFs where you have authoritative ones, and write in clear, self-contained paragraphs.
+**Then Perplexity** — Allow PerplexityBot. Add FAQ schema if you have Q&A to describe, and write in clear, self-contained paragraphs.
 
-**Then Copilot and Claude** — The same fundamentals (structured content, cited sources, schema markup), plus each one's search bot (Claude-SearchBot; Bingbot for Copilot, our guess).
+**Then Copilot and Claude** — The same fundamentals (structured content, cited sources, schema markup), plus each one's search bot (Claude-SearchBot; Bingbot for Copilot, our advice).
 
 **Actions to start with:**
 1. Allow the search and user bots in robots.txt (the training bots are your call)

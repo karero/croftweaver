@@ -207,7 +207,7 @@ def main():
         if g and b:
             if b["pos"] <= 10 < g["pos"]:
                 notes.append(f"- **{kw}**: strong on **Bing** (#{b['pos']:.0f}) but weak on "
-                             f"Google (#{g['pos']:.0f}) — good Copilot/ChatGPT visibility already.")
+                             f"Google (#{g['pos']:.0f}) — a good sign for Copilot, which runs on Bing's index.")
             elif g["pos"] <= 10 < b["pos"]:
                 notes.append(f"- **{kw}**: strong on **Google** (#{g['pos']:.0f}) but weak on Bing.")
     if notes:
@@ -221,7 +221,7 @@ def main():
                     "Ask me to *onboard Search Console* (~10 min, I do most of it).")
     if bing is None:
         sugg.append("- 💡 **Bing not connected** — a ~2-minute API key (Bing Webmaster Tools → "
-                    "Settings → API Access). It's a Copilot/ChatGPT-visibility proxy and you "
+                    "Settings → API Access). It's a rough pointer to Copilot visibility and you "
                     "often rank *better* on Bing than Google. Add `BING_API_KEY` to "
                     "`~/.config/gsc-insights/.env`.")
     if not serper:

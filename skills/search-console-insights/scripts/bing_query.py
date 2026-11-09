@@ -2,8 +2,8 @@
 """
 bing_query.py — Bing Webmaster Tools companion to gsc_query.py.
 
-Bing's index feeds Microsoft Copilot and ChatGPT search, so this is a useful
-proxy for AI-assistant visibility — and it's FAR simpler to connect than Google:
+Microsoft says Copilot is powered by Bing's search index, so Bing rankings are a
+rough pointer to Copilot visibility (OpenAI names no index for ChatGPT search) — and it's FAR simpler to connect than Google:
 one API key, no OAuth, no browser. Volume is much smaller than Google for niche
 local queries, so treat Bing as a secondary signal, not the headline.
 
@@ -182,7 +182,7 @@ def build_report(site, rows, kw_matches, page_rows=None):
     page_rows = page_rows or []
     L = [f"# Bing Webmaster insights — {site}", "",
          "_Bing aggregates the last ~6 months (no date range). Volume is much smaller "
-         "than Google, but Bing's index feeds Copilot/ChatGPT._", ""]
+         "than Google, but Microsoft says Copilot is powered by Bing's index._", ""]
     if not rows and not page_rows:
         L.append("> ⚠️ **No Bing query rows.** Either the site is newly added, has little "
                  "Bing traffic yet, or the API key / siteUrl is wrong. Confirm the property "

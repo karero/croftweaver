@@ -6,7 +6,7 @@ description: >
   queries (pos ~8-20), and high-impression/low-CTR pages flagged for snippet/SERP
   investigation (title/meta rewrite only if the live-SERP check shows a snippet
   problem you control). Optional add-ons: the live competitor Top-10 via a SERP
-  API, Bing Webmaster Tools as a Copilot/ChatGPT proxy, and a weekly check of
+  API, Bing Webmaster Tools as a Copilot proxy, and a weekly check of
   whether AI engines name the business (GEO). First use runs a guided onboarding
   for non-technical owners. Trigger phrases: "GSC insights", "Search Console
   data", "connect GSC", "where do I rank", "top queries", "striking distance
@@ -32,7 +32,7 @@ GSC has collected and turns it into the 2–3 highest-leverage moves.
 | **Combined (the default)** | `insights.py` | — | **Google + Bing side by side** per keyword + a nudge to connect any missing free source |
 | **Google Search Console** | `gsc_query.py` | OAuth (one-time browser consent) | Real queries + exact avg position, impressions, clicks, CTR over a chosen window; striking-distance queries; high-impression/low-CTR pages; `--page <url>` / `--query "<q>"` drill-downs for query↔page attribution. German-market/bilingual sites: pass `--country deu` (ISO alpha-3; also on `insights.py`) — default numbers are blended across every country, which can mask or fake German positions. Keyword matching folds umlauts/ß ("München" matches rows typed "muenchen") |
 | **Live Google SERP** | `serp_check.py` | Serper key (free, optional) | The actual Top-10 for any keyword + where you sit — incl. keywords you don't rank for yet |
-| **Bing Webmaster Tools** | `bing_query.py` | API key (free, optional) | Bing query **and page** stats — a Copilot/ChatGPT-visibility proxy; ~6-month aggregate |
+| **Bing Webmaster Tools** | `bing_query.py` | API key (free, optional) | Bing query **and page** stats — a rough pointer to Copilot visibility; ~6-month aggregate |
 | **Trend over time** | `track.sh` + `_history.py` | — | Appends each run to a CSV and prints week-over-week position movement (▲/▼) |
 | **Weekly auto-tracking** | `schedule_tracking.sh` | — | Opt-in launchd job (per site) that runs the tracker weekly so history builds unattended |
 | **Google & Bing report page** | `search_report.py` | same GSC sign-in; never opens a browser | One page for the owner: visits and times shown per week (up to 16 months), each key search's position (3 months), searches just below page 1, pages shown often but rarely clicked, Bing from the history. Rebuilt by the weekly job; its counting rules are in the script's header |
@@ -99,7 +99,7 @@ itself), then run the **combined** view:
 ```
 It auto-detects which sources are connected, shows **Google + Bing side by side** per
 keyword, and prints a nudge to connect any missing free source:
-- only Google connected → show it + offer the ~2-min Bing key (Copilot/ChatGPT proxy);
+- only Google connected → show it + offer the ~2-min Bing key (a rough pointer to Copilot visibility);
 - a source connected but the call failed → shown as "⚠️ fetch failed" (do **not** tell them
   to re-set-up — it's a transient error);
 - no Serper key → suggest one (free 2,500/mo) for the competitor Top-10.
@@ -332,10 +332,9 @@ To add a provider: drop a `--provider <name>` branch into `serp_check.py` (its o
 the same `{position, title, link, snippet}` shape) and read its key from the `.env`. If your
 provider ever kills its free tier, switch the flag — the rest of the skill is unchanged.
 
-## Bing Webmaster Tools — optional second source (Copilot/ChatGPT proxy)
+## Bing Webmaster Tools — optional second source (rough Copilot pointer)
 
-Bing's index feeds **Microsoft Copilot and ChatGPT search**, so Bing rankings are a
-useful proxy for *AI-assistant* visibility — and connecting it is **far simpler than
+Microsoft says Copilot is powered by Bing's search index ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025, read 2026-11-09), so Bing rankings are a rough pointer to Copilot visibility. Don't say the same of ChatGPT: OpenAI says ChatGPT search "sometimes partners with other search providers" and names no index ([OpenAI](https://help.openai.com/en/articles/9237897-chatgpt-search), read 2026-11-09). Connecting Bing is **far simpler than
 Google: one API key, no OAuth, no browser**. Volume is much smaller than Google for
 niche local queries, so treat it as a secondary signal.
 
