@@ -12,7 +12,7 @@ description: >
   data", "connect GSC", "where do I rank", "top queries", "striking distance
   keywords", "quick SEO wins", "why is my CTR low", "which pages to optimize",
   "competitor Top 10", "how do I rank on Bing", "Copilot
-  visibility", "ChatGPT search visibility", "track my rankings over time", "weekly
+  visibility", "track my rankings over time", "weekly
   SEO report", "does AI name my business", "weekly AI check", "show me my AI
   report".
 metadata:
@@ -86,7 +86,7 @@ Claude session, they just ask:
   - *"which pages get seen but not clicked?"*
   - *"who's in the Top 10 for `<keyword>`?"* (uses the free Serper add-on)
   - *"how do I rank on Bing?"* / *"my Copilot visibility"* (uses the Bing add-on)
-  - *"does ChatGPT name my business?"* / *"ChatGPT search visibility"* (runs the weekly AI check, `geo_check.py`)
+  - *"does ChatGPT name my business?"* (runs the weekly AI check, `geo_check.py`)
   - *"is my ranking improving?"* / *"track my rankings over time"* (runs the weekly tracker)
   - *"track my rankings automatically / every week"* (offers to schedule it, per site)
 
@@ -335,7 +335,7 @@ provider ever kills its free tier, switch the flag — the rest of the skill is 
 
 ## Bing Webmaster Tools — optional second source (rough Copilot pointer)
 
-Microsoft says Copilot is powered by Bing's search index ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025, read 2026-11-09), so Bing rankings are a rough pointer to Copilot visibility. Don't say the same of ChatGPT: OpenAI says ChatGPT search "sometimes partners with other search providers" and names no index ([OpenAI](https://help.openai.com/en/articles/9237897-chatgpt-search), read 2026-11-09). Connecting Bing is **far simpler than
+Microsoft says Copilot is powered by Bing's search index ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025, read 2026-11-09), so Bing rankings are a rough pointer to Copilot visibility. We found no study that ties Bing rankings to Copilot citations; the AI Performance report (`references/ai-reports.md`) counts the citations themselves. Don't say the same of ChatGPT: OpenAI says ChatGPT search "sometimes partners with other search providers" and names no index ([OpenAI](https://help.openai.com/en/articles/9237897-chatgpt-search), read 2026-11-09). Connecting Bing is **far simpler than
 Google: one API key, no OAuth, no browser**. Volume is much smaller than Google for
 niche local queries, so treat it as a secondary signal.
 

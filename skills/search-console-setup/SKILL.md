@@ -117,7 +117,8 @@ block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has
   and the file Sync writes also shuts out Baiduspider and PetalBot, the crawlers of Baidu's
   and Huawei's Petal search. That is the training choice `ai-seo` describes (Step 4).
   Bing does not read the no-training preference yet; Microsoft's AI Preferences FAQ says it
-  starts honoring its new AI Training preference on 1 February 2027 (`ai-seo`, Step 4, has the dates).
+  starts honoring its new AI Training preference on 1 February 2027 (`ai-seo`, Step 4, has
+  the dates).
 - **Enable Bot Preference Sync → off**, unless you chose Disallow for Training. With it on,
   Cloudflare puts its own lines in front of the repo's own `public/robots.txt`; with
   Disallow, those lines are what publish the no-training preference. Choosing Disallow does
