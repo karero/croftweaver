@@ -16,7 +16,7 @@ maintainer, 2026-11-09: "Yes, sweep first").
 | 4 | The maintainer's go to build (it widens what a sanitizer of untrusted files accepts) | ✅ 2026-11-09, "Build + matplotlib" | his answer in the building session |
 | 5 | Build, tests, `make check` | ✅ full suite 1,106 tests (with sharp 0.35.5): all pass but timing tests that failed under a load average of 95–190 and pass alone; `make check` passes; Chromium 152 draws 59 original/cleaned pairs the same | this PR |
 | 6 | DIFF gate (Normal: shipped code and skill text) | ✅ round 1: 3 BUG (one a 14 s backtracking hex escape), 1 RISK, 2 NIT, all answered; round 2: 0 BUG, 1 RISK (answered by a sharp comparison), 2 NIT; fresh-eyes (Sonnet): 0 BUG, 3 RISK, 6 NIT, the cheap ones fixed. The last commit changes one error sentence and tests only; no external round of its own, see the trail | `docs/reviews/REVIEW-diff-2026-11-09-brand-kit-refusals.md` |
-| 7 | PR, merge go, merge | ⏸ | — |
+| 7 | PR, merge go, merge | 🔄 PR opened 2026-11-09; the merge waits for CI and the maintainer's go | https://github.com/karero/croftweaver/pull/513 |
 
 Legend: ✅ done · ▶ in progress · ⏸ not started or blocked
 
