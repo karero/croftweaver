@@ -6,7 +6,7 @@ five places in the Cloudflare dashboard, and the report records what they showed
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09; the Account API tokens list read in round 2 | this file, "Seen in the dashboard" |
-| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | 🔄 2 rounds, 23 findings (6 BUG), none open | "Review trail" below |
+| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | 🔄 3 rounds, 28 findings (7 BUG), none open | "Review trail" below |
 | 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | ⬜ | — |
 | 4 | DIFF gate (Normal) | ⬜ | — |
 
@@ -105,9 +105,12 @@ after launch day sees what is still open.
 
 ## What a finding is
 
-- **A setting that differs from the checklist** (Bot Fight Mode, AI Labyrinth, content bots, the AI
-  policies with Personal Agents, Bot Preference Sync, a Block Crawler switch): ask the owner whether it was
-  their choice (intent decides, §4). Yes: recorded as "owner's choice, <date>", with the
+- **A setting that differs from the checklist** (Bot Fight Mode, AI Labyrinth, the AI policies
+  with Personal Agents, Bot Preference Sync, a Block Crawler switch): ask the owner whether it was
+  their choice (intent decides, launch check `SKILL.md` §4). Content bots are not read: the Bot
+  traffic group on webcroft.dev listed five settings and none for content bots, and the checklist
+  sends an owner who finds no switch to the API, which this check does not use. If the group
+  does show a content-bots switch, it is read like the others. Yes: recorded as "owner's choice, <date>", with the
   checklist's trade-off in one line, quoted from the checklist and credited to it (for Training on
   Block, section 4 quotes Cloudflare that it also reaches Googlebot, Bingbot and Applebot; for a
   Block Crawler switch on Googlebot or BingBot, that it is named to block that search engine's
@@ -143,6 +146,9 @@ after launch day sees what is still open.
   each place as seen, dated Friday.
 - **S2a.** Given the same, but Bot Preference Sync on with Training on Allow, and the owner did
   not choose it, then the row is 🔴 with the checklist's section 4 line for the switch.
+- **S2b.** Given the same as S2, but on Friday the owner says launch day still needs the token,
+  then the zone row reads ✅ for the settings and rules, and "Not checked yet" lists "the setup
+  tokens: deferred: launch day still needs it; read again when it is done", with no finding.
 - **S3.** Given a bakery's relaunch whose domain has been on Cloudflare for years, with a custom
   rule that blocks two countries and Training on Block, when the pre-launch run reads the zone,
   then the owner is asked about both; they say the rule is theirs and Training was not, and the
@@ -161,7 +167,8 @@ after launch day sees what is still open.
 - **S6a.** Given a Block Crawler switch on for a crawler that has not called this week, when the
   owner reads AI Crawl Control → Security with **Show inactive crawlers** ticked, then that row
   shows and the finding is raised as in S5.
-- **S7.** Given an owner whose agency holds the Cloudflare account, then the row reads "not
+- **S7.** Given an owner whose agency holds the Cloudflare account, at the live re-check (a
+  relaunch's pre-launch run ends the same way), then the row reads "not
   checked: the owner has no access to the Cloudflare account" and is 🟡, never ✅.
 
 ## How it is tested
@@ -170,7 +177,7 @@ The change is skill text and checklist prose; there is no code to test.
 
 1. **Paths on a real zone:** done before this gate ("Seen in the dashboard").
 2. **`make check`** before round 1 of the DIFF gate and after the last edit.
-3. **A dry run after the build:** walk all nine scenarios (S1 to S7, S2a and S6a) through the new
+3. **A dry run after the build:** walk all ten scenarios (S1 to S7, S2a, S2b and S6a) through the new
    text by hand and confirm each ends in the row the scenario names; write the result in the PR.
 
 ## Out of scope
@@ -199,3 +206,8 @@ The change is skill text and checklist prose; there is no code to test.
   switch's state; the Allow/Skip and response-rules lines claim nothing about Cloudflare's
   behaviour; the pre-launch deferral and "not checked" worded apart; the waiting token line
   named; content bots in the list; the dry run names all nine scenarios.
+  (The two behaviour RISKs share one row in the round's dispositions file.)
+- **Round 3** (Codex and GLM 5.3, 50,479 tokens; 201,421 over three rounds): 1 BUG, 1 RISK,
+  3 NIT. Fixed: content bots, added in round 2, are not read (no dashboard switch on
+  webcroft.dev), so S2's ✅ needs nothing it cannot see; §4 named with its file; S2b covers the
+  waiting token line; S7 names its run.
