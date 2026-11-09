@@ -16,8 +16,10 @@ evidence files sit in the release manager's shared notes folder. Gate 20261109T1
 | 2 | `4f00e6a1` | verify: delta since `e7e82d8d` | Codex 133 s, 45,217 · melious 158 s, 13,809 | 1 / 0 / 2 |
 | 3 | `51ed6806` | verify: delta since `4f00e6a1` | Codex 107 s, 40,080 · melious 145 s, 14,301 | 1 / 0 / 1 |
 | 4 | `4a36eb03` | verify: delta since `51ed6806`; `--earned-by hook-guarantee --cut "…two copies outside this change go to a BUGLOG row…"` | Codex 93 s, 34,659 · melious 120 s, 10,310 | 0 / 0 / 2 |
+| merge link (not a round) | `8b3e3da3` | `merge_link.sh 9bef0042 4a36eb03 49832edb` (#496, #499), `--seat codex --base 4a36eb03`; two Related Skills conflicts resolved | Codex 176 s, 88,003 | 0 / 1 / 0, outside this change |
 
-Four rounds, 13 findings; 9 seat runs, 272,167 tokens (the script's running total).
+Four rounds, 13 findings; with the merge link, 10 seat runs, 360,170 tokens (the script's running
+total).
 
 ## Findings
 
@@ -39,3 +41,7 @@ Four rounds, 13 findings; 9 seat runs, 272,167 tokens (the script's running tota
 
 C1's older copies predate this change and are not in it; they went to a BUGLOG row rather than a
 fifth round. `templates/SETUP.md` line 189, an older copy outside the diff, is in the same row.
+
+The merge link's one RISK is about the Microsoft training opt-out dates that #496 added to
+`skills/ai-seo/SKILL.md` line 136: main's text, not this change's, so it is outside this gate and
+was passed to the release manager.
