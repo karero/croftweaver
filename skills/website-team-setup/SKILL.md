@@ -42,6 +42,11 @@ need the sync hook that `AGENTS.md` §1 relies on: if `.claude/hooks/git-stand.m
 missing, copy it from `new-website/templates/claude/hooks/` and merge the `hooks` block of
 `new-website/templates/claude/settings.json` into the site's `.claude/settings.json`.
 
+An owner who works alone but runs several assistant sessions at once, or lets the assistant
+merge, may run §4 and §5 on their own, without the rest of this skill: set `OWNER` and `REPO`
+as §2 does first, and run §3's first command (it turns on the **Update branch** button) if
+the ruleset keeps the "up to date" requirement, which it does by default.
+
 Work on a branch and finish with a pull request — the rule the setup installs applies
 to the setup itself. Say in the pull request that it touches `scripts/` (the hook) and
 `AGENTS.md`.
@@ -127,7 +132,7 @@ the current value first, change only what differs, and say what you changed.
 | **Workflow token** | leave **read-only** (default) | The kit's CI writes nothing to the repo. | Settings → Actions → General |
 | **Dependabot** | **security updates on**; version updates: the starter ships a monthly grouped `.github/dependabot.yml`; keep it if someone merges the pull request, delete it if not (ask the owner who that is); a new major of any package but the two held back comes as its own pull request and may stay open | Security updates arrive as ordinary pull requests that CI checks; the monthly pull request is only worth having if someone reads it, and without the file security updates stay on. | Settings → Code security; `.github/dependabot.yml` |
 | **Secret scanning + push protection** | **on** where the plan offers it (free on public repos; paid on private) | Catches a token pasted into a commit before it lands; the kit's `.gitignore` is the backstop either way. | Settings → Code security |
-| **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. Rulesets need a public repo or a paid plan: on a free private repo this one is refused like §5-A's, and `production` has no server-side protection at all. Where rulesets are available, GitHub documents a **Restrict updates** rule (only bypass actors may push) and lists the repository admin role as a bypass actor, which would make "who may ship" (§1 Q4) enforced; this is not yet tested on a real site, so until it is, "who may ship" stays a written rule in `AGENTS.md`. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
+| **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. No ship has been seen through these two rules on a real site yet, so after the first one, check that it went through. By GitHub's documentation a fast-forward push is not a force push, "Block force pushes" stops force pushes only, and creating a branch is a separate rule ("Restrict creations") that this set does not use, so a normal ship should pass. Rulesets need a public repo or a paid plan: on a free private repo this one is refused like §5-A's, and `production` has no server-side protection at all. Where rulesets are available, GitHub documents a **Restrict updates** rule (only bypass actors may push) and lists the repository admin role as a bypass actor, which would make "who may ship" (§1 Q4) enforced; this is not yet tested on a real site, so until it is, "who may ship" stays a written rule in `AGENTS.md`. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
 | **Cloudflare GitHub App** | access to **this repo only** | The app gets read access to every repo it is granted; least privilege. | GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure (see §6.2) |
 | **2FA** | recommended, not required: each collaborator turns on two-factor sign-in and adds a passkey | The website is the owner's, and anyone who gets into a collaborator's account can change it, so recommend it to each collaborator in those words. Never make it a condition: a personal-account repo cannot require it (only organizations can), and GitHub itself requires it only for some accounts (it tells those by email and on the site). Do not count on GitHub prompting a collaborator who only edits content; `TEAM-GUIDE.md` gives them the link. There is nothing to check from your side: `gh api users/<login>` shows nothing about 2FA, and GitHub documents no 2FA marker on Settings → Collaborators for a personal-account repo, so if the owner wants to know, ask. | the collaborator, at https://github.com/settings/security |
 | **Watching** | each collaborator watches the repo (at least "Participating and @mentions", the default) | Otherwise nobody sees a review comment or a failed check on their pull request. | the "Watch" button on the repo |
@@ -240,11 +245,37 @@ for id in $(gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | select(.name=="prot
      --jq '{enforcement, bypass_actors, conditions, rules: [.rules[] | {type, parameters}]}'
 done
 ```
+GitHub's answer also carries keys the recipe never sent. Those defaults are not
+differences: in the `pull_request` rule `allowed_merge_methods` (all three),
+`required_reviewers` (empty) and `require_extra_approval_for_unattributed_changes` (true),
+in the `required_status_checks` rule `do_not_enforce_on_create` (false). GitHub's
+[REST reference](https://docs.github.com/en/rest/repos/rules) lists all four. The
+extra-approval key makes a pull request that Copilot opened for no person need one more
+approval than the count; GitHub's rules page says it has no effect while the count is 0,
+as here, and it starts to apply once the owner raises it. A value other than those defaults is a difference: ask the
+owner if it is on purpose. Put all four keys in the PUT body, so the PUT does not decide
+them: with the values the read-back showed, or the default for a key the owner says was
+not on purpose. What a PUT that leaves them out does to them has not been checked.
 Anything that differs — `enforcement` not `active`, a non-empty `bypass_actors`, a
-missing rule, `strict_required_status_checks_policy` false, a `context` that is not the
-CI job's name — is fixed with `gh api -X PUT "repos/$OWNER/$REPO/rulesets/$id" --input -`
-and the same JSON body (it carries `"bypass_actors": []` explicitly, so a bypass list
+missing rule, a `strict_required_status_checks_policy` that is not the owner's choice
+(`true` unless the next paragraph applies), a `context` that is not the CI job's name — is fixed with
+`gh api -X PUT "repos/$OWNER/$REPO/rulesets/$id" --input -`
+and the same JSON body plus the four keys (it carries `"bypass_actors": []` explicitly, so a bypass list
 is cleared rather than left as GitHub found it). Read it back once more after the PUT.
+
+**"Up to date" may be switched off, as the owner's choice.** With it on, every merge
+leaves each other open pull request behind `main`: it needs **Update branch** and a new
+CI run before it can merge. An owner who works alone but runs several assistant
+sessions, each with its own pull request, pays that after every merge. With it off
+(`"strict_required_status_checks_policy": false`) a pull request merges once its own CI
+passed, and GitHub warns that checks may fail after the merge if two changes do not fit
+([Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), "Loose");
+the kit's `ci.yml` also runs on pushes to `main`, which usually shows such a failure (a
+newer push can cancel a run, and a change to docs only skips the tests). Ask
+the owner, don't decide. If they choose off, send `false` in the body, write the choice
+in `AGENTS.md` §2 beside the merge rule, and let the read-back accept `false` where that
+line is. We have not measured how much the requirement costs with several pull requests
+open.
 Two rulesets of that name: bring one in line, then delete the other with the owner's
 go-ahead (`gh api -X DELETE "repos/$OWNER/$REPO/rulesets/<other id>"`) — two rulesets
 on the same branch both apply, and the looser one still blocks nothing. Confirm the

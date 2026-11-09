@@ -76,7 +76,9 @@ positioning and the story, and it never runs unasked.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
-in `AGENTS.md`); a single owner never needs it.
+in `AGENTS.md`); a single owner needs none of it, though one who works alone but runs several assistant
+sessions at once, or lets the assistant merge, may choose its §4 and §5 (CI starts, then the
+`main` ruleset); its opening note says what to set first. An option, not a step.
 A private repo gets 2 000 free CI minutes a month on GitHub Free (about 400 runs of the kit's
 `ci.yml`); past that, jobs stop with a message that reads like a failed payment. Tell the
 owner to check **Budgets and alerts** for an Actions budget (`website-team-setup` §3b has
