@@ -1,6 +1,6 @@
 name: CI
-# Runs astro check (strict TS) + the full quality harness (a11y / seo / navigation /
-# images / tone / positioning / placeholders / email / links) against a production build. A red check blocks the
+# Runs astro check (strict TS) + the full quality harness (tests/*.spec.ts: a11y, seo,
+# navigation, images, tone and the rest) against a production build. A red check blocks the
 # merge — the point. Needs a committed package-lock.json (npm ci).
 # node-version 24: keep in sync with .nvmrc. The Node floor is in package.json's engines.
 on:

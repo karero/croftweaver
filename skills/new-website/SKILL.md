@@ -338,7 +338,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 6 | Build: head metadata within limits, schema, llms.txt | **`website-seo-geo`** (+ `schema-markup`, `ai-seo`) |
 | 6 | Build: per-page OG share cards (`npm run og` → 1200×630 ≤300 KB, tested) | **`og-images`** |
 | 6 | Build: testimonials / Review schema from one data file (if the site has quotes) | **`website-testimonials`** |
-| 7 | QA: a11y (light+dark) / seo / navigation / anchors / orphans / images / tone / positioning / placeholders / email / links | **`website-qa`** |
+| 7 | QA: the starter's test suite (a11y light+dark, seo, navigation, images, tone, positioning, placeholders, email, links and more) | **`website-qa`** |
 | 8 | Performance: Lighthouse / PageSpeed for FCP & LCP | **`website-qa`** perf section (+ `seo-audit`) |
 | 9 | **Double-Knuth review** (correctness + cross-file consistency) | **`website-review`** |
 | 10 | Outgoing-link liveness sweep — **only if the site links out** (see §3a) | **`outgoing-link-audit`** |
@@ -684,8 +684,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    README beside the decision-interview answers, and, where she chose or brought a palette, fill `BRAND.md`'s
    colour tables with it (`website-brand-kit` §5a says what goes where). These documents
    are all that step 2b writes before the tests are green.
-5. **Confirm green:** `npm run build && npm test` (the overlay passes the
-   a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware suite out of the box). Then build pages
+5. **Confirm green:** `npm run build && npm test` (the overlay passes its whole suite,
+   `tests/*.spec.ts`, out of the box). Then build pages
    test-first: add the route to `tests/_helpers.ts` `PAGES` *before* writing the
    page (suite goes red), build until green, commit. New features get their test
    first too — `website-qa` §1b maps feature → test.

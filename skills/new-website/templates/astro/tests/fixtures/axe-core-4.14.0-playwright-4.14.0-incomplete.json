@@ -1,0 +1,125 @@
+{
+ "testEngine": {
+  "name": "axe-core",
+  "version": "4.14.0"
+ },
+ "incomplete": [
+  {
+   "id": "color-contrast",
+   "impact": "serious",
+   "tags": [
+    "cat.color",
+    "wcag2aa",
+    "wcag143",
+    "TTv5",
+    "TT13.c",
+    "EN-301-549",
+    "EN-9.1.4.3",
+    "ACT",
+    "RGAAv4",
+    "RGAA-3.2.1"
+   ],
+   "description": "Ensure the contrast between foreground and background colors meets WCAG 2 AA minimum contrast ratio thresholds",
+   "help": "Elements must meet minimum color contrast ratio thresholds",
+   "helpUrl": "https://dequeuniversity.com/rules/axe/4.14/color-contrast?application=playwright",
+   "nodes": [
+    {
+     "any": [
+      {
+       "id": "color-contrast",
+       "data": {
+        "contrastRatio": 0,
+        "fontSize": "12.0pt (16px)",
+        "fontWeight": "normal",
+        "messageKey": "bgImage",
+        "expectedContrastRatio": "4.5:1"
+       },
+       "relatedNodes": [
+        {
+         "html": "<div style=\"background-image:url('/images/og/default.jpg');background-size:cover;padding:2rem;color:#fff\"><p>Text over a CSS background image.</p></div>",
+         "target": [
+          "div:nth-child(2)"
+         ]
+        }
+       ],
+       "impact": "serious",
+       "message": "Element's background color could not be determined due to a background image"
+      }
+     ],
+     "all": [],
+     "none": [],
+     "impact": "serious",
+     "html": "<p>Text over a CSS background image.</p>",
+     "target": [
+      "div:nth-child(2) > p"
+     ],
+     "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background image"
+    },
+    {
+     "any": [
+      {
+       "id": "color-contrast",
+       "data": {
+        "contrastRatio": 0,
+        "fontSize": "12.0pt (16px)",
+        "fontWeight": "normal",
+        "messageKey": "bgGradient",
+        "expectedContrastRatio": "4.5:1"
+       },
+       "relatedNodes": [
+        {
+         "html": "<div style=\"background-image:linear-gradient(90deg,#000,#fff);padding:2rem;color:#777\"><p>Text over a gradient from black to white.</p></div>",
+         "target": [
+          "div:nth-child(3)"
+         ]
+        }
+       ],
+       "impact": "serious",
+       "message": "Element's background color could not be determined due to a background gradient"
+      }
+     ],
+     "all": [],
+     "none": [],
+     "impact": "serious",
+     "html": "<p>Text over a gradient from black to white.</p>",
+     "target": [
+      "div:nth-child(3) > p"
+     ],
+     "failureSummary": "Fix any of the following:\n  Element's background color could not be determined due to a background gradient"
+    },
+    {
+     "any": [
+      {
+       "id": "color-contrast",
+       "data": {
+        "contrastRatio": 0,
+        "fontSize": "12.0pt (16px)",
+        "fontWeight": "normal",
+        "messageKey": "imgNode",
+        "expectedContrastRatio": "4.5:1"
+       },
+       "relatedNodes": [
+        {
+         "html": "<img src=\"/images/og/default.jpg\" alt=\"\" width=\"1200\" height=\"630\" style=\"position:absolute;inset:0;width:100%;height:100%;object-fit:cover\">",
+         "target": [
+          "img"
+         ]
+        }
+       ],
+       "impact": "serious",
+       "message": "Element's background color could not be determined because element contains an image node"
+      }
+     ],
+     "all": [],
+     "none": [],
+     "impact": "serious",
+     "html": "<p style=\"position:relative;color:#fff;padding:2rem\">Text over an img element.</p>",
+     "target": [
+      "div:nth-child(4) > p"
+     ],
+     "failureSummary": "Fix any of the following:\n  Element's background color could not be determined because element contains an image node"
+    }
+   ]
+  }
+ ]
+}

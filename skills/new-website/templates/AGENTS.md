@@ -99,7 +99,8 @@ applies there; instead of steps 2 to 4, only this:
   This rule binds the assistant from day one. On a single-owner site the owner may
   still push to `main` themselves as `PUBLISHING.md` describes; once
   `website-team-setup` has run it binds everyone, and GitHub or the pre-push hook
-  rejects a direct push.
+  rejects a direct push. The one exception is the site's first upload,
+  `git push -u origin main`: a new repository has no `main` to open a pull request against.
   - Locally (Codex or Claude Code on your own computer): every task on its own branch
     (see 1.4), then `git push -u origin content/<short-name>` and open the pull request
     on GitHub.
@@ -176,8 +177,8 @@ applies there; instead of steps 2 to 4, only this:
   change is the change most likely to fail them. Everything must be green.
   - On your own computer the push is the check. Commit, then
     `git push -u origin <branch>`: the pre-push hook runs `scripts/verify.mjs`, which
-    reinstalls the exact packages only when needed (first run, or `package-lock.json`
-    changed since), runs `npm run check`, then builds the site once and runs all tests.
+    reinstalls the exact packages only when needed (first run, or `package.json` or
+    `package-lock.json` changed since), runs `npm run check`, then builds the site once and runs all tests.
     It prints a short result, or the errors. Red: the push is refused; fix the cause,
     commit, push again. Do not also run `npm ci`, `npm run check`, `npm run build` or
     `npx playwright test` by hand first: the push runs the same steps, so doing both
