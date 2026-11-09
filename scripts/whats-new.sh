@@ -77,7 +77,7 @@ write_stamp() {  # $1 = skills dir
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/SETUP.md skills/new-website/templates/CLAUDE.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/functions/go/email.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/.github/dependabot.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md'
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/SETUP.md skills/new-website/templates/CLAUDE.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/functions/_middleware.ts skills/new-website/templates/astro/functions/go/email.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/.github/dependabot.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md skills/new-website/templates/astro/scripts/make-icons.mjs'
 # The root templates beside templates/astro/ and the files under templates/claude/ are
 # scanned by the guard too. AGENTS.md, CLAUDE.md, PUBLISHING.md and SETUP.md are tracked
 # because a site's assistants follow them or its skills point into them: PUBLISHING.md's
@@ -417,6 +417,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     case "$f" in
+      skills/new-website/templates/astro/tests/icons.spec.ts)
+        echo "  tests/icons.spec.ts (site copy: tests/icons.spec.ts — copy it with scripts/make-icons.mjs, which it imports; that file's note says what the icons need before npm test)" ;;
       skills/new-website/templates/astro/tests/*)
         echo "  ${f#skills/new-website/templates/astro/} (site copy: ${f#skills/new-website/templates/astro/})" ;;
       skills/new-website/templates/content-guide.md)
@@ -451,6 +453,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  templates/astro/tsconfig.json (site copy: tsconfig.json)" ;;
       skills/new-website/templates/astro/public/_headers)
         echo "  templates/astro/public/_headers (site copy: public/_headers)" ;;
+      skills/new-website/templates/astro/scripts/make-icons.mjs)
+        echo "  templates/astro/scripts/make-icons.mjs (site copy: scripts/make-icons.mjs — copy it with tests/icons.spec.ts. A site with no icons, or only the Astro logo, runs \`node scripts/make-icons.mjs --setup\` before \`npm test\`; a site with the brand kit's icons needs nothing more; a site built by hand from references/tab-icon.md copies public/icon-512.png to public/images/logo.png)" ;;
       skills/new-website/templates/astro/scripts/ship.sh)
         echo "  templates/astro/scripts/ship.sh (site copy: scripts/ship.sh)" ;;
       skills/new-website/templates/astro/scripts/build-marker.mjs)

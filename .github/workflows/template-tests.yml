@@ -67,7 +67,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
-              skills/new-website/templates/astro/*|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-hero-carousel/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|scripts/test_served_build.sh|.github/workflows/template-tests.yml) run=true ;;
+              skills/new-website/templates/astro/*|skills/new-website/scripts/tests/make-icons.test.mjs|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-hero-carousel/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|scripts/test_served_build.sh|.github/workflows/template-tests.yml) run=true ;;
               \"*) run=true ;;
             esac
           done <<EOF
@@ -121,6 +121,10 @@ jobs:
         # onboarding flow real recipients follow — see docs/reviews/REVIEW-plan-2026-07-16-astro7-upgrade-r1.md
         # for that known gap (tracked as a separate follow-up, not fixed by this change).
         run: npm ci --no-audit --no-fund
+      # scripts/make-icons.mjs, on the install's own sharp: letters, colours, refusals and a run
+      # stopped at each step of the write. It runs the script as a program in copies of the starter.
+      - name: The icon script (skills/new-website/scripts/tests/make-icons.test.mjs)
+        run: MAKE_ICONS_NODE_MODULES="$PWD/node_modules" node --test ../../scripts/tests/make-icons.test.mjs
       # The template is a subfolder of this repo, the way a site can sit inside a bigger
       # repo. The install's "prepare" script must then leave this repo's git hooks alone:
       # pointed at a scripts/hooks this repo does not have, git runs no hooks at all.
@@ -209,6 +213,11 @@ jobs:
           prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src/config.ts)"
           [ -n "$prod" ] || { echo "no PROD_BRANCH line in src/config.ts"; exit 1; }
           CF_PAGES_BRANCH="$prod" npx playwright test tests/email.spec.ts
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
       - name: Run template test suite
         run: npm test
       # The legal-page guard in tests/placeholders.spec.ts is green on the shipped starter,
@@ -387,6 +396,17 @@ jobs:
       - name: Playwright's browser
         working-directory: ${{ runner.temp }}/site
         run: npx playwright install chromium
+      # The site as setup leaves it, committed, and origin's main moved to that commit so the
+      # pushes below start from it. --no-verify: this push is the fixture, not what the hook tests.
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        working-directory: ${{ runner.temp }}/site
+        shell: bash
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
+          git add -A && git commit -qm "name and icons, as setup leaves them"
+          git push -q --no-verify origin HEAD:refs/heads/main
       # VERIFY_TRACE=1 makes verify.mjs name the way it started npm, so each step can prove its branch.
       - name: verify.mjs started directly (npm.cmd from PATH, through a shell; first run installs)
         working-directory: ${{ runner.temp }}/site
@@ -487,6 +507,12 @@ jobs:
           npx playwright install --with-deps chromium
           git init -q && git config user.name ci && git config user.email ci@example.invalid
           git add -A && git commit -q -m "a site with the scorecard skill"
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
       - name: Type check, write the card, run the suite with it
         working-directory: ${{ runner.temp }}/site
         run: |
@@ -682,6 +708,12 @@ jobs:
           grep -q 'import MailForm' src/pages/impressum.astro
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
       - name: Type check and the whole suite, with the form in place
         working-directory: ${{ runner.temp }}/site
         run: |
@@ -745,6 +777,12 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           python -m pip install Pillow
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
       - name: Green before, the palette and the logo go in, green after, by the site's own tests
         working-directory: .
         shell: bash   # named, so the step runs with pipefail: a failing test run is not hidden by tee
@@ -795,6 +833,12 @@ jobs:
           printf '%s\n' "$out" | tail -n 4
           printf '%s\n' "$out" | grep -Eq '^ +[0-9]+ skipped' || { echo "::error::no test was skipped"; exit 1; }
           if printf '%s\n' "$out" | grep -Eq '^ +[0-9]+ (passed|failed)'; then echo "::error::an unconfigured test passed or failed instead of sitting out"; exit 1; fi
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
       - name: The site shows a tagline that reads SITE.tagline; the test and the whole suite are green
         working-directory: ${{ runner.temp }}/site
         run: |
@@ -912,6 +956,12 @@ jobs:
           await mk('hc-dark.jpg', { r: 24, g: 32, b: 40 });
           await mk('hc-mid.jpg', { r: 120, g: 140, b: 130 }, 1800);
           "
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
       - name: The skill installed, three times, each with the type check and the whole suite
         working-directory: ${{ runner.temp }}/site
         run: |
@@ -1090,6 +1140,12 @@ jobs:
           </Base>|' src/pages/index.astro
           grep -q 'id="fx-low"' src/pages/index.astro
           cp src/pages/index.astro "$RUNNER_TEMP/index.good"
+      - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
+        working-directory: ${{ runner.temp }}/site
+        run: |
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
       - name: Green, the test alone and then the whole suite
         working-directory: ${{ runner.temp }}/site
         run: |

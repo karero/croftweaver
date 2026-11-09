@@ -260,5 +260,27 @@ rm "$P4/src/lib/obfuscate.ts"
 report "$S4" "$P4" "T11 the starter without src/lib/obfuscate.ts"
 has   "T11 a real spec's import is read and resolved"         "$(nf src/lib/obfuscate)"
 
+# S11: a site made before the icon script gets both new files listed as MISSING, with the note
+# for each kind of site, and the spec's import of the script named. The files are the real ones.
+S5="$T/suite5" P5="$T/site5"
+mkdir -p "$S5/scripts" "$S5/$A/scripts" "$S5/$A/tests" "$P5/.claude/skills" "$P5/tests"
+cp "$HERE/whats-new.sh" "$S5/scripts/"
+$git -C "$S5" init -q && $git -C "$S5" commit -qm base --allow-empty
+BASE5="$($git -C "$S5" rev-parse HEAD)"
+cp "$HERE/../$A/scripts/make-icons.mjs" "$S5/$A/scripts/"
+cp "$HERE/../$A/tests/icons.spec.ts" "$S5/$A/tests/"
+$git -C "$S5" add -A && $git -C "$S5" commit -qm later
+stamp "$P5/.claude/skills/SUITE-VERSION" "$BASE5"
+stamp "$P5/tests/TESTS-VERSION" "$BASE5"
+report "$S5" "$P5" "S11 a site without the icon script"
+has   "S11 the script is MISSING"                             "    MISSING: the site has no scripts/make-icons.mjs"
+has   "S11 the spec is MISSING"                               "    MISSING: the site has no tests/icons.spec.ts"
+has   "S11 the spec's import of the script is named"          "$(nf scripts/make-icons.mjs)"
+for part in "runs \`node scripts/make-icons.mjs --setup\` before \`npm test\`" "a site with the brand kit's icons needs nothing more" \
+            "tab-icon.md copies public/icon-512.png to public/images/logo.png"; do
+  if grep -F "make-icons.mjs (site copy" "$T/out" | grep -qF -- "$part"; then printf 'ok   S11 the note says: %s\n' "$part"
+  else printf 'FAIL S11 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
+done
+
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed" >&2; exit 1; }
 echo "all whats-new missing-file and import tests passed"

@@ -506,7 +506,10 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    before the copy; after it, `git diff --quiet -- README.md` must succeed. Set the real domain in `astro.config.mjs` (`site:`),
    `src/config.ts` (`url`), `public/robots.txt` (the `Sitemap:` line) and `public/llms.txt`
    (every `https://example.com` link); the first `npm test` fails while `robots.txt` or
-   `llms.txt` still names `example.com`. **Set `SITE.locale` in `src/config.ts` to match the interview's
+   `llms.txt` still names `example.com`. **Set `SITE.name` there too, then run `node scripts/make-icons.mjs --setup`
+   after `npm install`:** it draws the site's first letter on its `--brand` colour into the seven icon files the
+   starter links, and the first `npm test` fails without them. A name that starts with no letter A–Z or digit
+   needs a letter from the owner: add `--letter X`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
    `astro-i18n-setup`). **`'de'` flips the footer's links to `/datenschutz` and `/impressum`** —
    do both swaps in the SAME step (rename the in-repo drafts
@@ -785,8 +788,8 @@ hold Search Console Request Indexing until then.
 - [ ] **OG share cards** generated (`npm run og`, the `og-images` skill): a 1200×630
       JPEG **≤300 KB** per page (`public/images/og/`), each page wiring `image=` (or the
       default). `tests/seo.spec.ts` enforces size/dimensions; WhatsApp drops previews over
-      ~300 KB. Plus favicon/manifest icon set in place (no logo yet: an interim
-      letter-mark built as `website-brand-kit/references/tab-icon.md` says), and the manifest's
+      ~300 KB. Plus the icons in place: the starter's own, drawn at setup by
+      `scripts/make-icons.mjs`, or the brand kit's (`tests/icons.spec.ts` checks all seven files), and the manifest's
       `[BRACKET]` fields (name/short_name/description) filled in the site's
       content language with `lang` set from `SITE.locale` — `placeholders.spec.ts`
       catches a bracket left there, but no spec reads the manifest's language, so

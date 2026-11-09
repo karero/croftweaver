@@ -79,7 +79,10 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    same host in `script-src` and `connect-src` of `public/_headers`, and a `PROD_BRANCH`
    that matches the branch Cloudflare Pages will call "Production", or analytics never
    loads. No analytics: leave it off and delete the privacy page's analytics paragraphs.
-   Add `public/` icons; edit the placeholder `manifest.webmanifest`. Set the BRAND
+   Run `node scripts/make-icons.mjs --setup`: it draws the site's first letter on its `--brand` colour
+   (`src/styles/global.css`) into the seven icon files the starter links, and the first `npm test` fails
+   without them (a name that starts with no letter A–Z or digit needs `--letter X`). Edit the placeholder
+   `manifest.webmanifest`. Set the BRAND
    block in `scripts/generate_og_cards.py` and run `npm run og` to regenerate the
    1200×630 share cards (`public/images/og/`; the starter ships a default).
    Fill the `[BRACKET]` slots in `src/pages/privacy.astro`

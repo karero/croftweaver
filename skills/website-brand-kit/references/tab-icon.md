@@ -1,8 +1,13 @@
 # The tab icon: a tile with an inner outline
 
 How to build a site's tab icon so it stays visible on a dark tab bar, the way it was
-built for a client site on 2026-10-29. Read this when the site has no logo yet and
-needs an interim letter-mark, or when her mark vanishes on a dark tab bar.
+built for a client site on 2026-10-29. Read this when her mark vanishes on a dark tab
+bar, or when a site wants its own tile by hand.
+
+A new site no longer needs this for an interim letter-mark: the starter draws one at
+setup (`node scripts/make-icons.mjs --setup`: the site's first letter on its `--brand`
+colour, in this same tile with an inner outline), and a logo run replaces it. Run the
+script again after a colour change.
 
 ## Why this shape
 

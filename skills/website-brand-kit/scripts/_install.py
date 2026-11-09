@@ -64,6 +64,8 @@ PILLOW_MISSING = "Pillow, the image library the generator draws with, is not ins
 ONE_COLOUR_ICONS = ("this tool cannot tell what the installed app icons sit on, or which version of the logo they were drawn from (it keeps the colour version only), so "
                     "this run left them as they are. To draw them for the new colours, run this again with the package the logo came in: --input, with --pick and "
                     "--mono as before")
+STARTER_ICONS_OLD = ("the icons are the starter's own letter tile and still show the old colour (%s): this run does not draw them again. In the site's "
+                     "folder, run `node scripts/make-icons.mjs` and commit the seven icon files and scripts/icons-made.json")
 # A logo this tool installed keeps the colours it was drawn in when the palette changes. What can be done about it
 # depends on how the mark was given: one in `currentColor` is drawn in the new Primary from its package (in the light
 # theme's Accent where the palette gives no Primary); one with colours of its own is the same drawing whenever it is
@@ -546,6 +548,7 @@ class Plan(object):
         self.files = {}       # relative path -> bytes (icons)
         self.asks = []
         self.placeholders = []
+        self.starter_icons = []   # icons the starter's scripts/make-icons.mjs drew: replaced like the placeholders
         self.copy = None      # (relative path in brand-handoff, bytes) of the package, or None
         self.preview = None   # bytes of the preview sheet, or None
         self.changed_icons = []
@@ -811,10 +814,11 @@ def _install(a, site, out, data):
 
     # --- the logo: whether there is one to work with at all -----------------------------------
     master_bytes = _read_bytes(site, MASTER)
-    if master_bytes is not None and _site.is_scaffold_default(MASTER, master_bytes):
+    starter_master = master_bytes is not None and _site.is_starter_icon(site, MASTER, master_bytes)
+    if master_bytes is not None and (starter_master or _site.is_scaffold_default(MASTER, master_bytes)):
         master_bytes = None
     if a.with_logo and not a.input and master_bytes is None:
-        raise Refusal("logo-missing", "There is no logo to apply: no file was given, and the site has no logo of its own installed yet (%s is the scaffold's placeholder or missing)." % MASTER)
+        raise Refusal("logo-missing", "There is no logo to apply: no file was given, and the site has no logo of its own installed yet (%s is the scaffold's placeholder, the starter's own letter icon, or missing)." % MASTER)
     asked_for_logo = bool(a.input) or a.with_logo   # she asked for the logo's files; a run about colours may still draw them again (below)
     if not want_colours and not asked_for_logo:
         why = ("--keep-colours leaves the palette in %s out" % os.path.basename(brand_path) if state == "complete" else
@@ -903,6 +907,12 @@ def _install(a, site, out, data):
         raise Ask("colours-too", "%s holds a palette that is not what the site shows now, so this run would also change the colours listed here. Should it? "
                   "Run this again with --with-colours to apply the palette together with the logo, or with --keep-colours to leave the site's colours as "
                   "they are and have only the logo done." % os.path.basename(brand_path), list(changes))
+
+    # The starter's own letter icons are not drawn again by a run about colours; where they show the colour the
+    # site had (not one given with --colour), the report says they now show the old one.
+    drawn_in = ((_site.icons_record(site) or {}).get("colour") or {}) if starter_master and want_colours and not asked_for_logo else {}
+    if primary and drawn_in.get("from") == "brand" and str(drawn_in.get("value")).lower() != primary.lower():
+        notes.append(STARTER_ICONS_OLD % drawn_in["value"])
 
     # --- without a file from her: are the icons drawn again from the installed master? --------------
     # When she asks for it (--with-logo), yes. On a run about colours, only when the background the app icons
@@ -1013,7 +1023,8 @@ def _install(a, site, out, data):
                 current = _read_bytes(site, rel)
                 if current is None or current == new:
                     continue
-                (plan.placeholders if _site.is_scaffold_default(rel, current) else plan.changed_icons).append(rel)
+                (plan.placeholders if _site.is_scaffold_default(rel, current) else
+                 plan.starter_icons if _site.is_starter_icon(site, rel, current) else plan.changed_icons).append(rel)
             if plan.changed_icons and not a.replace_icons:
                 plan.asks.append(Ask("replace-icons", "These icon files are already in the site, and are not the scaffold's placeholders: %s. Replace them (--replace-icons)?"
                                      % ", ".join(plan.changed_icons), plan.changed_icons))
@@ -1023,12 +1034,13 @@ def _install(a, site, out, data):
             if src_name:
                 plan.copy = (HANDOFF + "/" + _free_name(site, src_name, src_bytes), src_bytes)
             notes.append(NO_EMBLEM)
-        if plan.placeholders:
-            one = len(plan.placeholders) == 1
-            what = "%s %%s the scaffold's placeholder%s (the Astro logo)" % (" and ".join(plan.placeholders), "" if one else "s")
-            plan.pending.insert(0, (what % ("is" if one else "are") + ", which this run would replace", what % ("was" if one else "were") + ", now replaced",
-                                    what % ("is" if one else "are") + ": this run replaced %s and then put %s back" % (("it", "it") if one else ("them", "them")),
-                                    plan.placeholders))
+        for rels, kind in ((plan.placeholders, "the scaffold's placeholder%s (the Astro logo)"), (plan.starter_icons, "the starter's own letter icon%s (drawn by scripts/make-icons.mjs)")):
+            if rels:
+                one = len(rels) == 1
+                what = "%s %%s %s" % (" and ".join(rels), kind % ("" if one else "s"))
+                plan.pending.insert(0, (what % ("is" if one else "are") + ", which this run would replace", what % ("was" if one else "were") + ", now replaced",
+                                        what % ("is" if one else "are") + ": this run replaced %s and then put %s back" % (("it", "it") if one else ("them", "them")),
+                                        rels))
         notes.extend(would for would, _did, _back, _rels in plan.pending)
         # the question comes after every note of what the run would do, so its report says all of it
         if plan.asks:

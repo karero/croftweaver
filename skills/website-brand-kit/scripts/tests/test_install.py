@@ -16,6 +16,7 @@ import shlex
 import shutil
 import signal
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -5918,6 +5919,85 @@ class TemporaryFilesOfACommand(unittest.TestCase):
             _proc.tempfile.TemporaryFile = real
         self.assertEqual(len(made), 1)
         self.assertTrue(made[0].closed, "the first file is closed, not left open")
+
+
+def _site_icon_paths():
+    return ("public/favicon.svg", "public/favicon.ico", *ICON_SIZES)
+
+
+ICON_SIZES = {"public/apple-touch-icon.png": 180, "public/icon-192.png": 192, "public/icon-512.png": 512,
+              "public/icon-maskable-512.png": 512, "public/images/logo.png": 512}
+
+
+class TheStartersOwnIcons(SiteCase):
+    """Scenarios S9 and S10 of the starter-icons plan: the site's icons are the starter's letter tile, drawn by
+    scripts/make-icons.mjs (run here for real, so the record is the one the script writes)."""
+
+    def make_icons(self, *flags):
+        self.put("src/config.ts", self.read("src/config.ts").replace("name: 'Example',", "name: 'Krume',"))
+        r = subprocess.run(["node", "scripts/make-icons.mjs", "--setup", *flags], cwd=self.site, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def png_size(self, rel):
+        data = self.bytes(rel)
+        self.assertEqual(data[1:4], b"PNG", rel)
+        return struct.unpack(">II", data[16:24])
+
+    def test_a_logo_replaces_all_seven_with_a_word_and_leaves_the_sizes_the_icon_test_asks_for(self):
+        T.require_pillow(self)
+        self.make_icons()
+        starter = {rel: self.bytes(rel) for rel in _site_icon_paths()}
+        code, out = self.intake("--input", self.package(), *LOGO_ARGS, brand=False)
+        self.assertEqual(code, 0, out)
+        self.assertIn("were the starter's own letter icons (drawn by scripts/make-icons.mjs), now replaced", out)
+        for rel, size in ICON_SIZES.items():
+            self.assertEqual(self.png_size(rel), (size, size), rel)
+        ico = self.bytes("public/favicon.ico")
+        self.assertEqual(struct.unpack("<HH", ico[:4]), (0, 1))
+        self.assertIn(32, [ico[6 + 16 * i] or 256 for i in range(struct.unpack("<H", ico[4:6])[0])], "an ICO with a 32 px frame")
+        self.assertIn(b"<svg", self.bytes("public/favicon.svg"))
+        for rel, before in starter.items():
+            self.assertNotEqual(self.bytes(rel), before, rel + " is the owner's logo now")
+
+    def test_without_the_record_the_same_icons_are_somebody_elses_and_are_asked_about(self):
+        T.require_pillow(self)
+        self.make_icons()
+        os.remove(self.p("scripts/icons-made.json"))
+        before = {rel: self.bytes(rel) for rel in _site_icon_paths()}
+        code, out = self.intake("--input", self.package(), *LOGO_ARGS, brand=False)
+        self.assertEqual(code, 3, out)
+        self.assertIn("--replace-icons", out)
+        self.assertEqual({rel: self.bytes(rel) for rel in before}, before, "nothing was written")
+
+    def test_an_icon_changed_by_hand_since_is_asked_about_and_only_that_one_is_named(self):
+        T.require_pillow(self)
+        self.make_icons()
+        self.put("public/icon-192.png", self.bytes("public/icon-192.png") + b"\0")
+        code, out = self.intake("--input", self.package(), *LOGO_ARGS, brand=False)
+        self.assertEqual(code, 3, out)
+        ask = out[out.index("These icon files are already in the site"):].splitlines()[0]
+        self.assertIn("public/icon-192.png", ask)
+        self.assertNotIn("public/icon-512.png", ask)
+
+    def test_a_run_about_colours_leaves_the_icons_and_says_they_show_the_old_colour(self):
+        self.make_icons()
+        before = {rel: self.bytes(rel) for rel in _site_icon_paths()}
+        code, out = self.intake()
+        self.assertEqual(code, 0, out)
+        self.assertEqual({rel: self.bytes(rel) for rel in before}, before, "the icons are not drawn again")
+        self.assertIn("the icons are the starter's own letter tile and still show the old colour (#000000)", out)
+        self.assertIn("node scripts/make-icons.mjs", out)
+
+    def test_a_colour_given_with_the_flag_was_chosen_and_is_not_called_old(self):
+        self.make_icons("--colour", "#336699")
+        code, out = self.intake()
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("still show the old colour", out)
+
+    def test_a_site_with_no_starter_icons_gets_no_such_note(self):
+        code, out = self.intake()
+        self.assertEqual(code, 0, out)
+        self.assertNotIn("still show the old colour", out)
 
 
 if __name__ == "__main__":

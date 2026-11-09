@@ -365,6 +365,11 @@ logo setting alone; cards that already show the site's logo file
 (`public/images/logo.png`) show the new logo, since that file is replaced. If she wants
 hers there and it is not, `og-images` says how.
 
+**If the report says the icons are the starter's own letter tile and still show the old
+colour**, run `node scripts/make-icons.mjs` in the site's folder (it needs the site's
+`npm install`) and commit the seven icon files with `scripts/icons-made.json`. The intake
+never draws them; until you do, `tests/icons.spec.ts` only warns.
+
 ## 7. What to tell her when it refuses
 
 Read her the reason in plain words; each one names its own way out. A refusal about a
@@ -507,7 +512,8 @@ her mark against the page backgrounds, then white and black, never a tab bar. `r
 as a tile in the brand colour with a white inner outline and the mark inside, the same
 in light and dark mode, and gives the tests a site keeps beside it. Use it:
 
-- when the site has no logo yet and needs an interim letter-mark;
+- when the site has no logo yet and wants a letter-mark of its own by hand (the starter already
+  draws one at setup, `scripts/make-icons.mjs`);
 - when her mark vanishes on a dark tab bar, and only on her yes: the tile is a choice
   about her logo. It needs a one-colour version of her mark from her package or its
   maker; never recolour her SVG yourself.
