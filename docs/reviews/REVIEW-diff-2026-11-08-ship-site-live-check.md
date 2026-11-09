@@ -18,6 +18,7 @@ files sit in the session's scratchpad. Gate 20261108T215704Z-35225.
 | 3 | `d7958f28` | verify: delta since `2658a91a`; evidence READ 11–13 | Codex 115 s, 43,058 · melious 181 s, 22,289 | 1 / 0 / 2 |
 | 4 | `5328e7d3` | verify: delta since `d7958f28`; evidence READ 14–15; `--earned-by site-comment-scan --cut "removed the comment scanner…"` | Codex 106 s, 39,892 · melious 133 s, 19,770 | 0 / 1 / 2, and one outside scope |
 | merge link and wording pass (not a round) | `627037e0` | `merge_link.sh e3739bbe 5328e7d3 <new merge base>`, `--wording-pass` | Codex 92 s, 62,524 | 2 / 0 / 0, outside this change |
+| second merge link (not a round) | `ca8ffdd3` | `merge_link.sh a2365d4e 627037e0 e1a56252` (#494): 18 lines, #494's two BUGLOG rows only | no seat run: the diff holds none of this change's lines | — |
 
 Four rounds, 18 findings; with the merge link, 10 seat runs, 483,721 tokens (the script's running
 total, fresh-eyes included).
@@ -69,3 +70,6 @@ rather than another patch, the BUGLOG row's own first suggestion: the live check
 - awk portability, asked in rounds 2 and 3, is moot: the final code uses no awk.
 - After round 4 `origin/main` was merged (`627037e0`; #493 and others). The BUGLOG union kept no
   row twice (`check_buglog_rows.sh`: 257 rows). The merge link covered the change's own files.
+- Then `origin/main` took #494 and was merged again (`ca8ffdd3`). GitHub could not merge
+  `docs/BUGLOG.md`; locally the union driver kept base copies of this change's two edited rows,
+  which were deleted (`check_buglog_rows.sh`: 258 rows).
