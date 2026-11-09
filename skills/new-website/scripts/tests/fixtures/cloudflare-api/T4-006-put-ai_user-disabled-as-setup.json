@@ -1,0 +1,47 @@
+{
+  "capture": "T4-006",
+  "request": {
+    "method": "PUT",
+    "path": "/zones/c0ffee00000000000000000000000070/bot_management",
+    "body": {
+      "fight_mode": false,
+      "enable_js": false,
+      "ai_bots_protection": "disabled",
+      "ai_search": "disabled",
+      "ai_user": "disabled",
+      "ai_training": "disabled",
+      "crawler_protection": "disabled",
+      "content_bots_protection": "disabled",
+      "cf_robots_variant": "policy_only",
+      "bot_preference_sync_enabled": false
+    }
+  },
+  "status": 200,
+  "response": {
+    "result": {
+      "enable_js": false,
+      "fight_mode": false,
+      "ai_bots_protection": "disabled",
+      "content_bots_protection": "disabled",
+      "crawler_protection": "disabled",
+      "ai_training": "disabled",
+      "ai_search": "disabled",
+      "ai_user": "disabled",
+      "ai_agents": {
+        "anthropic_agent": "block",
+        "google_agent": "disabled",
+        "instinct": "disabled",
+        "muse": "disabled",
+        "openai_agent": "disabled"
+      },
+      "is_robots_txt_managed": false,
+      "bot_preference_sync_enabled": false,
+      "cf_robots_variant": "policy_only",
+      "ai_bots_migration_opt_out": false,
+      "using_latest_model": true
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+  }
+}

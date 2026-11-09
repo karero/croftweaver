@@ -69,8 +69,14 @@ export const BOT_LINES = [
       crawler_protection: 'disabled', content_bots_protection: 'disabled', bot_preference_sync_enabled: false,
     },
     path: 'Your domain → Security → Settings → filter by Bot traffic → AI Crawler and Agent access policies',
-    visitor: "AI crawlers, training ones included, are no longer blocked or led into AI Labyrinth, and Cloudflare adds no lines to robots.txt" },
+    visitor: "AI crawlers, training ones included, are no longer blocked or led into AI Labyrinth, each personal AI agent Cloudflare lists is set to the API's disabled, and Cloudflare adds no lines to robots.txt" },
 ];
+// Bot Management's ai_agents, when it is a plain object of strings (the only form a capture shows).
+const isAgentMap = (v) => v !== null && typeof v === 'object' && !Array.isArray(v) && Object.values(v).every((x) => typeof x === 'string');
+// The agents of a map that are not `disabled`, each set to `disabled`: what the PUT sends.
+const agentsToDisable = (map) => Object.fromEntries(Object.keys(map).filter((k) => map[k] !== 'disabled').map((k) => [k, 'disabled']));
+// The `ai` line's end state for one zone: its fields, and every agent the first GET lists set to `disabled`.
+const aiWant = (fields, agents) => (isAgentMap(agents) ? { ...fields, ai_agents: Object.fromEntries(Object.keys(agents).map((k) => [k, 'disabled'])) } : fields);
 // The AI bot policies' values, per field, as the third trial read them for each choice in the
 // dashboard (fixtures T3-001 to T3-013); ai_bots_protection's "block" is T2-016's. A value not here
 // gets a note that the kit does not know it, never a guess.
@@ -123,6 +129,20 @@ export function aiNotes(now, state) {
     else if (state === 'skipped') notes.push(`${said} This run leaves it as it is. ${stayInSearch(true)}`);
     else if (state === 'unread') notes.push(`${said} The zone's records could not be read, so this run did not change it. ${STAY_IN_SEARCH}`);
     else if (state === 'launch') notes.push(`${said} Launch day changes no AI setting. ${stayInSearch('launch')}`);
+  }
+  if (Object.hasOwn(now, 'ai_agents')) notes.push(...agentNotes(now.ai_agents, state, where));
+  return notes;
+}
+// The notes on personal agents, from the first read's values (`ai_agents`). Values are printed as read.
+function agentNotes(agents, state, where) {
+  const unknown = (what) => `${what} at the start of this run: a value this kit does not know, so it cannot say what it means for search. Look at it in the dashboard: ${where}.`;
+  if (!isAgentMap(agents)) return [unknown(`Personal agents (ai_agents) read ${show(agents)}`)];
+  const notes = [];
+  for (const [k, v] of Object.entries(agents)) {
+    if (v === 'disabled') continue;
+    if (v !== 'block' && v !== 'only_on_ad_pages') notes.push(unknown(`Personal agent ${k} reads ${v}`));
+    else if (state === 'hand') notes.push(`Personal agent ${k} read ${v} at the start of this run; Cloudflare did not confirm the change, so look at it in the dashboard: ${where}.`);
+    else if (state === 'skipped' || state === 'unread' || state === 'launch') notes.push(`Personal agent ${k} read ${v} at the start of this run, and ${state === 'launch' ? 'launch day' : 'this run'} leaves it as it is. Section 4 of the Cloudflare checklist says what the kit sets there, and why.`);
   }
   return notes;
 }
@@ -448,7 +468,7 @@ function describeDeployment(d) {
 export function setupCode(input, listed = []) {
   const settings = {};
   for (const s of SETTINGS) if (!input.skip.includes(s.id)) settings[s.id] = s.value;
-  for (const b of BOT_LINES) if (!input.skip.includes(b.id)) settings[b.id] = b.fields;
+  for (const b of BOT_LINES) if (!input.skip.includes(b.id)) settings[b.id] = b.id === 'ai' && input.aiAgents ? { ...b.fields, ai_agents: Object.fromEntries(input.aiAgents.map((k) => [k, 'disabled'])) } : b.fields;
   const end = {
     stage: 'setup',
     account: input.account,
@@ -723,9 +743,15 @@ async function setupStage(opts, io) {
     const line = { id: b.id, title: b.title, path: b.path, kind: 'bot', def: b };
     lines.push(line);
     line.now = bot ? Object.fromEntries(Object.keys(b.fields).map((k) => [k, bot[k]])) : undefined;
+    // Only the `ai` line reads ai_agents, when Cloudflare lists it (a zone or an answer without it has none to set).
+    const agentsListed = b.id === 'ai' && bot && 'ai_agents' in bot;
+    if (agentsListed) line.now.ai_agents = bot.ai_agents;
+    line.want = agentsListed ? aiWant(b.fields, bot.ai_agents) : b.fields;
     if (opts.skip.includes(b.id)) { line.state = 'skipped'; continue; }
     if (!bot) { line.state = 'unread'; line.why = refusal(botRead, ROW.bot); continue; }
-    line.state = isDeepStrictEqual(line.now, b.fields) ? 'as-is' : 'change';
+    if (agentsListed && !isAgentMap(bot.ai_agents)) { line.state = 'unread'; line.why = `Cloudflare's ai_agents reads ${show(bot.ai_agents)}, a form this kit does not know`; continue; }
+    if (line.want.ai_agents) line.agentsWas = Object.fromEntries(Object.entries(bot.ai_agents).filter(([, v]) => v !== 'disabled'));
+    line.state = isDeepStrictEqual(line.now, line.want) ? 'as-is' : 'change';
     if (line.state === 'change' && !records) { line.state = 'unread'; line.why = hostsUnknown; }
   }
 
@@ -751,9 +777,11 @@ async function setupStage(opts, io) {
   });
 
   // The question, and its code: one key per change it lists.
+  const aiLine = lines.find((l) => l.id === 'ai');
   const codeInput = {
     account: account.id, project: name, repository, productionBranch: prodBranch, zone: zone.id,
     skip: opts.skip, hosts, records: recs.map((l) => l.rec),
+    aiAgents: aiLine.want?.ai_agents ? Object.keys(aiLine.want.ai_agents).sort() : null,
   };
   const lineKey = (l) => (l.kind === 'record' ? `record:${l.rec.type} ${l.rec.fullName} ${l.rec.content}` : `setting:${l.id}`);
   const left = [...projectKeys, ...(build.kind === 'needed' ? [`build:${prodSha}`] : []),
@@ -780,8 +808,9 @@ async function setupStage(opts, io) {
         item(`Write the record ${l.rec.type} ${l.rec.fullName} → ${l.rec.content}, DNS only.`,
           ...(l.beside?.length ? [`It goes beside the TXT records already there, which stay: ${l.beside.join(' · ')}`] : []));
       } else {
-        const now = l.kind === 'bot' ? Object.entries(l.def.fields).filter(([k, v]) => !isDeepStrictEqual(l.now[k], v)).map(([k, v]) => `${k} ${show(l.now[k])} → ${show(v)}`).join(', ') : `${show(l.now)} → ${show(l.def.value)}`;
-        item(`${l.title} (${now}).`, hostsSay, `For a visitor there: ${l.def.visitor}.`);
+        const agents = l.agentsWas ? Object.entries(l.agentsWas).map(([k, v]) => `ai_agents.${k} ${show(v)} → disabled`) : [];
+        const now = l.kind === 'bot' ? [...Object.entries(l.def.fields).filter(([k, v]) => !isDeepStrictEqual(l.now[k], v)).map(([k, v]) => `${k} ${show(l.now[k])} → ${show(v)}`), ...agents].join(', ') : `${show(l.now)} → ${show(l.def.value)}`;
+        item(`${l.title} (${now}).`, hostsSay, `For a visitor there: ${l.def.visitor}.`, ...(l.want?.ai_agents ? ['Every personal agent ends disabled.'] : []));
       }
     }
     reportQuiet(say, lines, opts);
@@ -858,16 +887,30 @@ async function setupStage(opts, io) {
   const botLines = lines.filter((x) => x.kind === 'bot' && x.state === 'change');
   if (botLines.length) {
     const body = Object.fromEntries(BOT_PUT_FIELDS.filter((k) => k in bot).map((k) => [k, bot[k]]));
-    for (const l of botLines) Object.assign(body, l.def.fields);
+    for (const l of botLines) {
+      Object.assign(body, l.def.fields);
+      // Only the agents that change: Cloudflare merges the map per key (T4-008), so the rest are not overwritten.
+      const moves = l.want?.ai_agents ? agentsToDisable(l.now.ai_agents) : {};
+      if (Object.keys(moves).length) body.ai_agents = moves;
+    }
     const r = await api('PUT', `${zoneAt}/bot_management`, { json: body });
     if (!ok(r)) {
       for (const l of botLines) { l.state = 'hand'; l.why = refusal(r, ROW.bot); }
     } else {
       const back = await api('GET', `${zoneAt}/bot_management`);
       const want = { ...bot, ...body };
-      const off = ok(back) ? Object.keys(want).filter((k) => !isDeepStrictEqual(back.body.result?.[k], want[k])) : [];
+      // With the `ai` line written, ai_agents has its own rule: every agent listed before or after reads disabled.
+      const strict = botLines.some((l) => l.id === 'ai') && ok(back) && ('ai_agents' in bot || 'ai_agents' in (back.body.result ?? {}));
+      const off = ok(back) ? Object.keys(want).filter((k) => !(strict && k === 'ai_agents') && !isDeepStrictEqual(back.body.result?.[k], want[k]))
+        .map((k) => `${k} reads ${show(back.body.result?.[k])}, not ${show(want[k])}`) : [];
+      if (strict) {
+        const first = isAgentMap(bot.ai_agents) ? bot.ai_agents : {};
+        const got = back.body.result.ai_agents;
+        const disabled = Object.fromEntries([...new Set([...Object.keys(first), ...(isAgentMap(got) ? Object.keys(got) : [])])].map((k) => [k, 'disabled']));
+        if (!isAgentMap(got) || Object.keys(first).some((k) => !(k in got)) || Object.values(got).some((v) => v !== 'disabled')) off.push(`ai_agents reads ${show(got)}, not ${show(disabled)}`);
+      }
       for (const l of botLines) {
-        if (!ok(back)) { l.state = 'hand'; l.why = `Cloudflare accepted the change, but it could not be read back: ${refusal(back, ROW.bot)}`; } else if (off.length) { l.state = 'hand'; l.why = `Cloudflare accepted the change, but ${off.map((k) => `${k} reads ${show(back.body.result?.[k])}, not ${show(want[k])}`).join('; ')}`; } else l.state = 'done';
+        if (!ok(back)) { l.state = 'hand'; l.why = `Cloudflare accepted the change, but it could not be read back: ${refusal(back, ROW.bot)}`; } else if (off.length) { l.state = 'hand'; l.why = `Cloudflare accepted the change, but ${off.join('; ')}`; } else l.state = 'done';
       }
     }
   }
@@ -1030,7 +1073,8 @@ function reportLine(say, l, hostsSay) {
     return;
   }
   const now = l.kind === 'bot' ? null : show(l.now);
-  if (l.state === 'done') say(`  done     ${l.title}${now ? ` (was ${now})` : ''}. Read back through the API only. ${hostsSay}`);
+  const wasAgents = l.agentsWas && Object.keys(l.agentsWas).length ? `personal agents were: ${Object.entries(l.agentsWas).map(([k, v]) => `${k} ${show(v)}`).join(', ')}` : '';
+  if (l.state === 'done') say(`  done     ${l.title}${now ? ` (was ${now})` : wasAgents ? ` (${wasAgents})` : ''}. Read back through the API only. ${hostsSay}`);
   else if (l.state === 'as-is') say(`  as is    ${l.title}.`);
   else if (l.state === 'hand' || l.state === 'unread') say(`  by hand  ${l.title}: ${l.why}. Dashboard: ${l.path}.`);
 }
@@ -1622,7 +1666,9 @@ async function readAiNow(api, zoneAt) {
   }
   if (!ok(r)) return { why: refusal(r, ROW.bot) };
   const bot = r.body.result ?? {};
-  return { now: Object.fromEntries(Object.keys(BOT_LINES.find((b) => b.id === 'ai').fields).map((k) => [k, bot[k]])) };
+  const now = Object.fromEntries(Object.keys(BOT_LINES.find((b) => b.id === 'ai').fields).map((k) => [k, bot[k]]));
+  if ('ai_agents' in bot) now.ai_agents = bot.ai_agents;
+  return { now };
 }
 
 // The end of a launch run with nothing left to do: the whole check, read by LAUNCH_FAIL, and the report
