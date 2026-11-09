@@ -6,7 +6,7 @@ five places in the Cloudflare dashboard, and the report records what they showed
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09; the Account API tokens list read in round 2 | this file, "Seen in the dashboard" |
-| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | 🔄 4 rounds, 30 findings (8 BUG), none open | "Review trail" below |
+| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | ✅ 5 rounds, 30 findings (8 BUG), clean at round 5 | "Review trail" below |
 | 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | ⬜ | — |
 | 4 | DIFF gate (Normal) | ⬜ | — |
 
@@ -216,3 +216,6 @@ The change is skill text and checklist prose; there is no code to test.
   rounds): 1 BUG (content bots again: a shown switch left S2 open), 1 NIT. Cut, not patched:
   content bots are out of the check entirely, switch or not (Out of scope says why). The NIT:
   rules in every section of the Security rules page are judged alike.
+- **Round 5** (earned by content-bots-read, cut: content bots taken out of the check entirely;
+  Codex and GLM 5.3, 71,423 tokens; 328,608 over five rounds): no findings. Both seats checked
+  the round 4 dispositions and found them landed. Clean.
