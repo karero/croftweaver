@@ -76,7 +76,7 @@ positioning and the story, and it never runs unasked.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
 pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
-in `AGENTS.md`); a single owner never needs it, with one exception: an owner who works alone but
+in `AGENTS.md`); a single owner needs none of it, with one exception: an owner who works alone but
 runs several assistant sessions at once, or lets the assistant merge, may run its §4 and §5 (CI
 starts, then the `main` ruleset) on their own, as an option and not a step.
 A private repo gets 2 000 free CI minutes a month on GitHub Free (about 400 runs of the kit's

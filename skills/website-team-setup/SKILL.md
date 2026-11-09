@@ -44,8 +44,8 @@ missing, copy it from `new-website/templates/claude/hooks/` and merge the `hooks
 
 An owner who works alone but runs several assistant sessions at once, or lets the assistant
 merge, may run §4 and §5 on their own, without the rest of this skill: set `OWNER` and `REPO`
-as §2 does first, and press **Update branch** (§3 turns the button on) only if the "up to
-date" requirement stays on.
+as §2 does first, and run §3's first command (it turns on the **Update branch** button) if
+the ruleset keeps the "up to date" requirement, which it does by default.
 
 Work on a branch and finish with a pull request — the rule the setup installs applies
 to the setup itself. Say in the pull request that it touches `scripts/` (the hook) and
