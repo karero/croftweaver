@@ -15,7 +15,10 @@ Gate 20261109T193508Z-81844.
 | 1 | `67d7b738` | Codex 135 s, 43,564 · fresh-eyes 70 s, 105,612 | 1 / 1 / 3 |
 | 2 | `ed4b89e3` (delta from `67d7b738`) | Codex 110 s, 33,731 | 0 / 0 / 0 |
 
-Two rounds, 5 findings, 182,907 tokens.
+Two rounds, 5 findings, 182,907 tokens. Then the wording pass (Codex, 42,944 tokens) over the trail
+and the release-notes row: one contradiction, the row still said the page total holds the hidden
+clicks; fixed to the step's own words, and its confirmation (Codex, 35,133 tokens) found nothing.
+Gate total 260,984 tokens.
 
 ## Round 1
 
