@@ -286,15 +286,23 @@ cookies, scripts or tracking you didn't choose.
   (https://www.bing.com/webmasters/help/new-ai-preferences-2t1cc16d, read 2026-11-09) says
   nothing changes today and that Microsoft starts honoring its new AI Training preference on
   1 February 2027; `NOARCHIVE` and `NOCACHE` stop counting for training after 1 March 2027.
-  The `ai-seo` skill (Step 4) has the dates; we have not checked whether the line Cloudflare
-  writes is in the form Microsoft reads. Google's separate training switch, Google-Extended, is among
-  the crawlers that file shuts out. The setup script warns when it finds Training on Block
+  The `ai-seo` skill (Step 4) has the dates. A capture on a spare domain (9 November 2026)
+  shows Cloudflare writes a `Content-Signal` line, not the form the FAQ documents: the file
+  had no `__usage_ai-training` group and no Bing group, and the FAQ does not mention
+  Content-Signal. To ask Bing not to train, add the FAQ's two lines to your site's own
+  `robots.txt`; Microsoft honors them from 1 February 2027. Google's separate training switch,
+  Google-Extended, is among the crawlers that file shuts out. The setup script warns when it finds Training on Block
   or Block on pages with ads, and says how to keep Disallow and when Sync is off.
   For new domains, Cloudflare recommends Allow for all three with Bot Preference Sync on,
   and, for a site with ads, Disallow for Training and Block on pages with ads for Agent.
   On a spare domain on 30 October 2026 the dashboard marked Allow as Recommended for all
   three and showed no older **Block AI bots** setting. Look at what yours shows; if it still
   shows Block AI bots, make sure it is Off.
+  Under **Agent**, the dashboard also lists personal AI agents one by one. The setup script
+  sets each one Cloudflare lists to the API's `disabled` as well, through the API, because
+  changing the Agent policy alone leaves them as they were (a capture on 9 November 2026).
+  Cloudflare's documentation calls them Personal Agents, under the Agent policy; the kit
+  has not looked at them in the dashboard, so it says only that the API reads `disabled`.
   Three more switches can keep AI crawlers out. Set each to off, with the one exception
   under Bot Preference Sync:
   - **Bot Preference Sync: Off, unless you chose Disallow for Training.** Same place:
@@ -446,6 +454,7 @@ with that line marked "by hand".
 | Email Address Obfuscation | zone setting `email_obfuscation` | `"off"` |
 | Network Error Logging, the switch | zone setting `nel` | `{"enabled": false}` |
 | Bot Fight Mode | Bot Management `fight_mode` | `false` |
+| AI crawlers: each personal AI agent Cloudflare lists | Bot Management `ai_agents`, one entry per agent | `"disabled"` |
 | AI crawlers: the AI bot policies, and the older Block AI bots | Bot Management `ai_search`, `ai_user`, `ai_training`, `ai_bots_protection` | `"disabled"` (no block) |
 | AI Labyrinth | Bot Management `crawler_protection` | `"disabled"` |
 | Content bots | Bot Management `content_bots_protection` | `"disabled"` |
