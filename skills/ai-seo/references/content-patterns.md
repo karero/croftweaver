@@ -208,7 +208,7 @@ Bread stays fresh longer when it is stored cool and dry. The Example Bakers' Gui
 
 ### Self-Contained Answer Block
 
-Write quotable, standalone statements. This is advice; Microsoft's guidance for Bing's AI answers asks for "self-contained phrasing" ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025).
+Write quotable, standalone statements. This is advice; Microsoft's guidance for Bing's AI answers asks for sentences that make sense when pulled out of context ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025).
 
 ```markdown
 **[Topic/Question]**: [Complete, self-contained answer that makes sense without additional context. Include specific details, numbers, or examples in 2-3 sentences.]
