@@ -35,8 +35,10 @@ Dependencies: see ../requirements.txt
 """
 
 import argparse
+import csv
 import datetime as dt
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -143,12 +145,14 @@ def build_service(creds):
 
 
 def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country="",
-          page="", query_str=""):
+          page="", query_str="", start_row=0):
     body = {
         "startDate": start,
         "endDate": end,
         "rowLimit": row_limit,
     }
+    if start_row:
+        body["startRow"] = start_row
     if dimensions:
         body["dimensions"] = dimensions
     # No dimensions at all → GSC aggregates BY PROPERTY: one impression per
@@ -162,7 +166,9 @@ def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""
         # averages — German positions get masked by (or fake) other markets'.
         filters.append({"dimension": "country", "expression": country.lower()})
     if page:
-        filters.append({"dimension": "page", "expression": page})
+        # "equals" sent on purpose: the match is exact by the request itself, not by
+        # whatever the API defaults to.
+        filters.append({"dimension": "page", "operator": "equals", "expression": page})
     if query_str:
         filters.append({"dimension": "query", "expression": query_str})
     if filters:
@@ -173,6 +179,76 @@ def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""
         body["dimensionFilterGroups"] = [{"groupType": "and", "filters": filters}]
     resp = service.searchanalytics().query(siteUrl=site, body=body).execute()
     return resp.get("rows", [])
+
+
+DRILL_LIMIT = 100  # rows listed for --page and --query; a longer list says how many it cut
+MAX_PAGED_REQUESTS = 40  # 1,000,000 rows: a stop for a loop that is not advancing
+
+
+def query_all(service, site, start, end, dimensions, country=""):
+    """Every row, paging on with startRow while a response holds the full ROW_LIMIT rows."""
+    rows = []
+    for n in range(MAX_PAGED_REQUESTS):
+        batch = query(service, site, start, end, dimensions, country=country,
+                      start_row=n * ROW_LIMIT)
+        rows.extend(batch)
+        if len(batch) < ROW_LIMIT:
+            return rows
+    raise RuntimeError(f"still full after {MAX_PAGED_REQUESTS} requests of {ROW_LIMIT} rows; "
+                       "not paging further")
+
+
+def write_pages_csv(path, rows):
+    """One line per page: page, clicks, impressions, ctr, position."""
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["page", "clicks", "impressions", "ctr", "position"])
+        for r in rows:
+            w.writerow([r["keys"][0], int(r["clicks"]), int(r["impressions"]),
+                        r["ctr"], r["position"]])
+
+
+def window_completeness(date_rows, end):
+    """(complete, last day with rows). A window is complete only when the property's own
+    rows by date reach its last day; Search Console is still filling the days before that."""
+    days = [r["keys"][0] for r in date_rows]
+    last = max(days) if days else None
+    return (last is not None and last >= end), last
+
+
+def completeness_section(date_rows, start, end):
+    complete, last = window_completeness(date_rows, end)
+    L = ["## Is this window complete?\n"]
+    if complete:
+        L.append(f"**Complete.** The property has rows by date up to {end}, the last day of "
+                 f"the window ({start} to {end}).")
+    elif last is None:
+        L.append(f"**Not complete.** The property has no rows by date in {start} to {end}. "
+                 "Judge nothing from this window yet; pull it again in a few days.")
+    else:
+        L.append(f"**Not complete.** The property's last day with rows is {last}; the window "
+                 f"ends {end}. Judge nothing from this window yet; pull it again in a few days.")
+    present = {r["keys"][0] for r in date_rows}
+    d, gaps = dt.date.fromisoformat(start), []
+    while d.isoformat() <= end:
+        if d.isoformat() not in present:
+            gaps.append(d.isoformat())
+        d += dt.timedelta(days=1)
+    if gaps and complete:
+        L.append(f"\n_Days inside the window with no row: {', '.join(gaps)}. Search Console "
+                 "returned no row for these days (nothing to report, or not filled in yet)._")
+    L.append("")
+    return "\n".join(L)
+
+
+def _iso_date(v: str) -> str:
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+        raise argparse.ArgumentTypeError(f"dates are YYYY-MM-DD (got {v!r})")
+    try:
+        dt.date.fromisoformat(v)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a date: {v!r}")
+    return v
 
 
 def pct(x):
@@ -202,7 +278,8 @@ def match_keywords(query_rows, keywords):
 
 def build_report(site, start, end, top_queries, top_pages, kw_matches,
                  perm_level, days, country="", site_total=None,
-                 page_drill=None, page_url="", query_drill=None, query_term=""):
+                 page_drill=None, page_url="", query_drill=None, query_term="",
+                 date_rows=None):
     L = []
     L.append(f"# Search Console insights — {site}")
     country_note = f", country filter: {country}" if country else ""
@@ -238,6 +315,8 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
             L.append(f"> Also note the active `--country {country}` filter — zero rows can\n"
                      f"> simply mean no traffic from that market in the window; re-run\n"
                      f"> without the filter to compare.\n")
+        if date_rows is not None:
+            L.append(completeness_section(date_rows, start, end))
         return "\n".join(L)
 
     # Three totals, three meanings, each from its own API call:
@@ -359,6 +438,9 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
                  f"top-pages and low-CTR sections below reflect a missing page-level "
                  f"pull this run, not an absence of pages.\n")
 
+    if date_rows is not None:
+        L.append(completeness_section(date_rows, start, end))
+
     # --- Target keywords ---------------------------------------------------
     L.append("## Target keywords — where we stand\n")
     for kw, matched in kw_matches:
@@ -429,7 +511,9 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     if page_url:
         L.append(f"## Queries landing on {page_url}\n")
         if page_drill:
-            L.append(fmt_rows(page_drill, "Query", limit=15))
+            L.append(fmt_rows(page_drill, "Query", limit=DRILL_LIMIT))
+            if len(page_drill) > DRILL_LIMIT:
+                L.append(f"\n_Showing {DRILL_LIMIT} of {len(page_drill)} queries._")
             L.append("\n_Attribution from GSC itself (query rows filtered to this "
                      "page). Rare queries can still be anonymized away, so rows here "
                      "may not sum to the page's total impressions._")
@@ -443,7 +527,9 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     if query_term:
         L.append(f"## Pages serving \"{query_term}\"\n")
         if query_drill:
-            L.append(fmt_rows(query_drill, "Page", limit=15))
+            L.append(fmt_rows(query_drill, "Page", limit=DRILL_LIMIT))
+            if len(query_drill) > DRILL_LIMIT:
+                L.append(f"\n_Showing {DRILL_LIMIT} of {len(query_drill)} pages._")
             if sum(1 for r in query_drill if r["impressions"] > 0) > 1:
                 L.append("\n_More than one page draws impressions for this exact "
                          "query. That can be benign — several of your pages sharing "
@@ -477,7 +563,20 @@ def main():
         if n < 1:
             raise argparse.ArgumentTypeError(f"--days must be >= 1 (got {v!r})")
         return n
-    ap.add_argument("--days", type=_days, default=90)
+    ap.add_argument("--days", type=_days, default=None,
+                    help="Window length in days, ending two days ago (default 90). Not with "
+                         "--start/--end.")
+    ap.add_argument("--start", type=_iso_date, default=None,
+                    help="First day of a fixed window, YYYY-MM-DD; with --end. A rerun reads "
+                         "the same days. No history rows are appended for a fixed window.")
+    ap.add_argument("--end", type=_iso_date, default=None,
+                    help="Last day of a fixed window, YYYY-MM-DD, inclusive; with --start.")
+    ap.add_argument("--by-date", action="store_true",
+                    help="Also say whether the window is complete: the property's own rows by "
+                         "date must reach its last day.")
+    ap.add_argument("--pages-csv", default="",
+                    help="Write every page the API returns, with clicks, impressions, CTR and "
+                         "position, to this CSV, paging on past 25,000 rows. Overwrites the file.")
     ap.add_argument("--keywords", default="",
                     help="Comma-separated target keywords.")
     ap.add_argument("--out", default="", help="Write the Markdown report to this file.")
@@ -514,6 +613,20 @@ def main():
                          "so a scheduled run can't hang waiting for a browser nobody opens).")
     args = ap.parse_args()
 
+    fixed_window = args.start is not None or args.end is not None
+    if fixed_window:
+        if args.start is None or args.end is None:
+            ap.error("--start and --end go together")
+        if args.days is not None:
+            ap.error("--days cannot be combined with --start/--end")
+        if args.start > args.end:
+            ap.error(f"--start {args.start} is after --end {args.end}")
+        if args.end > dt.date.today().isoformat():
+            ap.error(f"--end {args.end} is in the future")
+        args.days = (dt.date.fromisoformat(args.end) - dt.date.fromisoformat(args.start)).days + 1
+    elif args.days is None:
+        args.days = 90
+
     if args.no_browser:
         try:
             from google.auth.exceptions import RefreshError
@@ -543,18 +656,42 @@ def main():
     except Exception as e:  # noqa: BLE001 — surface, don't hide (Rule 12)
         eprint(f"Could not list sites (continuing): {e}")
 
-    end = dt.date.today() - dt.timedelta(days=2)   # GSC lags ~2 days
-    # GSC treats start/end as INCLUSIVE dates, so an N-day window spans
-    # end-(N-1)..end — subtracting N would silently pull N+1 days.
-    start = end - dt.timedelta(days=args.days - 1)
-    s_start, s_end = start.isoformat(), end.isoformat()
+    if fixed_window:
+        s_start, s_end = args.start, args.end
+    else:
+        end = dt.date.today() - dt.timedelta(days=2)   # GSC lags ~2 days
+        # GSC treats start/end as INCLUSIVE dates, so an N-day window spans
+        # end-(N-1)..end — subtracting N would silently pull N+1 days.
+        start = end - dt.timedelta(days=args.days - 1)
+        s_start, s_end = start.isoformat(), end.isoformat()
 
     try:
         top_queries = query(service, args.site, s_start, s_end, ["query"], country=args.country)
-        top_pages = query(service, args.site, s_start, s_end, ["page"], country=args.country)
+        if args.pages_csv:
+            all_pages = query_all(service, args.site, s_start, s_end, ["page"],
+                                  country=args.country)
+            top_pages = all_pages[:ROW_LIMIT]   # the report keeps its one-request size
+        else:
+            top_pages = query(service, args.site, s_start, s_end, ["page"], country=args.country)
     except Exception as e:  # noqa: BLE001
         eprint(f"Search Analytics query failed: {e}")
         sys.exit(1)
+
+    if args.pages_csv:
+        try:
+            write_pages_csv(args.pages_csv, all_pages)
+        except OSError as e:
+            eprint(f"Could not write {args.pages_csv}: {e}")
+            sys.exit(1)
+        eprint(f"Wrote {len(all_pages)} pages to {args.pages_csv}")
+
+    date_rows = None
+    if args.by_date:
+        try:
+            date_rows = query(service, args.site, s_start, s_end, ["date"], country=args.country)
+        except Exception as e:  # noqa: BLE001
+            eprint(f"Search Analytics query failed (by date): {e}")
+            sys.exit(1)
 
     # The property-level pull degrades on its own: build_report handles
     # site_total=None honestly, so a transient error here must not cost the
@@ -591,7 +728,9 @@ def main():
     kw_matches = match_keywords(top_queries, keywords) if keywords else []
 
     history_failed = False
-    if args.csv and not args.no_csv and kw_matches:
+    if fixed_window and args.csv and not args.no_csv and kw_matches:
+        eprint("note: a fixed window is not added to the history CSV (its rows are dated today)")
+    elif args.csv and not args.no_csv and kw_matches:
         import _history
         today = dt.date.today().isoformat()
         site_key = _history.normalize_site(args.site)
@@ -624,7 +763,8 @@ def main():
                           kw_matches, perm_level, args.days, country=args.country,
                           site_total=site_total,
                           page_drill=page_drill, page_url=page_url,
-                          query_drill=query_drill, query_term=query_term)
+                          query_drill=query_drill, query_term=query_term,
+                          date_rows=date_rows)
     print(report)
     if args.out:
         Path(args.out).write_text(report)

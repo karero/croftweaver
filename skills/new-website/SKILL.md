@@ -50,8 +50,8 @@ Sibling skills (run in order, each usable on its own):
 diagnostic for a site that already has pages — run it after the build, or whenever the
 offer starts to feel blurred; it is not a pipeline gate. `website-launch-check` is the launch
 readiness check: it runs the site's tests first, checks only what they cannot, and writes a
-dated report with a verdict to `docs/launch/` (a baseline at step 5a, the verdict at 10c, an
-optional live re-check at 12a). Plus `outgoing-link-audit` — the
+dated report with a verdict to `docs/launch/` (a baseline at step 5a, the verdict at 10c, the
+live re-check at 12a). Plus `outgoing-link-audit` — the
 pre-launch / monthly external-link
 liveness sweep (only relevant once the site links out); `internal-link-audit` — the
 internal-linking sweep that finds orphaned + thin pages and suggests where to cross-link
@@ -346,7 +346,7 @@ Plain hand-written HTML (static `.html` files, no build step) is a legacy anti-p
 | 10c | Launch check: the verdict before launch (🟢 / 🟡 / 🔴), and for a site that replaces an older one the current-vs-new comparison with its redirect map; §4 starts after 🟢, or a 🟡 the owner accepts | **`website-launch-check`** |
 | 11 | Launch & handoff: schema/sitemap/robots, deploy, hand over | **this skill** §4 |
 | 12 | Post-launch: register with Google Search Console + Bing, submit sitemap, enable IndexNow | **`search-console-setup`** |
-| 12a | Optional, once the production build is Active: the live re-check (HTTPS, the 404 status, speed on the live domain as `website-qa` §2 measures it, the new site's row of the comparison) | **`website-launch-check`** |
+| 12a | Once launch day's work is done: the live re-check (HTTPS, the 404 status, the Cloudflare zone settings and setup tokens read in the dashboard; optionally speed on the live domain as `website-qa` §2 measures it and the new site's row of the comparison) | **`website-launch-check`** |
 | 13 | Post-launch: claim Google Business Profile + Bing Places, verify `sameAs` profiles resolve — **only if the site is a claimable entity** (see §4a) | **`business-listings-setup`** |
 | 14 | Post-launch: ask once for a "Built with Croftweaver" credit in the footer — a request, never a condition (see §4b) | **this skill** §4b |
 

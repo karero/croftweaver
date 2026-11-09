@@ -240,7 +240,7 @@ an "Email Tap" event there, as a click on an email address does.
 - **`website-launch-check`** runs the site's build and tests, then `report_html.py`, which turns
   each launch report's Markdown in `docs/launch/` into an HTML page beside it. That script reads
   and writes only those files and makes no network call. For a site that replaces an older one,
-  the assistant reads the old site's public `sitemap.xml`; at the optional live re-check it reads
+  the assistant reads the old site's public `sitemap.xml`; at the live re-check it reads
   the new site's live pages, only once its production build is Active. It measures speed the way
   `website-qa` does (Lighthouse, see that skill). It also starts the site's local preview to read the
   console, and stops it again, and keeps the test output in a scratch file while it reads it.

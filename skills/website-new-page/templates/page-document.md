@@ -56,6 +56,23 @@ access. No internal ticket, pull request or repository names on a public page.
 **Research file.** Path to the saved research (top results, an AI answer, what they cover and
 miss). The content review reads it with this document.
 
+**Moved from an old site.** Fill this in only when the page replaces one on another site; else
+delete it. (SKILL.md, "Moving a page from an old site".)
+
+- *Old address*, as Search Console lists it, and *new address*.
+- *Address decision:* keep it, or the new path (which gets a redirect, and its closing-slash twin).
+- *Search Console:* the old site's property, or "none" with the reason the four-week check is
+  skipped.
+- *Windows* (28 days each, fixed dates): before = <start> to <day before go-live> on the old
+  address; after = <day after go-live> to <end> on the new address. Run the check on <date>.
+- *Section table:* one row for each section of the saved old page, by its old heading, and one
+  for each download, form and embed with its target. The research file's "Old page" section is
+  the source.
+
+| Old section, download, form or embed (target) | Kept, rewritten, merged into (which), or dropped | Reason if dropped |
+|---|---|---|
+| | | |
+
 ## Draft
 
 Title: <the final title>

@@ -15,6 +15,10 @@ Who runs it:
   in the `independent-review` skill sends this same prompt (the text under the heading below,
   read from this file) to its reviewer seats.
 
+For a page moved from an old site (SKILL.md, "Moving a page from an old site"), the research file
+must hold the "Old page" section, which is how the saved old page reaches the reviewer, on either
+path. Point 4 of the prompt applies only then.
+
 Whatever the reviewer returns is a list of findings, not an order. The author fixes each one or
 lists it for the owner to accept or reject in the go (SKILL.md, steps 4 and 5).
 
@@ -47,20 +51,36 @@ someone else, and does it keep that one meaning?
 > experience or process, a result, a view of where this is going? If you cannot name it in one
 > sentence, say so. Has hedging worn the angle down to nothing?
 >
+> 4. A PAGE MOVED FROM AN OLD SITE. Only when the brief gives an old address; otherwise skip this
+> point. The research file's "Old page" section is the saved old page (its headings, text,
+> downloads, forms and embeds, each with its target) and may list the old page's queries with
+> their clicks. Does the brief's section table account for every section of the saved old page,
+> and every download, form and embed? Does the draft still answer each query that earned the old
+> page clicks? Name each query the draft drops and each table row the table gets wrong: a row
+> marked kept, rewritten or merged whose text is not in the draft, or a section of the old page
+> that has no row.
+>
 > Return RANKED findings, each on its own line starting '- BUG', '- RISK' or '- NIT', with the
 > section or the quoted words it is about, a one-line why, and a concrete fix.
 > BUG: the page fails its reader or its search. For example: the main query is missing from the
 > title or H1; the page does not answer the query it targets; a sentence contradicts or
 > misleads against the page's own argument; a proof point the reader cannot open or understand
 > without private access; a claim stated as fact where the document itself says no source states
-> it; an input marked 'ideas only' used as a source, citation or link.
+> it; an input marked 'ideas only' used as a source, citation or link; on a moved page, a query
+> that earned the old page clicks which the draft does not answer and the table does not list as
+> dropped (name the query and its clicks); a table row that marks as kept, rewritten or merged a
+> section, download, form or embed the draft does not hold (name the row).
 > RISK: thin next to what the research file says ranks for pages of this type (name what they
 > cover and this page lacks); no original angle; no FAQ where the type calls for one, or FAQ
 > answers that repeat the body; a claim in the draft
 > that is missing from the claims table; a graphic the page needs and the brief does not plan;
 > an outbound link to a commercial site with no owner sign-off; no research file, so thinness
 > cannot be judged; a claim the page itself calls its own reading, or says no source states,
-> with nothing the reader can check it against; a statement of what happened, why, or how much,
+> with nothing the reader can check it against; on a moved page, a section, download, form or
+> embed of the saved old page with no row in the table; a section or query that earned clicks and
+> that the table marks dropped (name it and its clicks, so the owner decides it in the go); a
+> dropped row with no reason; no "Old page" section in the research file, so the table cannot be
+> checked; a statement of what happened, why, or how much,
 > introduced by a belief marker ("we think", "we believe", "our sense is") and backed by no source.
 > A position, intent, expectation, recommendation or first-hand experience ("in our experience") is
 > not a statement of that kind, so this rule does not catch it (the own-reading rule above still
