@@ -9,7 +9,7 @@ description: >
   website-review) and does not repeat them. Use for a new page, a new article, a page rewrite,
   or "is this page any good". Trigger phrases: "add a page", "new page", "write a page about",
   "new article", "rewrite this page", "this page feels thin", "what should this page rank for",
-  "review the draft before we build it".
+  "review the draft before we build it", "move this page from the old site".
 ---
 
 # New page
@@ -106,6 +106,91 @@ that is the finding. Exit 2 means the check could not read its input.
 **8. Review the code** with the site's usual review (`website-review`, or `independent-review`'s
 diff gate where the owner has chosen it). By now the copy has been judged, so this round checks
 the build.
+
+## Moving a page from an old site
+
+Use this when the intake names an old address: the page exists on WordPress, Contao, Wix,
+Squarespace or another tool, and the new page replaces it. A page like that already has an
+address, links pointing at it and searches it ranks for. A rewrite can drop the one section
+people came for, or change the address without a redirect, and the ranking is gone before anyone
+notices. Everything above applies. These steps change, and one is added:
+
+**1. Intake** also asks for the old address, written as Search Console lists it (closing slash
+included), whether the old site had Search Console and under which property, and the planned
+go-live date. The old and the new address may sit in different properties.
+
+**2. Research** starts from the old page.
+
+- *Search Console.* With the `search-console-insights` skill, run its `gsc_query.py` with
+  `--site <property> --page <old address> --days 90 --no-csv` for the queries, clicks, impressions
+  and position, and copy its query table into the research file under **Old page, Search
+  Console**. Once the old site is gone, give the 90 days as `--start` and `--end` instead, ending
+  the day before go-live. Without Search Console, say so in the research file: the owner names the
+  queries and sections that matter, and the four-week check below is skipped, with that reason
+  written in the page document.
+- *The old page.* Save its HTML before the site changes (the owner's saved copy, or a download of
+  the live page). The research file gets a section **Old page** from that file: every heading with
+  its text, and every download, form and embed with its target (the file's address, the form's
+  action, the embed's source). The reviewer reads the research file, so this section is how the
+  old page reaches it.
+
+**3. The page document** gets two more fields. The **address decision**: keep the address, or name
+the new path. The **section table**: one row for each section of the old page, by its old heading,
+marked *kept*, *rewritten*, *merged into* another section, or *dropped* with the reason. Downloads,
+forms and embedded media are rows too, each with its target from the "Old page" section, so one
+that disappears without changing the visible text is still listed. A download that moves gets a
+redirect like a page.
+
+**4. Content review.** The prompt for a moved page carries one more question (in
+`${CLAUDE_SKILL_DIR}/references/content-review.md`): does the section table account for every section
+of the saved old page, and does the draft still answer each query that earned the old page clicks?
+
+**5. The go** lists every dropped section by its old heading and every dropped query by name, each
+with its reason, and the owner's go covers them by name. Put the two four-week windows (step 9) and
+their dates into the note.
+
+**6. Build** writes the redirect when the address changes. With the `wordpress-inspector` skill's
+`make_redirects.py`, run from a folder beside the saved site, not in the site's repository: a text
+file with the old address on one line, `--draft moves.csv`, then fill in the new path and run
+`make_redirects.py old.txt moves.csv --site <new site> --out redirects.txt`. It writes a line for
+the address and one for its closing-slash twin. Add those lines to the site's `public/_redirects`
+yourself, above any catch-all; the script refuses to write over a file it did not write. After
+go-live, run that skill's `check_move.py old.txt <new site> --moves moves.csv` and read its report.
+
+**9. The four-week check.** The page document records two fixed windows of 28 days. *Before* ends
+the day before go-live and is pulled on the old address. *After* starts the day after go-live and is
+pulled on the new address. Pull each with `--start`, `--end` and `--by-date`, so a rerun reads the
+same days and the report says whether the window is complete: the property's own rows by date must
+reach its last day. Until it says so, judge nothing and pull again a few days later; three days after
+the end is when to try first, not proof. Run this at the date the page document and the go note
+name; the owner runs it, nothing is scheduled. The old address's own *after* window is for
+information only: after a working redirect its numbers fall by design.
+
+A *main query* has at least 10 clicks in the before window. It is a finding when the after window
+shows less than half those clicks, or when its row is missing and Search Console's pages report for
+the new address shows the query gone, not just hidden. Search Console leaves out rows with nothing
+to report and hides rare queries, so a missing row is never read as zero alone. A complete after
+window with no rows for the new address at all is a finding too, never a reason to wait. Give the
+owner a table of the main queries with clicks, impressions and position for both windows, and the
+findings. They go to the owner, not into an automatic rewrite.
+
+**More than ten pages.** Sort the pages before the full mode runs. Start from the full address list
+(`wp_inventory.py`'s `urls.csv`, or the sitemap for another tool) and join the clicks and impressions
+of every page over 90 days: `gsc_query.py --pages-csv pages.csv` writes them. An address with no row
+had no impressions in those 90 days; the triage deletes nothing. Every address lands in one group:
+
+- **Move with care:** the pages that together bring 80% of the clicks. They get the full mode.
+- **Let go?** Pages with no clicks and no impressions, listed for the owner. Only the owner decides,
+  and checks Search Console's Links report for any that others link to.
+- **Carry over:** every other address, with text and address kept, title and description checked,
+  and no content review.
+
+Without Search Console the owner names the "move with care" pages, the rest carry over and nothing is
+proposed to let go. The 80% line is a judgment, not a measurement; the owner can move a page between
+groups.
+
+`check_page_text.py` does not find dropped text: a rewrite changes most sentences, so it would list
+the whole page. The section table, checked by the reviewer against the saved old page, does that job.
 
 ## Rules that keep the process short
 
