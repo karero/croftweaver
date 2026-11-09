@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { COMPANY } from '../src/config';
 import { staleReasons } from '../scripts/make-icons.mjs';
@@ -17,23 +17,17 @@ const ICONS: Icon[] = [
   { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // COMPANY.logo, the Organization schema's logo
 ];
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-// A PNG with its signature, IHDR first, image data, and IEND last, its chunks end to end with
-// nothing after them. Not a decoder.
-const isPng = (b: Buffer) => {
-  if (b.length < 45 || !b.subarray(0, 8).equals(PNG_SIGNATURE)) return false;
-  const chunks: { name: string; length: number }[] = [];
-  let at = 8;
-  while (at + 12 <= b.length) {
-    const length = b.readUInt32BE(at);
-    if (at + 12 + length > b.length) return false;
-    chunks.push({ name: b.subarray(at + 4, at + 8).toString('latin1'), length });
-    at += 12 + length;
-  }
-  return at === b.length && chunks[0]?.name === 'IHDR' && chunks.at(-1)?.name === 'IEND' &&
-    chunks.some((c) => c.name === 'IDAT' && c.length > 0);
-};
+// The size the browser itself decodes the served file to, so a stub, a cut-off or an empty
+// picture fails here as it would for a visitor. null when the file does not decode.
+const decodedSize = (page: Page, url: string) =>
+  page.evaluate(async (u) => {
+    try {
+      const bitmap = await createImageBitmap(await (await fetch(u)).blob());
+      return [bitmap.width, bitmap.height];
+    } catch {
+      return null;
+    }
+  }, url);
 
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
 
@@ -64,23 +58,20 @@ for (const icon of ICONS) {
     const body = await res.body();
     if (icon.kind === 'png') {
       expect(type, `${icon.path} content type`).toContain('image/png');
-      expect(isPng(body), `${icon.path} is a whole PNG (signature, IHDR first, image data, IEND last)`).toBe(true);
-      expect([body.readUInt32BE(16), body.readUInt32BE(20)], `${icon.path} is ${icon.size} x ${icon.size} pixels`).toEqual([icon.size, icon.size]);
+      expect(await decodedSize(page, icon.path), `${icon.path} decodes to ${icon.size} x ${icon.size} pixels`).toEqual([icon.size, icon.size]);
     } else if (icon.kind === 'ico') {
       expect(type, `${icon.path} content type`).toMatch(/image\/(x-icon|vnd\.microsoft\.icon)/);
       expect(body.length, `${icon.path} holds an ICO header`).toBeGreaterThanOrEqual(6);
       expect([body.readUInt16LE(0), body.readUInt16LE(2)], `${icon.path} is an ICO (reserved 0, type 1)`).toEqual([0, 1]);
-      // A 32-pixel entry whose frame lies past the directory and inside the file, and is a whole PNG
-      // or starts with a 40-byte BITMAPINFOHEADER.
+      // The browser decodes the file, and its directory lists a 32-pixel frame that lies past the
+      // directory and inside the file. (A bad 32-pixel frame beside a good larger one is not caught.)
       const count = body.readUInt16LE(4);
       const frames = Array.from({ length: count }, (_, i) => 6 + 16 * i)
         .filter((at) => at + 16 <= body.length)
         .map((at) => ({ size: body[at] || 256, length: body.readUInt32LE(at + 8), offset: body.readUInt32LE(at + 12) }));
-      const whole = frames
-        .filter((f) => f.offset >= 6 + 16 * count && f.offset + f.length <= body.length)
-        .filter((f) => isPng(body.subarray(f.offset, f.offset + f.length)) || (f.length >= 40 && body.readUInt32LE(f.offset) === 40))
-        .map((f) => f.size);
-      expect(whole, `${icon.path} has a 32 pixel frame, inside the file, that is a PNG or a bitmap`).toContain(icon.size);
+      const inside = frames.filter((f) => f.length > 0 && f.offset >= 6 + 16 * count && f.offset + f.length <= body.length).map((f) => f.size);
+      expect(inside, `${icon.path} has a 32 pixel frame inside the file`).toContain(icon.size);
+      expect(await decodedSize(page, icon.path), `${icon.path} decodes`).not.toBeNull();
     } else {
       expect(type, `${icon.path} content type`).toContain('image/svg+xml');
       expect(body.toString('utf8'), `${icon.path} is an SVG`).toMatch(/<svg[\s>]/);
