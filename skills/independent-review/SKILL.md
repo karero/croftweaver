@@ -158,11 +158,12 @@ Codex's effort for any run.
    replaced with made-up values. A READ of code quotes each function a claim rests on whole,
    with its repository's commit, not a line range; a claim that no caller does something also
    gives the search that found every caller, over every repository a caller can live in.
-   A claim in the artifact about what a system does when it runs (a timeout firing, a killed
-   client, a lock held, what a migration rewrites) gets one run on a real instance before
-   round 1, sent in that file as a READ; a claim that cannot be run then says "not tested" in
-   the artifact itself. The seats review read-only, and their prompt reports such a claim as
-   unsupported: a RISK wherever what breaks if it is false can be named.
+   Before round 1 of a gate that runs the script, a claim in the artifact about what a system
+   does when it runs (a timeout firing, a killed client, a lock held, what a migration
+   rewrites) gets a run on a throwaway or test instance, never production, sent in that file
+   as a READ: the command, the instance and its version, the time, and the output verbatim. A
+   claim that cannot be run, such as a plan's claim about code not yet written, says "not
+   tested" in the artifact itself.
    Send the same file every round its claims are under review; a
    quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
