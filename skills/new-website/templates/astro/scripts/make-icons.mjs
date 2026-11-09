@@ -1,7 +1,8 @@
 // Makes the site's icon: its first letter on its brand colour, in the seven files the starter
 // links (public/favicon.svg, favicon.ico, apple-touch-icon.png, icon-192.png, icon-512.png,
 // icon-maskable-512.png and images/logo.png). Setup runs it once: node scripts/make-icons.mjs --setup
-// Run it again after a colour change. The brand kit replaces these files when the owner has a logo.
+// Run it again after a colour change; a letter or colour once given with --letter/--colour is kept.
+// The brand kit replaces these files when the owner has a logo.
 //
 //   --setup          also replace the scaffold's favicon.svg and favicon.ico, on a new site only
 //   --letter X       draw this letter or digit (A-Z, 0-9) instead of the name's first
@@ -296,6 +297,10 @@ const tmpWrite = (root, name, data) => {
 // Draws and writes the seven files and the record. `checkpoint` is called at each step of the
 // write, so a test can stop the run there.
 export async function makeIcons({ root, setup = false, replace = false, letter, colour, checkpoint = async () => {} }) {
+  // A choice once made by flag stays when the flag is left out, so a plain rerun draws the same icon.
+  const { record: prior } = readRecord(root);
+  if (letter === undefined && prior?.letter?.from === 'flag') letter = prior.letter.value;
+  if (colour === undefined && prior?.colour?.from === 'flag') colour = prior.colour.value;
   const letterFrom = letter === undefined ? 'name' : 'flag';
   const colourFrom = colour === undefined ? 'brand' : 'flag';
   if (letter !== undefined) {
@@ -351,10 +356,8 @@ export async function staleReasons(root) {
   if (!record) return [];
   const mine = FILES.every((rel) => existsSync(path.join(root, rel)) && record.files[rel]?.includes(sha(readFileSync(path.join(root, rel)))));
   if (!mine) return [];
-  // The command that draws them again with the choices made by flag kept.
-  const run = 'Run: node scripts/make-icons.mjs'
-    + (record.letter?.from === 'flag' ? ` --letter ${record.letter.value}` : '')
-    + (record.colour?.from === 'flag' ? ` --colour ${record.colour.value}` : '');
+  // A plain run keeps the choices made by flag (makeIcons).
+  const run = 'Run: node scripts/make-icons.mjs';
   const out = [];
   if (record.colour?.from === 'brand') {
     try {

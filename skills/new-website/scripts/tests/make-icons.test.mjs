@@ -406,13 +406,27 @@ test('S12: a --brand the script cannot read is a warning, not a failure', async 
   assert.match(reasons[0], /rgb\(17, 34, 51\).*not #rrggbb/);
 });
 
-test('S12: the command it names keeps a letter that was set with a flag', async () => {
+test('S12: the command it names is a plain run, and that run keeps a letter set with a flag', async () => {
   const site = makeSite({ name: 'Krume' });
   assert.equal(run(site, '--setup', '--letter', 'Z').status, 0);
   edit(site, 'src/styles/global.css', '  --brand: #000000;', '  --brand: #112233;');
   const reasons = await (await load(site)).staleReasons(site);
   assert.equal(reasons.length, 1);
-  assert.match(reasons[0], /Run: node scripts\/make-icons\.mjs --letter Z$/);
+  assert.match(reasons[0], /Run: node scripts\/make-icons\.mjs$/);
+  assert.equal(run(site).status, 0);
+  assert.match(read(site, 'public/favicon.svg').toString(), /the letter Z on #112233/);
+  assert.deepEqual(record(site).letter, { value: 'Z', from: 'flag' });
+});
+
+test('a plain rerun keeps a letter and a colour given with flags, even on a name it cannot draw', () => {
+  const site = makeSite({ name: 'Жар-птица' });
+  assert.equal(run(site, '--setup', '--letter', 'Z', '--colour', '#336699').status, 0);
+  const r = run(site);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(read(site, 'public/favicon.svg').toString(), /the letter Z on #336699/);
+  assert.deepEqual(record(site).colour, { value: '#336699', from: 'flag' });
+  assert.equal(run(site, '--letter', 'Q').status, 0, 'a new flag still wins');
+  assert.match(read(site, 'public/favicon.svg').toString(), /the letter Q on #336699/);
 });
 
 test('S12: a letter or colour set with a flag does not warn when the site\'s values differ', async () => {

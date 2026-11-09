@@ -65,7 +65,7 @@ ONE_COLOUR_ICONS = ("this tool cannot tell what the installed app icons sit on, 
                     "this run left them as they are. To draw them for the new colours, run this again with the package the logo came in: --input, with --pick and "
                     "--mono as before")
 STARTER_ICONS_OLD = ("the icons are the starter's own letter tile and still show the old colour (%s): this run does not draw them again. In the site's "
-                     "folder, run `node scripts/make-icons.mjs%s` and commit the seven icon files and scripts/icons-made.json")
+                     "folder, run `node scripts/make-icons.mjs` and commit the seven icon files and scripts/icons-made.json")
 # A logo this tool installed keeps the colours it was drawn in when the palette changes. What can be done about it
 # depends on how the mark was given: one in `currentColor` is drawn in the new Primary from its package (in the light
 # theme's Accent where the palette gives no Primary); one with colours of its own is the same drawing whenever it is
@@ -911,9 +911,9 @@ def _install(a, site, out, data):
     # The starter's own letter icons are not drawn again by a run about colours; where they show the colour the
     # site had (not one given with --colour), the report says they now show the old one.
     made = (_site.icons_record(site) or {}) if starter_master and want_colours and not asked_for_logo else {}
-    drawn_in, letter = made.get("colour") or {}, made.get("letter") or {}
-    if primary and drawn_in.get("from") == "brand" and str(drawn_in.get("value")).lower() != primary.lower():
-        notes.append(STARTER_ICONS_OLD % (drawn_in.get("value"), " --letter %s" % letter.get("value") if letter.get("from") == "flag" else ""))
+    drawn_in = made.get("colour") or {}
+    if primary and drawn_in.get("from") == "brand" and drawn_in.get("value") and str(drawn_in["value"]).lower() != primary.lower():
+        notes.append(STARTER_ICONS_OLD % drawn_in["value"])
 
     # --- without a file from her: are the icons drawn again from the installed master? --------------
     # When she asks for it (--with-logo), yes. On a run about colours, only when the background the app icons

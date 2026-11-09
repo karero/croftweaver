@@ -17,10 +17,15 @@ const ICONS: Icon[] = [
   { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // COMPANY.logo, the Organization schema's logo
 ];
 
-// A PNG with its signature, IHDR as the first chunk and IEND as the last. Not a decoder.
-const isPng = (b: Buffer) =>
-  b.length >= 45 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) &&
-  b.subarray(12, 16).toString('latin1') === 'IHDR' && b.subarray(b.length - 8, b.length - 4).toString('latin1') === 'IEND';
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+// A PNG with its signature, IHDR first, image data, and IEND last, walking the chunks. Not a decoder.
+const isPng = (b: Buffer) => {
+  if (b.length < 45 || !b.subarray(0, 8).equals(PNG_SIGNATURE)) return false;
+  const names: string[] = [];
+  for (let at = 8; at + 12 <= b.length; at += 12 + b.readUInt32BE(at)) names.push(b.subarray(at + 4, at + 8).toString('latin1'));
+  return names[0] === 'IHDR' && names.includes('IDAT') && names.at(-1) === 'IEND';
+};
 
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
 
@@ -51,18 +56,23 @@ for (const icon of ICONS) {
     const body = await res.body();
     if (icon.kind === 'png') {
       expect(type, `${icon.path} content type`).toContain('image/png');
-      expect(isPng(body), `${icon.path} is a whole PNG (signature, IHDR first, IEND last)`).toBe(true);
+      expect(isPng(body), `${icon.path} is a whole PNG (signature, IHDR first, image data, IEND last)`).toBe(true);
       expect([body.readUInt32BE(16), body.readUInt32BE(20)], `${icon.path} is ${icon.size} x ${icon.size} pixels`).toEqual([icon.size, icon.size]);
     } else if (icon.kind === 'ico') {
       expect(type, `${icon.path} content type`).toMatch(/image\/(x-icon|vnd\.microsoft\.icon)/);
       expect(body.length, `${icon.path} holds an ICO header`).toBeGreaterThanOrEqual(6);
       expect([body.readUInt16LE(0), body.readUInt16LE(2)], `${icon.path} is an ICO (reserved 0, type 1)`).toEqual([0, 1]);
-      // A 32-pixel entry whose frame lies inside the file.
-      const frames = Array.from({ length: body.readUInt16LE(4) }, (_, i) => 6 + 16 * i)
+      // A 32-pixel entry whose frame lies past the directory, inside the file, and starts as a PNG
+      // or a bitmap (a 40-byte BITMAPINFOHEADER) does.
+      const count = body.readUInt16LE(4);
+      const frames = Array.from({ length: count }, (_, i) => 6 + 16 * i)
         .filter((at) => at + 16 <= body.length)
         .map((at) => ({ size: body[at] || 256, length: body.readUInt32LE(at + 8), offset: body.readUInt32LE(at + 12) }));
-      const whole = frames.filter((f) => f.length > 0 && f.offset + f.length <= body.length).map((f) => f.size);
-      expect(whole, `${icon.path} has a 32 pixel frame that lies inside the file`).toContain(icon.size);
+      const whole = frames
+        .filter((f) => f.length >= 8 && f.offset >= 6 + 16 * count && f.offset + f.length <= body.length)
+        .filter((f) => body.subarray(f.offset, f.offset + 8).equals(PNG_SIGNATURE) || body.readUInt32LE(f.offset) === 40)
+        .map((f) => f.size);
+      expect(whole, `${icon.path} has a 32 pixel frame, inside the file, that is a PNG or a bitmap`).toContain(icon.size);
     } else {
       expect(type, `${icon.path} content type`).toContain('image/svg+xml');
       expect(body.toString('utf8'), `${icon.path} is an SVG`).toMatch(/<svg[\s>]/);
