@@ -5,9 +5,9 @@ five places in the Cloudflare dashboard, and the report records what they showed
 
 | # | Step | State | Evidence |
 |---|------|-------|----------|
-| 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09 | this file, "Seen in the dashboard" |
-| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | 🔄 round 1: 14 findings (3 BUG), all fixed but one refuted | "Review trail" below |
-| 3 | Build: launch check §3 and §8, the report template, the checklist's sections 4 and 5, new-website's row 12a (one PR) | ⬜ | — |
+| 1 | This plan, with every dashboard path read on a real zone | ✅ written 2026-11-09; the Account API tokens list read in round 2 | this file, "Seen in the dashboard" |
+| 2 | PLAN gate (Normal: a SKILL.md and an owner-facing checklist) | 🔄 2 rounds, 23 findings (6 BUG), none open | "Review trail" below |
+| 3 | Build: launch check description, run table, §3 and §8, the report template, the checklist's sections 4 and 5, new-website's lines 54 and 349 (one PR) | ⬜ | — |
 | 4 | DIFF gate (Normal) | ⬜ | — |
 
 ## Why
@@ -59,8 +59,8 @@ pages show the account's own addresses and token names.
 5. **Tokens:** My Profile → **API Tokens** (`https://dash.cloudflare.com/profile/api-tokens`).
    Each token has a coloured dot; hovering reads **Active** (green), **Expires soon** (orange) or
    **Expired** (red). Expired tokens stay in the list until deleted. Tokens made under Manage
-   account → **Account API tokens** are a separate list, which the account's sidebar shows (the
-   list itself not opened). The checklist (section 6) has the owner make the token under My
+   account → **Account API tokens** (`https://dash.cloudflare.com/<account id>/api-tokens`) are a
+   separate list with the same dots and columns for Created and Last used. The checklist (section 6) has the owner make the token under My
    Profile, and allows a second token for launch day.
 
 ## What the owner reads, and where the paths live
@@ -86,23 +86,27 @@ dashboard read takes a few minutes and needs nothing new.
 
 - **Pre-launch (10c):** only when the domain is already on Cloudflare (a relaunch, or a domain
   moved early). That is when old rules are most likely, and a block found before launch costs
-  nothing. Otherwise the row goes under "Not checked yet: the domain is not on Cloudflare yet",
-  as the deploy-only rows do. No token question: launch day may still need it.
+  nothing. Otherwise the row goes under "Not checked yet" as "deferred to the live re-check: the
+  domain is not on Cloudflare yet", as the deploy-only rows do; it does not count in the verdict.
+  No token question: launch day may still need it.
 - **Live (12a):** always, once launch day's work is done: the production build Active, the
   domain attached (the setup script's `launch` stage, or by hand), and the owner says nothing more
   is left for the token. Then this is what visitors and crawlers meet. If the owner says launch
-  day still needs the token, the token question waits and the rest is read.
+  day still needs the token, the rest is read and the token line reads "deferred: launch day
+  still needs it; read again when it is done", under "Not checked yet", with no finding.
 - **Baseline (5a):** no.
 
 12a is optional today. The zone read is the one part of it nothing else covers, so 12a stops
-being optional: new-website's row 12a and launch check §8 say it runs once launch day's work is
-done, for the zone read, and that the speed and comparison parts may be skipped. The pre-launch report's "Not checked yet" line names it, so an owner who stops
+being optional: it runs once launch day's work is done, for the zone read, and the speed and
+comparison parts may be skipped. Every place that calls it optional changes: launch check
+`SKILL.md` lines 10–11 (description), 29 (run table) and §8; new-website `SKILL.md` lines 54 and
+349 (row 12a). The pre-launch report's "Not checked yet" line names it, so an owner who stops
 after launch day sees what is still open.
 
 ## What a finding is
 
-- **A setting that differs from the checklist** (Bot Fight Mode, AI Labyrinth, the AI policies
-  with Personal Agents, Bot Preference Sync, a Block Crawler switch): ask the owner whether it was
+- **A setting that differs from the checklist** (Bot Fight Mode, AI Labyrinth, content bots, the AI
+  policies with Personal Agents, Bot Preference Sync, a Block Crawler switch): ask the owner whether it was
   their choice (intent decides, §4). Yes: recorded as "owner's choice, <date>", with the
   checklist's trade-off in one line, quoted from the checklist and credited to it (for Training on
   Block, section 4 quotes Cloudflare that it also reaches Googlebot, Bingbot and Applebot; for a
@@ -114,11 +118,10 @@ after launch day sees what is still open.
   - A rule that blocks or challenges, whose effect or owner nobody can state, or that could stop
     visitors or crawlers the owner wants: 🔴 until the owner keeps, changes or removes it.
   - A rule whose action is Allow or Skip, whose owner nobody can state: 🟡. Its action names no
-    block; it lets the matched traffic past some of Cloudflare's checks, and an account-wide one
-    may be another site's. The owner finds out whose it is.
+    block, and an account-wide one may be another site's. The owner finds out whose it is.
   - Any rule the owner knows and keeps: "owner's choice, <date>".
-  - Response rules' "Cloudflare default protection applied" is a setting Cloudflare made, not a
-    rule anyone added; the report notes it, with no finding.
+  - The Response rules section ("Cloudflare default protection applied" on this zone): the kit
+    leaves it alone; the report quotes what it shows, with no finding.
 - **The setup tokens (live run only):** the owner reads both lists (My Profile → API Tokens, and
   Manage account → Account API tokens) and names every token made for this site's setup and
   launch day; the checklist allows two. Each one Active or Expires soon: 🔴, delete it now
@@ -126,16 +129,20 @@ after launch day sees what is still open.
   owner who cannot tell which tokens they were: 🟡, with the advice to delete any token they
   cannot place. Other tokens are the owner's own business and are not named in the report.
 - **Not read** (no dashboard access, or the owner stops): "not checked: <reason>", never a pass;
-  🟡 at both the pre-launch and the live run.
+  🟡 at both the pre-launch and the live run. This is not the pre-launch deferral above, which
+  has its own wording and no finding.
 
 ## Scenarios
 
 - **S1.** Given a new site whose domain moves to Cloudflare on launch day, when the pre-launch run
-  ends on Tuesday, then its report lists "Cloudflare zone settings: not checked yet, the domain is
-  not on Cloudflare yet; read at the live re-check", and the verdict does not count it.
-- **S2.** Given the same site live on Friday, with Bot Fight Mode and AI Labyrinth off, every AI
-  policy Allow, no Block Crawler switch on, no security rules and the setup token deleted, when the
-  live re-check runs, then the zone row reads ✅ with each place as seen, dated Friday.
+  ends on Tuesday, then its "Not checked yet" list has "Cloudflare zone settings: deferred to the
+  live re-check: the domain is not on Cloudflare yet", and the verdict does not count it.
+- **S2.** Given the same site live on Friday, with Bot Fight Mode, AI Labyrinth and Bot Preference
+  Sync off, every AI policy and Personal Agent on Allow, no Block Crawler switch on, no security
+  rules and the setup token deleted, when the live re-check runs, then the zone row reads ✅ with
+  each place as seen, dated Friday.
+- **S2a.** Given the same, but Bot Preference Sync on with Training on Allow, and the owner did
+  not choose it, then the row is 🔴 with the checklist's section 4 line for the switch.
 - **S3.** Given a bakery's relaunch whose domain has been on Cloudflare for years, with a custom
   rule that blocks two countries and Training on Block, when the pre-launch run reads the zone,
   then the owner is asked about both; they say the rule is theirs and Training was not, and the
@@ -144,8 +151,9 @@ after launch day sees what is still open.
   the account, which no one on this site can place, when the live re-check reads the zone, then
   both are listed as account-wide Allow rules and the row is 🟡 until the owner finds out whose
   they are.
-- **S5.** Given the Googlebot row in AI Crawl Control → Security switched to Block, and the owner
-  did not mean it, then the row is 🔴: "Googlebot is blocked; Google can no longer crawl the site".
+- **S5.** Given the Googlebot row in AI Crawl Control → Security with its Block Crawler switch on,
+  and the owner did not mean it, then the row is 🔴: "Googlebot's Block Crawler switch is on", with
+  the checklist's line to turn it off.
 - **S6.** Given a setup token made on Monday and a second one for launch day on Thursday, and on
   Friday's live re-check the first is red (Expired) and the second still green (Active), then the
   row is 🔴 "delete the launch-day token now" and 🟡 "delete the expired setup token", with the
@@ -162,8 +170,8 @@ The change is skill text and checklist prose; there is no code to test.
 
 1. **Paths on a real zone:** done before this gate ("Seen in the dashboard").
 2. **`make check`** before round 1 of the DIFF gate and after the last edit.
-3. **A dry run after the build:** walk every scenario, S1 to S7, through the new text by hand and
-   confirm each ends in the row the scenario names; write the result in the PR.
+3. **A dry run after the build:** walk all nine scenarios (S1 to S7, S2a and S6a) through the new
+   text by hand and confirm each ends in the row the scenario names; write the result in the PR.
 
 ## Out of scope
 
@@ -185,3 +193,9 @@ The change is skill text and checklist prose; there is no code to test.
   item for AI Labyrinth" (section 4 has "AI Labyrinth: Off"; the plan now names it). Left as
   unverifiable to the reviewers: the dashboard read (no captures, private data) and the API
   permission rows (now marked not checked).
+- **Round 2** (Codex and GLM 5.3, 71,907 tokens; 150,942 over both rounds): 3 BUG, 2 RISK,
+  4 NIT. Fixed: every place that calls 12a optional is named; S2 sets Bot Preference Sync off
+  and S2a covers it on; the Account API tokens list opened and described; S5 states only the
+  switch's state; the Allow/Skip and response-rules lines claim nothing about Cloudflare's
+  behaviour; the pre-launch deferral and "not checked" worded apart; the waiting token line
+  named; content bots in the list; the dry run names all nine scenarios.
