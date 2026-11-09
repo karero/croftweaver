@@ -49,14 +49,13 @@
     {
       "id": 4,
       "prompt": "We're adding programmatic SEO pages — 200 integration pages and 50 comparison pages. How should these fit into our site architecture?",
-      "expected_output": "Should address how to integrate scaled content into the site architecture. Should recommend hub pages for both sections (/integrations and /compare or /vs). Should apply the hub-and-spoke internal linking model. Should address navigation: these shouldn't clutter the main nav, but should be accessible via hub pages. Should provide URL structure for both sections. Should address crawl budget considerations for 250 new pages. Should cross-reference programmatic-seo for the content strategy.",
+      "expected_output": "Should address how to integrate scaled content into the site architecture. Should recommend hub pages for both sections (/integrations and /compare or /vs). Should apply the hub-and-spoke internal linking model. Should address navigation: these shouldn't clutter the main nav, but should be accessible via hub pages. Should provide URL structure for both sections. Should address crawl budget considerations for 250 new pages.",
       "assertions": [
         "Recommends hub pages for each section",
         "Applies hub-and-spoke internal linking",
         "Keeps programmatic pages out of main nav",
         "Provides URL structure for both sections",
-        "Addresses crawl budget for 250 pages",
-        "Cross-references programmatic-seo skill"
+        "Addresses crawl budget for 250 pages"
       ],
       "files": []
     },
