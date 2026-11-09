@@ -5988,6 +5988,12 @@ class TheStartersOwnIcons(SiteCase):
         self.assertIn("the icons are the starter's own letter tile and still show the old colour (#000000)", out)
         self.assertIn("node scripts/make-icons.mjs", out)
 
+    def test_the_command_the_note_names_keeps_a_letter_that_was_given_with_the_flag(self):
+        self.make_icons("--letter", "Z")
+        code, out = self.intake()
+        self.assertEqual(code, 0, out)
+        self.assertIn("run `node scripts/make-icons.mjs --letter Z` and commit", out)
+
     def test_a_colour_given_with_the_flag_was_chosen_and_is_not_called_old(self):
         self.make_icons("--colour", "#336699")
         code, out = self.intake()

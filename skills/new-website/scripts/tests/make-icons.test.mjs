@@ -397,6 +397,24 @@ test('S12: it says nothing when one of the seven is not its own', async () => {
   assert.deepEqual(await (await load(site)).staleReasons(site), []);
 });
 
+test('S12: a --brand the script cannot read is a warning, not a failure', async () => {
+  const site = makeSite({ name: 'Krume' });
+  assert.equal(run(site, '--setup').status, 0);
+  edit(site, 'src/styles/global.css', '  --brand: #000000;', '  --brand: rgb(17, 34, 51);');
+  const reasons = await (await load(site)).staleReasons(site);
+  assert.equal(reasons.length, 1);
+  assert.match(reasons[0], /rgb\(17, 34, 51\).*not #rrggbb/);
+});
+
+test('S12: the command it names keeps a letter that was set with a flag', async () => {
+  const site = makeSite({ name: 'Krume' });
+  assert.equal(run(site, '--setup', '--letter', 'Z').status, 0);
+  edit(site, 'src/styles/global.css', '  --brand: #000000;', '  --brand: #112233;');
+  const reasons = await (await load(site)).staleReasons(site);
+  assert.equal(reasons.length, 1);
+  assert.match(reasons[0], /Run: node scripts\/make-icons\.mjs --letter Z$/);
+});
+
 test('S12: a letter or colour set with a flag does not warn when the site\'s values differ', async () => {
   const site = makeSite({ name: 'Krume' });
   assert.equal(run(site, '--setup', '--letter', 'Z', '--colour', '#336699').status, 0);

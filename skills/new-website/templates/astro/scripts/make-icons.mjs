@@ -97,8 +97,8 @@ export const GLYPHS = {
   9: 'M0 5L1 6L3 6L4 5L4 1L3 0L1 0L0 1L0 2L1 3L4 3',
 };
 
-// The grid on the 512 square: centred, stroke 34, so the pixels stay within 169-343 across and
-// 152-360 down, well inside the outline's inner edge at 88 and 424.
+// The grid on the 512 square: centred, stroke 34, so the pixels stay within 169-350 across and
+// 152-369 down (the tail of Q reaches furthest), inside the outline's inner edge at 88 and 424.
 export function glyphPath(letter) {
   const num = (n) => String(Math.round(n * 10) / 10);
   return GLYPHS[letter]
@@ -344,21 +344,31 @@ export async function makeIcons({ root, setup = false, replace = false, letter, 
 
 // Why the starter's icons no longer match the site: the colour or the letter the record took from
 // the site has changed since. Empty when the icons are not all ones this script made (the brand
-// kit's, a hand-built set) or the record took the value from --colour/--letter.
+// kit's, a hand-built set) or the record took the value from --colour/--letter. A value that cannot
+// be read now is a reason too: this is a warning, never a failure.
 export async function staleReasons(root) {
   const { record } = readRecord(root);
   if (!record) return [];
   const mine = FILES.every((rel) => existsSync(path.join(root, rel)) && record.files[rel]?.includes(sha(readFileSync(path.join(root, rel)))));
   if (!mine) return [];
+  // The command that draws them again with the choices made by flag kept.
+  const run = 'Run: node scripts/make-icons.mjs'
+    + (record.letter?.from === 'flag' ? ` --letter ${record.letter.value}` : '')
+    + (record.colour?.from === 'flag' ? ` --colour ${record.colour.value}` : '');
   const out = [];
   if (record.colour?.from === 'brand') {
-    const now = readBrand(root);
-    if (now !== record.colour.value) out.push(`--brand is ${now} but the icons were drawn on ${record.colour.value}. Run: node scripts/make-icons.mjs`);
+    try {
+      const now = readBrand(root);
+      if (now !== record.colour.value) out.push(`--brand is ${now} but the icons were drawn on ${record.colour.value}. ${run}`);
+    } catch (e) {
+      if (!(e instanceof IconsError)) throw e;
+      out.push(e.message);
+    }
   }
   if (record.letter?.from === 'name') {
     try {
       const now = letterFor(await readSiteName(root));
-      if (now !== record.letter.value) out.push(`the name now starts with ${now} but the icons show ${record.letter.value}. Run: node scripts/make-icons.mjs`);
+      if (now !== record.letter.value) out.push(`the name now starts with ${now} but the icons show ${record.letter.value}. ${run}`);
     } catch (e) {
       if (!(e instanceof IconsError)) throw e;
       out.push(e.message);
