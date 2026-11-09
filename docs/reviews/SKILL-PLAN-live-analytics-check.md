@@ -9,7 +9,7 @@ that has already gone out).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-09 | this file |
-| 2 | PLAN gate, High | — | — |
+| 2 | PLAN gate, High | round 1: Codex alone (melious out of balance), 2 BUG, 2 RISK, all addressed | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
 | 3 | `scripts/check-live-analytics.mjs` and its test, on real captures | — | — |
 | 4 | `ship.sh` calls it; `check_ship_push.sh` cases; markers 0.27 | — | — |
 | 5 | `website-launch-check` §8 runs it; `whats-new` lists the new file; `PUBLISHING.md` line; BUGLOG release-notes row | — | — |
@@ -42,8 +42,10 @@ page.
 
 - **`npm run ship`**, because it runs on every publish. The guide's case came after launch, from a
   commit that turned analytics on; only a check that runs at each publish sees that. Ship already
-  waits until the live `build.txt` shows the pushed commit, so the page it reads next is the build
-  just published, and the first-request-caches-a-404 trap (`PUBLISHING.md`) cannot apply.
+  waits until the live `build.txt` shows the pushed commit, so the build is Active and the
+  first-request-caches-a-404 trap (`PUBLISHING.md`) cannot apply. That the home page comes from the
+  same build is not implied by the marker alone (another publish can follow, `ship.sh:995-1001`), so
+  B reads `build.txt` again after the page.
 - **The launch check's live run (§8)**, because it is where an owner who deploys by command, or
   whose site predates the new ship, gets the same read once, and where a 🔴 stops a launch.
 - The logic lives in one new starter file both call, so the two cannot disagree.
@@ -55,9 +57,16 @@ Node). It reads `src/config.ts` in its own site folder (found from its own path,
 does) with the gate's patterns, quoted from `check_analytics_gate.sh` lines 79, 93, 94 and 103:
 `USE_ANALYTICS` (no line counts as on, as in the gate), `scriptHost`, `scriptId`, `mode`. It
 counts, in the HTML with comments removed: `<script>` tags whose `src` attribute is exactly
-`<scriptHost>/js/<scriptId>.js`; inline scripts that call `plausible.init(`; and other analytics
-tags (a `src` ending `/js/script*.js` or `/js/pa-*.js`, or a `data-domain` attribute), the gate's
-own three categories. It does not fetch anything: the caller passes the file.
+`<scriptHost>/js/<scriptId>.js`; inline scripts whose text contains `plausible.init(` (a mention,
+counted as the gate's counter counts it; whether the stub runs is the gate's `stub_runs` at build
+time, and this check claims only that the markup is there); and other analytics tags (a `src`
+ending `/js/script*.js` or `/js/pa-*.js`, or a `data-domain` attribute), the gate's own three
+categories. It does not fetch anything: the caller passes the file.
+
+The stub is required, not a kit habit: the real loader (`analytics.m-squad.com`'s
+`pa-3TCz….js`, fetched 2026-11-09, 6,188 bytes) ends `plausible.o&&S(plausible.o),plausible.init=S`,
+so it starts only when the stub's `init()` has already set `plausible.o`, or when something calls
+`plausible.init` later. Without the stub, it counts nothing.
 
 | `src/config.ts` | Expected on the page | Result |
 |---|---|---|
@@ -77,9 +86,13 @@ build-wide. A page on another layout is the gate's job at build time, not this o
 
 **B. `ship.sh`**, in the branch where the live `build.txt` equals `$id` (line 993), before
 `finish` and `exit 0`, while the worktree still exists: fetch `$site/?cb=<random>` with the same
-`curl -sfL -m 8` as the `build.txt` loop, into a file in the run's temporary folder, and run
+`curl -sfL -m 8` as the `build.txt` loop, into a file in the run's temporary folder; then read
+`$site/build.txt?cb=<random>` once more. Only when it still shows `$id` is the page judged, by
 `node "${wt:-.}/scripts/check-live-analytics.mjs" <file>`. In worktree mode that is the published
 commit's copy and its `src/config.ts`.
+- The second `build.txt` read shows another commit, or the fromGitHub branch has just found a
+  newer publish (`ship.sh:999`): `⚠ Analytics on the live site not checked: another build went
+  live meanwhile`, and the run ends as it does today.
 - ✓: its one line is printed, then today's success line.
 - ✗ (exit 1 or 2), or the fetch fails: the publish is live, so the success line still says the
   build is live; the check's lines follow with `✗ Analytics on the live site: …`, and ship exits 1.
@@ -108,6 +121,11 @@ stops `npm run ship`.
   as in the gate. Only Plausible's Verify step catches it.
 - Whether Plausible records anything. That needs Plausible's API and a key; out of scope.
 - Sites on older kits (the guide's `ship.sh` is 0.23) get this only when they take the update.
+- A zone rule that caches HTML and ignores the query string: the `?cb=` read then may get an older
+  page. Under Cloudflare's default cache key a new query is a new key (`PUBLISHING.md:368-370` says the
+  same, for defaults only); a site with such a rule is not checked by this plan.
+- Two `build.txt` reads around the page narrow the window in which another build could go live;
+  they do not close it.
 
 ## How it is tested
 
@@ -123,12 +141,16 @@ stops `npm run ship`.
    Expected values written by hand from these notes, never copied from the script's output.
 2. **`tests/check_live_analytics.sh`**: each row of the table in A against the captures and small
    configs, including both off cases and server mode, exit codes checked; plus one consistency
-   case that runs the gate's `tags_program` (the Perl heredoc inside `tags_program()` in `check_analytics_gate.sh`, read out of that file, since the gate runs builds when sourced) on the same captures and requires the same script and
-   stub counts, so the two counters cannot drift apart unnoticed.
+   case that runs the gate's counter (the Perl heredoc inside `tags_program()` in
+   `check_analytics_gate.sh`, read out of that file, since the gate runs builds when sourced) on
+   the same captures, plus one page with a stub mention in a comment-only inline script, and
+   requires the same script, stub and other counts. That shows the two agree on these inputs
+   only; it does not prove they agree on every page.
 3. **Through production's call**: new `check_ship_push.sh` cases drive the real `ship.sh`, its
    stubbed `curl` serving the captures for `/` after `build.txt` matches: on + tag → exit 0 and the
    ✓ line; on + no tag → the success line, the ✗ lines, exit 1; script missing → ⚠, exit 0; home
-   page fetch fails → ✗, exit 1. Run on the default bash and on the Mac's bash 3.2, as CI does.
+   page fetch fails → ✗, exit 1; the second `build.txt` read shows another commit → ⚠, no judgment.
+   Run on the default bash and on the Mac's bash 3.2, as CI does.
 4. **Mutation check** on the script's comparisons and ship's new branch (remove the call, flip an
    expected count, drop the off-case id search), each to be KILLED.
 5. Wired into `template-tests.yml` beside the gate.
