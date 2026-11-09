@@ -156,7 +156,7 @@ their dates into the note.
 file with the old address on one line, `--draft moves.csv`, then fill in the new path and run
 `make_redirects.py old.txt moves.csv --site <new site> --out redirects.txt`. It writes a line for
 the address and one for its closing-slash twin. Add those lines to the site's `public/_redirects`
-yourself, above any catch-all, without the two `#` header lines (they say the file is regenerated).
+yourself, without the two `#` header lines (they say the file is regenerated).
 Read the script's counts and exit code first. The script refuses to write over a file it did not write. After
 go-live, run that skill's `check_move.py old.txt <new site> --moves moves.csv` and read its report.
 
@@ -182,9 +182,10 @@ findings. They go to the owner, not into an automatic rewrite.
 **More than ten pages.** Sort the pages before the full mode runs. Start from the full address list
 (`wp_inventory.py`'s `urls.csv`, or the sitemap for another tool) and join the clicks and impressions
 of every page over 90 days: `gsc_query.py --pages-csv pages.csv` writes them. Search Console lists
-the same page under several spellings (scheme, www, closing slash): fold them and add the variants up
-before joining, and list every row of `pages.csv` that matches no address. An address with no row
-after folding had no impressions in those 90 days; the triage deletes nothing. Every address lands in one group:
+the same page under several spellings (scheme, www, closing slash): fold only the spellings the old
+site itself sends to one address, add those up before joining, keep the rest as separate rows, and
+list every row of `pages.csv` that matches no address. An address with no row returned no
+impressions in those 90 days; that is not proof of zero, and the triage deletes nothing. Every address lands in one group:
 
 - **Move with care:** the pages that together bring 80% of the clicks. They get the full mode.
 - **Let go?** Pages with no clicks and no impressions, listed for the owner. Only the owner decides,

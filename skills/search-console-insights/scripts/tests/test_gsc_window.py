@@ -169,6 +169,15 @@ class PageFilter(unittest.TestCase):
         self.assertNotIn("query 100", section)
         self.assertIn("Showing 100 of 120 queries.", section)
 
+    def test_a_query_served_by_more_than_100_pages_says_how_many_it_cut(self):
+        rows = [row(f"https://example.com/p{n:03d}/", clicks=200 - n) for n in range(120)]
+        svc = FakeService(answer_with(page_rows=rows))
+        _, out, _ = run_main(svc, "--query", "backkurs")
+        section = out.split("## Pages serving")[1].split("\n## ")[0]
+        self.assertIn("/p099/", section)
+        self.assertNotIn("/p100/", section)
+        self.assertIn("Showing 100 of 120 pages.", section)
+
 
 class Completeness(unittest.TestCase):
     def dates(self, first, last):

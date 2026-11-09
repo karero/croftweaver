@@ -181,7 +181,7 @@ def query(service, site, start, end, dimensions, row_limit=ROW_LIMIT, country=""
     return resp.get("rows", [])
 
 
-PAGE_DRILL_LIMIT = 100  # queries listed for --page; a longer list says how many it cut
+DRILL_LIMIT = 100  # rows listed for --page and --query; a longer list says how many it cut
 MAX_PAGED_REQUESTS = 40  # 1,000,000 rows: a stop for a loop that is not advancing
 
 
@@ -511,9 +511,9 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     if page_url:
         L.append(f"## Queries landing on {page_url}\n")
         if page_drill:
-            L.append(fmt_rows(page_drill, "Query", limit=PAGE_DRILL_LIMIT))
-            if len(page_drill) > PAGE_DRILL_LIMIT:
-                L.append(f"\n_Showing {PAGE_DRILL_LIMIT} of {len(page_drill)} queries._")
+            L.append(fmt_rows(page_drill, "Query", limit=DRILL_LIMIT))
+            if len(page_drill) > DRILL_LIMIT:
+                L.append(f"\n_Showing {DRILL_LIMIT} of {len(page_drill)} queries._")
             L.append("\n_Attribution from GSC itself (query rows filtered to this "
                      "page). Rare queries can still be anonymized away, so rows here "
                      "may not sum to the page's total impressions._")
@@ -527,7 +527,9 @@ def build_report(site, start, end, top_queries, top_pages, kw_matches,
     if query_term:
         L.append(f"## Pages serving \"{query_term}\"\n")
         if query_drill:
-            L.append(fmt_rows(query_drill, "Page", limit=15))
+            L.append(fmt_rows(query_drill, "Page", limit=DRILL_LIMIT))
+            if len(query_drill) > DRILL_LIMIT:
+                L.append(f"\n_Showing {DRILL_LIMIT} of {len(query_drill)} pages._")
             if sum(1 for r in query_drill if r["impressions"] > 0) > 1:
                 L.append("\n_More than one page draws impressions for this exact "
                          "query. That can be benign — several of your pages sharing "
