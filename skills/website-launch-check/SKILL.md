@@ -304,11 +304,12 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/check_live_analytics.py" https://<live addr
 ```
 
 It fetches the home page and compares its analytics tag with `src/config.ts`. A ✗ (exit 1) is a
-🔴; quote its lines. Tag missing: the browser sends no visits. Tag present with analytics off:
+🔴; quote its lines. Tag missing: the page does not load the analytics script. Tag present with analytics off:
 visits may be counted without the privacy page saying so. Only the script's path or id seen: 🔴
 until someone looks. Exit 2 is 🟡 "not checked: <its reason>". It reads this folder's
 `src/config.ts`, so that file must be the live one: after `git fetch`, run `git diff --quiet
-origin/<PROD_BRANCH> -- src/config.ts` in the site's folder. If it fails, the row is 🟡 "not checked:
+origin/<PROD_BRANCH> -- src/config.ts` in the site's folder (`<PROD_BRANCH>` is the value of
+`PROD_BRANCH` in that file). If it fails, the row is 🟡 "not checked:
 `src/config.ts` here differs from the live branch". Baseline and pre-launch runs: "not checked
 yet: not deployed".
 

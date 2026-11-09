@@ -52,16 +52,18 @@ def config(use="export const USE_ANALYTICS = true;", mode="'script' as 'script'"
 class Server:
     """Serves one response for every path and records the paths asked for."""
 
-    def __init__(self, status=200, body=""):
+    def __init__(self, status=200, body="", truncate=False):
         self.paths = []
+        self.agents = []
         outer = self
 
         class H(BaseHTTPRequestHandler):
             def do_GET(self):
                 outer.paths.append(self.path)
+                outer.agents.append(self.headers.get("User-Agent"))
                 data = body.encode("utf-8")
                 self.send_response(status)
-                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Length", str(len(data) + (100 if truncate else 0)))
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -77,15 +79,16 @@ class Server:
         self.httpd.server_close()
 
 
-def run(cfg, address, body=None, status=200):
+def run(cfg, address, body=None, status=200, truncate=False, server=None):
     """Runs the script in a site folder holding cfg as src/config.ts. With body, serves it first
     and uses the server's address; returns (exit code, output, paths the server saw)."""
-    srv = Server(status, body) if body is not None else None
+    srv = server or (Server(status, body, truncate) if body is not None else None)
     try:
         with tempfile.TemporaryDirectory() as d:
             if cfg is not None:
                 (Path(d) / "src").mkdir()
-                (Path(d) / "src" / "config.ts").write_text(cfg, encoding="utf-8")
+                path = Path(d) / "src" / "config.ts"
+                path.write_bytes(cfg if isinstance(cfg, bytes) else cfg.encode("utf-8"))
             r = subprocess.run([sys.executable, "-I", str(SCRIPT), srv.address if srv else address],
                                cwd=d, capture_output=True, text=True, timeout=60)
             return r.returncode, r.stdout + r.stderr, (srv.paths if srv else [])
@@ -112,6 +115,24 @@ class OnScriptMode(unittest.TestCase):
         code, out, _ = run(config(), None, OLDTAG)
         self.assertEqual(code, 1, out)
         self.assertIn("0 analytics script tag(s), 0 init stub(s), 1 other", out)
+        # A tag is there, so "the build had analytics off" would point the owner the wrong way.
+        self.assertIn("not the one", out)
+        self.assertNotIn("had analytics off", out)
+
+    def test_a_per_site_script_with_another_id_is_another_tag(self):
+        # No data-domain here: only the /js/pa-<id>.js address makes it an analytics tag.
+        for src in ("https://analytics.example.com/js/pa-Other0000.js", "https://analytics.example.com/js/script.hash.js"):
+            with self.subTest(src):
+                page = f'<html><head><script async src="{src}"></script><script>plausible.init()</script></head></html>'
+                code, out, _ = run(config(), None, page)
+                self.assertEqual(code, 1, out)
+                self.assertIn("0 analytics script tag(s), 1 init stub(s), 1 other", out)
+
+    def test_no_mode_line_means_script_mode(self):
+        cfg = config().replace("  mode: 'script' as 'script',\n", "")
+        self.assertNotIn("mode:", cfg)
+        code, out, _ = run(cfg, None, GUIDE)
+        self.assertEqual(code, 0, out)
 
     def test_two_scripts_fail(self):
         page = GUIDE.replace("</head>", f'<script async src="{WANT}"></script></head>', 1)
@@ -202,6 +223,26 @@ class NotChecked(unittest.TestCase):
         self.assertEqual(code, 2, out)
         self.assertIn("empty", out)
 
+    def test_a_truncated_answer(self):
+        # Content-Length promises more than arrives: an ordinary network event, not a verdict.
+        code, out, _ = run(config(), None, GUIDE, truncate=True)
+        self.assertEqual(code, 2, out)
+        self.assertIn("could not be fetched", out)
+        self.assertNotIn("Traceback", out)
+
+    def test_a_config_that_is_not_utf8(self):
+        code, out, _ = run(config().encode("utf-8") + b"// \xff\xfe\n", None, GUIDE)
+        self.assertEqual(code, 2, out)
+        self.assertIn("not UTF-8", out)
+        self.assertNotIn("Traceback", out)
+
+    def test_a_mode_it_cannot_read(self):
+        for mode in ("getMode()", "'SERVER'"):
+            with self.subTest(mode):
+                code, out, _ = run(config(mode=mode), None, GUIDE)
+                self.assertEqual(code, 2, out)
+                self.assertIn("mode:", out)
+
     def test_a_refused_connection(self):
         s = Server()
         address = s.address
@@ -242,6 +283,12 @@ class Request(unittest.TestCase):
         self.assertRegex(first[0], r"^/\?cb=[0-9a-f]{6,}$")
         self.assertNotEqual(first, second)
 
+    def test_the_request_names_the_launch_check(self):
+        # A bot rule that blocks Python's default agent is why the plan names one.
+        srv = Server(200, GUIDE)
+        run(config(), None, server=srv)
+        self.assertEqual(srv.agents, ["croftweaver-launch-check"])
+
 
 @unittest.skipUnless(GATE.is_file() or REQUIRE_STARTER, "the starter's gate is not in this checkout")
 class AgreesWithTheGate(unittest.TestCase):
@@ -264,11 +311,18 @@ class AgreesWithTheGate(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr)
         return tuple(int(n) for n in r.stdout.split()[:3])
 
-    def test_same_counts_on_the_captures_and_a_comment_only_stub(self):
+    def test_same_counts_on_the_captures_and_edge_pages(self):
         commented = (f'<html><head><script async src="{WANT}"></script>'
                      "<!-- <script>plausible.init()</script> --></head></html>")
+        other_id = ('<html><script async src="https://analytics.example.com/js/pa-Other0000.js"></script>'
+                    "<script>plausible.init()</script></html>")
+        # The gate's Perl reads bytes, so a no-break space is no whitespace and é no word character.
+        nbsp = f'<html><script\u00a0src="{WANT}"></script></html>'
+        accent = '<html><script src="https://analytics.example.com/js/script.\u00e9.js"></script></html>'
         for name, page, expected in [("guide", GUIDE, (1, 1, 0)), ("webcroft", BARE, (0, 0, 0)),
-                                     ("older tag", OLDTAG, (0, 0, 1)), ("comment-only stub", commented, (1, 0, 0))]:
+                                     ("older tag", OLDTAG, (0, 0, 1)), ("comment-only stub", commented, (1, 0, 0)),
+                                     ("another id, no data-domain", other_id, (0, 1, 1)),
+                                     ("no-break space", nbsp, (0, 0, 0)), ("accented src", accent, (0, 0, 0))]:
             with self.subTest(name):
                 self.assertEqual(self.gate_counts(page), expected, "the gate's counter")
                 self.assertEqual(cla.count_tags(page, WANT), expected, "check_live_analytics")

@@ -9,6 +9,7 @@ page, with a cache-busting query; on Workers static assets a fresh query is no p
 page, so run it again a minute after a publish before acting on a failure. The counting follows
 the starter's tests/check_analytics_gate.sh, which does the same on a build. Standard library only.
 """
+import http.client
 import random
 import re
 import sys
@@ -20,6 +21,7 @@ CONFIG = Path("src/config.ts")
 USE_LINE = re.compile(r"^export const USE_ANALYTICS = (true|false);?[ \t]*(//.*)?$")
 HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]""")
 ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]""")
+MODE_KEY = re.compile(r"^\s*mode:")
 MODE_LINE = re.compile(r"""^\s*mode:\s*['"]([a-z]+)['"]""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{")
 BLOCK_END = re.compile(r"^\}")
@@ -27,12 +29,12 @@ BLOCK_END = re.compile(r"^\}")
 # The gate's expressions (check_analytics_gate.sh, tags_program): comments dropped outside
 # script elements, an opening tag read with its quoted values, one attribute at a time.
 STRIP = re.compile(
-    r"""(<script(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*>.*?</script\s*>)|<!--.*?-->""", re.I | re.S)
-SCRIPT_OPEN = re.compile(r"<script(?=[\s/>])", re.I)
-ATTR = re.compile(r"""\s*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?""")
-OTHER_SRC = re.compile(r"/js/(?:script(?:\.[\w.-]+)?|pa-[\w-]+)\.js(?:[?#]|$)")
-BODY = re.compile(r"[^>]*>(.*?)</script\b", re.I | re.S)
-STUB = re.compile(r"\bplausible\.init\s*\(")
+    r"""(<script(?=[\s/>])(?:[^>"']|"[^"]*"|'[^']*')*>.*?</script\s*>)|<!--.*?-->""", re.I | re.S | re.A)
+SCRIPT_OPEN = re.compile(r"<script(?=[\s/>])", re.I | re.A)
+ATTR = re.compile(r"""\s*([^\s"'>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?""", re.A)
+OTHER_SRC = re.compile(r"/js/(?:script(?:\.[\w.-]+)?|pa-[\w-]+)\.js(?:[?#]|$)", re.A)
+BODY = re.compile(r"[^>]*>(.*?)</script\b", re.I | re.S | re.A)
+STUB = re.compile(r"\bplausible\.init\s*\(", re.A)
 JS_TYPES = {"", "text/javascript", "application/javascript", "module"}
 
 
@@ -46,6 +48,8 @@ def read_config():
         text = CONFIG.read_text(encoding="utf-8")
     except OSError as e:
         raise NotChecked(f"cannot read {CONFIG}: {e.strerror or e}")
+    except UnicodeError:
+        raise NotChecked(f"{CONFIG} is not UTF-8 text")
     lines = text.splitlines()
     uses = [m.group(1) for m in map(USE_LINE.match, lines) if m]
     if not uses:
@@ -71,10 +75,14 @@ def read_config():
         found = [m.group(1) for m in map(pattern.match, block) if m]
         return found[0] if found else ""
 
-    host, sid = first(HOST_LINE).rstrip("/"), first(ID_LINE)
+    host, sid = first(HOST_LINE), first(ID_LINE)
+    host = host[:-1] if host.endswith("/") else host
     if not host or not sid:
         raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines in the ANALYTICS block of {CONFIG}")
-    mode = first(MODE_LINE) or "script"
+    mode = first(MODE_LINE)
+    if not mode and any(MODE_KEY.match(line) for line in block):
+        raise NotChecked(f"a mode: line in the ANALYTICS block of {CONFIG} is not written as mode: 'script' or 'server'")
+    mode = mode or "script"
     if mode not in ("script", "server"):
         raise NotChecked(f"mode in {CONFIG} is '{mode}'; expected 'script' or 'server'")
     return uses[0] == "true", f"{host}/js/{sid}.js", sid, mode
@@ -92,7 +100,7 @@ def fetch(address):
             status = r.status
     except urllib.error.HTTPError as e:
         raise NotChecked(f"{url} answered {e.code}")
-    except (urllib.error.URLError, OSError, ValueError) as e:
+    except (urllib.error.URLError, http.client.HTTPException, OSError, ValueError) as e:
         raise NotChecked(f"{url} could not be fetched: {getattr(e, 'reason', e)}")
     if not 200 <= status < 300:
         raise NotChecked(f"{url} answered {status}")
@@ -139,6 +147,8 @@ def count_tags(page, want):
 
 
 def main(argv):
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
     if len(argv) != 2:
         print("usage: check_live_analytics.py <live address>   (run in the site's folder)", file=sys.stderr)
         return 2
@@ -169,14 +179,16 @@ def main(argv):
         print(f"✓ the live page carries the analytics tag {CONFIG} asks for ({want}): {found}.")
         return 0
     print(f"✗ {CONFIG} has analytics on ({want}), but the live page has {found}; expected 1, 1 and 0.")
-    if script == 0:
-        print("  Likely causes, until fixed the page sends no visits from the browser:")
+    if script == 0 and other == 0:
+        print("  The page does not load the analytics script the config names. Likely causes:")
         print("  - the build that made the live site had analytics off;")
         print("  - on Workers Builds, the enabled: line must read WORKERS_CI_BRANCH (the 0.35 release notes),")
-        print("    or the build needs the variable CF_PAGES_BRANCH=<PROD_BRANCH>;")
-        print("  - on Pages, the project's production branch must be PROD_BRANCH.")
-        print("  Whether anything counts the visits is not checked (a Pages site with PLAUSIBLE_HOST and")
-        print("  PLAUSIBLE_DOMAIN set still counts on the server).")
+        print("    or the build needs the variable CF_PAGES_BRANCH=<the value of PROD_BRANCH in src/config.ts>;")
+        print("  - on Pages, the project's production branch must be the value of PROD_BRANCH.")
+        print("  Whether the server side counts anything is not checked (a Pages site with PLAUSIBLE_HOST and")
+        print("  PLAUSIBLE_DOMAIN set may send events from its Function whatever src/config.ts says).")
+    elif script == 0:
+        print(f"  The tag on the page is not the one {CONFIG} names (another id or host, or the older form).")
     print("  If the site was just published, the page may come from a cache: run this again in a minute.")
     return 1
 
