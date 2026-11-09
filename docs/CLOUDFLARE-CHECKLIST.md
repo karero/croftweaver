@@ -282,10 +282,12 @@ cookies, scripts or tracking you didn't choose.
   on (below). Cloudflare says Disallow keeps the other training crawlers out, and Sync
   publishes a no-training preference in `robots.txt`; the kit has not tested how crawlers
   are treated under either. That file also shuts out two smaller search engines, Baidu and
-  Petal (below). Bing does not read the preference yet: Microsoft's support is "targeted
-  for early 2027", Cloudflare says, and until then it points to Bing's `NOARCHIVE` meta tag
-  for a training preference (what Bing does with that tag is Microsoft's to say; we have not
-  checked Microsoft's pages). Google's separate training switch, Google-Extended, is among
+  Petal (below). Bing does not read the preference yet. Microsoft's AI Preferences FAQ
+  (https://www.bing.com/webmasters/help/new-ai-preferences-2t1cc16d, read 2026-11-09) says
+  nothing changes today and that Microsoft starts honoring its new AI Training preference on
+  1 February 2027; `NOARCHIVE` and `NOCACHE` stop counting for training after 1 March 2027.
+  The `ai-seo` skill (Step 4) has the dates; we have not checked whether the line Cloudflare
+  writes is in the form Microsoft reads. Google's separate training switch, Google-Extended, is among
   the crawlers that file shuts out. The setup script warns when it finds Training on Block
   or Block on pages with ads, and says how to keep Disallow and when Sync is off.
   For new domains, Cloudflare recommends Allow for all three with Bot Preference Sync on,
