@@ -8,6 +8,7 @@ depth: High (the starter's publish script) · seats: Codex + GLM 5.3 on melious
 |---|---|---|---|---|
 | 1 | `5f0792ec` | codex alone; melious out of balance (no rerun owed, rule of 2026-10-27) | codex 229 s, 80,384 | 2 / 2 / 0 |
 | 2 | `833da670` | codex alone; melious out of balance | codex 221 s, 70,750 | 2 / 4 / 0 |
+| 3 | `eff6aa9a` | codex alone; melious out of balance | codex 195 s, 77,754 | 1 / 2 / 0 |
 
 ## Round 1
 
@@ -38,7 +39,7 @@ Head `833da670` · codex alone; melious out of balance · codex 221 s, 70,750 to
 
 ## Round 3
 
-Head `fbd0c7f9` · codex alone; melious out of balance · codex 195 s, 77,754 tokens · 1 BUG, 2 RISK.
+Head `eff6aa9a` · codex alone; melious out of balance · codex 195 s, 77,754 tokens · 1 BUG, 2 RISK.
 
 | # | Kind | Finding | Disposition |
 |---|---|---|---|
