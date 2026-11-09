@@ -166,10 +166,11 @@ pulled on the new address. Pull each with `gsc_query.py --site <property> --page
 --by-date --no-csv --pages-csv <window>-pages.csv`, so a rerun reads the same days and the report says whether the window is
 complete: the property's own rows by date must reach its last day. Until it says so, judge nothing and pull again a few days later; three days after
 the end is when to try first, not proof. If it still says "Not complete" a week after the end, say
-so in the note to the owner and judge by hand in the Performance report. Run this at the date the page document and the go note
-name; the owner runs it, nothing is scheduled. The old address's own *after* window is for
-information only: after a working redirect its numbers fall by design. Its clicks still count in
-the page total below.
+so in the note to the owner and judge by hand in the Performance report. For `<window>` use `before`, `after` and, for the old
+address's own after window, `old-after`, so no pull writes over another's file. Run this at the date the page document and the go note
+name; the owner runs it, nothing is scheduled. Where the page moved to a new address, the old address's own
+*after* window is never judged on its own: after a working redirect its numbers fall by design. Its
+clicks still count in the page total below.
 
 A *main query* has at least 10 clicks in the before window. It is a finding when the after window
 shows less than half those clicks, or when its row is missing from the new address's query table and
@@ -178,13 +179,14 @@ serve it. Search Console hides rare queries, so a missing row is never read as z
 cannot see the query in the Performance report either, write "unknown". A complete after
 window with no rows for the new address at all is a finding too, never a reason to wait.
 
-The *page total* is the page's own row in each window's pages file: it holds the clicks Search
-Console hides from the query rows, often most of them. Before, the old address's row; after, the
-new address's row plus the old address's row for the same days (from the old address's property if
-it is another one). Fold the spellings as under "More than ten pages". A page with at least 10
-clicks before is a finding when its after total is less than half of them. On a small site this is
-often the only rule that can fire: its pages seldom have a query with 10 clicks. Where two rows
-were added, leave the total's position blank: positions do not add.
+The *page total* is the page's own row in each window's pages file. Search Console leaves rare
+queries out of the query rows, so this row often counts many more clicks than they add up to.
+Before, the old address's row; after, the new address's row. Where the page moved to a new
+address, add the old address's row for the same days (from the old address's property if it is
+another one); a kept address is one row, counted once. Fold the spellings as under "More than ten
+pages". A page with at least 10 clicks before is a finding when its after total is less than half
+of them. On a small site this is often the only rule that can fire: its pages seldom have a query
+with 10 clicks. Where two rows were added, leave the total's position blank: positions do not add.
 
 Give the owner a table that starts with the page total, then every query the before report lists
 with at least 1 click, largest first, with clicks, impressions and position for both windows. Mark
