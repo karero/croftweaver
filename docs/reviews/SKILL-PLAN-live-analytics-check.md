@@ -9,7 +9,7 @@ that has already gone out).
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | written 2026-11-09 | this file |
-| 2 | PLAN gate, High | rounds 1-3: Codex alone (melious out of balance), 5 BUG, 8 RISK, all addressed | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
+| 2 | PLAN gate, High | rounds 1-4: Codex alone (melious out of balance), 7 BUG, 9 RISK, all addressed | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
 | 3 | `build-marker.mjs` stamp; `scripts/check-live-analytics.mjs`; their tests, on real captures; the live leg (test 6) | — | — |
 | 4 | `ship.sh` calls it; `check_ship_push.sh` cases; markers 0.27 | — | — |
 | 5 | `website-launch-check` §8 runs it; `whats-new` lists the new file (`build-marker.mjs` is already tracked); `PUBLISHING.md` line; BUGLOG release-notes row | — | — |
@@ -63,8 +63,8 @@ gets one warning line and goes on: the marker must not fail a build.
 **A. `scripts/check-live-analytics.mjs --build <sha> <page.html>`** (Node; ship's pre-push gate
 already needs Node). First it reads the page's stamp: missing → exit 3, "this page carries no
 build stamp"; a different id → exit 4, "this page is from build <other>". Only a page stamped
-`<sha>` is judged. It reads `src/config.ts` in its own site folder (found from its own path, as `verify.mjs`
-does): `USE_ANALYTICS` from its top-level line, with the gate's pattern
+`<sha>` is judged. It reads `src/config.ts` in its own site folder (found from its own path, as
+`verify.mjs` does), or the file `--config <path>` names: `USE_ANALYTICS` from its top-level line, with the gate's pattern
 (`check_analytics_gate.sh:79`; no line counts as on, as in the gate); `scriptHost`, `scriptId` and
 `mode` with the gate's patterns (lines 93, 94, 103), but only inside the `export const ANALYTICS =
 { … }` block, so a `mode:` in another object cannot make a healthy publish fail. It counts, in the
@@ -90,7 +90,7 @@ not run.
 | on, script mode | 1 script, 1 stub, 0 other | ✓, exit 0 |
 | on, script mode | anything else | ✗, exit 1: what was found, then the causes below |
 | off | 0 of each, and neither `/js/<id>.js` nor the id anywhere | ✓ or ✗ (exit 1: "the live site loads analytics that `src/config.ts` has off") |
-| on, server mode | 0 script, 0 stub, 0 other | ✓ with "server mode counts from the Function; this check cannot see that counting"; any tag, an older one included, is ✗ (counted twice) |
+| on, server mode | 0 script, 0 stub, 0 other | ✓ with "server mode counts from the Function; this check cannot see that counting"; any tag, an older one included, is ✗: "browser analytics on the page in server mode; visits may be counted twice" |
 | unreadable config lines, or an empty page | — | ✗, exit 2, naming what it could not read |
 
 The causes printed for "on, tag missing": the build that made the live site had analytics off; on
@@ -128,8 +128,11 @@ the published commit's copy and its `src/config.ts`.
 - Markers: `ship.sh` and `check_ship_push.sh` to 0.27.
 
 **C. `website-launch-check` §8**, one bullet: on the live domain, read `/build.txt`, fetch the
-home page as ship does, and run the script with `--build <that id>`; a page from another build is
-fetched again as ship does. ✗ is a 🔴 (visits uncounted, or counted with analytics off), quoting its
+home page as ship does, and run the script with `--build <that id>` and `--config <file>`, the file
+being `git show <that id>:src/config.ts` (after a `git fetch` when the commit is not in the
+folder), so the config is the one the live build was made from, not the working copy. A page from
+another build is fetched again as ship does. The commit cannot be read: 🟡 "not checked: commit
+<id> is not in this folder". ✗ is a 🔴 (visits uncounted, or counted with analytics off), quoting its
 lines. The site has no script: 🟡 "not checked: `scripts/check-live-analytics.mjs` missing",
 with the offer to update. Baseline and pre-launch runs: "not checked yet: not deployed".
 
@@ -150,8 +153,13 @@ stops `npm run ship`.
 - Why the stamp, and not the query, settles freshness. Measured 2026-11-09 with `curl -I`:
   croftweaver.com (Pages) answers `cf-cache-status: DYNAMIC` for `/` and for `/?cb=<random>`;
   guide.croftweaver.com (Workers static assets) answers `HIT` for both. So on Workers a fresh query
-  is no proof of a fresh page. Whatever the cache does, the stamp names the build the page came
-  from; a page whose stamp is not `$id` is never judged.
+  is no proof of a fresh page. Whatever the cache does, the stamp names the commit the page was
+  built from; a page whose stamp is not `$id` is never judged.
+- A rebuild of the same commit. The stamp names the commit, not the build: two builds of one
+  commit with different variables (a dashboard "Retry" after changing the branch variable, say)
+  carry the same stamp, so a cached page from the first could be judged as the second. Ship's own
+  flow always pushes a new commit and builds it once; a same-commit rebuild is outside it and not
+  checked here.
 - Other pages than the home page: only `index.html` carries the stamp. A site whose `/` redirects
   to another page (a language root, say) reaches a page with no stamp: ⚠, not checked.
 
@@ -186,7 +194,8 @@ stops `npm run ship`.
    (the stubbed `curl` and `sleep` send it, as the existing stop cases do) → the stop line, exit 1,
    and no further request. Run on the default bash and on the Mac's bash 3.2, as CI does.
    The script's own tests add: a page stamped with another id (exit 4), no stamp (exit 3), and a
-   server-mode config with an older tag on the page (✗).
+   server-mode config with an older tag on the page (✗), and `--config` naming a file whose
+   analytics differs from the folder's own `src/config.ts` (the named file wins).
    `build-marker.mjs`: a build test that `dist/index.html` ends with the stamp of `build.txt`'s id,
    and that no other page gets one.
 4. **Mutation check** on the script's comparisons and ship's new branch (remove the call, flip an

@@ -9,6 +9,7 @@ depth: High (the starter's publish script) · seats: Codex + GLM 5.3 on melious
 | 1 | `5f0792ec` | codex alone; melious out of balance (no rerun owed, rule of 2026-10-27) | codex 229 s, 80,384 | 2 / 2 / 0 |
 | 2 | `833da670` | codex alone; melious out of balance | codex 221 s, 70,750 | 2 / 4 / 0 |
 | 3 | `eff6aa9a` | codex alone; melious out of balance | codex 195 s, 77,754 | 1 / 2 / 0 |
+| 4 | `3bdb9892` | codex alone; melious out of balance; earned by server-mode-tags, page-freshness, stop-handling; cut: the second build.txt read | codex 187 s, 77,908 | 2 / 1 / 0 |
 
 ## Round 1
 
@@ -50,3 +51,15 @@ Head `eff6aa9a` · codex alone; melious out of balance · codex 195 s, 77,754 to
 Follow-on changes from the host's own check: the captures carry no stamp, so the test stamps a
 temporary copy and leaves the committed captures as fetched; a build with no `dist/index.html`
 warns and goes on; a `/` that redirects to a page with no stamp is ⚠, not checked.
+
+## Round 4
+
+Head `3bdb9892` · codex alone; melious out of balance · codex 187 s, 77,908 tokens · 2 BUG, 1 RISK.
+Earned by round 3's kinds `server-mode-tags`, `page-freshness`, `stop-handling`; cut logged:
+"the second build.txt read, replaced by the build stamp".
+
+| # | Kind | Finding | Disposition |
+|---|---|---|---|
+| R4-1 | BUG | A commit id names a commit, not a build: two builds of one commit with different variables carry the same stamp (Codex ran the marker twice: identical). | fixed by narrowing, a cut of the claim: the plan says the stamp names the commit; a same-commit rebuild (a dashboard Retry) is outside ship's flow, which always pushes a new commit, and is listed as not checked. |
+| R4-2 | RISK | The launch check would judge the live page against the working copy's `src/config.ts`, not the stamped commit's. | fixed: `--config <path>`; the launch check passes `git show <id>:src/config.ts` (fetching first), 🟡 when the commit cannot be read; a test case. Ship already reads the published copy. |
+| R4-3 | BUG | "Counted twice" for a tag in server mode overclaims: `functions/_middleware.ts:85-98` skips server counting when its variables are missing. | fixed: the message says visits "may be" counted twice. |
