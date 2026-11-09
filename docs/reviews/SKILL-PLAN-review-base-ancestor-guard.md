@@ -7,7 +7,7 @@ user data, login, money, deletion or schema), so no red team.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-09 | this file |
-| 2 | PLAN gate, Normal depth | ⏳ rounds 1 to 3 and a final read done (Codex alone, GLM out of balance); round 3's BUG fixed, wording pass to confirm | `REVIEW-plan-2026-11-09-base-ancestor-guard.md` |
+| 2 | PLAN gate, Normal depth | ⏳ rounds 1 to 3 and a final read done (Codex alone, GLM out of balance); round 3's BUG and the wording pass's BUG fixed by cutting the claim, second wording pass to confirm | `REVIEW-plan-2026-11-09-base-ancestor-guard.md` |
 | 3 | The maintainer's go | ⏳ | — |
 | 4 | Build: guard, two doc sentences, tests (one PR) | ⏳ | — |
 | 5 | DIFF gate | ⏳ | — |
@@ -150,10 +150,10 @@ gate printed base `934bcc12`, then on the branch: the guard would have let them 
 
 ## Judgment, and the strongest case against
 
-Run or read by me: every row of E1 and E2 (the reviewers saw the output, not a rerun). Judgment: that the only legitimate
-`--base` values off the branch are the old reviewed head after a rebase, sent as a merge link
-or as a wording pass (E1 cases 7 and 7w; E1 found no other, and SKILL.md and closeout.md name
-no other), and that refusing beats a warning here.
+Run or read by me: every row of E1 and E2 (the reviewers saw the output, not a rerun). Judgment: that a legitimate
+`--base` off the branch is never on the default branch, since it is a reviewed head the branch
+has since rewritten (E1 cases 7 and 7w, a rebase; an amend leaves the same shape, not run), and
+that refusing beats a warning here.
 
 Against: the maintainer prefers warnings to refusals in the review process, and approved the
 brief's simpler design, not this one. The answer: SKILL.md already tells sessions not to do

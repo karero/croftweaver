@@ -49,3 +49,15 @@ Round 3 confirmed F1 to F3 fixed, and found one BUG outside the changed sections
 | C1 | BUG | Judgment still said a rebase merge link is the only legitimate `--base` off the branch, which the wording pass after a rebase (closeout.md, E1 case 7w) contradicts | fixed: Judgment names both, the old reviewed head sent as a merge link or as a wording pass |
 
 C1 is a prose fix to a claim, so the wording pass checks it.
+
+## Wording pass
+
+| Pass | Head | Artifact | Reviewer | seconds, tokens | BUG/RISK/NIT |
+|------|------|----------|----------|-----------------|--------------|
+| 1 | `06ebae15` | the plan's delta since `af42364e`, `--diff --wording-pass --base af42364e` | Codex alone | codex 105 s, 44,211 | 1 / 0 / 0 |
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| W1 | BUG | C1's fix still claimed an exhaustive list ("the only legitimate"), which an ordinary verification delta after an amend contradicts: SKILL.md asks for the last reviewed head without limiting it to rebases | cut: Judgment no longer lists the uses; it says only that a legitimate base off the branch is never on the default branch, being a reviewed head the branch has since rewritten. The guard was right already: an amended head is on neither, so case 4 lets it through |
+
+The same claim came back twice (C1, W1), so the second fix is a cut, not a patch.
