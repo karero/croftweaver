@@ -169,9 +169,10 @@ repo. In a subfolder of a bigger repo it leaves that repo's hooks alone, so the 
 wired there; say so rather than assume it runs.
 
 This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
-so without this hook a red test would still deploy. The hook is what makes "fails → does not
-ship" literally true for every push from a clone where it is installed, including the owner's
-own direct push to `main` on a single-owner site (`PUBLISHING.md`). Apart from the site's first
+so without this hook a red test would still deploy. The hook runs before every push from a
+clone where it is installed, including the owner's own direct push to `main` on a single-owner
+site (`PUBLISHING.md`). It tests the files on disk, not the commit being pushed, so a fix left
+uncommitted can hide a red commit: commit before you push. Apart from the site's first
 upload, assistants never push to `main` that way: they open pull requests (`AGENTS.md` §2), and
 CI checks those.
 
