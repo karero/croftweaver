@@ -7,7 +7,7 @@ user data, login, money, deletion or schema), so no red team.
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-11-09 | this file |
-| 2 | PLAN gate, Normal depth | ⏳ rounds 1 to 3 and a final read done (Codex alone, GLM out of balance); round 3's BUG and the wording pass's BUG fixed by cutting the claim, second wording pass to confirm | `REVIEW-plan-2026-11-09-base-ancestor-guard.md` |
+| 2 | PLAN gate, Normal depth | ⏳ rounds 1 to 3 and a final read done (Codex alone, GLM out of balance); ✅ CLEAN 2026-11-09 (rounds 1 to 3, a final read, two wording passes; Codex alone, GLM out of balance) | `REVIEW-plan-2026-11-09-base-ancestor-guard.md` |
 | 3 | The maintainer's go | ⏳ | — |
 | 4 | Build: guard, two doc sentences, tests (one PR) | ⏳ | — |
 | 5 | DIFF gate | ⏳ | — |
@@ -91,7 +91,9 @@ behind by a rebase, such as another branch's head or `origin/<a non-default targ
 `refs/remotes/origin/HEAD`, such as a local `main` ahead of it, `FETCH_HEAD` or a pasted SHA
 of a later main, since cases 2 to 4 test the local ref and do not fetch (case 4 lets it
 through); and a stale base that is still on the branch (the reviewers then see main's merged
-commits as added, not removed).
+commits as added, not removed). It refuses wrongly in one shape: a reviewed head that has
+since landed on the default branch while the branch was rewritten (E5, second half); the
+refusal then names the cause, and the run goes on with the merge base as `--base`.
 `sweep_claims.sh --base` is a separate script and already takes the merge base itself (E1,
 case 9), so it is unchanged.
 
@@ -150,9 +152,9 @@ gate printed base `934bcc12`, then on the branch: the guard would have let them 
 
 ## Judgment, and the strongest case against
 
-Run or read by me: every row of E1 and E2 (the reviewers saw the output, not a rerun). Judgment: that a legitimate
-`--base` off the branch is never on the default branch, since it is a reviewed head the branch
-has since rewritten (E1 cases 7 and 7w, a rebase; an amend leaves the same shape, not run), and
+Run or read by me: every row of E1 and E2 (the reviewers saw the output, not a rerun). Judgment: a rule of thumb, that
+a legitimate `--base` off the branch is a reviewed head the branch has since rewritten, and
+that such a head is not on the default branch (E1 cases 7 and 7w, a rebase; E5, an amend); and
 that refusing beats a warning here.
 
 Against: the maintainer prefers warnings to refusals in the review process, and approved the

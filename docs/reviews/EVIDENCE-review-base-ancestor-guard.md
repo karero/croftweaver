@@ -366,3 +366,36 @@ else
      Its diff starts from the last reviewed head too: send it with `--base <last-reviewed-head>`.
 
 ```
+
+## READ E5: the amend shape, and the one shape the guard refuses wrongly (ancestry only; the guard is not built)
+
+The script that ran (verbatim):
+```bash
+#!/bin/bash
+# The amend shape and the false-refusal shape, ancestry only (the guard is not built yet).
+set -u; T="$(mktemp -d)"; export GIT_CONFIG_NOSYSTEM=1 HOME="$T" GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@example.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@example.invalid
+git init -q --bare "$T/o.git"; git -C "$T/o.git" symbolic-ref HEAD refs/heads/main
+W="$T/w"; git init -q -b main "$W"; g() { git -C "$W" "$@"; }
+echo a >"$W/a"; g add -A; g commit -qm A; g remote add origin "$T/o.git"; g push -q origin main; g remote set-head origin main
+g checkout -qb feat; echo b >"$W/b"; g add -A; g commit -qm H1; H1=$(g rev-parse HEAD)
+echo b2 >"$W/b"; g commit -qam H1b --amend; echo "amend: H1 -> $(g rev-parse --short HEAD)"
+g merge-base --is-ancestor "$H1" HEAD; echo "  is-ancestor H1 HEAD: exit $?"
+g merge-base --is-ancestor "$H1" refs/remotes/origin/HEAD; echo "  is-ancestor H1 origin/HEAD: exit $?  (on neither: case 4, passes)"
+echo "false refusal: H1 lands on main (pushed there), the branch stays amended"
+g push -q origin "$H1:main"; g fetch -q origin
+g merge-base --is-ancestor "$H1" HEAD; echo "  is-ancestor H1 HEAD: exit $?"
+g merge-base --is-ancestor "$H1" refs/remotes/origin/HEAD; echo "  is-ancestor H1 origin/HEAD: exit $?  (on main: cases 2/3, refused)"
+rm -rf "$T"
+```
+
+Its output (verbatim):
+```
+command: /bin/bash /private/tmp/claude-501/-Users-matt-Devel-website-builder--claude-worktrees-plan-base-ancestor-guard-4c9cae/d2f71a83-a10b-4cc1-89e4-c097d75c2c1b/scratchpad/amend_case.sh
+run: 2026-11-09T19:30:15Z, git version 2.54.0 (Apple Git-157)
+amend: H1 -> 434b314
+  is-ancestor H1 HEAD: exit 1
+  is-ancestor H1 origin/HEAD: exit 1  (on neither: case 4, passes)
+false refusal: H1 lands on main (pushed there), the branch stays amended
+  is-ancestor H1 HEAD: exit 1
+  is-ancestor H1 origin/HEAD: exit 0  (on main: cases 2/3, refused)
+```
