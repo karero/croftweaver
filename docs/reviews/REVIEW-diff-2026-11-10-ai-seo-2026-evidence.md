@@ -9,6 +9,7 @@ Evidence: the PLAN gate's READs, plus READs 2e, 2f, 7c and 9 and the `make check
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | 7cab775a | full diff | codex · melious · fresh-eyes | codex 120 s, 52,508 · melious 221 s, 21,758 · fresh-eyes 36 s, 107,148 | 0/2/6 |
+| 2 | ccdf0b67 | full diff, --verify | codex · melious | codex 95 s, 39,790 · melious 343 s, 29,421 | 0/1/1 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -20,6 +21,8 @@ Evidence: the PLAN gate's READs, plus READs 2e, 2f, 7c and 9 and the `make check
 | D6 | NIT | melious | 1 | Eval 1's edit is read by no runner in the repo | no action | The plan says so (How it is tested; READ 5); wiring evals is outside this change |
 | D7 | NIT | fresh-eyes | 1 | `content-patterns.md` +31% and +41% blocks lack the "already retrieved" wording | no action | The section's lead (`content-patterns.md:168`) now carries it for every block below it |
 | D8 | NIT | fresh-eyes | 1 | Critical-stats bullet ends without a period | no action | No bullet in that list ends with a period; matches the list |
+| D9 | RISK | codex | 2 | D2's fix "they do not get a page found" claims the edits cannot help retrieval; READ 6 shows only that it was not tested | fixed | Lead now: "ways to improve a page once it is found. Whether they help a page get found was not tested" |
+| D10 | NIT | melious | 2 | Eval 1 keeps the per-method GEO figures that no READ backs, while the diff drops them from two SKILL.md headings | follow-up | The figures are not this change's: the diff appends one clause to that line, and the table (`SKILL.md`, Pillar 2) keeps the same figures. READ 6b, Table 1's caption: "The best methods improve upon baseline by 41% and 28% on Position-Adjusted Word Count and Subjective Impression"; a per-row check of Table 1 is outside this change |
 
 UNVERIFIABLE (round 1): Codex 5, melious 3. Pre-existing figures the diff does not touch
 (BrightEdge, Ahrefs, AirOps, the GEO table's numbers, Google's ai-features page) are outside this
