@@ -163,7 +163,9 @@ class OnScriptMode(unittest.TestCase):
             "second host": base.replace("  scriptHost:", "  scriptHost: 'https://a.example.org',\n  scriptHost:"),
             "nested object in enabled": base.replace("PROD_BRANCH,\n", "PROD_BRANCH && {\n  mode: 'script', scriptId: 'x',\n},\n"),
             "template in enabled": base.replace("PROD_BRANCH,\n", "PROD_BRANCH && `${\n  mode: 'script', scriptId: 'x',\n}}`,\n"),
-            "comment open in enabled": base.replace("PROD_BRANCH,\n", "PROD_BRANCH /*\n  mode: 'script', scriptId: 'x',\n  */\n"),
+            # Every other line is a valid form, so only the file-wide /* refusal can catch this one.
+            "comment open in enabled": base.replace("PROD_BRANCH,\n", "PROD_BRANCH /*\n").replace(f"'{SID}',", f"'{SID}', // */"),
+            "line-continued string in the comment tail": base.replace("PROD_BRANCH,\n", "\"x // \\\n  mode: 'script', scriptId: 'x', \"\n"),
             "line-continued string in enabled": base.replace("PROD_BRANCH,\n", "\"x\\\n  mode: 'script', scriptId: 'x',\n  \"\n"),
             "escape in id": base.replace(f"'{SID}',", "'pa-\\u0041',"),
             "escape in host": base.replace(f"'{HOST}',", "'https://a\\x2eexample.com',"),

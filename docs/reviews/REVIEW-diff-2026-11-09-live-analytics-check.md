@@ -4,7 +4,7 @@ Plan: `docs/reviews/SKILL-PLAN-live-analytics-check.md` (PLAN gate closed, trail
 Depth: Normal (a script a site's owner runs; no box, user data, login, money, deletion or schema).
 Seats: Codex gpt-6.1-sol alone in rounds 1 to 5 (melious out of balance, no rerun owed); Codex and
 GLM 5.3 on melious (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`) from round 6. Built by the build
-session `local_4be595ef` (rounds 1 to 5) and `local_1f478129` (rounds 6 to 10, after the account
+session `local_4be595ef` (rounds 1 to 5) and `local_1f478129` (rounds 6 to 11, after the account
 switch and a rebase onto `9f7d3ff6`). Gate 20261109T210813Z-33270.
 
 Rounds 1 to 5 were written up from the commit messages and the cost log: the old session's
@@ -24,8 +24,9 @@ findings files were not kept, so the per-finding detail for rounds 3 to 5 is not
 | 8 | `caa3440f` | verify since `668d1d2e`; cut: a whitelist of block lines replaces the per-property patches | Codex 229 s, 35,042 · melious 530 s, 34,315 | Codex 2 BUG, GLM 0 BUG, 2 NIT |
 | 9 | `23da3ae8` | verify since `caa3440f`; grant: Daniel, "Run round 9" (2026-11-10) | Codex 180 s, 33,387 · melious 241 s, 13,557 | Codex 1 BUG, GLM 0 BUG, 1 NIT |
 | 10 | `8c5e00e1` | verify since `23da3ae8`; grant: Daniel, "Run round 10" (2026-11-10) | Codex 109 s, 24,000 · melious 217 s, 11,980 | Codex 0 BUG, 1 NIT; GLM 1 BUG, 1 NIT |
+| 11 | `60142951` | verify since `8c5e00e1`; grant: Daniel, "Run round 11" (2026-11-10) | Codex 160 s, 26,869 · melious 436 s, 23,663 | Codex 1 BUG; GLM 2 RISK, 1 NIT |
 
-## Round 6 to 10 findings
+## Round 6 to 11 findings
 
 | id | Sev | Source | Round | Finding | Status |
 |---|---|---|---|---|---|
@@ -47,10 +48,14 @@ findings files were not kept, so the per-finding detail for rounds 3 to 5 is not
 | 10b | BUG | GLM | 10 | `enabled: "x\` (line continuation) swallows later lines | fixed: a backslash in the enabled value refuses the file; test; the old class accepts it, the new does not |
 | 10c | NIT | Codex | 10 | The backtick test passed on the old regex too | fixed: the case now opens the template on the enabled line |
 | 10d | NIT | GLM | 10 | The comment listed an incomplete set of characters | fixed: reworded |
+| 11a | BUG | Codex | 11 | The `//` comment tail of the enabled line still takes a backslash (`enabled: "x // \`) | fixed: the tail may not hold a backslash; test |
+| 11b | RISK | GLM | 11 | The `/*` regression case failed on the whitelist, not on the file-wide refusal | fixed: every other line is now valid; mutation (file-wide check off) fails exactly that case |
+| 11c | RISK | GLM | 11 | `enabled: PROD /*` rests on a check outside the diff | refuted: the check is `if "/*" in text` in `read_config`, shown by 11b's mutation |
+| 11d | NIT | GLM | 11 | `enabled: 'x` (unterminated) or `PROD */` read as valid | declined: both fail a build; the check refuses wrong readings, it does not parse JavaScript |
 
 ## State
 
 Tests: `make test-launch-check`, 54 tests, OK at `23da3ae8`. Live run against the guide's real
 `src/config.ts` and https://guide.croftweaver.com/ at `caa3440f`: exit 0.
-The fix of 10b is not yet re-reviewed: round 11 needs Daniel's word (past the round-8 stop).
-Totals through round 10: 15 seat runs, about 561,000 tokens (the script's running total; round 8 stood at 475,829).
+The fix of 11a is not yet re-reviewed: round 12 needs Daniel's word (past the round-8 stop).
+Totals through round 11: 17 seat runs, about 612,000 tokens (the script's running total; round 8 stood at 475,829).
