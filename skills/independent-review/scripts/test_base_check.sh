@@ -388,4 +388,79 @@ sed 's/^/     remedy stderr: /' "$T/t4bt.remedy.err"
 run t4bt "$R" "$T/t4bt.diff" --seat codex --depth normal --base "$X0"
 check "T4 the printed remedy makes a diff that runs" rc_is t4bt 0
 
+# --- repository 4: a --base that is not on the branch ------------------------------------------
+# Plan: docs/reviews/SKILL-PLAN-review-base-ancestor-guard.md. Main moves past the branch; a diff
+# from origin/main then shows main's new commits as removed, and the base check alone passes it.
+R="$T/r4"; mkdir -p "$R"
+git init -q --bare "$R/origin.git" && g "$R/origin.git" symbolic-ref HEAD refs/heads/main
+git init -q "$R/w" && g "$R/w" symbolic-ref HEAD refs/heads/main
+printf 'a1\na2\na3\na4\na5\na6\na7\na8\na9\n' >"$R/w/a"; printf 'b one\n' >"$R/w/b"; printf 'c one\n' >"$R/w/c"
+commit "$R/w" M0 && g "$R/w" remote add origin "$R/origin.git" && g "$R/w" push -q origin main \
+  && g "$R/w" remote set-head origin main || { echo "FAIL — could not build repository 4."; exit 1; }
+M0="$(sha "$R/w" HEAD)"
+g "$R/w" checkout -q -b feat && sed -i.bak 's/^a1$/a1 F1/' "$R/w/a" && rm "$R/w/a.bak" && commit "$R/w" F1 && F1="$(sha "$R/w" HEAD)" \
+  && sed -i.bak 's/^a2$/a2 F2/' "$R/w/a" && rm "$R/w/a.bak" && commit "$R/w" F2 || { echo "FAIL — could not build the branch in repository 4."; exit 1; }
+git clone -q "$R/origin.git" "$R/o2" && printf 'b two\n' >"$R/o2/b" && commit "$R/o2" M1 && g "$R/o2" push -q origin main \
+  && g "$R/w" fetch -q origin || { echo "FAIL — could not move origin in repository 4."; exit 1; }
+g "$R/w" diff origin/main HEAD >"$T/t9a.diff"
+run t9a "$R/w" "$T/t9a.diff" --seat codex --depth normal --base origin/main
+check "T9a two-dot diff with --base origin/main, main moved: refused (exit 2)" rc_is t9a 2
+check "T9a ... saying the base is not on this branch" has t9a.err "is not on this branch"
+check "T9a ... with the three-dot command naming origin/main...HEAD" has t9a.err "origin/main...HEAD -- . ':(exclude)docs/reviews/' |"
+check "T9a ... and the delta and other-branch remedies" sh -c 'grep -qF -- "--base <last-reviewed-head>." "$1.err" && grep -qF -- "--base <that merge base>." "$1.err"' _ "$T/t9a"
+check "T9a ... and no reviewer ran" not_ran t9a
+g "$R/w" diff origin/main...HEAD >"$T/t9b.diff"
+run t9b "$R/w" "$T/t9b.diff" --seat codex --depth normal
+check "T9b three-dot diff, no --base: runs (exit 0)" rc_is t9b 0
+check "T9b ... the reviewer ran" ran t9b
+# T9c: the printed command, run as printed (its placeholder tail cut off), then sent with no --base.
+awk 'index($0, "  git -C ") == 1 && !done { sub(/ \| .*/, ""); print; done = 1 }' "$T/t9a.err" >"$T/t9c.cmd"
+( cd "$R/w" && bash "$T/t9c.cmd" ) >"$T/t9c.diff" 2>/dev/null; echo $? >"$T/t9c-git.rc"
+check "T9c the printed command was found and exits 0" sh -c '[ -s "$1.cmd" ] && [ "$(cat "$1-git.rc")" = 0 ]' _ "$T/t9c"
+run t9c "$R/w" "$T/t9c.diff" --seat codex --depth normal
+check "T9c its diff, sent with no --base: runs (exit 0)" rc_is t9c 0
+check "T9c ... the reviewer ran" ran t9c
+# T9d: the incident, a --verify round with the same two-dot diff.
+run t9d "$R/w" "$T/t9a.diff" --seat codex --verify "$T/prior.md" --base origin/main --depth normal --round 2
+check "T9d --verify round with --base origin/main, main moved: refused (exit 2)" rc_is t9d 2
+check "T9d ... saying a verification round names the last reviewed head" has t9d.err "a verification round names the last reviewed head"
+check "T9d ... with the delta command" has t9d.err "<last-reviewed-head> HEAD -- . ':(exclude)docs/reviews/' |"
+check "T9d ... and the merge link" has t9d.err "$(printf '%q' "$HERE/merge_link.sh") <old-merge-base> <last-reviewed-head> <new-merge-base>"
+check "T9d ... with no \"drop --base\" line" lacks t9d.err "drop --base"
+check "T9d ... and no reviewer ran" not_ran t9d
+# T9d2: the delta command T9d printed, with the branch's reviewed head, run as printed.
+awk -v h="$F1" 'index($0, "  git -C ") == 1 && !done { sub(/ \| .*/, ""); gsub(/<last-reviewed-head>/, h); print; done = 1 }' "$T/t9d.err" >"$T/t9d2.cmd"
+( cd "$R/w" && bash "$T/t9d2.cmd" ) >"$T/t9d2.diff" 2>/dev/null; echo $? >"$T/t9d2-git.rc"
+check "T9d2 the printed delta command was found and exits 0" sh -c '[ -s "$1.cmd" ] && [ "$(cat "$1-git.rc")" = 0 ]' _ "$T/t9d2"
+run t9d2 "$R/w" "$T/t9d2.diff" --seat codex --verify "$T/prior.md" --base "$F1" --depth normal --round 2
+check "T9d2 its diff with --verify --base <that head>: runs (exit 0)" rc_is t9d2 0
+check "T9d2 ... the reviewer ran" ran t9d2
+# After a rebase onto the moved main, the old reviewed head is on neither the branch nor main. Main
+# also changed the branch's own file a, so the merge link has an effect to show.
+OLD="$(sha "$R/w" HEAD)"
+g "$R/o2" pull -q origin main && sed -i.bak 's/^a9$/a9 M2/' "$R/o2/a" && rm "$R/o2/a.bak" && commit "$R/o2" M2 && g "$R/o2" push -q origin main \
+  && g "$R/w" fetch -q origin && g "$R/w" rebase -q origin/main || { echo "FAIL — could not rebase in repository 4."; exit 1; }
+M2="$(sha "$R/w" origin/main)"
+( cd "$R/w" && bash "$HERE/merge_link.sh" "$M0" "$OLD" "$M2" ) >"$T/t9e.diff" 2>/dev/null
+check "T9e fixture: the old head is on neither HEAD nor main, and the merge link has a diff" \
+  sh -c '! git -C "$1" merge-base --is-ancestor "$2" HEAD && ! git -C "$1" merge-base --is-ancestor "$2" origin/main && [ -s "$3" ]' _ "$R/w" "$OLD" "$T/t9e.diff"
+run t9e "$R/w" "$T/t9e.diff" --seat codex --verify "$T/prior.md" --base "$OLD" --depth normal --round 2
+check "T9e merge link after a rebase, --verify --base <old reviewed head>: runs (exit 0)" rc_is t9e 0
+check "T9e ... the reviewer ran" ran t9e
+g "$R/w" diff "$OLD" HEAD >"$T/t9f.diff"
+run t9f "$R/w" "$T/t9f.diff" --seat codex --wording-pass --base "$OLD" --depth normal
+check "T9f delta since the old head, --wording-pass --base <old head>, no --verify: runs (exit 0)" rc_is t9f 0
+check "T9f ... the reviewer ran" ran t9f
+g "$R/w" remote set-head origin -d
+run t9g "$R/w" "$T/t9e.diff" --seat codex --verify "$T/prior.md" --base "$OLD" --depth normal --round 2
+check "T9g T9e with origin/HEAD deleted: refused (exit 2)" rc_is t9g 2
+check "T9g ... naming remote set-head origin --auto" has t9g.err "remote set-head origin --auto"
+check "T9g ... and no reviewer ran" not_ran t9g
+g "$R/w" remote remove origin
+run t9h "$R/w" "$T/t9e.diff" --seat codex --verify "$T/prior.md" --base "$OLD" --depth normal --round 2
+check "T9h T9e with no origin remote: refused (exit 2)" rc_is t9h 2
+check "T9h ... saying there is no origin remote" has t9h.err "has no origin remote"
+check "T9h ... naming --base none, not set-head" sh -c 'grep -qF -- "--base none" "$1.err" && ! grep -qF -- "set-head" "$1.err"' _ "$T/t9h"
+check "T9h ... and no reviewer ran" not_ran t9h
+
 if [ "$fails" -eq 0 ]; then echo "PASS — test_base_check.sh"; else echo "FAIL — test_base_check.sh: $fails check(s) failed"; exit 1; fi
