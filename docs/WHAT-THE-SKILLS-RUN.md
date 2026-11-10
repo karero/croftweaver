@@ -222,11 +222,13 @@ an "Email Tap" event there, as a click on an email address does.
   Its `scripts/move-to-workers.mjs` moves a live site's domain from its Pages project to its
   Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
   short-lived token you make, from `CLOUDFLARE_API_TOKEN` or from the site's `.dev.vars`, which
-  it reads only if git ignores that file. `check`, `record` and `after` only read: your zone and
-  its DNS records, the Pages project and the Worker's domains through Cloudflare's API, the
-  repository's branches and checks on GitHub, and your site's own pages. `record` builds the
-  live branch's newest commit with `npm ci` (or `npm install`) and `npm run build`, in a copy
-  under `move-run/`, a folder in your site that git ignores. `move` writes a commit on your
+  it reads only if git ignores that file. `check`, `record` and `after` change nothing on
+  Cloudflare: they read your zone and its DNS records, the Pages project and the Worker's
+  domains through Cloudflare's API, the repository's branches and checks on GitHub, and your
+  site's own pages. Every run writes a status page to `move-run/`, a folder in your site whose
+  own `.gitignore` ignores everything in it, and every run but `check` keeps the move's state
+  (see "Writes outside your site's folder"). `record` builds the live branch's newest commit
+  with `npm ci` (or `npm install`) and `npm run build`, in a copy under `move-run/`. `move` writes a commit on your
   branch that sets the Workers config's routes, and does not push it. Only `move --confirm` and
   `undo --confirm`, after your yes to the question they print, change Cloudflare: `move`
   deletes each host's Pages domain and its DNS record and attaches the host to the Worker;
@@ -356,7 +358,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | Serper or SerpApi | `serp_check.py` | your `SERPER_API_KEY` or `SERPAPI_KEY` | sends a keyword, country and language; reads search results |
 | OpenRouter, or Gemini, OpenAI, Anthropic, Perplexity directly | the weekly AI check (`geo_check.py`) | your own key for each (`GEO_…_API_KEY`) | sends the questions you confirmed, one of which names your business; reads the answers |
 | SerpApi (Google's AI answers) | `geo_check.py`, only if you switch it on | your `SERPAPI_KEY` | sends the same questions |
-| Your own site's pages | `geo_check.py` (the home page), the weekly search report (pages a fix changed), `move-to-workers.mjs` (`record` and `after`: the built pages, on each host and on the Worker's version address) | none | reads them; the report follows redirects only on your own domain |
+| Your own site's pages | `geo_check.py` (the home page), the weekly search report (pages a fix changed), `move-to-workers.mjs` (the built pages and `/build.txt`, on each host and on the Worker's version address) | none | reads them; the report follows redirects only on your own domain |
 | OpenAI (through the Codex app) | `independent-review` | your Codex sign-in | sends the plan or code change |
 | ollama.com | `independent-review` | your `OLLAMA_API_KEY` or `ollama signin` | sends the plan or code change |
 | melious.ai | `independent-review`, only when a model is named for it | your `MELIOUS_API_KEY` | sends the plan or code change |
@@ -474,7 +476,7 @@ the new release no longer has.
 | Codex, Antigravity, GitHub, Cloudflare sign-ins | each tool's own login |
 | Cloudflare API token | an environment variable for the session (Wrangler 4.151.0 read a token from the shell and not from `.dev.vars`, tested 2026-10-14); the guide asks for a narrow token that expires in about a week; `move-to-workers.mjs` reads `CLOUDFLARE_API_TOKEN` from the environment, else from the site's `.dev.vars`, and refuses a `.dev.vars` that git tracks or does not ignore |
 
-All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
+All of these live outside the site's folder, except a token you put in `.dev.vars`. The site's `.gitignore` also excludes `.env`,
 `.env.*` (but not `.env.example`), `.dev.vars`, `.wrangler/` and, at the site's top level,
 `client_secret*.json` and `token.json`, in case a copy lands there, and `analytics/`, where
 the reports are kept. The review tool passes
