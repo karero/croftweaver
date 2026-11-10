@@ -144,23 +144,26 @@ class OnScriptMode(unittest.TestCase):
                 cfg = config().replace("  scriptHost:", note + "  scriptHost:")
                 code, out, _ = run(cfg, None, GUIDE)
                 self.assertEqual(code, 2, out)
-                self.assertIn("reads only // comments", out)
+                self.assertIn("block comments are not read", out)
 
     def test_a_block_comment_anywhere_in_the_file_is_refused(self):
         # A commented switch line must not override the live one.
         cfg = "/* export const USE_ANALYTICS = true; */\n" + config(use="export const USE_ANALYTICS = false;")
         code, out, _ = run(cfg, None, GUIDE)
         self.assertEqual(code, 2, out)
-        self.assertIn("reads only // comments", out)
+        self.assertIn("block comments are not read", out)
 
     def test_lines_that_are_more_than_a_plain_value_are_refused(self):
-        # Node would evaluate each of these to something other than what a prefix match reads.
+        # Each is refused: a prefix or first-match read could disagree with what the file evaluates to.
         base = config()
         cases = {
             "opening line": base.replace("export const ANALYTICS = {\n", "export const ANALYTICS = { mode: 'server',\n"),
             "host expression": base.replace(f"'{HOST}',", f"'{HOST}' + '/proxy',"),
             "id expression": base.replace(f"'{SID}',", f"'{SID}' + 'x',"),
             "second host": base.replace("  scriptHost:", "  scriptHost: 'https://a.example.org',\n  scriptHost:"),
+            "mode after enabled": base.replace("PROD_BRANCH,\n", "PROD_BRANCH, mode: 'server',\n").replace("  mode: 'script' as 'script',\n", ""),
+            "host after host": base.replace(f"'{HOST}',", f"'{HOST}', scriptHost: 'https://a.example.org',"),
+            "id after id": base.replace(f"'{SID}',", f"'{SID}', 'scriptId': 'pa-Other',"),
         }
         for name, cfg in cases.items():
             with self.subTest(name):

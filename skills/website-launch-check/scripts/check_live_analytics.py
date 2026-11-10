@@ -21,9 +21,9 @@ CONFIG = Path("src/config.ts")
 USE_LINE = re.compile(r"^export const USE_ANALYTICS = (true|false);?[ \t]*(//.*)?$")
 HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]\s*,?\s*(?://.*)?$""")
 ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]\s*,?\s*(?://.*)?$""")
-# A line that starts with the mode key must be exactly one of the starter's forms, else the file is
-# refused: anything cleverer (an expression, a computed or quoted key) is not read, never guessed.
-MODE_START = re.compile(r"""^\s*(?:\[|['"`]*mode\b)""")
+# Every line of the ANALYTICS block must be one of these forms (or blank, or a // comment), else the
+# file is refused: nothing cleverer is read, never guessed.
+ENABLED_LINE = re.compile(r"^\s*enabled:[^,]*,?\s*(?://.*)?$")
 MODE_LINE = re.compile(
     r"""^\s*mode:\s*'(script|server)'(?:\s+as\s+'(?:script|server)'(?:\s*\|\s*'(?:script|server)')?)?\s*,?\s*(?://.*)?$""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{\s*(?://.*)?$")
@@ -54,7 +54,7 @@ def read_config():
     except UnicodeError:
         raise NotChecked(f"{CONFIG} is not UTF-8 text")
     if "/*" in text:  # not scanned: a block comment could hide or fake a line, so the file is refused
-        raise NotChecked(f"{CONFIG} has /* in it: this check reads only // comments")
+        raise NotChecked(f"{CONFIG} has /* in it: block comments are not read, use // comments (a /* inside a // comment or a value refuses too)")
     lines = text.splitlines()
     uses = [m.group(1) for m in map(USE_LINE.match, lines) if m]
     if not uses:
@@ -76,6 +76,13 @@ def read_config():
     if not block:
         raise NotChecked(f'no "export const ANALYTICS = {{ … }}" block in {CONFIG}')
 
+    for line in block[1:]:
+        if line.strip() and not line.lstrip().startswith("//") and not any(
+                p.match(line) for p in (ENABLED_LINE, MODE_LINE, HOST_LINE, ID_LINE)):
+            raise NotChecked(
+                f"a line of the ANALYTICS block in {CONFIG} is not one this check reads (enabled, "
+                f"mode: 'script' or 'server', scriptHost, scriptId, each on one line, or a // comment): {line.strip()!r}")
+
     def only(pattern, name):
         found = [m.group(1) for m in map(pattern.match, block) if m]
         if len(found) > 1:
@@ -86,12 +93,10 @@ def read_config():
     host = host[:-1] if host.endswith("/") else host
     if not host or not sid:
         raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines (each a plain quoted value) in the ANALYTICS block of {CONFIG}")
-    starts = [line for line in block if MODE_START.match(line)]
-    found = [m.group(1) for m in map(MODE_LINE.match, starts) if m]
-    if len(found) != len(starts) or len(starts) > 1:
-        raise NotChecked(f"the mode line in the ANALYTICS block of {CONFIG} is not one line written as "
-                         "mode: 'script' or 'server' (a // comment after it is fine)")
-    mode = found[0] if found else "script"
+    modes = [m.group(1) for m in map(MODE_LINE.match, block) if m]
+    if len(modes) > 1:
+        raise NotChecked(f"more than one mode line in the ANALYTICS block of {CONFIG}")
+    mode = modes[0] if modes else "script"
     return uses[0] == "true", f"{host}/js/{sid}.js", sid, mode
 
 
