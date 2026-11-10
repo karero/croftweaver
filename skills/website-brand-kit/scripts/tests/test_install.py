@@ -5473,6 +5473,14 @@ class WhatIsAskedAndWhen(SiteCase):
         self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([note], []), ([note], [])), out)
         self.assertEqual(self.icons(), icons, "the logo's files are as they were: nothing is recoloured")
         self.assertIn("themeColor: '#5c2208',", self.read("src/config.ts"))
+        # the same redraw without --accept-colours: the question offers only --accept-colours, and the note beside it names the package
+        code, out = self.intake("--with-logo", "--json", "--replace-icons", "--accept-low-contrast", "both")
+        self.assertEqual(code, 3, out)
+        self.assertEqual(self.kept(out)[0], [note], out)
+        ask = [k["question"] for k in json.loads(out)["asks"] if k["code"] == "outside-palette"]
+        self.assertEqual(len(ask), 1, out)
+        self.assertTrue(ask[0].endswith("Use the mark as it is (--accept-colours)."), ask[0])
+        self.assertNotIn("ask the tool", ask[0])
         # a Primary that changes while the colour of the day stays in the palette under another row: before round 6 nothing was said
         self.brand_md(self.LATER.replace(T.BAKERY_DARK["line"], "#7a2e0b"))
         (dry_code, dry), (code, out) = self.both_runs("--json")

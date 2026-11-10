@@ -39,6 +39,8 @@ const CRAWLERS = [
   ['GPTBot', 'Mozilla/5.0 (compatible; GPTBot/1.1; +https://openai.com/gptbot)'],
   ['OAI-SearchBot', 'Mozilla/5.0 (compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot)'],
   ['ClaudeBot', 'Mozilla/5.0 (compatible; ClaudeBot/1.0)'],
+  // Anthropic publishes only the name Claude-SearchBot; the rest copies the ClaudeBot row.
+  ['Claude-SearchBot', 'Mozilla/5.0 (compatible; Claude-SearchBot/1.0)'],
   ['PerplexityBot', 'Mozilla/5.0 (compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)'],
   ['CCBot', 'CCBot/2.0 (https://commoncrawl.org/faq/)'],
   ['Amazonbot', 'Mozilla/5.0 (compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot)'],
