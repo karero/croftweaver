@@ -241,7 +241,9 @@ an "Email Tap" event there, as a click on an email address does.
   each launch report's Markdown in `docs/launch/` into an HTML page beside it. That script reads
   and writes only those files and makes no network call. For a site that replaces an older one,
   the assistant reads the old site's public `sitemap.xml`; at the live re-check it reads
-  the new site's live pages, only once its production build is Active. It measures speed the way
+  the new site's live pages, only once its production build is Active, and runs
+  `check_live_analytics.py`, which fetches the live home page once, with a throwaway query, and reads
+  `src/config.ts` (it writes nothing). It measures speed the way
   `website-qa` does (Lighthouse, see that skill). It also starts the site's local preview to read the
   console, and stops it again, and keeps the test output in a scratch file while it reads it.
 - **`facts-check`** runs `facts_check.py`, which reads your site's public pages and its

@@ -297,6 +297,28 @@ reads it. For a WordPress move,
 point at `wordpress-inspector`'s `scripts/check_move.py --moves` where that skill is installed;
 a site's bundled skills do not include it, so otherwise say it comes from Croftweaver.
 
+**The analytics tag on the live page.** Run, in the site's folder, with the live address:
+
+```
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_live_analytics.py" https://<live address>
+```
+
+It fetches the home page and compares its analytics tag with `src/config.ts`. A ✗ (exit 1) is a
+🔴; quote its lines. Tag missing: the page carries no analytics script tag. Tag present with analytics off:
+visits may be counted without the privacy page saying so. Only the script's path or id seen: 🔴
+until someone looks. Exit 2 is 🟡 "not checked: <its reason>". It reads this folder's
+`src/config.ts`, so that file must be the live one: after `git fetch`, run `git diff --quiet
+origin/<PROD_BRANCH> -- src/config.ts` in the site's folder (`<PROD_BRANCH>` is the value of
+`PROD_BRANCH` in that file). If it fails, the row is 🟡 "not checked:
+`src/config.ts` here differs from the live branch". Baseline and pre-launch runs: "not checked
+yet: not deployed".
+
+**Right after a publish, the live page may still come from a cache, so its answer can be about the
+build before. Run it again a minute later before acting on a ✗.** Measured 2026-11-09 with
+`curl -I`: croftweaver.com (Pages) answers `cf-cache-status: DYNAMIC` for `/` and `/?cb=<random>`;
+guide.croftweaver.com (Workers static assets) answers `HIT` for both, so on Workers a fresh query
+is no proof of a fresh page.
+
 ## 9. Committing
 
 The reports are the site's records: commit them the way the site's `AGENTS.md` says (a branch
