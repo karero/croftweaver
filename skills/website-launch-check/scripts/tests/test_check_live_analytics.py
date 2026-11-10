@@ -162,6 +162,7 @@ class OnScriptMode(unittest.TestCase):
             "id expression": base.replace(f"'{SID}',", f"'{SID}' + 'x',"),
             "second host": base.replace("  scriptHost:", "  scriptHost: 'https://a.example.org',\n  scriptHost:"),
             "nested object in enabled": base.replace("PROD_BRANCH,\n", "PROD_BRANCH && {\n  mode: 'script', scriptId: 'x',\n},\n"),
+            "template in enabled": base.replace("PROD_BRANCH,\n", "`\n  // x ${y}\n  mode: 'script',\n  scriptId: 'x',\n  `,\n"),
             "escape in id": base.replace(f"'{SID}',", "'pa-\\u0041',"),
             "escape in host": base.replace(f"'{HOST}',", "'https://a\\x2eexample.com',"),
             "mode after enabled": base.replace("PROD_BRANCH,\n", "PROD_BRANCH, mode: 'server',\n").replace("  mode: 'script' as 'script',\n", ""),
