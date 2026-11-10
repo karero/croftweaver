@@ -519,18 +519,20 @@ async function readToken(root, git, env) {
 export const ENABLED_LINE = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,';
 
 // src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether analytics is on (read as
-// tests/check_analytics_gate.sh reads it; null unless USE_ANALYTICS is unnamed or named in exactly
-// one line of its one-line form), and whether its one enabled: line is ENABLED_LINE as it stands.
+// tests/check_analytics_gate.sh reads it; null unless USE_ANALYTICS is unnamed, or declared once and
+// only in its one-line form), whether it is declared, and whether the one enabled: line reading
+// process.env (the gate counts the same lines) is ENABLED_LINE as it stands.
 async function readSiteConfig(git, sha) {
   const r = await git('show', `${sha}:src/config.ts`);
   if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
   const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
   if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
   const uses = [...r.stdout.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
-  const analyticsOn = uses.length === 1 ? uses[0][1] === 'true' : uses.length === 0 && !r.stdout.includes('USE_ANALYTICS') ? true : null;
-  const enabled = r.stdout.split(/\r?\n/).filter((l) => /^\s*enabled:/.test(l));
+  const declared = (r.stdout.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
+  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !r.stdout.includes('USE_ANALYTICS') ? true : null;
+  const enabled = r.stdout.split(/\r?\n/).filter((l) => /^\s*enabled:.*process\.env\./.test(l));
   const enabledLine = enabled.length === 1 && enabled[0].trim() === ENABLED_LINE;
-  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), analyticsOn, enabledLine };
+  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), analyticsOn, declared: declared > 0, enabledLine };
 }
 
 // The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
@@ -901,7 +903,7 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 // ---------------------------------------------------------------- the refusals of a first move
 
 // What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
-// analytics server mode and, with analytics on, the 0.35 enabled: line as written. Read from git only, so a run lists all of them at once.
+// analytics server mode, a USE_ANALYTICS it cannot read and, with analytics on, the 0.35 enabled: line as written. Read from git only, so a run lists all of them at once.
 async function stageOneGaps(git, sha) {
   const gaps = [];
   const asLines = async (fn) => { try { await fn(); } catch (e) { if (!(e instanceof Stop)) throw e; gaps.push(...e.lines); } };
@@ -915,8 +917,8 @@ async function stageOneGaps(git, sha) {
   await asLines(async () => {
     const cfg = await readSiteConfig(git, sha);
     if (cfg.serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
-    if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as exactly one line "export const USE_ANALYTICS = true;" or "= false;", so the script cannot tell whether analytics is on.`);
-    else if (cfg.analyticsOn && !cfg.enabledLine) gaps.push(`Analytics is on, but src/config.ts at ${short(sha)} lacks this enabled: line, exactly as written: ${ENABLED_LINE} Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH; without that line the Worker's pages have no analytics. The script compares the text, so use this line even if yours works.`);
+    if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as exactly one line "export const USE_ANALYTICS = true;" or "= false;" (a // comment after it is fine), so the script cannot tell whether analytics is on.`);
+    else if (cfg.analyticsOn && !cfg.enabledLine) gaps.push(`Analytics is on, but src/config.ts at ${short(sha)} lacks this enabled: line, exactly as written: "${ENABLED_LINE}"${cfg.declared ? '' : ' This line names USE_ANALYTICS, so also add the line "export const USE_ANALYTICS = true;" above it.'} Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so a line that reads only CF_PAGES_BRANCH turns analytics off on the Worker. The script compares the text, so use this line even if yours works.`);
   });
   return gaps;
 }

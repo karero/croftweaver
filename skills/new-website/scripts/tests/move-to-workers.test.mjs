@@ -425,7 +425,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
 describe('1b: the analytics enabled: line at stage 1', () => {
   const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
   const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const analytics = {\n  mode: 'script',\n  ${line}\n};\n` } });
-  const GAP = /^Stopped: Analytics is on, but src\/config\.ts at [0-9a-f]{7} lacks this enabled: line, exactly as written: enabled: USE_ANALYTICS && \(process\.env\.CF_PAGES_BRANCH \?\? process\.env\.WORKERS_CI_BRANCH\) === PROD_BRANCH, /m;
+  const GAP = /^Stopped: Analytics is on, but src\/config\.ts at [0-9a-f]{7} lacks this enabled: line, exactly as written: "enabled: USE_ANALYTICS && \(process\.env\.CF_PAGES_BRANCH \?\? process\.env\.WORKERS_CI_BRANCH\) === PROD_BRANCH," Workers Builds/m;
   test('the line the script asks for is the starter\'s own', () => {
     const starter = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'src', 'config.ts'), 'utf8');
     assert.ok(starter.split('\n').some((l) => l.trim() === ENABLED_LINE), ENABLED_LINE);
@@ -454,6 +454,25 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     const r = await scenario({ site: makeSite({ files: { 'src/config.ts': "export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = !!process.env.X;\n" } }) }).go(['check']);
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
+  });
+  test('a declaration in a block comment beside a multi-line one is refused, not read as the comment says', async () => {
+    const cfg = "export const PROD_BRANCH = 'production';\n/*\nexport const USE_ANALYTICS = false;\n*/\nexport const USE_ANALYTICS =\n  true;\nexport const analytics = {\n  " + OLD + "\n};\n";
+    const r = await scenario({ site: makeSite({ files: { 'src/config.ts': cfg } }) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
+  });
+  test('another enabled: key that reads no process.env does not hide the 0.35 line', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const banner = {\n  enabled: true,`) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  // A site made before the switch has no USE_ANALYTICS and counts as on; the line the gap asks for names it.
+  test('a site made before the switch is told to add USE_ANALYTICS too, and passes once it has both', async () => {
+    const before = (extra, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\n${extra}export const analytics = {\n  mode: 'script',\n  ${line}\n};\n` } });
+    const r = await scenario({ site: before('', 'enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,') }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /so also add the line "export const USE_ANALYTICS = true;" above it\./);
+    const fixed = await scenario({ site: before('export const USE_ANALYTICS = true;\n', ENABLED_LINE) }).go(['check']);
+    assert.equal(fixed.code, 0, fixed.text);
   });
 });
 

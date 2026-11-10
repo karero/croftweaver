@@ -47,7 +47,9 @@ computer, and a second computer would not know the move had begun.
    `tests/check_analytics_gate.sh` fails until it is changed. Left as it is, a Worker that
    Workers Builds builds serves its pages without analytics, so `record` stops on their body
    difference. `check` lists a gap unless the line is exactly this one, and refuses when it
-   cannot tell whether analytics is on. With analytics off, leave the line alone.
+   cannot tell whether analytics is on. A site with no `USE_ANALYTICS` line at all counts as
+   on; since the new line names it, add `export const USE_ANALYTICS = true;` above it too.
+   With analytics off, leave the line alone.
 2. **Freeze and record.** `check`, then `record`. Nothing is merged or shipped from here until
    `after` passes, except the commit the script writes.
 3. **Switch.** `move`, and `undo` if you want to go back.
