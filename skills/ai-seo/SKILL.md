@@ -70,7 +70,7 @@ Google says a page must be indexed and eligible to be shown in Google Search wit
 **Critical stats:**
 - AI Overviews appear on about 45% of the queries BrightEdge tracks ([BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/ai-overviews-one-year-presence-size-citing), late 2025)
 - When an AI Overview appears, the top-ranked page gets about 58% fewer clicks ([Ahrefs](https://ahrefs.com/blog/ai-overviews-reduce-clicks-update/), desktop, 300,000 keywords, December 2025 against December 2023)
-- On "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site ([AirOps](https://airops.com/report/the-influence-of-offsite-signals-in-ai-search), 2025)
+- In one vendor's study of over 500 queries about finding and comparing brands before buying (the categories and examples it names are business software, such as "best HR software"), tested with GPT-5, Claude Sonnet 4.5 and Perplexity Sonar, 85% of brand mentions cited third-party sites and about 13% the brand's own site ([AirOps](https://airops.com/report/the-influence-of-offsite-signals-in-ai-search), October 2025)
 - In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 27-41% on the paper's word-count measure and 13-28% on its subjective-impression measure (its text rounds these to 30-40% and 15-30%; [GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google). The gains were measured on pages already given to the engine (see [What the 2026 studies found](#what-the-2026-studies-found))
 
 #### What the 2026 studies found
@@ -232,7 +232,7 @@ E-E-A-T is a Google Search idea: Google says its systems look for signs of exper
 
 ### Pillar 3: Presence — Be Where AI Looks
 
-AI answers cite more than your own website, so be present where they look. One measurement is the AirOps figure under "Critical stats" above: on "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site.
+AI answers cite more than your own website, so be present where they look. One measurement is the AirOps figure under "Critical stats" above: in one vendor's study of over 500 queries about finding and comparing brands before buying, 85% of brand mentions cited third-party sites and about 13% the brand's own site. The categories it names are business software, so for other trades read it as a direction, not a share to expect.
 
 **Places worth being present:**
 - Wikipedia (7.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
