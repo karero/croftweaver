@@ -56,7 +56,8 @@ function isPagesDev(host: string): boolean {
 }
 
 // The live origin from CANONICAL_URL, or null when unset or unusable. A pages.dev value
-// would redirect the alias to itself or to a preview, so it counts as unusable too.
+// would redirect the alias to itself or to a preview, and a one-label host or an IP address
+// is no domain a visitor can reach, so they count as unusable too.
 function liveOrigin(value: string | undefined): string | null {
   if (!value) return null;
   let url: URL | null = null;
@@ -66,8 +67,11 @@ function liveOrigin(value: string | undefined): string | null {
     // not a URL at all — reported below with the other unusable values
   }
   const host = url ? bareHost(url) : '';
-  const emptyLabel = host.split('.').some((label) => !label); // '', '.x', 'x..y'
-  if (!url || url.protocol !== 'https:' || emptyLabel || isPagesDev(host)) {
+  const labels = host.split('.');
+  const emptyLabel = labels.some((label) => !label); // '', '.x', 'x..y'
+  // URL writes IPv4 in dotted form (even 0x7f.1) and keeps IPv6 in brackets.
+  const isIp = host.startsWith('[') || /^\d+\.\d+\.\d+\.\d+$/.test(host);
+  if (!url || url.protocol !== 'https:' || emptyLabel || labels.length < 2 || isIp || isPagesDev(host)) {
     console.error(`CANONICAL_URL is not an https live-domain URL, not redirecting: ${value}`);
     return null;
   }

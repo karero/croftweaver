@@ -1,7 +1,6 @@
 #!/bin/sh
-# Quality gate — blocks a push if the site's tests fail, so a broken build
-# never reaches the deploy branch. This is the local enforcement of the
-# test-driven contract (CI in .github/workflows/ runs the same checks).
+# Quality gate — refuses a push when the local checks fail. It tests the files on
+# disk, not the commit being pushed. (CI in .github/workflows/ runs the same checks.)
 #
 # Wired automatically by the "prepare" script in package.json (npm install runs
 # scripts/wire-hooks.mjs, which sets core.hooksPath to scripts/hooks when the site is

@@ -212,10 +212,13 @@ for (const path of PAGES) {
       const page = await context.newPage();
       const sizes = new Map<string, number>();
       const reads: Promise<void>[] = [];
-      // Image requests started and not yet finished, of any kind (img, CSS, preload).
+      // Image requests of the page's own frame started and not yet finished, of any kind
+      // (img, CSS, preload); an embedded frame's images are not judged, so they are not awaited.
       let pending = 0;
-      const done = (r: { resourceType(): string }) => { if (r.resourceType() === 'image') pending--; };
-      page.on('request', (r) => { if (r.resourceType() === 'image') pending++; });
+      const mine = (r: { resourceType(): string; frame(): unknown }) =>
+        r.resourceType() === 'image' && r.frame() === page.mainFrame();
+      const done = (r: { resourceType(): string; frame(): unknown }) => { if (mine(r)) pending--; };
+      page.on('request', (r) => { if (mine(r)) pending++; });
       page.on('requestfinished', done);
       page.on('requestfailed', done);
       page.on('response', (r) => {
