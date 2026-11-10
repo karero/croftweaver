@@ -165,7 +165,7 @@ Use for "Best [X]", "Top [X]", "[Number] ways to [X]" queries.
 
 ## Generative Engine Optimization (GEO) Patterns
 
-These patterns follow what the Princeton GEO study tested: statistics, quotations and citations raised visibility on its simulated engine and on Perplexity. It did not test ChatGPT, Claude or Gemini, so for those the patterns are advice.
+These patterns follow what the Princeton GEO study tested: statistics, quotations and citations raised visibility on its simulated engine and on Perplexity, measured on pages already given to the engine, so they apply to a page once it is found (see What the 2026 studies found in SKILL.md). It did not test ChatGPT, Claude or Gemini, so for those the patterns are advice.
 
 ### Statistic Citation Block
 
