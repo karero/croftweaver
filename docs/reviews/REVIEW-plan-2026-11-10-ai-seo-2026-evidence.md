@@ -9,6 +9,7 @@ Google's guide), sent with `--evidence` every round.
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | bcf7ade7 | full plan | codex · melious · fresh-eyes | codex 141 s, 54,180 · melious 187 s, 21,203 · fresh-eyes 56 s, 110,426 | 3/6/4 (after dedup) |
+| 2 | ad98e60e | full plan, --verify | codex (medium) · melious | codex 145 s, 56,041 · melious 347 s, 32,742 | 0/1/6 (codex: none) |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -28,3 +29,11 @@ Google's guide), sent with `--evidence` every round.
 | F14 | NIT | melious | 1 | "158,099 answers … to English buying questions" reads as one consumer corpus | fixed | Draft: "two 90-day collections of English commercial questions about the US market, one of them about small B2B vendors" |
 | U1 | — | codex (UNVERIFIABLE) | 1 | Blank venue does not establish "not yet peer reviewed" | fixed | Draft and plan say "preprints on arXiv with no venue listed" |
 | U2 | — | codex (UNVERIFIABLE) | 1 | Cost estimate has no cited rows | fixed | Review section names the log rows it is guessed from (2026-11-09 Normal rounds) and stays labelled a judgment |
+| R2-1 | RISK | melious | 2 | Sweep credited with a word list it does not match; sentences with other words pass unchecked | fixed | How it is tested: every new sentence is hand-checked; the sweep is an aid with its own list |
+| R2-2 | NIT | melious | 2 | "Associations, not tested causes" is false for the paper's controlled brand experiments | fixed | Scoped: "These citation and retrieval findings are associations, not experiments" |
+| R2-3 | NIT | melious | 2 | "Limits it states: associations" not shown in a READ | fixed | READ 2c: "Limitations. The results are associations"; quoted in the row |
+| R2-4 | NIT | melious | 2 | "Presence is part of being found" generalizes the small-vendor finding | fixed | Scoped to "a little-known business" in the draft and How 3 (READ 2b) |
+| R2-5 | NIT | melious | 2 | Evals claim rests on a literal-string search | fixed | Searched "evals" case-insensitively (READ 5); sentence says a runner elsewhere would not show |
+| R2-6 | NIT | melious | 2 | Cost estimate counted Codex only | fixed | Review section uses this gate's logged total, every seat |
+| R2-7 | NIT | melious | 2 | Martinez bullet omits "or downstream behavior" | fixed | Draft adds "or on what readers do next" (READ 3) |
+| U3 | — | melious (UNVERIFIABLE) | 2 | "A KDD paper" not in a READ | supported | READ 8: "Accepted to KDD 2024" |
