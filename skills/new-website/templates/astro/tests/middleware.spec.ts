@@ -105,6 +105,7 @@ for (const bad of [
   'https://localhost',
   'https://example',
   'https://192.168.1.1',
+  'https://0x7f.1',
   'https://[::1]',
 ]) {
   test(`a CANONICAL_URL of "${bad}" is ignored, never a redirect loop or downgrade`, async () => {
