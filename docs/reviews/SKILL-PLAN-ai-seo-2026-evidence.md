@@ -1,6 +1,6 @@
 # Plan: `ai-seo` leads with being found, then the GEO table
 
-Status: plan, not built. Idea 4 of the October 2026 research (`geo-skill-ideas/IDEAS.md` in the
+Status: built; see the status table. Idea 4 of the October 2026 research (`geo-skill-ideas/IDEAS.md` in the
 private feature hub). Nothing is built before the maintainer's go.
 
 ## Status
@@ -9,10 +9,10 @@ private feature hub). Nothing is built before the maintainer's go.
 |---|---|---|
 | Plan written | done | this file |
 | PLAN gate (Normal) and claims sweep | done: clean | 4 rounds, 35 findings (32 graded, 3 unverifiable), wording pass clean; trail `REVIEW-plan-2026-11-10-ai-seo-2026-evidence.md` |
-| Maintainer's go | — | — |
-| Build (steps 1–7 below) | — | — |
-| DIFF gate (Normal) | — | — |
-| BUGLOG "Next release notes" row | — | — |
+| Maintainer's go | done | 2026-11-10, in chat: "Go, build it" |
+| Build (steps 1–7 below) | done | 7cab775a |
+| DIFF gate (Normal) | done: clean | 3 rounds, 10 findings; trail `REVIEW-diff-2026-11-10-ai-seo-2026-evidence.md` |
+| BUGLOG "Next release notes" row | done | `docs/BUGLOG.md`, 2026-11-10 |
 | Merged; IDEAS.md status updated | — | — |
 
 ## What and why

@@ -10,6 +10,7 @@ Evidence: the PLAN gate's READs, plus READs 2e, 2f, 7c and 9 and the `make check
 |---|---|---|---|---|---|
 | 1 | 7cab775a | full diff | codex · melious · fresh-eyes | codex 120 s, 52,508 · melious 221 s, 21,758 · fresh-eyes 36 s, 107,148 | 0/2/6 |
 | 2 | ccdf0b67 | full diff, --verify | codex · melious | codex 95 s, 39,790 · melious 343 s, 29,421 | 0/1/1 |
+| 3 | 2c0f6f0d | full diff, --verify | codex · melious | codex 111 s, 44,199 · melious 185 s, 20,393 | 0/0/0 (both: none; D10 re-noted as follow-up) |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -29,3 +30,8 @@ UNVERIFIABLE (round 1): Codex 5, melious 3. Pre-existing figures the diff does n
 change. "Read in full" became D3. The test record now carries its head line (7cab775a). Codex's
 note that the budget self-test could not write in its sandbox is about its sandbox, not the
 change: the full `make check` run passed.
+
+Round 3: both seats returned "No BUG/RISK/NIT findings"; D9 confirmed. D10 stays a follow-up, now a
+BUGLOG row; melious also noted the unchanged BrightEdge, Ahrefs and AirOps figures, outside this
+change. Gate total: rounds 1–3, 7 seat runs, 315,217 tokens logged (fresh-eyes included). Result:
+CLEAN, 3 rounds, 10 findings (0 BUG, 3 RISK, 7 NIT). The BUGLOG rows were written after round 3.
