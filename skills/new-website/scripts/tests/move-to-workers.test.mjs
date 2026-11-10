@@ -456,7 +456,6 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     ['the old line with the other variable in a // comment right after the comma', `${OLD}// process.env.WORKERS_CI_BRANCH`],
     ['the old line, and another property that reads a variable', `${OLD}\n  scriptHost: process.env.ANALYTICS_HOST,`],
     ['the old line, and a quoted property that reads a variable', `${OLD}\n  'scriptHost': process.env.ANALYTICS_HOST,`],
-    ['the old line with its variable inside a template string', 'enabled: USE_ANALYTICS && `${process.env.CF_PAGES_BRANCH}` === PROD_BRANCH,'],
     ['the old line over two lines', 'enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,']]) {
     test(`analytics on with ${what}: check lists the gap`, async () => {
       const r = await scenario({ site: site(true, line) }).go(['check']);
@@ -489,6 +488,15 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, GAP);
   });
+  for (const [what, line] of [['a second property on the enabled: line', `${OLD} scriptHost: process.env.ANALYTICS_HOST,`],
+    ['a template string in the enabled: line', 'enabled: USE_ANALYTICS && `${process.env.CF_PAGES_BRANCH}` === PROD_BRANCH,'],
+    ['process.env text inside a template part', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === `${"process.env.UNRELATED".slice(0, 0)}production`,']]) {
+    test(`${what}: refused, not read`, async () => {
+      const r = await scenario({ site: site(true, line) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, /holds no other comma and no template string, so the script cannot read that line/);
+    });
+  }
   test('a template string over more than one line is refused, not read', async () => {
     const r = await scenario({ site: config("export const EXAMPLE = `\nexport const USE_ANALYTICS = false;\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
     assert.equal(r.code, 1, r.text);
