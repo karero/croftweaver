@@ -455,5 +455,11 @@ run t9g "$R/w" "$T/t9e.diff" --seat codex --verify "$T/prior.md" --base "$OLD" -
 check "T9g T9e with origin/HEAD deleted: refused (exit 2)" rc_is t9g 2
 check "T9g ... naming remote set-head origin --auto" has t9g.err "remote set-head origin --auto"
 check "T9g ... and no reviewer ran" not_ran t9g
+g "$R/w" remote remove origin
+run t9h "$R/w" "$T/t9e.diff" --seat codex --verify "$T/prior.md" --base "$OLD" --depth normal --round 2
+check "T9h T9e with no origin remote: refused (exit 2)" rc_is t9h 2
+check "T9h ... saying there is no origin remote" has t9h.err "has no origin remote"
+check "T9h ... naming --base none, not set-head" sh -c 'grep -qF -- "--base none" "$1.err" && ! grep -qF -- "set-head" "$1.err"' _ "$T/t9h"
+check "T9h ... and no reviewer ran" not_ran t9h
 
 if [ "$fails" -eq 0 ]; then echo "PASS — test_base_check.sh"; else echo "FAIL — test_base_check.sh: $fails check(s) failed"; exit 1; fi

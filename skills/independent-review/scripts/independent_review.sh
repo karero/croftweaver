@@ -634,8 +634,12 @@ else
       1)
         main_tip="$(git -C "$top" rev-parse --verify --quiet 'refs/remotes/origin/HEAD^{commit}')" || main_tip=""
         if [ -z "$main_tip" ]; then
-          base_refuse "--base $BASE ($base_id) is not on this branch, and origin/HEAD is not set here, so the script cannot tell a base left behind by a rebase from one on the default branch." \
-            "Set it, then run again: git -C $(printf '%q' "$top") remote set-head origin --auto"
+          if git -C "$top" remote get-url origin >/dev/null 2>&1; then
+            base_refuse "--base $BASE ($base_id) is not on this branch, and origin/HEAD is not set here, so the script cannot tell a base left behind by a rebase from one on the default branch." \
+              "Set it, then run again: git -C $(printf '%q' "$top") remote set-head origin --auto"
+          fi
+          base_refuse "--base $BASE ($base_id) is not on this branch, and this repository has no origin remote, so the script cannot tell a base left behind by a rebase from one on the default branch." \
+            "Name a commit HEAD contains, or pass --base none for a diff not made by git here."
         fi
         main_rc=0; git -C "$top" merge-base --is-ancestor "$base_id" "$main_tip" 2>/dev/null || main_rc=$?
         case $main_rc in
