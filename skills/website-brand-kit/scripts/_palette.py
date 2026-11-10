@@ -443,8 +443,8 @@ def _other_line_end(text):
     code, kinds = "U+%04X" % ord(found[0]), ", ".join("U+%04X" % ord(c) for c in dict.fromkeys(found[1:]))
     return ("Line %d, %s, holds a character that this check takes for the end of a line and a Markdown reader does not (%s, written as <%s> in the "
             "quote). This check would begin a new line there where the text has none, which can cut a word or a value in two, so it read nothing of "
-            "this text: its tables were not looked at, and may be fine as they are.%s Delete each such character, or put a plain new line in its "
-            "place, then check again."
+            "this text: its tables were not looked at, and may be fine as they are.%s If you pasted this text from a word processor or a PDF, paste "
+            "it again as plain text. Or replace each such character with an ordinary line break (or delete it), then check again."
             % (number, _quoted(line, 80, (at, at + 1)), code, code, " The text holds %d more character%s of that kind%s." % (
                 more, "" if more == 1 else "s", "" if kinds == code else " (%s)" % kinds) if more else ""))
 
