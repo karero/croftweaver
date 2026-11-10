@@ -86,6 +86,19 @@ for (const icon of ICONS) {
   });
 }
 
+// The sizes the <link rel="icon"> tag declares for the ICO are the frames the file holds, so the
+// tag cannot hide a frame (Google asks for a 48 px favicon, so that frame must be there and declared).
+test('icons — the sizes declared for favicon.ico are the frames inside it', async ({ page, request }) => {
+  await page.goto('/');
+  const declared = await page.locator('link[rel~="icon"][href$="/favicon.ico"]').getAttribute('sizes');
+  expect(declared, 'the ICO link has a sizes attribute').not.toBeNull();
+  const body = Buffer.from(await (await request.get('/favicon.ico')).body());
+  const frames = Array.from({ length: body.readUInt16LE(4) }, (_, i) => body[6 + 16 * i] || 256);
+  const norm = (list: number[]) => [...new Set(list)].sort((a, b) => a - b);
+  expect(norm(declared!.split(/\s+/).map((s) => Number(s.split('x')[0]))), 'sizes in the tag').toEqual(norm(frames));
+  expect(norm(frames), 'the ICO holds a 48 px frame').toContain(48);
+});
+
 // Warns, never fails: the starter's icons show the colour or letter the site had when they were
 // drawn, and the site has changed it since. The brand kit's icons are not read.
 test('icons — the starter\'s icons still show the site\'s colour and letter (warns only)', async () => {
