@@ -225,6 +225,7 @@ test('phone images — an embedded frame\'s unfinished image is not awaited', as
   await page.goto('/__frame-page', { waitUntil: 'load' });
   await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
   await expect.poll(() => stalled, { message: 'the frame never asked for its image, so this test proves nothing' }).toBe(true);
+  await page.waitForTimeout(250);   // room for a wrongly counted request to show
   expect(pending(), 'the frame\'s image is counted as the page\'s own').toBe(0);
 });
 
