@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page, type Request } from '@playwright/test';
 import { PAGES } from './_helpers';
 
 // Phones must not download images far bigger than they can show (website-qa, "Performance").
@@ -202,6 +202,33 @@ function drawnWidth(u: User, fw: number, fh: number): number {
   return fw;
 }
 
+// Image requests of the page's own frame started and not yet finished, of any kind (img, CSS,
+// preload). An embedded frame's images are not judged, so they are not awaited.
+function pendingImages(page: Page): () => number {
+  let pending = 0;
+  const mine = (r: Request) => r.resourceType() === 'image' && r.frame() === page.mainFrame();
+  page.on('request', (r) => { if (mine(r)) pending++; });
+  const done = (r: Request) => { if (mine(r)) pending--; };
+  page.on('requestfinished', done);
+  page.on('requestfailed', done);
+  return () => pending;
+}
+
+// A lazy video or map embed whose image never finishes must not hold the page's test open.
+test('phone images — an embedded frame\'s unfinished image is not awaited', async ({ page }) => {
+  let stalled = false;
+  await page.route('**/__frame-page', (r) => r.fulfill({ contentType: 'text/html',
+    body: '<body style="margin:0"><div style="height:12000px"></div><iframe loading="lazy" src="/__frame" width="300" height="200"></iframe></body>' }));
+  await page.route('**/__frame', (r) => r.fulfill({ contentType: 'text/html', body: '<img src="/__never.png">' }));
+  await page.route('**/__never.png', () => { stalled = true; });   // never answered
+  const pending = pendingImages(page);
+  await page.goto('/__frame-page', { waitUntil: 'load' });
+  await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
+  await expect.poll(() => stalled, { message: 'the frame never asked for its image, so this test proves nothing' }).toBe(true);
+  await page.waitForTimeout(250);   // room for a wrongly counted request to show
+  expect(pending(), 'the frame\'s image is counted as the page\'s own').toBe(0);
+});
+
 for (const path of PAGES) {
   test(`phone images — ${path} downloads no image far bigger than a phone shows`, async ({ browser, baseURL }) => {
     test.setTimeout(BUDGET + 40_000);   // room for loading the page and judging after the budget
@@ -212,12 +239,7 @@ for (const path of PAGES) {
       const page = await context.newPage();
       const sizes = new Map<string, number>();
       const reads: Promise<void>[] = [];
-      // Image requests started and not yet finished, of any kind (img, CSS, preload).
-      let pending = 0;
-      const done = (r: { resourceType(): string }) => { if (r.resourceType() === 'image') pending--; };
-      page.on('request', (r) => { if (r.resourceType() === 'image') pending++; });
-      page.on('requestfinished', done);
-      page.on('requestfailed', done);
+      const pending = pendingImages(page);
       page.on('response', (r) => {
         const type = (r.headers()['content-type'] ?? '').split(';')[0].trim();
         // Rasters from this page's own document; SVG is not a raster, iframes are not the site's.
@@ -245,7 +267,7 @@ for (const path of PAGES) {
         seen.push(...await page.evaluate(usersNow));
         if (!await atEnd()) continue;
         await page.waitForTimeout(Math.min(500, left()));
-        await expect.poll(() => pending, { message: busy, timeout: left() }).toBe(0);
+        await expect.poll(pending, { message: busy, timeout: left() }).toBe(0);
         seen.push(...await page.evaluate(usersNow));
         if (await atEnd()) break;
       }

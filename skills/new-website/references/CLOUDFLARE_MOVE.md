@@ -69,13 +69,14 @@ account. The script keeps to her site: every request it sends is checked against
 Pages project and her Worker before it goes out, and anything else is refused.
 
 The Workers permission makes every zone of the account show up in the token's zone list; that is
-expected. The script finds her zone as the one the token can change the DNS of, and refuses a token
-whose DNS reaches more than one zone or none, one with no end date or an end date more than 8 days
-out, and one that is not active. When more than one zone is reached, the refusal shows the DNS
-and zone-settings permissions Cloudflare lists there: a token made with account permissions only
-was listed with DNS Edit in every zone of its account (read on 2026-11-08; which permission gave
-that is not known). When `SITE.url` in `src/config.ts` gives an address, the refusal names it: if
-no zone the token lists is that domain or a parent of it, the domain may not be on Cloudflare yet;
+expected. The script finds her zone as the one zone where Cloudflare lists DNS Edit for the
+token; no other permission in any zone counts. It refuses a token with DNS Edit in more than one
+zone or none, one with no end date or an end date more than 8 days out, and one that is not
+active. When more than one zone has DNS Edit, the refusal shows the DNS and zone-settings
+permissions Cloudflare lists there: a token made with account permissions only was listed with
+DNS Edit in every zone of its account (read on 2026-11-08; which permission gave that is not
+known). When `SITE.url` in `src/config.ts` gives an address, the refusal names it: if no zone the
+token lists is that domain or a parent of it, the domain may not be on Cloudflare yet;
 if it is a `pages.dev` or `workers.dev` address, the refusal says to launch first when the site has
 no domain, and else to put the domain in `SITE.url`. A first `move` and a first `undo` also refuse
 a token with less than an hour left; any other run only warns. If the token ends mid-move, make
