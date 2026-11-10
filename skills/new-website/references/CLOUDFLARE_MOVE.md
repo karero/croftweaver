@@ -53,8 +53,8 @@ computer, and a second computer would not know the move had begun.
    the built pages carry the analytics tag. `check` refuses when it cannot tell whether analytics
    is on, and when `src/config.ts` holds a block comment (`/* … */`) or a template string over
    more than one line: turn the one into `//` comments, keep the other on one line. It reads the
-   `enabled:` property only alone on its line or lines, with no template string and no slash in
-   it, and each variable read as `process.env.NAME`. A site
+   `enabled:` property only alone on its line or lines, with no template string, no slash and no
+   backslash in it, and each variable read as `process.env.NAME`. A site
    with no `USE_ANALYTICS` line at all counts as on; since the new line names it, add
    `export const USE_ANALYTICS = true;` above it too.
    With analytics off, leave the line alone.

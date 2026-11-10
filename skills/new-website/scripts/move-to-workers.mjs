@@ -528,10 +528,18 @@ async function readSiteConfig(git, sha) {
   if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
   const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
   if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
-  // Strings (a backslash may continue one onto the next line) are blanked first, so '/images/*' or
-  // 'https://…' is no comment and a string's text is no declaration (a template becomes a marker the
-  // enabled: check refuses); then // comments are cut. A backtick left over opens a multi-line template.
-  const code = r.stdout.replace(/'(?:\\[\s\S]|[^'\\\n])*'|"(?:\\[\s\S]|[^"\\\n])*"|`(?:\\[\s\S]|[^`\\\n])*`/g, (s) => (s[0] === '`' ? 'TEMPLATE_STRING' : "''")).split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, ''));
+  // One left-to-right pass over comments and strings, as JavaScript reads them, keeping line breaks:
+  // comments go, strings become '' (a template a marker the enabled: check refuses), and a block
+  // comment or a template over more than one line is noted for refusal. A /* or ` left over is unclosed.
+  let block = false;
+  let multi = false;
+  const code = r.stdout.replace(/\r\n?/g, '\n').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|'(?:\\[\s\S]|[^'\\\n])*'|"(?:\\[\s\S]|[^"\\\n])*"|`(?:\\[\s\S]|[^`\\])*`/g, (s) => {
+    const breaks = '\n'.repeat((s.match(/\n/g) ?? []).length);
+    if (s.startsWith('//')) return '';
+    if (s.startsWith('/*')) { block = true; return breaks; }
+    if (s[0] === '`') { multi ||= breaks !== ''; return `TEMPLATE_STRING${breaks}`; }
+    return `''${breaks}`;
+  }).split('\n');
   const text = code.join('\n');
   const uses = [...text.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*$/gm)];
   const declared = (text.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
@@ -545,11 +553,11 @@ async function readSiteConfig(git, sha) {
   const stop = at.length === 1 ? body.findIndex((l, i) => i >= at[0] && /,\s*$/.test(l)) : -1;
   const whole = at.length === 1 ? body.slice(at[0], stop < 0 ? undefined : stop + 1).join('\n').replace(/,\s*$/, '') : null;
   // Refused, not read: another comma (a second property, a call), a template string, a slash (a regex),
-  // or env reached any way but process.env.NAME.
-  const plain = (s) => !s.includes(',') && !s.includes('TEMPLATE_STRING') && !s.includes('/') && (s.match(/\benv\b/g) ?? []).length === (s.match(/\bprocess\.env\.[A-Za-z_][A-Za-z0-9_]*/g) ?? []).length;
+  // a backslash (an escaped name), or env reached any way but process.env.NAME.
+  const plain = (s) => !s.includes(',') && !s.includes('TEMPLATE_STRING') && !s.includes('/') && !s.includes('\\') && (s.match(/\benv\b/g) ?? []).length === (s.match(/\bprocess\.env\.[A-Za-z_][A-Za-z0-9_]*/g) ?? []).length;
   const enabled = whole !== null && plain(whole) ? whole : null;
   const envNames = enabled === null ? null : [...new Set([...enabled.matchAll(/process\.env\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]))];
-  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), blockComment: code.some((l) => l.includes('/*')), template: code.some((l) => l.includes('`')), analyticsOn, declared: declared > 0, envNames };
+  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), blockComment: block || code.some((l) => l.includes('/*')), template: multi || code.some((l) => l.includes('`')), analyticsOn, declared: declared > 0, envNames };
 }
 
 // The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
@@ -937,7 +945,7 @@ async function stageOneGaps(git, sha) {
     if (cfg.blockComment) gaps.push(`src/config.ts at ${short(sha)} holds a block comment (/* … */). The script reads the file line by line and cannot tell what such a comment hides, so it does not read analytics there. Turn it into // comments.`);
     else if (cfg.template) gaps.push(`src/config.ts at ${short(sha)} holds a template string (\`…\`) over more than one line. The script reads the file line by line and cannot tell what such a string hides, so it does not read analytics there. Keep each template string on one line.`);
     else if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as exactly one line "export const USE_ANALYTICS = true;" or "= false;" (a // comment after it is fine), so the script cannot tell whether analytics is on.`);
-    else if (cfg.analyticsOn && cfg.envNames === null) gaps.push(`Analytics is on, but src/config.ts at ${short(sha)} has no single "export const ANALYTICS = {" object, ending at a line that starts with "}", with one line that starts with "enabled:" that the script can read: alone on its line, with no template string, no slash, and each variable read as process.env.NAME. Write the enabled: property that way.`);
+    else if (cfg.analyticsOn && cfg.envNames === null) gaps.push(`Analytics is on, but src/config.ts at ${short(sha)} has no single "export const ANALYTICS = {" object, ending at a line that starts with "}", with one line that starts with "enabled:" that the script can read: alone on its line, with no template string, no slash, no backslash, and each variable read as process.env.NAME. Write the enabled: property that way.`);
     else if (cfg.analyticsOn && cfg.envNames.length === 1 && cfg.envNames[0] === 'CF_PAGES_BRANCH') gaps.push(`Analytics is on, but the enabled: line in src/config.ts at ${short(sha)} reads only CF_PAGES_BRANCH. Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so the Worker's pages would count nothing. Use the 0.35 line: "${ENABLED_LINE}"${cfg.declared ? '' : ' It names USE_ANALYTICS, so also add the line "export const USE_ANALYTICS = true;" above it.'} A site built some other way can read the variable its own build sets instead.`);
   });
   return gaps;

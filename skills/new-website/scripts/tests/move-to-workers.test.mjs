@@ -493,17 +493,28 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     ['process.env text inside a template part', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === `${"process.env.UNRELATED".slice(0, 0)}production`,'],
     ['a variable read with brackets', "enabled: USE_ANALYTICS && process.env['CF_PAGES_BRANCH'] === PROD_BRANCH,"],
     ['a variable read with ?.', 'enabled: USE_ANALYTICS && process.env?.CF_PAGES_BRANCH === PROD_BRANCH,'],
+    ['an escaped letter in the variable name', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BR\\u0041NCH === PROD_BRANCH,'],
     ['a regex that names the other variable', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH && !/process.env.WORKERS_CI_BRANCH/.test(PROD_BRANCH),']]) {
     test(`${what}: refused, not read`, async () => {
       const r = await scenario({ site: site(true, line) }).go(['check']);
       assert.equal(r.code, 1, r.text);
-      assert.match(r.text, /that the script can read: alone on its line, with no template string, no slash, and each variable read as process\.env\.NAME/);
+      assert.match(r.text, /that the script can read: alone on its line, with no template string, no slash, no backslash, and each variable read as process\.env\.NAME/);
     });
   }
   test('a declaration inside a string continued with a backslash is no declaration', async () => {
     const r = await scenario({ site: config("export const NOTE = 'x\\\nexport const USE_ANALYTICS = false; // \\\n';\nexport const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, GAP);
+  });
+  test('a quote in a // comment opens no string that hides a block comment', async () => {
+    const r = await scenario({ site: config("// '\\\n/* \\\n// '\nexport const USE_ANALYTICS = false;\n*/\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a block comment/);
+  });
+  test('a template string continued with a backslash is over more than one line: refused', async () => {
+    const r = await scenario({ site: config("export const EXAMPLE = `\\\nexport const USE_ANALYTICS = false;\\\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line/);
   });
   test('a template string over more than one line is refused, not read', async () => {
     const r = await scenario({ site: config("export const EXAMPLE = `\nexport const USE_ANALYTICS = false;\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
