@@ -112,7 +112,7 @@ real crawler, or report a refusal (a `look`, never a FAIL) that the real crawler
 
 | Step | State | Evidence |
 |---|---|---|
-| Plan, PLAN gate | in review | — |
+| Plan, PLAN gate | clean (3 rounds and a wording pass, 26 findings) | this file at the commit that records it; trail `REVIEW-plan-2026-11-10-ai-crawler-watch.md` |
 | Maintainer's go | waiting | — |
 | Build: check row, tests, two bullets, BUGLOG row; rerun the two count searches by hand | not started | — |
 | DIFF gate, PR, merge | not started | — |

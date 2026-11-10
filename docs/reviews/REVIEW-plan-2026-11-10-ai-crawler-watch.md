@@ -56,3 +56,19 @@ rounds, so the rounds end here; one wording pass follows.
 | F23 | NIT | melious | New test | `Claude-SearchBot (403)` detail format assumed | fixed | Plan cites the code's form `${c.name} (${c.status})` (`cloudflare-check.mjs:1065`) and the ClaudeBot test's assertion (`cloudflare-check.test.mjs:615`) |
 | F24 | NIT | melious | evidence READ 3 | The record's 415 requests don't add up to the per-company sum (332) | follow-up | No plan claim rests on either number; the record is the maintainer's |
 | F25 | NIT | melious | BUGLOG row | "seven names" goes stale | fixed | "Claude-SearchBot added to the check's crawler names" |
+
+## Wording pass (round 3's changes, `--diff --base c4717d7e`, plan at 885a8d98)
+
+`timings: codex 80s (45032 tokens), melious 266s (20084 tokens)`. Codex: "No BUG/RISK/NIT
+findings", and it verified the detail format against the code.
+
+| Id | Sev | Source | Where | Finding | Status | Fix / reason |
+|---|---|---|---|---|---|---|
+| F26 | RISK | melious | New test | The `${c.name} (${c.status})` form and the ClaudeBot test's assertion are not shown | refuted | `cloudflare-check.mjs:1065`: `.map((c) => \`${c.name} (${c.status})\`)`; `cloudflare-check.test.mjs:615`: `assert.match(r.by.ai.detail, /ClaudeBot \(403\)/);` (the seat has no file access; Codex read both) |
+| — | (claim) | melious | Follow-on text | Whether Amazonbot appears outside the check | checked | `git grep -n Amazonbot` outside `docs/reviews/`: the script's line 44 and a test fixture only |
+
+## Close
+
+No BUG open. Three rounds and a wording pass; 26 findings: 22 fixed, 2 refuted, 1 follow-up (F24),
+1 NIT open for the maintainer (F13). Gate total 433,828 tokens logged (nine seat runs, fresh-eyes
+included).
