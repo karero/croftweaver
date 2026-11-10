@@ -25,13 +25,15 @@ PLAN gate first.*
 **Idea 6, `skills/new-website/scripts/cloudflare-check.mjs`.** Add one row to `CRAWLERS`, after
 ClaudeBot: `['Claude-SearchBot', 'Mozilla/5.0 (compatible; Claude-SearchBot/1.0)']`. Anthropic's
 page gives the token `Claude-SearchBot` and no full user-agent string, so the string copies the
-form of the ClaudeBot row; the version `1.0` is ours. The judging code needs no change: it already
+form of the ClaudeBot row; the version `1.0` and the missing `+URL` part are ours, one more reason
+the check calls its result a hint. The judging code needs no change: it already
 works on the list, and its messages count with `crawlers.length`. Not added: Googlebot and
 Bingbot. A request that only carries their name is not the verified crawler, so a pass or a
 refusal would prove nothing.
 
-Follow-on text, all "six" becoming "seven": `skills/new-website/references/CLOUDFLARE_CHECK.md`
-lines 86 and 150. `docs/WHAT-THE-SKILLS-RUN.md` line 214 says "GPTBot, ClaudeBot and others" and
+Follow-on text, "six" becoming "seven": `skills/new-website/references/CLOUDFLARE_CHECK.md`
+lines 86 and 150. A repo-wide search found no other count of the crawlers outside the two tests
+below (evidence READ 5); the build runs it again after the edit. `docs/WHAT-THE-SKILLS-RUN.md` line 214 says "GPTBot, ClaudeBot and others" and
 stays true; no change.
 
 **Ideas 7 and 10, `skills/search-console-setup/SKILL.md`, section 4 "Confirm it's working".** Two
@@ -42,29 +44,32 @@ of settings to set, and `search-console-insights` is for later weeks, so neither
 launch-week question as well. Draft wording:
 
 > - **AI crawlers (free, on Cloudflare):** your domain → **AI Crawl Control** → **Overview** shows
->   which AI companies' crawlers fetched your site, with filters for Hostname and Path. On a
->   free-plan domain on 30 October 2026 its 7-day view showed data; Cloudflare's own
->   page says the free plan's Metrics tab shows only the past 24 hours. On the free plan it knows a
->   crawler by the name the request gives ([Cloudflare](https://developers.cloudflare.com/ai-crawl-control/get-started/)),
->   so a crawler that doesn't name itself is not shown. The Cloudflare check's seven
+>   how many requests from each AI company's crawlers Cloudflare let through, with filters for
+>   Hostname and Path. Look in the first days after launch: Cloudflare's page says that on free
+>   plans the Metrics tab shows only the past 24 hours, and the kit hasn't checked how far back
+>   the Overview's longer ranges reach. On the free plan Cloudflare knows a crawler by the name
+>   the request gives ([Cloudflare](https://developers.cloudflare.com/ai-crawl-control/get-started/)),
+>   so a crawler that doesn't name itself is not shown, and the Cloudflare check's own
 >   crawler-named requests may show up here as well. A visit is not a mention: it can't tell you
 >   whether any AI answer names you.
 > - **How long AI assistants take:** we found no published measurement, with a stated method, of
 >   how long AI assistants take to first cite a brand-new website. Google's own ranges, and what
 >   companies measured for new pages on sites that already exist, are in
 >   [How long until Google and AI assistants find a new website?](https://guide.croftweaver.com/how-long)
->   So a week of silence from ChatGPT is not, by itself, a sign that something is broken. Watch the crawlers
->   above, and later Google's and Bing's AI reports (`search-console-insights`).
+>   So a week of silence tells you little either way. Watch the crawlers above, and later Google's and Bing's AI reports (`search-console-insights`).
 
 Sources behind each claim: the Free-plan look is the maintainer's dashboard record of
 2026-10-30 (Overview: Hostname, Path, Category and Content type filters; range picker up to 30
-days; 7-day view with data; 30-day view not opened). The 24-hour Metrics sentence and "identifies
+days; 7-day view with data, "Allowed requests per company"; 30-day view not opened; no filter
+applied), so the bullet names no range and says "let through". The 24-hour Metrics sentence and "identifies
 AI crawlers based on their user agent strings" are from Cloudflare's get-started page, last
 updated 23 April 2026, re-read 2026-11-10. The "no published measurement" finding is the
 guide's (searched 29 October 2026, page checked 3 November 2026, live 2026-11-10); I link it and
-restate nothing else from it. **Not checked:** whether the checker's own requests appear in AI
-Crawl Control (an inference from "user agent strings"; hence "may"), and whether the 30-day
-range holds 30 days on Free (so the text promises 7).
+restate nothing else from it. The page holds the Google ranges and the existing-site
+measurements the bullet points to (evidence READ 4). **Not checked:** whether the checker's own
+requests appear in AI Crawl Control (an inference from "user agent strings", hence "may"; the
+maintainer can settle it by running the check on a free zone and looking), whether blocked
+requests show in the Overview, and how far back the Overview reaches on Free.
 
 **`docs/BUGLOG.md`:** a "Next release notes" row: the check sends seven names, Claude-SearchBot
 added; search-console-setup says where to see AI crawler visits and how long AI search takes.
@@ -80,17 +85,19 @@ added; search-console-setup says where to see AI crawler visits and how long AI 
 - **The existing ClaudeBot refusal test** matches `/ClaudeBot/`; `Claude-SearchBot` does not
   contain that string, so it still refuses one request. I'll confirm its detail names ClaudeBot
   alone.
-- **Prose:** no test reads the two bullets' wording; `check_skill_budgets.sh` (in `make check`)
-  measures the file's size, which stays far under its budget. The DIFF review and
-  `check_clean.sh` cover the wording.
+- **Prose:** no test reads the two bullets' wording. `check_skill_budgets.sh` (in `make check`)
+  measures only the file's size, which stays far under its budget; `check_clean.sh` catches only
+  private names, contact details and credentials. The DIFF review is the only check of the
+  wording.
 - `make check` and `make test-cloudflare-check` before each review round and after the last
   edit.
 
 ## Cost and risk
 
 Code: one list row and one test. Each run sends one more GET to the owner's own domain. No new
-dependency, permission or token. Risk is low: a wrong user-agent string at worst makes the hint
-miss a Cloudflare block, as any of the six can today.
+dependency, permission or token. Risk is low, and it runs both ways, as it does for the six rows
+today: if the string differs from the real crawler's, the hint can miss a block that catches the
+real crawler, or report a refusal (a `look`, never a FAIL) that the real crawler would not get.
 
 ## Status
 
