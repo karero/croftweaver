@@ -518,8 +518,8 @@ async function readToken(root, git, env) {
 // The enabled: line of the 0.35 release notes, which reads Workers Builds' branch variable.
 export const ENABLED_LINE = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,';
 
-// src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether a block comment sits outside
-// strings and // comments (the script reads lines, so it refuses what one could hide), whether
+// src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether a block comment or a multi-line
+// template sits outside strings and // comments (the script reads lines, so it refuses what one could hide), whether
 // analytics is on (from the one-line declaration the gate reads; null unless USE_ANALYTICS is
 // unnamed or declared once in that form), whether it is declared, and the process.env names the
 // enabled: property of the one ANALYTICS object reads (null when either is not exactly one).
@@ -531,18 +531,19 @@ async function readSiteConfig(git, sha) {
   const uses = [...r.stdout.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
   const declared = (r.stdout.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
   const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !r.stdout.includes('USE_ANALYTICS') ? true : null;
-  // One-line strings are blanked first, so '/images/*' or 'https://…' is no comment; then // comments are cut.
-  const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\\n])*`/g, "''").split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, ''));
+  // One-line strings are blanked first, so '/images/*' or 'https://…' is no comment (a template keeps its
+  // ${…} parts, which run); then // comments are cut. A backtick left over opens a multi-line template.
+  const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\\n])*`/g, (s) => (s[0] === '`' ? (s.match(/\$\{[^}]*\}/g) ?? []).join(' ') || "''" : "''")).split(/\r?\n/).map((l) => l.replace(/\/\/.*$/, ''));
   const starts = code.filter((l) => /^export const ANALYTICS = \{/.test(l)).length;
   const start = starts === 1 ? code.findIndex((l) => /^export const ANALYTICS = \{/.test(l)) : -1;
   const end = start < 0 ? -1 : code.findIndex((l, i) => i > start && /^\}/.test(l));
   const body = end < 0 ? [] : code.slice(start + 1, end);
-  // The enabled: property runs to the next line that starts another property.
+  // The enabled: property runs to the first line that ends with a comma, or to the object's end.
   const at = body.flatMap((l, i) => (/^\s*enabled\s*:/.test(l) ? [i] : []));
-  const stop = at.length === 1 ? body.findIndex((l, i) => i > at[0] && /^\s*[A-Za-z_$][\w$]*\s*:/.test(l)) : -1;
-  const enabled = at.length === 1 ? body.slice(at[0], stop < 0 ? undefined : stop).join('\n') : null;
+  const stop = at.length === 1 ? body.findIndex((l, i) => i >= at[0] && /,\s*$/.test(l)) : -1;
+  const enabled = at.length === 1 ? body.slice(at[0], stop < 0 ? undefined : stop + 1).join('\n') : null;
   const envNames = enabled === null ? null : [...new Set([...enabled.matchAll(/process\.env\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]))];
-  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), blockComment: code.some((l) => l.includes('/*')), analyticsOn, declared: declared > 0, envNames };
+  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), blockComment: code.some((l) => l.includes('/*')), template: code.some((l) => l.includes('`')), analyticsOn, declared: declared > 0, envNames };
 }
 
 // The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
@@ -928,6 +929,7 @@ async function stageOneGaps(git, sha) {
     const cfg = await readSiteConfig(git, sha);
     if (cfg.serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
     if (cfg.blockComment) gaps.push(`src/config.ts at ${short(sha)} holds a block comment (/* … */). The script reads the file line by line and cannot tell what such a comment hides, so it does not read analytics there. Turn it into // comments.`);
+    else if (cfg.template) gaps.push(`src/config.ts at ${short(sha)} holds a template string (\`…\`) over more than one line. The script reads the file line by line and cannot tell what such a string hides, so it does not read analytics there. Keep each template string on one line.`);
     else if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as exactly one line "export const USE_ANALYTICS = true;" or "= false;" (a // comment after it is fine), so the script cannot tell whether analytics is on.`);
     else if (cfg.analyticsOn && cfg.envNames === null) gaps.push(`Analytics is on, but src/config.ts at ${short(sha)} has no single "export const ANALYTICS = {" object, ending at a line that starts with "}", with one line that starts with "enabled:", so the script cannot read that line.`);
     else if (cfg.analyticsOn && cfg.envNames.length === 1 && cfg.envNames[0] === 'CF_PAGES_BRANCH') gaps.push(`Analytics is on, but the enabled: line in src/config.ts at ${short(sha)} reads only CF_PAGES_BRANCH. Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so the Worker's pages would count nothing. Use the 0.35 line: "${ENABLED_LINE}"${cfg.declared ? '' : ' It names USE_ANALYTICS, so also add the line "export const USE_ANALYTICS = true;" above it.'} A site built some other way can read the variable its own build sets instead.`);

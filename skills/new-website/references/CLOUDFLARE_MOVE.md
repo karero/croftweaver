@@ -51,7 +51,8 @@ computer, and a second computer would not know the move had begun.
    build's variable beside it; `check` lets that pass, but the analytics gate refuses any
    variable other than these two, so build such a site with its own variable set and check that
    the built pages carry the analytics tag. `check` refuses when it cannot tell whether analytics
-   is on, and when `src/config.ts` holds a block comment (`/* … */`): turn one into `//` comments. A site with no `USE_ANALYTICS` line at all counts as
+   is on, and when `src/config.ts` holds a block comment (`/* … */`) or a template string over
+   more than one line: turn the one into `//` comments, keep the other on one line. A site with no `USE_ANALYTICS` line at all counts as
    on; since the new line names it, add `export const USE_ANALYTICS = true;` above it too.
    With analytics off, leave the line alone.
 2. **Freeze and record.** `check`, then `record`. Nothing is merged or shipped from here until
