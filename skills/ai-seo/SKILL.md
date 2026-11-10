@@ -65,13 +65,22 @@ The worked content-pattern examples in [references/content-patterns.md](referenc
 
 Traditional SEO gets you ranked. AI SEO gets you **cited**.
 
-Google says a page must be indexed and eligible to be shown in Google Search with a snippet to appear as a supporting link in AI Overviews or AI Mode, and lists no other technical requirement ([Google](https://developers.google.com/search/docs/appearance/ai-features)). Google adds that specific optimization isn't required for AI Overviews and AI Mode and that its existing SEO fundamentals stay worthwhile. So ordinary SEO is the base, and the structure, authority and presence work below is what the studies and company pages point to for being cited.
+Google says a page must be indexed and eligible to be shown in Google Search with a snippet to appear as a supporting link in AI Overviews or AI Mode, and lists no other technical requirement ([Google](https://developers.google.com/search/docs/appearance/ai-features)). Google adds that specific optimization isn't required for AI Overviews and AI Mode and that its existing SEO fundamentals stay worthwhile.
 
 **Critical stats:**
 - AI Overviews appear on about 45% of the queries BrightEdge tracks ([BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/ai-overviews-one-year-presence-size-citing), late 2025)
 - When an AI Overview appears, the top-ranked page gets about 58% fewer clicks ([Ahrefs](https://ahrefs.com/blog/ai-overviews-reduce-clicks-update/), desktop, 300,000 keywords, December 2025 against December 2023)
 - On "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site ([AirOps](https://airops.com/report/the-influence-of-offsite-signals-in-ai-search), 2025)
-- In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 27-41% on the paper's word-count measure and 13-28% on its subjective-impression measure (its text rounds these to 30-40% and 15-30%; [GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google)
+- In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 27-41% on the paper's word-count measure and 13-28% on its subjective-impression measure (its text rounds these to 30-40% and 15-30%; [GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google). The gains were measured on pages already given to the engine (see [What the 2026 studies found](#what-the-2026-studies-found))
+
+#### What the 2026 studies found
+
+Two 2026 studies put being found ahead of what is on the page. Both are preprints on arXiv with no venue listed.
+
+- [Chen & Koudas](https://arxiv.org/abs/2610.15033) (October 2026; read in full on 2026-11-10) followed 158,099 answers that ChatGPT, Gemini and Perplexity gave through their APIs (not the apps people use) over 90 days, to English commercial questions about the US market: one set written for an internet provider, one for a small B2B software vendor. Comparing pages of the same website, a title and a paragraph that answer the question went with more citations. FAQ blocks, structured data, summary boxes and page speed went with more citations only when different websites were compared, not between pages of one site. When the authors replayed the questions through ChatGPT's API, every page it cited was one its own search had retrieved, and which pages that search found explained 32% of the differences in citations between pages of a website, all page features together 2.8%. Little-known vendors were named mainly when a page on another site that the engine cited named them. These citation and retrieval findings are associations, not experiments, and an engine's API need not behave like its app.
+- [Martinez](https://arxiv.org/abs/2607.14035) (July 2026; its summary and two passages read on 2026-11-10) reviewed 45 GEO studies. The 2023 GEO paper's gains (the table in Pillar 2) were measured with the page already in front of the engine, and no technique reviewed showed a stable, long-term, cross-platform causal effect on being found or on what readers do next. Relevance to the question was among the most reproducible levers.
+
+So ordinary SEO is still the base, and the first job is a page the engine's search finds: for each question that matters, a page whose title and a paragraph answer it in the words a customer would use. Engines match by meaning, so you don't need a page for every phrasing ([Google's guide](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide) says the same). For a little-known business, being named on other sites (Pillar 3) is part of being found. Pillars 1 and 2 are about a page once it is found.
 
 ---
 
@@ -98,6 +107,7 @@ Test 10-20 of your most important queries across platforms:
 ### Step 2: Analyze Citation Patterns
 
 When your competitors get cited and you don't, examine:
+- **Retrieval** — Do you have a page whose title and a paragraph answer this question? Is theirs a closer answer?
 - **Content structure** — Is their content more extractable?
 - **Authority signals** — Do they have more citations, stats, expert quotes?
 - **Freshness** — Is their content more recently updated?
@@ -110,6 +120,7 @@ For each priority page, verify:
 
 | Check | Pass/Fail |
 |-------|-----------|
+| Title and one paragraph (anywhere on the page) answer the question this page is for? | |
 | Clear definition in first paragraph? | |
 | Self-contained answer blocks (work without surrounding context)? | |
 | Statistics with sources cited? | |
@@ -143,6 +154,8 @@ See [references/platform-ranking-factors.md](references/platform-ranking-factors
 
 ### The Three Pillars
 
+Start with being found (above). For a little-known business, presence (Pillar 3) is part of being found; structure and authority (Pillars 1 and 2) are about a page once it is found.
+
 ```
 1. Structure (make it extractable)
 2. Authority (make it citable)
@@ -175,7 +188,7 @@ For detailed templates for each block type, see [references/content-patterns.md]
 
 Give a reader, human or machine, reasons to trust the page. Build citation-worthiness.
 
-**The Princeton GEO research** ([KDD 2024](https://arxiv.org/abs/2311.09735)) tested 9 ways of rewriting a page, mostly on the authors' own simulated AI engine. The results below are on its main measure, the Position-Adjusted Word Count (Overall column of Table 1): the share of the answer's words in sentences that cite the page (split equally when a sentence cites several pages), weighted by where the citation appears. In a smaller test on Perplexity, quotations again did best on that measure (+22%); on the paper's second, subjective measure, statistics gained up to 37% there.
+**The Princeton GEO research**, the 2023 GEO lab study ([KDD 2024](https://arxiv.org/abs/2311.09735)), tested 9 ways of rewriting a page, mostly on the authors' own simulated AI engine. Both its tests handed the engine the pages to cite (its own engine got the top five Google results, Perplexity got the pages as uploaded files), so its gains apply to a page already retrieved: ways to improve a page once it is found, not the main lever (see [What the 2026 studies found](#what-the-2026-studies-found)). The results below are on its main measure, the Position-Adjusted Word Count (Overall column of Table 1): the share of the answer's words in sentences that cite the page (split equally when a sentence cites several pages), weighted by where the citation appears. In a smaller test on Perplexity, quotations again did best on that measure (+22%); on the paper's second, subjective measure, statistics gained up to 37% there.
 
 | Method | Visibility Boost | How to Apply |
 |--------|:---------------:|--------------|
@@ -191,13 +204,13 @@ Give a reader, human or machine, reasons to trust the page. Build citation-worth
 
 **Best combination:** Fluency + Statistics = maximum boost. Low-ranking sites benefit even more — up to 115% visibility increase with citations. Sources already ranked first lost visibility from the same edits (citations −30%, quotations −23%, statistics −21%; Table 2 of the paper).
 
-**Statistics and data** (+31% in the GEO study)
+**Statistics and data**
 - Include specific numbers with sources
 - Cite original research, not summaries of research
 - Add dates to all statistics
 - Prefer original data to aggregated data
 
-**Expert attribution** (+41% for quotations in the GEO study)
+**Expert attribution**
 - Named authors with credentials
 - Expert quotes with titles and organizations
 - "According to [Source]" framing for claims
@@ -446,6 +459,7 @@ OpenRouter a week's run cost about $0.72 per site (the Costs section of that `ge
 ## Common Mistakes
 
 - **Ignoring AI search entirely** — AI Overviews showed on about 45% of the queries BrightEdge tracked in late 2025
+- **Tuning a page no engine finds** — The GEO gains were measured on pages the engine already had, and in a 2026 study (a preprint) FAQ blocks and schema went with more citations only across websites, not within one. Start with a page whose title and a paragraph answer the question (see [What the 2026 studies found](#what-the-2026-studies-found))
 - **Treating AI SEO as separate from SEO** — Good traditional SEO is the foundation; AI SEO adds structure and authority on top
 - **Writing for AI, not humans** — Write for the reader first: content that reads like it was written to game an algorithm is hard to trust
 - **No freshness signals** — Show when content was last updated, and update it (see the freshness note in Pillar 2)

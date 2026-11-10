@@ -22,7 +22,7 @@ Where a company's page or a study backs a statement, the source is beside it; th
 
 Google says a page must be indexed and eligible to be shown in Google Search with a snippet to appear as a supporting link in AI Overviews or AI Mode, and lists no other technical requirement ([Google](https://developers.google.com/search/docs/appearance/ai-features)); indexing and serving are not guaranteed. Google adds that specific optimization isn't required, and that you don't need new machine-readable files, AI text files or markup, or any special schema.org structured data, to appear in these features. BrightEdge found AI Overviews on about 45% of the queries it tracks by late 2025.
 
-**What the studies add:** Ordinary SEO is the base. We found no Google-specific test of what the AI layer adds on top. In the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on the authors' own simulated engine and on Perplexity, not on Google).
+**What the studies add:** Ordinary SEO is the base. We found no Google-specific test of what the AI layer adds on top. In the Princeton GEO study, citing sources and writing in an authoritative (not salesy) tone both raised a page's visibility in AI-generated answers (tested on the authors' own simulated engine and on Perplexity, not on Google). The gains were measured on pages already given to the engine; being found comes first (see What the 2026 studies found in SKILL.md).
 
 **Write clear, extractable answers on every page you want cited.**
 
