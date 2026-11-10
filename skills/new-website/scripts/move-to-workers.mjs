@@ -733,7 +733,7 @@ async function siteAddress(git) {
 // what to make, by the address src/config.ts gives. `reaching` is empty when no zone has DNS Edit.
 async function zoneRefusal(ctx, zones, reaching) {
   const lines = reaching.length
-    ? [`This token can edit the DNS of ${reaching.length} zones (${reaching.map((z) => z.name).join(', ')}).`,
+    ? [`Cloudflare lists DNS Edit for this token in ${reaching.length} zones (${reaching.map((z) => z.name).join(', ')}).`,
       `Cloudflare lists these permissions in them: ${[...new Set(reaching.flatMap((z) => z.permissions.filter((p) => /^#(dns_records|zone_settings):/.test(p))
         .map((p) => (/^[a-z0-9_:#.-]+$/.test(p) ? p : '(a permission this script does not show)'))))].join(', ')}.`]
     : [];
@@ -751,7 +751,7 @@ async function zoneRefusal(ctx, zones, reaching) {
   return new Stop(1, ...lines);
 }
 
-// The token: verified, a week away at most, with DNS Edit in one zone. Returns that zone.
+// The token: verified, ending 8 days away at most, with DNS Edit listed in one zone. Returns that zone.
 async function checkToken(ctx) {
   const verify = await ctx.api('GET', '/user/tokens/verify');
   if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
@@ -764,7 +764,7 @@ async function checkToken(ctx) {
   const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
   if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
   // The Workers permission lists every zone of the account, so the zone count says nothing. The site's
-  // zone is the one whose `permissions` include DNS Edit; read-only reach elsewhere does not count.
+  // zone is the one whose `permissions` list DNS Edit; no other permission counts.
   for (const z of zones.items) if (!Array.isArray(z.permissions)) throw new Stop(1, `Cloudflare did not say what this token may do in the zone ${z.name}. Make a new token from the link.`);
   const reaching = zones.items.filter((z) => z.permissions.includes('#dns_records:edit'));
   if (reaching.length > 1) throw await zoneRefusal(ctx, zones.items, reaching);

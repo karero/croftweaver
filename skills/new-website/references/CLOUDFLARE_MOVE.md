@@ -69,8 +69,8 @@ account. The script keeps to her site: every request it sends is checked against
 Pages project and her Worker before it goes out, and anything else is refused.
 
 The Workers permission makes every zone of the account show up in the token's zone list; that is
-expected. The script finds her zone as the one zone where the token lists DNS Edit; read-only
-permissions in other zones do not count. It refuses a token with DNS Edit in more than one zone or
+expected. The script finds her zone as the one zone where the token lists DNS Edit; no other
+permission in any zone counts. It refuses a token with DNS Edit in more than one zone or
 none, one with no end date or an end date more than 8 days out, and one that is not active. When
 more than one zone has DNS Edit, the refusal shows the DNS and zone-settings permissions Cloudflare
 lists there: a token made with account permissions only was listed with DNS Edit in every zone of
