@@ -22,3 +22,25 @@ branch was rebased onto it.
 | D4 | NIT | melious | How long bullet | "We found no published measurement" is a negative universal with no date | fixed | "when we last checked, in November 2026" (the guide: "Checked on 3 November 2026", READ 4) |
 | D5 | NIT | melious | CLOUDFLARE_CHECK.md | The numeral "seven" goes stale on the next list change and no test pins it | fixed | Both lines word it without a number |
 | D6 | NIT | melious, fresh-eyes | cloudflare-check.mjs, new row | The user-agent string is made up from the token; nothing says so | fixed | One-line comment above the row |
+
+## Round 2 (verification, diff at 48df96fe, base ae61aed8)
+
+`reviewers: codex OK, melious OK`. `timings: codex 95s (42470 tokens), melious 436s (30322
+tokens)`. Both seats: "No BUG/RISK/NIT findings"; D1, D2, D4, D5 and D6 fixed as claimed, D3's
+refutation upheld. Checks before the round: the check's test file 103 pass, 0 fail, 0 skipped;
+`make check` and `check_clean.sh` exit 0.
+
+GLM noted three things outside the diff, none a finding here. (1) Cloudflare's page scopes the
+24-hour Metrics limit to free plans in one sentence, but its table lists it under all plans. The
+bullet quotes only the sentence, so it is accurate as written; re-read the page if the bullet is
+rewritten. (2) Anthropic's page carries no calendar date. (3) The count search looked for "six",
+not "seven"; the diff adds no numeral to prose.
+
+The claims sweep (`sweep_claims.sh --base origin/main`) listed 11 sentences in the two prose
+files. Each is one the round-2 seats checked against READs 1 to 4c and 7.
+
+## Close
+
+No BUG open. Two rounds, 6 findings: 5 fixed, 1 refuted. Round 2 had no findings, so no wording
+pass follows. Gate total 229,308 tokens logged (five seat runs, fresh-eyes included). The
+"Next release notes" row in `docs/BUGLOG.md` was written after the last round.
