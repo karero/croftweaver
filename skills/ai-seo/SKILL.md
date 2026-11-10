@@ -232,7 +232,7 @@ E-E-A-T is a Google Search idea: Google says its systems look for signs of exper
 
 ### Pillar 3: Presence — Be Where AI Looks
 
-AI answers cite more than your own website, so be present where they look. One measurement is the AirOps figure under "Critical stats" above: in one vendor's study of over 500 business-software questions in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site. It measured software questions only, so for other trades read it as a direction, not a share to expect.
+AI answers cite more than your own website, so be present where they look. One measurement is the AirOps figure under "Critical stats" above: in one vendor's study of over 500 business-software questions in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site. It measured questions about business software, so for other trades read it as a direction, not a share to expect.
 
 **Places worth being present:**
 - Wikipedia (7.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
