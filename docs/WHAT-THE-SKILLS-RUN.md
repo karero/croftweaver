@@ -227,10 +227,10 @@ an "Email Tap" event there, as a click on an email address does.
   domains through Cloudflare's API, the repository's branches and checks on GitHub, and your
   site's own pages. Once a run has found that `origin` is on GitHub, it writes a status page to
   `move-run/`, a folder in your site; it puts a `.gitignore` holding `*` there if there is none,
-  and stops if git tracks a file in it. Each run but `check` that reaches your zone also keeps
-  the move's state (see "Writes outside your site's folder"). `record` builds the live branch's newest commit
-  with `npm ci` (or `npm install`) and `npm run build`, in a copy under `move-run/`. `move` writes a commit on your
-  branch that sets the Workers config's routes, and does not push it. Only `move --confirm` and
+  and stops if git tracks a file in it. Runs other than `check` also keep the move's state
+  (see "Writes outside your site's folder"). `record` builds the live branch's newest commit
+  with `npm ci` (or `npm install`) and `npm run build`, in a copy under `move-run/`. `move` and `undo` each write a commit on your
+  branch that sets or takes out the Workers config's routes, and do not push it. Only `move --confirm` and
   `undo --confirm`, after your yes to the question they print, change Cloudflare: `move`
   deletes each host's Pages domain and its DNS record and attaches the host to the Worker;
   `undo` does the reverse.
@@ -446,7 +446,7 @@ with its own terms.
 | `skills-before-croftweaver-…` next to the skills folder | `npm create croftweaver` | when the skills folder held folders it did not recognise | move them back |
 | `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/` with `ai-check.lock`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
 | `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour; a re-install at the same day and hour keeps the site's minute if no other site uses it, and with all twelve taken the site shares :00) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
-| `~/.config/croftweaver/moves/<zone>/<owner-repo>/` (`state.json`, and a `lock` while a run is going) | `move-to-workers.mjs` | each run but `check`, once it reaches your zone | delete the folder once the move is done and you will not undo |
+| `~/.config/croftweaver/moves/<zone>/<owner-repo>/` (`state.json`, and a `lock` while a run is going) | `move-to-workers.mjs` | runs other than `check` | delete the folder once the move is done and you will not undo |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
