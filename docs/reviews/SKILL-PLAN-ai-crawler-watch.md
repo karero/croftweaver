@@ -116,4 +116,4 @@ real crawler, or report a refusal (a `look`, never a FAIL) that the real crawler
 | Maintainer's go | given 2026-11-10 ("Yes, build it") | — |
 | Build: check row, tests, two bullets, BUGLOG row; rerun the two count searches by hand | done; both searches found no other count or list | 6afe6ca7, 48df96fe |
 | DIFF gate | clean (2 rounds, 6 findings) | trail `REVIEW-diff-2026-11-10-ai-crawler-watch.md` |
-| PR, merge | in progress | — |
+| PR, merge | merged 2026-11-10 | karero/croftweaver#523, 4a341ed2 |
