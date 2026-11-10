@@ -93,11 +93,23 @@ def in_the_way(colour_sets, hardly, candidates):
     return found[1] if found else None
 
 
-def ico_from_png(png):
-    """A .ico holding one 32 x 32 PNG: a 22-byte header, then the PNG as it is."""
-    if _png.size(png) != (32, 32):
-        raise Refusal("icon-bad", "The favicon.ico is made from a 32 x 32 picture only.")
-    return b"\x00\x00\x01\x00\x01\x00" + struct.pack("<BBBBHHII", 32, 32, 0, 0, 1, 32, len(png), 22) + png
+ICO_SIZES = (16, 32, 48, 64)
+
+
+def ico_from_pngs(pngs):
+    """A .ico of PNG frames, one per side in ICO_SIZES (a dict side -> PNG): a 6-byte header, a 16-byte entry
+    each, then the PNGs as they are. The same layout as the starter's make-icons.mjs."""
+    if sorted(pngs) != list(ICO_SIZES):
+        raise Refusal("icon-bad", "The favicon.ico is made from pictures of %s pixels." % ", ".join(str(n) for n in ICO_SIZES))
+    for side in ICO_SIZES:
+        if _png.size(pngs[side]) != (side, side):
+            raise Refusal("icon-bad", "The favicon.ico frame for %d pixels is not %d x %d." % (side, side, side))
+    out = struct.pack("<HHH", 0, 1, len(ICO_SIZES))
+    offset = 6 + 16 * len(ICO_SIZES)
+    for side in ICO_SIZES:
+        out += struct.pack("<BBBBHHII", side, side, 0, 0, 1, 32, len(pngs[side]), offset)
+        offset += len(pngs[side])
+    return out + b"".join(pngs[side] for side in ICO_SIZES)
 
 
 def _job(name, size, scale=1.0, background=None):
@@ -181,13 +193,13 @@ def build(clean, mono, palette, renderer, workdir):
         notes.append("no background keeps every colour of the colour version at 3 to 1, so the app icons (apple-touch and "
                      "maskable) are drawn from the one-colour version on %s" % choice.background)
 
-    renderer.render(clean.text, clean.view_box, [_job("favicon-32", 32), _job("icon-192", 192), _job("icon-512", 512)], workdir)
+    renderer.render(clean.text, clean.view_box, [_job("favicon-16", 16), _job("favicon-32", 32), _job("favicon-48", 48), _job("favicon-64", 64), _job("icon-192", 192), _job("icon-512", 512)], workdir)
     renderer.render(chosen.text, chosen.view_box, [_job("apple-touch", 180, APPLE_SCALE, choice.background),
                                                    _job("maskable", 512, MASKABLE_SCALE, choice.background)], workdir)
-    png = {n: _read(os.path.join(workdir, n + ".png")) for n in ("favicon-32", "icon-192", "icon-512", "apple-touch", "maskable")}
+    png = {n: _read(os.path.join(workdir, n + ".png")) for n in ("favicon-16", "favicon-32", "favicon-48", "favicon-64", "icon-192", "icon-512", "apple-touch", "maskable")}
 
     pictures = {}
-    for name, side in (("favicon-32", 32), ("icon-192", 192), ("icon-512", 512), ("apple-touch", 180), ("maskable", 512)):
+    for name, side in (("favicon-16", 16), ("favicon-32", 32), ("favicon-48", 48), ("favicon-64", 64), ("icon-192", 192), ("icon-512", 512), ("apple-touch", 180), ("maskable", 512)):
         if _png.size(png[name]) != (side, side):
             raise Refusal("icon-bad", "The %s icon did not come out %d x %d." % (name, side, side))
         pictures[name] = _png.decode(png[name])  # all of it, not its header alone: a file cut short is not installed
@@ -199,7 +211,7 @@ def build(clean, mono, palette, renderer, workdir):
 
     files = {
         "public/favicon.svg": clean.text.encode("utf-8"),
-        "public/favicon.ico": ico_from_png(png["favicon-32"]),
+        "public/favicon.ico": ico_from_pngs({n: png["favicon-%d" % n] for n in ICO_SIZES}),
         "public/apple-touch-icon.png": png["apple-touch"],
         "public/icon-192.png": png["icon-192"],
         "public/icon-512.png": png["icon-512"],
