@@ -10,6 +10,7 @@ Google's guide), sent with `--evidence` every round.
 |---|---|---|---|---|---|
 | 1 | bcf7ade7 | full plan | codex · melious · fresh-eyes | codex 141 s, 54,180 · melious 187 s, 21,203 · fresh-eyes 56 s, 110,426 | 3/6/4 (after dedup) |
 | 2 | ad98e60e | full plan, --verify | codex (medium) · melious | codex 145 s, 56,041 · melious 347 s, 32,742 | 0/1/6 (codex: none) |
+| 3 | 34fc6e99 | full plan, --verify | codex · melious | codex 122 s, 67,027 · melious 415 s, 39,227 | 1/1/4 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -37,3 +38,9 @@ Google's guide), sent with `--evidence` every round.
 | R2-6 | NIT | melious | 2 | Cost estimate counted Codex only | fixed | Review section uses this gate's logged total, every seat |
 | R2-7 | NIT | melious | 2 | Martinez bullet omits "or downstream behavior" | fixed | Draft adds "or on what readers do next" (READ 3) |
 | U3 | — | melious (UNVERIFIABLE) | 2 | "A KDD paper" not in a READ | supported | READ 8: "Accepted to KDD 2024" |
+| R3-1 | BUG | codex | 3 | Cost line said "about 385,000" for rounds 1–2; the logged seats sum to 274,592 (fresh-eyes was counted twice) | fixed | Review section: rounds 1–3 logged 380,846 tokens, every seat counted; projection 700,000–800,000 |
+| R3-2 | RISK | melious | 3 | No READ shows both collections used all three engines | fixed | READ 2d: both datasets from "the public API of each engine" (GPT-5.4 nano, Gemini 3.1 Flash Lite, Sonar); draft says the answers came through the APIs, not the apps, and names each collection |
+| R3-3 | NIT | melious | 3 | How 3 says headings, lists and length differ between datasets; READs show that for headings only | fixed | How 3: "differ between its two steps …, and for headings between its two datasets" |
+| R3-4 | NIT | melious | 3 | "Pillars 1 and 2 improve a page once it is found" is an efficacy claim the evidence does not make for Pillar 1 | fixed | Draft and How 3: "are about a page once it is found" |
+| R3-5 | NIT | melious | 3 | "Strongest numbers … +41%/+31%" and "honest about its setting" have no READ | fixed | What and why points to `SKILL.md:182–183` (the figures) and `:178` (the lead naming its setting); "honest" cut |
+| R3-6 | NIT | melious | 3 | "Best combination" and "Princeton" left unchecked | no action | The plan says so; outside this change |
