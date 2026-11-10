@@ -57,5 +57,5 @@ findings files were not kept, so the per-finding detail for rounds 3 to 5 is not
 
 Tests: `make test-launch-check`, 54 tests, OK at `23da3ae8`. Live run against the guide's real
 `src/config.ts` and https://guide.croftweaver.com/ at `caa3440f`: exit 0.
-The fix of 11a is not yet re-reviewed: round 12 needs Daniel's word (past the round-8 stop).
+The fix of 11a is not re-reviewed: Daniel chose "Push, no round 12" (2026-11-10). It is a one-character regex change with a test, and a mutation shows the test fails without it (past the round-8 stop).
 Totals through round 11: 17 seat runs, about 612,000 tokens (the script's running total; round 8 stood at 475,829).
