@@ -13,10 +13,10 @@ plain live check only. Not in scope: proving which build served the page, and an
 | Step | What | State | Evidence |
 |---|---|---|---|
 | 1 | This plan | narrowed 2026-11-09 | this file |
-| 2 | PLAN gate, High | rounds 1-5 on the wider plan: Codex alone (melious out of balance), 10 BUG, 9 RISK; rounds 6-7 on this narrow plan, 4 BUG, 1 RISK; total 14 BUG, 10 RISK, all fixed; round 7's one BUG fixed by wording, not yet re-reviewed | `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
+| 2 | PLAN gate, High | rounds 1-5 on the wider plan: Codex alone (melious out of balance), 10 BUG, 9 RISK; rounds 6-7 on this narrow plan, 4 BUG, 1 RISK; total 14 BUG, 10 RISK, all fixed; round 7's one BUG fixed by wording, not yet re-reviewed; DIFF gate below |  `docs/reviews/REVIEW-plan-2026-11-09-live-analytics-check.md` |
 | 3 | `skills/website-launch-check/scripts/check_live_analytics.py` and its tests, on real captures | built 2026-11-09 | 03b3dbee, a488e5a1; `make test-launch-check`: 43 tests OK |
 | 4 | `website-launch-check` §8 runs it; BUGLOG release-notes row | built 2026-11-09 | 03b3dbee |
-| 5 | `make check` and `make test-launch-check`, mutation check, live run, DIFF gate, then PR | checks done; DIFF gate and PR open | `make check` exit 0 at a488e5a1; mutation-check a488e5a: 3 killed, 0 survived; live run 2026-11-09 21:02Z on the guide: ✓, exit 0 |
+| 5 | `make check` and `make test-launch-check`, mutation check, live run, DIFF gate, then PR | done 2026-11-10: DIFF gate rounds 1-11 (owner closed at 11; round-11 fix not re-reviewed), CI green, merged | `make check` exit 0 at a488e5a1; mutation-check a488e5a: 3 killed, 0 survived; live run 2026-11-09 21:02Z on the guide: ✓, exit 0; PR 520, merge 787689fe; trail `docs/reviews/REVIEW-diff-2026-11-09-live-analytics-check.md` |
 
 ## What and why
 
