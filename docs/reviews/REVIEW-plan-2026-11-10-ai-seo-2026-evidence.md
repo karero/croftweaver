@@ -11,6 +11,7 @@ Google's guide), sent with `--evidence` every round.
 | 1 | bcf7ade7 | full plan | codex · melious · fresh-eyes | codex 141 s, 54,180 · melious 187 s, 21,203 · fresh-eyes 56 s, 110,426 | 3/6/4 (after dedup) |
 | 2 | ad98e60e | full plan, --verify | codex (medium) · melious | codex 145 s, 56,041 · melious 347 s, 32,742 | 0/1/6 (codex: none) |
 | 3 | 34fc6e99 | full plan, --verify | codex · melious | codex 122 s, 67,027 · melious 415 s, 39,227 | 1/1/4 |
+| 4 | 040595a8 | full plan, --verify, earned by cost-arithmetic, corpus-description | codex · melious | codex 85 s, 45,753 · melious 389 s, 33,679 | 0/0/5 (codex: none) |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -44,3 +45,8 @@ Google's guide), sent with `--evidence` every round.
 | R3-4 | NIT | melious | 3 | "Pillars 1 and 2 improve a page once it is found" is an efficacy claim the evidence does not make for Pillar 1 | fixed | Draft and How 3: "are about a page once it is found" |
 | R3-5 | NIT | melious | 3 | "Strongest numbers … +41%/+31%" and "honest about its setting" have no READ | fixed | What and why points to `SKILL.md:182–183` (the figures) and `:178` (the lead naming its setting); "honest" cut |
 | R3-6 | NIT | melious | 3 | "Best combination" and "Princeton" left unchecked | no action | The plan says so; outside this change |
+| R4-1 | NIT | melious | 4 | "Strongest numbers are the 2023 GEO paper's": `SKILL.md:182–183` shows the skill states them, not that the paper does | fixed | What and why: "are ones it credits to the 2023 GEO paper"; the plan makes no claim about the paper's figures |
+| R4-2 | NIT | melious | 4 | Cost line names no log rows (U2's fix lapsed) | fixed | Review section names the gate id and the nine rows of 2026-11-10; total 460,278 summed from them |
+| R4-3 | NIT | melious | 4 | "For small B2B software vendors" (plural); READ 2d says "written for a small vendor in that market" | fixed | Draft and source row: "one for a small B2B software vendor" |
+| R4-4 | NIT | melious | 4 | Vishwakarma et al. characterised with no READ | fixed | Characterisation cut: "named in the research notes, was not re-read and is left out" |
+| R4-5 | NIT | melious | 4 | The claims sweep catches nothing the hand check does not | no action | REVIEW-RULES makes the claims sweep part of a prose gate; it is an aid, as the plan says, and costs no review tokens |

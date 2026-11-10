@@ -8,7 +8,7 @@ private feature hub). Nothing is built before the maintainer's go.
 | Step | State | Evidence |
 |---|---|---|
 | Plan written | done | this file |
-| PLAN gate (Normal) and claims sweep | — | — |
+| PLAN gate (Normal) and claims sweep | in progress | 4 rounds; trail `REVIEW-plan-2026-11-10-ai-seo-2026-evidence.md` |
 | Maintainer's go | — | — |
 | Build (steps 1–7 below) | — | — |
 | DIFF gate (Normal) | — | — |
@@ -18,8 +18,8 @@ private feature hub). Nothing is built before the maintainer's go.
 ## What and why
 
 `skills/ai-seo/SKILL.md` tells an owner where to spend time on AI search. Today its strategy is
-"The Three Pillars" (structure, authority, presence), and its strongest numbers are the 2023 GEO
-paper's (+41% for quotations, +31% for statistics; `SKILL.md:182–183`). The table's lead names
+"The Three Pillars" (structure, authority, presence), and its strongest numbers (+41% for
+quotations, +31% for statistics; `SKILL.md:182–183`) are ones it credits to the 2023 GEO paper. The table's lead names
 its setting (a simulated engine, one measure, a smaller Perplexity test; `SKILL.md:178`), but the
 table reads as the main lever. Two 2026 studies say the main lever comes earlier: the engine's own
 search has to find the page. Page features explained far less, and the GEO paper's gains were
@@ -37,7 +37,7 @@ Google's guide). The gate's evidence file carries the quoted passages as READs.
 
 | Source | What was read | What the new text may say |
 |---|---|---|
-| Chen & Koudas, "What Drives AI Citations? Content, Retrieval and Model Knowledge in Generative Engine Optimization (GEO)", [arXiv 2610.15033](https://arxiv.org/abs/2610.15033), submitted 10 Oct 2026 | Abstract and full PDF (11 pages; no venue listed: the PDF's header is a blank conference template) | 158,099 answers, 468,037 citations, two 90-day collections of commercial questions (one for a US fiber internet provider, one for small B2B software vendors), both from ChatGPT, Gemini and Perplexity through "the public API of each engine" (GPT-5.4 nano, Gemini 3.1 Flash Lite, Sonar). Within a website, title match and best-paragraph match pass all five of its robustness tests; first-paragraph match fails one. FAQ blocks, structured data, summary and author boxes and page speed "appear effective only across websites". The best-matching paragraph sits at a median of 45% of the page length: "It need not be at the top". In the replay of the questions through the engines' APIs, "every page ChatGPT cites is one its own search retrieved", and retrieval explains 32% (95% CI 24–42%) of the within-website variation in ChatGPT's 90-day citation counts, all page features 2.8%. Engines match "in meaning". A little-known vendor "is named mainly when a cited third-party page names it". Limits it states: "The results are associations"; the API replay "need not behave like" the consumer apps; about a third of cited URLs could not be analysed; English questions about the US market; Perplexity could not be replayed |
+| Chen & Koudas, "What Drives AI Citations? Content, Retrieval and Model Knowledge in Generative Engine Optimization (GEO)", [arXiv 2610.15033](https://arxiv.org/abs/2610.15033), submitted 10 Oct 2026 | Abstract and full PDF (11 pages; no venue listed: the PDF's header is a blank conference template) | 158,099 answers, 468,037 citations, two 90-day collections of commercial questions (one for a US fiber internet provider, one for a small B2B software vendor), both from ChatGPT, Gemini and Perplexity through "the public API of each engine" (GPT-5.4 nano, Gemini 3.1 Flash Lite, Sonar). Within a website, title match and best-paragraph match pass all five of its robustness tests; first-paragraph match fails one. FAQ blocks, structured data, summary and author boxes and page speed "appear effective only across websites". The best-matching paragraph sits at a median of 45% of the page length: "It need not be at the top". In the replay of the questions through the engines' APIs, "every page ChatGPT cites is one its own search retrieved", and retrieval explains 32% (95% CI 24–42%) of the within-website variation in ChatGPT's 90-day citation counts, all page features 2.8%. Engines match "in meaning". A little-known vendor "is named mainly when a cited third-party page names it". Limits it states: "The results are associations"; the API replay "need not behave like" the consumer apps; about a third of cited URLs could not be analysed; English questions about the US market; Perplexity could not be replayed |
 | Martinez, "Optimizing Visibility in Generative Engines: A Critical Survey of Generative Engine Optimization (2023-2026)", [arXiv 2607.14035](https://arxiv.org/abs/2607.14035), submitted 15 Jul 2026 | Abstract, plus a search of the full PDF for its "foundational paper" and the Perplexity test | 45 studies. The foundational paper (its section 4 names Aggarwal et al. [2024], the 2023 GEO paper) has gains "conditional on a source already being present in a fixed context"; "topical relevance and context position are the most reproducible levers"; "no reviewed technique shows a stable, longitudinal, cross-platform causal effect on organic discoverability or downstream behavior". Its Perplexity test used "texts uploaded as files rather than web pages retrieved organically" |
 | Aggarwal et al., the 2023 GEO paper, [arXiv 2311.09735](https://arxiv.org/abs/2311.09735) v3 | PDF, its engine design and appendix C.1 | Its engine used "the top 5 sources ... fetched from the Google search engine for every query"; on Perplexity "we instead provide source text as file uploads ... ensuring all answers are generated only using the file sources provided". So both of its tests handed the engine the pages |
 | Google, "Optimizing your website for generative AI features on Google Search", [guide](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide), last updated 2026-07-10 | Whole page | "AI systems can understand synonyms and general meanings of what someone is seeking"; a page for every variation of a search, made "primarily to manipulate rankings or generative AI responses", "violates Google's scaled content abuse spam policy"; chunking, AI rewrites, inauthentic mentions and overfocusing on structured data are listed under "things you can ignore for Google Search" |
@@ -45,8 +45,8 @@ Google's guide). The gate's evidence file carries the quoted passages as READs.
 Neither 2026 paper shows a venue on its abstract page or its PDF, so the skill says "preprint,
 no venue listed", not "not peer reviewed". The research notes of 2026-10-28 read Chen & Koudas as
 an abstract only; today's full read closes that gap. Martinez was read as its abstract plus two
-searched passages, and the skill says so. Vishwakarma et al. (arXiv 2605.25517, a lab test with
-two pages) supports the same point, but is left out to keep the text short.
+searched passages, and the skill says so. Vishwakarma et al. (arXiv 2605.25517), named in the
+research notes, was not re-read and is left out.
 
 ## Two places the wording differs from the brief
 
@@ -72,7 +72,7 @@ two pages) supports the same point, but is left out to keep the text short.
    > - [Chen & Koudas](https://arxiv.org/abs/2610.15033) (October 2026; we read the full text)
    >   followed 158,099 answers that ChatGPT, Gemini and Perplexity gave through their APIs (not
    >   the apps people use) over 90 days, to English commercial questions about the US market:
-   >   one set for an internet provider, one for small B2B software vendors.
+   >   one set written for an internet provider, one for a small B2B software vendor.
    >   Comparing pages of the same website, a title and a paragraph that answer the question went
    >   with more citations. FAQ blocks, structured data, summary boxes and page speed went with
    >   more citations only when different websites were compared, not between pages of one
@@ -142,9 +142,10 @@ outside them would not show).
 
 PLAN gate at Normal (an instruction file an agent loads): Codex and GLM 5.3 on melious, plus
 Sonnet fresh-eyes in round 1; if melious is out of balance, Codex alone, as the rules allow. DIFF
-gate at Normal. Cost so far: rounds 1–3 of this gate logged 380,846 tokens with every seat
-counted (fresh-eyes's 110,426 among them). A DIFF gate of the same shape would cost about as
-much, so expect 700,000–800,000 tokens for both gates. A judgment, not a measurement.
+gate at Normal. Cost so far: rounds 1–4 of this gate (gate id 20261110T065111Z-28235, nine
+rows in the review log of 2026-11-10, one per seat per round, listed in the trail's round
+table) logged 460,278 tokens, fresh-eyes's 110,426 among them. A DIFF gate of the same shape would cost about as
+much, so expect 800,000–950,000 tokens for both gates. A judgment, not a measurement.
 
 Counter-argument: two preprints now come before a KDD paper in the skill's order. The answer is
 scope: the GEO paper's tests handed the engine the pages, so they did not test being found, and
