@@ -933,7 +933,8 @@ def _install(a, site, out, data):
     renderer = None
     # A mark given in `currentColor` was drawn in that colour as it was on the day, and no run without its package draws it in another.
     # (Where neither a Primary nor an Accent is to be had, there is no colour to name, and the note is not given.)
-    if kept is not None and not a.input and primary and drawn not in (None, primary):
+    says_package = kept is not None and not a.input and primary and drawn not in (None, primary)
+    if says_package:
         notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[2 if brand and state == "none" else not brand] % primary) + (KEPT_CURRENT_OWN if own_too else ""))
     if master_bytes is not None and want_colours and not asked_for_logo:
         now = palette_from_css(css)
@@ -1013,7 +1014,7 @@ def _install(a, site, out, data):
             on_page = _palette.check_mark(clean.colours, pal)
             if report.outside and not a.accept_colours:
                 plan.asks.append(Ask("outside-palette", "These colours of the mark are not in the palette: %s. Nothing is recoloured without your say-so. Use the mark as it is "
-                                     "(--accept-colours), or ask the tool for the mark in the palette's colours." % ", ".join(report.outside)))
+                                     "(--accept-colours)%s" % (", ".join(report.outside), "." if says_package else ", or ask the tool for the mark in the palette's colours.")))
             mono_low = _palette.check_mark(mono_clean.colours, pal).low if mono_clean is not None else {}
             for theme, under in on_page.low.items():
                 if theme not in accepted:
