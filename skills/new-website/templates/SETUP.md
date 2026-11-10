@@ -186,9 +186,9 @@ which that is (`gh repo view --json defaultBranchRef`): on a two-stage site it s
 The `prepare` script in `package.json` (`node scripts/wire-hooks.mjs`) points
 `core.hooksPath` at `scripts/hooks`, so the shipped **`pre-push` hook** runs `scripts/verify.mjs`
 (the same as `npm run verify`: type check, then the tests, which build the site) and
-**refuses a push when those local checks fail**. Cloudflare deploys independently of CI, so
-this is the one check a direct push meets. It tests the files on disk, not the commit being
-pushed. It
+**refuses a push when those local checks fail**. Cloudflare deploys whether CI passes or not,
+so on a direct push this hook is the only check that runs before the deploy. It tests the files
+on disk, not the commit being pushed. It
 needs `npx playwright install chromium` (above). Relax for one push with
 `git push --no-verify`; disable with `git config --unset core.hooksPath`. See `website-qa`
 §1c — offer this choice, don't impose it.
