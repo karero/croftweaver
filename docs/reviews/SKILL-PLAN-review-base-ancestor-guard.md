@@ -9,8 +9,8 @@ user data, login, money, deletion or schema), so no red team.
 | 1 | This plan | ✅ written 2026-11-09 | this file |
 | 2 | PLAN gate, Normal depth | ⏳ rounds 1 to 3 and a final read done (Codex alone, GLM out of balance); ✅ CLEAN 2026-11-09 (rounds 1 to 3, a final read, two wording passes; Codex alone, GLM out of balance) | `REVIEW-plan-2026-11-09-base-ancestor-guard.md` |
 | 3 | The maintainer's go | ✅ 2026-11-09, "Go, build it" (in chat, after the gate's close) | — |
-| 4 | Build: guard, two doc sentences, tests (one PR) | ⏳ | — |
-| 5 | DIFF gate | ⏳ | — |
+| 4 | Build: guard, two doc sentences, tests (one PR) | ✅ built 2026-11-09/10 on `feat/base-ancestor-guard` | `ef2500b8`, `9aebad0e`, `923875f9` |
+| 5 | DIFF gate, Normal depth | ✅ CLEAN 2026-11-10 (3 rounds, 12 findings; Codex alone, melious out of balance) | `REVIEW-diff-2026-11-09-base-ancestor-guard.md` |
 
 ## What and why
 
