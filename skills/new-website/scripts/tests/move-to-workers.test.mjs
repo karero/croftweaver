@@ -433,7 +433,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
 // Stage 1's fifth gap: with analytics on, the enabled: line must read WORKERS_CI_BRANCH too.
 describe('1b: the analytics enabled: line at stage 1', () => {
   const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
-  const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const analytics = {\n  mode: 'script',\n  ${line}\n};\n` } });
+  const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const ANALYTICS = {\n  mode: 'script',\n  ${line}\n};\n` } });
   const GAP = /^Stopped: Analytics is on, but src\/config\.ts at [0-9a-f]{7} lacks this enabled: line, exactly as written: "enabled: USE_ANALYTICS && \(process\.env\.CF_PAGES_BRANCH \?\? process\.env\.WORKERS_CI_BRANCH\) === PROD_BRANCH," Workers Builds/m;
   test('the line the script asks for is the starter\'s own', () => {
     const starter = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'src', 'config.ts'), 'utf8');
@@ -446,7 +446,6 @@ describe('1b: the analytics enabled: line at stage 1', () => {
   // The script compares the text, so a comment, an added test or the old line all stop it: none can pass unseen.
   for (const [what, line] of [['the old CF_PAGES_BRANCH-only line', OLD],
     ['the old line with the variable named in a comment', `${OLD} // process.env.WORKERS_CI_BRANCH`],
-    ['the old line with the variable named in a block comment', OLD.replace(' ===', ' /* process.env.WORKERS_CI_BRANCH */ ===')],
     ['a line that needs both variables', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH && process.env.WORKERS_CI_BRANCH === PROD_BRANCH,'],
     ['the 0.35 line with a comment', `${ENABLED_LINE} // live only`]]) {
     test(`analytics on with ${what}: check lists the gap`, async () => {
@@ -464,20 +463,20 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
   });
-  test('a declaration in a block comment beside a multi-line one is refused, not read as the comment says', async () => {
-    const cfg = "export const PROD_BRANCH = 'production';\n/*\nexport const USE_ANALYTICS = false;\n*/\nexport const USE_ANALYTICS =\n  true;\nexport const analytics = {\n  " + OLD + "\n};\n";
-    const r = await scenario({ site: makeSite({ files: { 'src/config.ts': cfg } }) }).go(['check']);
-    assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
-  });
-  test('an export let USE_ANALYTICS beside a commented const is refused', async () => {
-    const cfg = "export const PROD_BRANCH = 'production';\n/*\nexport const USE_ANALYTICS = false;\n*/\nexport let USE_ANALYTICS = true;\nexport const analytics = {\n  " + OLD + "\n};\n";
-    const r = await scenario({ site: makeSite({ files: { 'src/config.ts': cfg } }) }).go(['check']);
-    assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
-  });
-  test('the 0.35 line inside a block comment does not stand in for a live multi-line one', async () => {
-    const r = await scenario({ site: site(true, `/*\n  ${ENABLED_LINE}\n  */\n  enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,`) }).go(['check']);
+  // The script reads lines, so a block comment anywhere in src/config.ts is refused: it could hide a line or the end of one.
+  for (const [what, cfg] of [
+    ['a declaration in a block comment beside a multi-line one', `/*\nexport const USE_ANALYTICS = false;\n*/\nexport const USE_ANALYTICS =\n  true;\nexport const ANALYTICS = {\n  ${OLD}\n};\n`],
+    ['the 0.35 line in a block comment beside a live multi-line one', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  /*\n  ${ENABLED_LINE}\n  */\n  enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,\n};\n`],
+    ['a block comment after the 0.35 line', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  ${ENABLED_LINE} /* live only */\n};\n`],
+    ['a comment that opens /* on a // line', `// Start with /*\nexport const USE_ANALYTICS = false;\n// End with */\nexport const ANALYTICS = {\n  ${OLD}\n};\n`]]) {
+    test(`${what}: refused, not read`, async () => {
+      const r = await scenario({ site: makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\n${cfg}` } }) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, /holds a block comment \(\/\* … \*\/\)\. The script reads the file line by line/);
+    });
+  }
+  test('the 0.35 line in another object does not stand in for the ANALYTICS one', async () => {
+    const r = await scenario({ site: site(true, `enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,\n};\nexport const BANNER = {\n  ${ENABLED_LINE}`) }).go(['check']);
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, GAP);
   });
@@ -487,7 +486,7 @@ describe('1b: the analytics enabled: line at stage 1', () => {
   });
   // A site made before the switch has no USE_ANALYTICS and counts as on; the line the gap asks for names it.
   test('a site made before the switch is told to add USE_ANALYTICS too, and passes once it has both', async () => {
-    const before = (extra, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\n${extra}export const analytics = {\n  mode: 'script',\n  ${line}\n};\n` } });
+    const before = (extra, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\n${extra}export const ANALYTICS = {\n  mode: 'script',\n  ${line}\n};\n` } });
     const r = await scenario({ site: before('', 'enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,') }).go(['check']);
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /so also add the line "export const USE_ANALYTICS = true;" above it\./);

@@ -518,23 +518,26 @@ async function readToken(root, git, env) {
 // The enabled: line of the 0.35 release notes, which reads Workers Builds' branch variable.
 export const ENABLED_LINE = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,';
 
-// src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether analytics is on (read as
-// tests/check_analytics_gate.sh reads it; null unless USE_ANALYTICS is unnamed, or declared once and
-// only in its one-line form), whether it is declared, and whether the one enabled: line reading
-// process.env (the gate counts the same lines) is ENABLED_LINE as it stands. Block comments are
-// dropped first, so a line inside one counts for nothing.
+// src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether the file holds a block comment
+// (the script reads lines, so it refuses what such a comment could hide), whether analytics is on
+// (from the one-line declaration the gate reads; null unless USE_ANALYTICS is unnamed or declared
+// once in that form), whether it is declared, and whether the ANALYTICS object's one enabled: line,
+// also the file's one enabled: line reading process.env (the gate's count), is ENABLED_LINE.
 async function readSiteConfig(git, sha) {
   const r = await git('show', `${sha}:src/config.ts`);
   if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
   const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
   if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
-  const live = r.stdout.replace(/\/\*[\s\S]*?\*\//g, '');
-  const uses = [...live.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
-  const declared = (live.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
-  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !live.includes('USE_ANALYTICS') ? true : null;
-  const enabled = live.split(/\r?\n/).filter((l) => /^\s*enabled:.*process\.env\./.test(l));
-  const enabledLine = enabled.length === 1 && enabled[0].trim() === ENABLED_LINE;
-  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), analyticsOn, declared: declared > 0, enabledLine };
+  const lines = r.stdout.split(/\r?\n/);
+  const uses = [...r.stdout.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
+  const declared = (r.stdout.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
+  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !r.stdout.includes('USE_ANALYTICS') ? true : null;
+  const start = lines.findIndex((l) => /^export const ANALYTICS = \{/.test(l));
+  const end = start < 0 ? -1 : lines.findIndex((l, i) => i > start && /^\}/.test(l));
+  const inObject = end < 0 ? [] : lines.slice(start + 1, end).filter((l) => /^\s*enabled:/.test(l));
+  const readsEnv = lines.filter((l) => /^\s*enabled:.*process\.env\./.test(l));
+  const enabledLine = inObject.length === 1 && readsEnv.length === 1 && inObject[0].trim() === ENABLED_LINE;
+  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), blockComment: r.stdout.includes('/*'), analyticsOn, declared: declared > 0, enabledLine };
 }
 
 // The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
@@ -905,7 +908,7 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 // ---------------------------------------------------------------- the refusals of a first move
 
 // What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
-// analytics server mode, a USE_ANALYTICS it cannot read and, with analytics on, the 0.35 enabled: line as written. Read from git only, so a run lists all of them at once.
+// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts and, with analytics on, the 0.35 enabled: line as written. Read from git only, so a run lists all of them at once.
 async function stageOneGaps(git, sha) {
   const gaps = [];
   const asLines = async (fn) => { try { await fn(); } catch (e) { if (!(e instanceof Stop)) throw e; gaps.push(...e.lines); } };
@@ -919,7 +922,8 @@ async function stageOneGaps(git, sha) {
   await asLines(async () => {
     const cfg = await readSiteConfig(git, sha);
     if (cfg.serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
-    if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as exactly one line "export const USE_ANALYTICS = true;" or "= false;" (a // comment after it is fine), so the script cannot tell whether analytics is on.`);
+    if (cfg.blockComment) gaps.push(`src/config.ts at ${short(sha)} holds a block comment (/* … */). The script reads the file line by line and cannot tell what such a comment hides, so it does not read analytics there. Turn it into // comments.`);
+    else if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as exactly one line "export const USE_ANALYTICS = true;" or "= false;" (a // comment after it is fine), so the script cannot tell whether analytics is on.`);
     else if (cfg.analyticsOn && !cfg.enabledLine) gaps.push(`Analytics is on, but src/config.ts at ${short(sha)} lacks this enabled: line, exactly as written: "${ENABLED_LINE}"${cfg.declared ? '' : ' This line names USE_ANALYTICS, so also add the line "export const USE_ANALYTICS = true;" above it.'} Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so a line that reads only CF_PAGES_BRANCH turns analytics off on the Worker. The script compares the text, so use this line even if yours works.`);
   });
   return gaps;
