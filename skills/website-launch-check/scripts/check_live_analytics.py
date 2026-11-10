@@ -19,11 +19,13 @@ from pathlib import Path
 
 CONFIG = Path("src/config.ts")
 USE_LINE = re.compile(r"^export const USE_ANALYTICS = (true|false);?[ \t]*(//.*)?$")
-HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]\s*,?\s*(?://.*)?$""")
-ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]\s*,?\s*(?://.*)?$""")
+HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"\\]*)['"]\s*,?\s*(?://.*)?$""")
+ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"\\]*)['"]\s*,?\s*(?://.*)?$""")
 # Every line of the ANALYTICS block must be one of these forms (or blank, or a // comment), else the
 # file is refused: nothing cleverer is read, never guessed.
-ENABLED_LINE = re.compile(r"^\s*enabled:[^,]*,?\s*(?://.*)?$")
+# The enabled value is never read (the switch and the live page decide), so an expression is fine
+# there, but not a comma or a bracket, which could open a nested object that hides later lines.
+ENABLED_LINE = re.compile(r"^\s*enabled:[^,{}\[\]]*,?\s*(?://.*)?$")
 MODE_LINE = re.compile(
     r"""^\s*mode:\s*'(script|server)'(?:\s+as\s+'(?:script|server)'(?:\s*\|\s*'(?:script|server)')?)?\s*,?\s*(?://.*)?$""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{\s*(?://.*)?$")
@@ -76,7 +78,7 @@ def read_config():
     if not block:
         raise NotChecked(f'no "export const ANALYTICS = {{ … }}" block in {CONFIG}')
 
-    for line in block[1:]:
+    for line in block[1:]:  # block[0] is the opening line, which BLOCK_START matched whole
         if line.strip() and not line.lstrip().startswith("//") and not any(
                 p.match(line) for p in (ENABLED_LINE, MODE_LINE, HOST_LINE, ID_LINE)):
             raise NotChecked(
