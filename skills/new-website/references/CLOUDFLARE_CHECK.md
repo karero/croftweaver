@@ -83,7 +83,7 @@ nowhere to go, is said so and the page is not judged.
 | Bot Fight Mode off (3) | No Cloudflare cookie, and no `/cdn-cgi/challenge-platform/` address in the page's tags or scripts | Either is there. A cookie of your own is a `look` |
 | Web Analytics off (3) | No `<script src>` at `static.cloudflareinsights.com` and no `data-cf-beacon` attribute | It is there |
 | Email Address Obfuscation off (3) | No `email-decode.min.js` at Cloudflare's path, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
-| AI crawlers allow (4) | Six requests that carry AI crawler names are not refused; `robots.txt` has no rules for named crawlers | Never `FAIL`: a refusal is a `look` (a Training choice may be the cause: Cloudflare says Block and Disallow both keep training crawlers out, and Block keeps Googlebot, Bingbot and Applebot out too), and the policy itself is `by hand` |
+| AI crawlers allow (4) | Seven requests that carry AI crawler names are not refused; `robots.txt` has no rules for named crawlers | Never `FAIL`: a refusal is a `look` (a Training choice may be the cause: Cloudflare says Block and Disallow both keep training crawlers out, and Block keeps Googlebot, Bingbot and Applebot out too), and the policy itself is `by hand` |
 | Your own robots.txt (5) | A robots file with a `Sitemap:` line that names your domain, not the starter's `example.com` | It is a web page, tells every crawler to stay out (`Disallow: /`, `/*` or `*` for `User-agent: *`, unless the same group has an `Allow` of that kind that is as long or longer: RFC 9309, 2.2.2, "the match that has the most octets", a tie to allow), or the sitemap host is the placeholder |
 | The build that is live (5) | `/build.txt` is a full commit id; with `--build`, the one you gave | A different commit than `--build` |
 | No scripts you didn't add (5) | No `/cdn-cgi/` path in the page other than the three above | Never `FAIL`: another path (Rocket Loader, Zaraz, image resizing) is a `look` that names it |
@@ -147,7 +147,7 @@ items are a `look`, never `ok`.
 - **A network behind a proxy.** The script uses Node's own HTTP client, which does not read
   proxy settings the way curl does. If it cannot reach a site that curl reaches, run the
   checklist's commands instead.
-- **Whether a crawler name is treated as the real crawler.** The six crawler-named requests
+- **Whether a crawler name is treated as the real crawler.** The seven crawler-named requests
   are plain requests from your machine with the crawler's name in them. Cloudflare may tell
   the real crawlers apart by more than their name, so "none was refused" is a hint, not a
   proof, and the policy is listed `by hand`.
