@@ -5473,9 +5473,10 @@ class WhatIsAskedAndWhen(SiteCase):
         self.assertEqual((dry_code, code, self.kept(dry), self.kept(out)), (0, 0, ([note], []), ([note], [])), out)
         self.assertEqual(self.icons(), icons, "the logo's files are as they were: nothing is recoloured")
         self.assertIn("themeColor: '#5c2208',", self.read("src/config.ts"))
-        # the same redraw without --accept-colours: the question gives one way on, the package the note names (not a second one beside it)
+        # the same redraw without --accept-colours: the question offers only --accept-colours, and the note beside it names the package
         code, out = self.intake("--with-logo", "--json", "--replace-icons", "--accept-low-contrast", "both")
         self.assertEqual(code, 3, out)
+        self.assertEqual(self.kept(out)[0], [note], out)
         ask = [k["question"] for k in json.loads(out)["asks"] if k["code"] == "outside-palette"]
         self.assertEqual(len(ask), 1, out)
         self.assertTrue(ask[0].endswith("Use the mark as it is (--accept-colours)."), ask[0])
