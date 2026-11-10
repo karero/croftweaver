@@ -37,13 +37,13 @@ added after it passed `check_clean.sh`, `check_buglog_rows.sh`, `test_buglog_row
 
 | Id | Sev | Finding | Disposition |
 |----|-----|---------|-------------|
-| A1 | BUG (Codex) | A reviewed head that landed on main while the feature commit was amended is refused, and the remedy repeats the rejected base | refuted: this is the plan's one named wrong refusal (plan, "What it does not catch", E5 second half), closed by the PLAN gate; case 3's text names the cause (the base is on the default branch) and the run goes on with the merge base as `--base`. Not a defect of this build |
+| A1 | BUG (Codex) | A reviewed head that landed on main while the feature commit was amended is refused, and the remedy repeats the rejected base | refuted: this is the plan's one named wrong refusal (plan, "What it does not catch", E5 second half), closed by the PLAN gate; case 3's text names the cause (the base is on the default branch) and the plan's way out is the merge base as `--base`, which the host applies; the refusal does not pick it (re-raised in round 2, R2-4). Not a defect of this build |
 | A2 | BUG (Codex) | SKILL.md "a base on the default branch only is refused" is false for a main newer than the cached `origin/HEAD` | fixed: the claim was my overstatement; SKILL.md now says the test uses the local, unfetched `origin/HEAD` and a newer main passes, and the script header says the same. The code matches the plan, which lists this case |
-| B1 | RISK (fresh-eyes) | No `origin` remote: a base HEAD lacks is refused with a fix (`remote set-head origin --auto`) that cannot work there | re-sorted: rare (without `--base` the script needs `origin`); the refusal is loud, so rule 1 holds. BUGLOG row added |
+| B1 | RISK (fresh-eyes) | No `origin` remote: a base HEAD lacks is refused with a fix (`remote set-head origin --auto`) that cannot work there | first re-sorted as rare with a BUGLOG row; Codex raised it again in round 2 (R2-3), so two reviewers found it: fixed after all (own refusal, T9h), row removed |
 | B2 | NIT | `default_name` is printed unquoted | fixed: `printf '%q'` |
 | B3 | NIT | T9a does not assert the delta and other-branch lines | fixed: asserted |
 | B4 | NIT | SKILL.md sentence hard to parse | fixed with A2 |
-| B5 | NIT | Case 6 (git exit other than 0/1) and a dangling `origin/HEAD` have no test | skipped: the plan's test table lists neither; both take the one refusal path T9g covers for case 5 |
+| B5 | NIT | Case 6 (git exit other than 0/1) and a dangling `origin/HEAD` have no test | skipped: the plan's test table lists neither. Corrected in round 2 (R2-2): a dangling `origin/HEAD` takes T9g's path; a git exit other than 0/1 takes the two last `base_refuse` lines, which no test reaches (git fails there only on a damaged repository) |
 | B6 | NIT | A full SHA given to `--base` is printed twice in the refusal header | skipped: cosmetic |
 
 Codex also marked the `make check` and mutation results UNVERIFIABLE (it saw excerpts). Round 2
