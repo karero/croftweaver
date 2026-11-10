@@ -521,16 +521,18 @@ export const ENABLED_LINE = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRA
 // src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether analytics is on (read as
 // tests/check_analytics_gate.sh reads it; null unless USE_ANALYTICS is unnamed, or declared once and
 // only in its one-line form), whether it is declared, and whether the one enabled: line reading
-// process.env (the gate counts the same lines) is ENABLED_LINE as it stands.
+// process.env (the gate counts the same lines) is ENABLED_LINE as it stands. Block comments are
+// dropped first, so a line inside one counts for nothing.
 async function readSiteConfig(git, sha) {
   const r = await git('show', `${sha}:src/config.ts`);
   if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
   const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
   if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
-  const uses = [...r.stdout.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
-  const declared = (r.stdout.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
-  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !r.stdout.includes('USE_ANALYTICS') ? true : null;
-  const enabled = r.stdout.split(/\r?\n/).filter((l) => /^\s*enabled:.*process\.env\./.test(l));
+  const live = r.stdout.replace(/\/\*[\s\S]*?\*\//g, '');
+  const uses = [...live.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
+  const declared = (live.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
+  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !live.includes('USE_ANALYTICS') ? true : null;
+  const enabled = live.split(/\r?\n/).filter((l) => /^\s*enabled:.*process\.env\./.test(l));
   const enabledLine = enabled.length === 1 && enabled[0].trim() === ENABLED_LINE;
   return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), analyticsOn, declared: declared > 0, enabledLine };
 }

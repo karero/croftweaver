@@ -461,6 +461,17 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
   });
+  test('an export let USE_ANALYTICS beside a commented const is refused', async () => {
+    const cfg = "export const PROD_BRANCH = 'production';\n/*\nexport const USE_ANALYTICS = false;\n*/\nexport let USE_ANALYTICS = true;\nexport const analytics = {\n  " + OLD + "\n};\n";
+    const r = await scenario({ site: makeSite({ files: { 'src/config.ts': cfg } }) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
+  });
+  test('the 0.35 line inside a block comment does not stand in for a live multi-line one', async () => {
+    const r = await scenario({ site: site(true, `/*\n  ${ENABLED_LINE}\n  */\n  enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
   test('another enabled: key that reads no process.env does not hide the 0.35 line', async () => {
     const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const banner = {\n  enabled: true,`) }).go(['check']);
     assert.equal(r.code, 0, r.text);
