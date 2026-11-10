@@ -516,6 +516,16 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /holds a template string \(`…`\) over more than one line/);
   });
+  test('a template string inside another template\'s ${…} is refused, not read', async () => {
+    const r = await scenario({ site: config("export const NOTE = `${`\nexport const USE_ANALYTICS = false;\n`}`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line, or one inside another's \$\{…\}/);
+  });
+  test('a ...spread in the ANALYTICS object is refused, not read', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n  ...legacy,`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /with no \.\.\.spread and one line that starts with "enabled:"/);
+  });
   test('a template string over more than one line is refused, not read', async () => {
     const r = await scenario({ site: config("export const EXAMPLE = `\nexport const USE_ANALYTICS = false;\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
     assert.equal(r.code, 1, r.text);
