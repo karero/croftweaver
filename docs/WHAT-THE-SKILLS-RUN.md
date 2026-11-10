@@ -219,18 +219,18 @@ an "Email Tap" event there, as a click on an email address does.
   until you have said yes to the list it prints, and it deletes nothing. It runs `git` to read
   your repository's branches and `src/config.ts`, and asks your domain's nameservers whether
   a record it wrote is there. It sends your domain no request.
-  Its `scripts/move-to-workers.mjs` moves a live site's domain from its Pages project to its
-  Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
+  Its `scripts/move-to-workers.mjs` is for moving a live site's domain from its Pages project
+  to its Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
   short-lived token you make, from `CLOUDFLARE_API_TOKEN` or from the site's `.dev.vars`, which
-  it reads only if git ignores that file. `check`, `record` and `after` change nothing on
-  Cloudflare: they read your zone and its DNS records, the Pages project and the Worker's
-  domains through Cloudflare's API, the repository's branches and checks on GitHub, and your
-  site's own pages. Once a run has found that `origin` is on GitHub, it writes a status page to
-  `move-run/`, a folder in your site; it puts a `.gitignore` holding `*` there if there is none,
-  and stops if git tracks a file in it. Runs other than `check` also keep the move's state
-  (see "Writes outside your site's folder"). `record` builds the live branch's newest commit
-  with `npm ci` (or `npm install`) and `npm run build`, in a copy under `move-run/`. When the Workers config's routes need changing, `move`
-  and `undo` write a commit on your branch that sets or takes them out, and do not push it. Only `move --confirm` and
+  it reads only if git ignores that file. It reads your zone and its DNS records, the Pages
+  project and the Worker's domains through Cloudflare's API; the repository's branches and
+  checks on GitHub; and your site's own pages. Once a run has found that `origin` is on GitHub,
+  it writes a status page to `move-run/`, a folder in your site; it puts a `.gitignore` holding
+  `*` there if there is none, and stops if git tracks a file in it. Runs other than `check` also
+  keep the move's state (see "Writes outside your site's folder"). `record` builds the live
+  branch's newest commit with `npm ci` (or `npm install`) and `npm run build`, in a copy under
+  `move-run/`. When the Workers config's routes need changing, `move` and `undo` write a commit
+  on your branch that sets or takes them out, and do not push it. Only `move --confirm` and
   `undo --confirm`, after your yes to the question they print, send Cloudflare changes: `move`
   asks it to delete each host's Pages domain and its DNS record and to attach the host to the
   Worker; `undo` asks for the reverse.
