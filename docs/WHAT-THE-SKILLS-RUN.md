@@ -229,11 +229,11 @@ an "Email Tap" event there, as a click on an email address does.
   `move-run/`, a folder in your site; it puts a `.gitignore` holding `*` there if there is none,
   and stops if git tracks a file in it. Runs other than `check` also keep the move's state
   (see "Writes outside your site's folder"). `record` builds the live branch's newest commit
-  with `npm ci` (or `npm install`) and `npm run build`, in a copy under `move-run/`. `move` and `undo` each write a commit on your
-  branch that sets or takes out the Workers config's routes, and do not push it. Only `move --confirm` and
-  `undo --confirm`, after your yes to the question they print, change Cloudflare: `move`
-  deletes each host's Pages domain and its DNS record and attaches the host to the Worker;
-  `undo` does the reverse.
+  with `npm ci` (or `npm install`) and `npm run build`, in a copy under `move-run/`. When the Workers config's routes need changing, `move`
+  and `undo` write a commit on your branch that sets or takes them out, and do not push it. Only `move --confirm` and
+  `undo --confirm`, after your yes to the question they print, send Cloudflare changes: `move`
+  asks it to delete each host's Pages domain and its DNS record and to attach the host to the
+  Worker; `undo` asks for the reverse.
   The `SETUP.md` it puts in
   your site also has `gh` commands that change your GitHub repository's settings:
   `gh repo edit --delete-branch-on-merge` (a merged pull request's branch is deleted), and two
@@ -352,7 +352,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | An image service you choose | `image`, if you use one | your own key | sends your image prompts |
 | Cloudflare | `wrangler` (deploy, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
 | Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Pages projects; after your yes, creates or changes the project, starts a build, and writes zone settings, Bot Management and DNS records |
-| Cloudflare's API | `move-to-workers.mjs` | an API token you make, ending within a week | reads your zone, its DNS records, the Pages project, its builds and the Worker's domains; after your yes, moves each host between the Pages project and the Worker, deleting or writing its DNS record |
+| Cloudflare's API | `move-to-workers.mjs` | an API token you make, ending within a week | reads your zone, its DNS records, the Pages project, its builds and the Worker's domains; after your yes, asks it to move each host between the Pages project and the Worker, deleting or writing its DNS record |
 | Your domain's nameservers | `cloudflare-setup.mjs` | none | asks whether a record it wrote is served |
 | Google Search Console | `search-console-insights` (`gsc_query.py`, `search_report.py`, `insights.py`) | your own Google sign-in, scope `webmasters.readonly` | reads only; asks for clicks, impressions and positions |
 | Bing Webmaster | `bing_query.py` | your `BING_API_KEY` | reads only |
