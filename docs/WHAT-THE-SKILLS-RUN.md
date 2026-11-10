@@ -225,8 +225,8 @@ an "Email Tap" event there, as a click on an email address does.
   it reads only if git ignores that file. `check`, `record` and `after` change nothing on
   Cloudflare: they read your zone and its DNS records, the Pages project and the Worker's
   domains through Cloudflare's API, the repository's branches and checks on GitHub, and your
-  site's own pages. Every run writes a status page to `move-run/`, a folder in your site whose
-  own `.gitignore` ignores everything in it, and every run but `check` keeps the move's state
+  site's own pages. Every run writes a status page to `move-run/`, a folder in your site that the
+  script keeps out of git (it writes a `.gitignore` there, and stops if git tracks a file in it), and every run but `check` keeps the move's state
   (see "Writes outside your site's folder"). `record` builds the live branch's newest commit
   with `npm ci` (or `npm install`) and `npm run build`, in a copy under `move-run/`. `move` writes a commit on your
   branch that sets the Workers config's routes, and does not push it. Only `move --confirm` and
