@@ -41,3 +41,18 @@ open as its row says. No BUG.
 | F17 | NIT | melious | bullet 1 | Filters shown as usable, though none was applied | fixed | "offers Hostname and Path filters"; sources say none was applied |
 | F18 | NIT | melious | bullet 1 | "is not shown" is stronger than "identifies … by user agent strings" | fixed | "isn't counted as an AI crawler" |
 | F19 | NIT | melious | bullet 2 | Attribution of the ranges to Google assumed | fixed | "The ranges Google gives"; READ 4c shows the page's heading "Google, in its own words" |
+
+## Round 3 (verification, plan at c4717d7e)
+
+`reviewers: codex OK, melious OK`. `timings: codex 188s (52176 tokens), melious 195s (20953
+tokens)`. F14–F19 accepted as fixed by both seats except F14 (codex, below). No BUG in three
+rounds, so the rounds end here; one wording pass follows.
+
+| Id | Sev | Source | Where | Finding | Status | Fix / reason |
+|---|---|---|---|---|---|---|
+| F20 | RISK | codex | bullet 2 | "no yardstick" still goes beyond "we found no published measurement" (F14 residue) | fixed | Sentence cut; the bullet now goes straight to "Check that the crawlers come" |
+| F21 | RISK | codex | New test | A substring stub passes a wrong token such as `NotClaude-SearchBot/1.0` (reproduced with Node) | fixed | The stub records user agents; the test also asserts one equals the row's whole string |
+| F22 | RISK | melious | Follow-on text | "The build runs both again" names no wiring | fixed | Stated as a manual build step, and added to the Status table's build row |
+| F23 | NIT | melious | New test | `Claude-SearchBot (403)` detail format assumed | fixed | Plan cites the code's form `${c.name} (${c.status})` (`cloudflare-check.mjs:1065`) and the ClaudeBot test's assertion (`cloudflare-check.test.mjs:615`) |
+| F24 | NIT | melious | evidence READ 3 | The record's 415 requests don't add up to the per-company sum (332) | follow-up | No plan claim rests on either number; the record is the maintainer's |
+| F25 | NIT | melious | BUGLOG row | "seven names" goes stale | fixed | "Claude-SearchBot added to the check's crawler names" |

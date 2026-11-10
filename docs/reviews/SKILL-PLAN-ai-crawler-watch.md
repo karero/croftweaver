@@ -35,8 +35,8 @@ Follow-on text, "six" becoming "seven": `skills/new-website/references/CLOUDFLAR
 lines 86 and 150. Two repo-wide searches, for "six" or "6" near "crawler" or "request" (evidence
 READ 5) and for the check's crawler names listed together or for Amazonbot, the one name only
 the check uses (READ 6), found no other count or list of these requests outside the two tests
-below. The build runs both again after the edit; a count worded without those words would get
-past them. `docs/WHAT-THE-SKILLS-RUN.md` line 214 says "GPTBot, ClaudeBot and others" and
+below. Both are a manual step of the build, run again after the edit (Status table); a count
+worded without those words would get past them. `docs/WHAT-THE-SKILLS-RUN.md` line 214 says "GPTBot, ClaudeBot and others" and
 stays true; no change.
 
 **Ideas 7 and 10, `skills/search-console-setup/SKILL.md`, section 4 "Confirm it's working".** Two
@@ -59,8 +59,7 @@ launch-week question as well. Draft wording:
 >   how long AI assistants take to first cite a brand-new website. The ranges Google gives, and
 >   what companies measured for new pages on sites that already exist, are in
 >   [How long until Google and AI assistants find a new website?](https://guide.croftweaver.com/how-long)
->   So there is no yardstick for a new site's first weeks. Check that the crawlers come (above),
->   and later Google's and Bing's AI reports (`search-console-insights`).
+>   Check that the crawlers come (above), and later Google's and Bing's AI reports (`search-console-insights`).
 
 Sources behind each claim: the Free-plan look is the maintainer's dashboard record of
 2026-10-30 (Overview: Hostname, Path, Category and Content type filters; range picker up to 30
@@ -78,17 +77,20 @@ requests appear in AI Crawl Control (an inference from "user agent strings", hen
 maintainer can settle it by running the check on a free zone and looking), whether blocked
 requests show in the Overview, and how far back the Overview reaches on Free.
 
-**`docs/BUGLOG.md`:** a "Next release notes" row: the check sends seven names, Claude-SearchBot
-added; search-console-setup says where to see AI crawler visits and how long AI search takes.
+**`docs/BUGLOG.md`:** a "Next release notes" row: Claude-SearchBot added to the check's crawler
+names; search-console-setup says where to see AI crawler visits and how long AI search takes.
 
 ## How it is tested
 
 - **Existing tests** that count six (`cloudflare-check.test.mjs` lines 107 and 639) change to
   seven. That is the expected value following the list, not a weakening.
 - **New test, through the real entry point** (the tests run the script with `execFile`): a stub
-  site refuses only requests whose user agent contains `Claude-SearchBot/`. Expect the AI item
-  to be `look`, its detail to name `Claude-SearchBot (403)`, and not ClaudeBot. It fails today
-  (no such request is sent) and fails if the row is removed or misnamed.
+  site refuses only requests whose user agent contains `Claude-SearchBot/`, and records each
+  user agent it sees. Expect the AI item to be `look`, its detail to name `Claude-SearchBot
+  (403)` (the form the code builds, `${c.name} (${c.status})`, and the ClaudeBot test asserts),
+  and not ClaudeBot; and expect one recorded user agent to equal the row's whole string. It
+  fails today (no such request is sent), if the row is removed, or if its name or string is
+  changed.
 - **The existing ClaudeBot refusal test** matches `/ClaudeBot/`; `Claude-SearchBot` does not
   contain that string, so it still refuses one request. I'll confirm its detail names ClaudeBot
   alone.
@@ -112,5 +114,5 @@ real crawler, or report a refusal (a `look`, never a FAIL) that the real crawler
 |---|---|---|
 | Plan, PLAN gate | in review | — |
 | Maintainer's go | waiting | — |
-| Build: check row, tests, two bullets, BUGLOG row | not started | — |
+| Build: check row, tests, two bullets, BUGLOG row; rerun the two count searches by hand | not started | — |
 | DIFF gate, PR, merge | not started | — |
