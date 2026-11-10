@@ -32,8 +32,11 @@ Bingbot. A request that only carries their name is not the verified crawler, so 
 refusal would prove nothing.
 
 Follow-on text, "six" becoming "seven": `skills/new-website/references/CLOUDFLARE_CHECK.md`
-lines 86 and 150. A repo-wide search found no other count of the crawlers outside the two tests
-below (evidence READ 5); the build runs it again after the edit. `docs/WHAT-THE-SKILLS-RUN.md` line 214 says "GPTBot, ClaudeBot and others" and
+lines 86 and 150. Two repo-wide searches, for "six" or "6" near "crawler" or "request" (evidence
+READ 5) and for the check's crawler names listed together or for Amazonbot, the one name only
+the check uses (READ 6), found no other count or list of these requests outside the two tests
+below. The build runs both again after the edit; a count worded without those words would get
+past them. `docs/WHAT-THE-SKILLS-RUN.md` line 214 says "GPTBot, ClaudeBot and others" and
 stays true; no change.
 
 **Ideas 7 and 10, `skills/search-console-setup/SKILL.md`, section 4 "Confirm it's working".** Two
@@ -44,19 +47,20 @@ of settings to set, and `search-console-insights` is for later weeks, so neither
 launch-week question as well. Draft wording:
 
 > - **AI crawlers (free, on Cloudflare):** your domain → **AI Crawl Control** → **Overview** shows
->   how many requests from each AI company's crawlers Cloudflare let through, with filters for
->   Hostname and Path. Look in the first days after launch: Cloudflare's page says that on free
+>   how many requests from each AI company's crawlers Cloudflare let through, and offers
+>   Hostname and Path filters. Look in the first days after launch: Cloudflare's page says that on free
 >   plans the Metrics tab shows only the past 24 hours, and the kit hasn't checked how far back
 >   the Overview's longer ranges reach. On the free plan Cloudflare knows a crawler by the name
 >   the request gives ([Cloudflare](https://developers.cloudflare.com/ai-crawl-control/get-started/)),
->   so a crawler that doesn't name itself is not shown, and the Cloudflare check's own
+>   so a crawler that doesn't name itself isn't counted as an AI crawler, and the Cloudflare check's own
 >   crawler-named requests may show up here as well. A visit is not a mention: it can't tell you
 >   whether any AI answer names you.
 > - **How long AI assistants take:** we found no published measurement, with a stated method, of
->   how long AI assistants take to first cite a brand-new website. Google's own ranges, and what
->   companies measured for new pages on sites that already exist, are in
+>   how long AI assistants take to first cite a brand-new website. The ranges Google gives, and
+>   what companies measured for new pages on sites that already exist, are in
 >   [How long until Google and AI assistants find a new website?](https://guide.croftweaver.com/how-long)
->   So a week of silence tells you little either way. Watch the crawlers above, and later Google's and Bing's AI reports (`search-console-insights`).
+>   So there is no yardstick for a new site's first weeks. Check that the crawlers come (above),
+>   and later Google's and Bing's AI reports (`search-console-insights`).
 
 Sources behind each claim: the Free-plan look is the maintainer's dashboard record of
 2026-10-30 (Overview: Hostname, Path, Category and Content type filters; range picker up to 30
@@ -66,7 +70,10 @@ AI crawlers based on their user agent strings" are from Cloudflare's get-started
 updated 23 April 2026, re-read 2026-11-10. The "no published measurement" finding is the
 guide's (searched 29 October 2026, page checked 3 November 2026, live 2026-11-10); I link it and
 restate nothing else from it. The page holds the Google ranges and the existing-site
-measurements the bullet points to (evidence READ 4). **Not checked:** whether the checker's own
+measurements the bullet points to, under its heading "Google, in its own words" (evidence READs 4b and
+4c). `search-console-insights` reads Google's and Bing's AI reports
+(`references/ai-reports.md`, READ 7). The Hostname and Path filters exist in the dashboard; the
+kit has not applied one. **Not checked:** whether the checker's own
 requests appear in AI Crawl Control (an inference from "user agent strings", hence "may"; the
 maintainer can settle it by running the check on a free zone and looking), whether blocked
 requests show in the Overview, and how far back the Overview reaches on Free.

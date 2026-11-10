@@ -26,3 +26,18 @@ search), sent as `--evidence`.
 | F11 | NIT | fresh-eyes | bullet 1 | Overview (7 days seen) and Metrics (24 hours) read as a contradiction | fixed | Bullet names the Metrics tab for the 24 hours and says the Overview's reach is unchecked |
 | F12 | NIT | fresh-eyes, melious | How, idea 6 | The `1.0` and missing `+URL` are invented | fixed | Plan says so, as a reason for the "hint" wording |
 | F13 | NIT | melious | Not checked | Whether the check's requests show in AI Crawl Control could be settled with one run | open | Offered to the maintainer with the go; the bullet keeps "may" |
+
+## Round 2 (verification, plan at d6d19aa3)
+
+`reviewers: codex OK, melious OK`. `timings: codex 207s (72489 tokens), melious 317s (26741
+tokens)`. Both seats: F1–F9, F11, F12 fixed as claimed; F10's refutation accepted; F13 left
+open as its row says. No BUG.
+
+| Id | Sev | Source | Where | Finding | Status | Fix / reason |
+|---|---|---|---|---|---|---|
+| F14 | RISK | codex | bullet 2 | "tells you little either way" still claims more than "no published measurement" (F6 residue) | fixed | "So there is no yardstick for a new site's first weeks. Check that the crawlers come" |
+| F15 | RISK | melious | Follow-on text | The count search misses a count worded without "crawler"/"request", and lists of the names | fixed | Second search for the names listed together and for Amazonbot (READ 6); the plan now says what the searches can miss |
+| F16 | RISK | melious | bullet 2 | No support that `search-console-insights` reads Google's and Bing's AI reports | fixed | Support added: `references/ai-reports.md` (READ 7) |
+| F17 | NIT | melious | bullet 1 | Filters shown as usable, though none was applied | fixed | "offers Hostname and Path filters"; sources say none was applied |
+| F18 | NIT | melious | bullet 1 | "is not shown" is stronger than "identifies … by user agent strings" | fixed | "isn't counted as an AI crawler" |
+| F19 | NIT | melious | bullet 2 | Attribution of the ranges to Google assumed | fixed | "The ranges Google gives"; READ 4c shows the page's heading "Google, in its own words" |
