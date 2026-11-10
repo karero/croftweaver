@@ -69,8 +69,9 @@ function liveOrigin(value: string | undefined): string | null {
   const host = url ? bareHost(url) : '';
   const labels = host.split('.');
   const emptyLabel = labels.some((label) => !label); // '', '.x', 'x..y'
-  // URL writes IPv4 in dotted form (even 0x7f.1) and keeps IPv6 in brackets.
-  const isIp = host.startsWith('[') || /^\d+\.\d+\.\d+\.\d+$/.test(host);
+  // An IP address in any form: IPv6 in brackets, IPv4 as number labels only (127.0.0.1, 0x7f.1,
+  // 2130706433), whether or not the runtime's URL rewrites it to dotted form.
+  const isIp = host.startsWith('[') || /^(0x[0-9a-f]*|\d+)(\.(0x[0-9a-f]*|\d+))*$/i.test(host);
   if (!url || url.protocol !== 'https:' || emptyLabel || labels.length < 2 || isIp || isPagesDev(host)) {
     console.error(`CANONICAL_URL is not an https live-domain URL, not redirecting: ${value}`);
     return null;

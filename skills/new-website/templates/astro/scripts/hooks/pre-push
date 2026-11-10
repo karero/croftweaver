@@ -1,6 +1,7 @@
 #!/bin/sh
 # Quality gate — refuses a push when the local checks fail. It tests the files on
-# disk, not the commit being pushed. (CI in .github/workflows/ runs the same checks.)
+# disk, not the commit being pushed. (CI in .github/workflows/ runs these checks too, and
+# fails on an unfilled placeholder, which only warns here.)
 #
 # Wired automatically by the "prepare" script in package.json (npm install runs
 # scripts/wire-hooks.mjs, which sets core.hooksPath to scripts/hooks when the site is
