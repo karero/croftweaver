@@ -8,7 +8,7 @@ private feature hub). Nothing is built before the maintainer's go.
 | Step | State | Evidence |
 |---|---|---|
 | Plan written | done | this file |
-| PLAN gate (Normal) and claims sweep | in progress | 4 rounds; trail `REVIEW-plan-2026-11-10-ai-seo-2026-evidence.md` |
+| PLAN gate (Normal) and claims sweep | done: clean | 4 rounds, 35 findings (32 graded, 3 unverifiable), wording pass clean; trail `REVIEW-plan-2026-11-10-ai-seo-2026-evidence.md` |
 | Maintainer's go | — | — |
 | Build (steps 1–7 below) | — | — |
 | DIFF gate (Normal) | — | — |
@@ -142,14 +142,14 @@ outside them would not show).
 
 PLAN gate at Normal (an instruction file an agent loads): Codex and GLM 5.3 on melious, plus
 Sonnet fresh-eyes in round 1; if melious is out of balance, Codex alone, as the rules allow. DIFF
-gate at Normal. Cost so far: rounds 1–4 of this gate (gate id 20261110T065111Z-28235, nine
-rows in the review log of 2026-11-10, one per seat per round, listed in the trail's round
-table) logged 460,278 tokens, fresh-eyes's 110,426 among them. A DIFF gate of the same shape would cost about as
-much, so expect 800,000–950,000 tokens for both gates. A judgment, not a measurement.
+gate at Normal. Cost: rounds 1–4 and the wording pass of this gate (gate id 20261110T065111Z-28235, ten
+rows in the review log of 2026-11-10, one per seat run, listed in the trail) logged 508,342
+tokens, fresh-eyes's 110,426 among them. A DIFF gate of the same shape would cost about as
+much, so expect about 1,000,000 tokens for both gates. A judgment, not a measurement.
 
 Counter-argument: two preprints now come before a KDD paper in the skill's order. The answer is
 scope: the GEO paper's tests handed the engine the pages, so they did not test being found, and
-the 2026 work answers that question; the skill says "preprint" in the sentence. If either
+the 2026 work addresses that question; the skill says "preprint" in the sentence. If either
 preprint is withdrawn or contradicted, these places depend on it: the new subsection, the
 Critical-stats clause, the line above the pillars, the Pillar 2 lead, the audit bullet and row,
 the Common Mistakes bullet, the two reference clauses and eval 1.

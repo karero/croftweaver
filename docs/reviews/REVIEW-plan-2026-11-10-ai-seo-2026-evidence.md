@@ -8,10 +8,11 @@ Google's guide), sent with `--evidence` every round.
 
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |---|---|---|---|---|---|
-| 1 | bcf7ade7 | full plan | codex · melious · fresh-eyes | codex 141 s, 54,180 · melious 187 s, 21,203 · fresh-eyes 56 s, 110,426 | 3/6/4 (after dedup) |
+| 1 | bcf7ade7 | full plan | codex · melious · fresh-eyes | codex 141 s, 54,180 · melious 187 s, 21,203 · fresh-eyes 56 s, 110,426 | 3/6/5 (after dedup) |
 | 2 | ad98e60e | full plan, --verify | codex (medium) · melious | codex 145 s, 56,041 · melious 347 s, 32,742 | 0/1/6 (codex: none) |
 | 3 | 34fc6e99 | full plan, --verify | codex · melious | codex 122 s, 67,027 · melious 415 s, 39,227 | 1/1/4 |
 | 4 | 040595a8 | full plan, --verify, earned by cost-arithmetic, corpus-description | codex · melious | codex 85 s, 45,753 · melious 389 s, 33,679 | 0/0/5 (codex: none) |
+| wording pass | 9ab36a11 | delta of round 4's fixes (`--diff --base 040595a8`), --verify | codex | codex 113 s, 48,064 | none |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -49,4 +50,11 @@ Google's guide), sent with `--evidence` every round.
 | R4-2 | NIT | melious | 4 | Cost line names no log rows (U2's fix lapsed) | fixed | Review section names the gate id and the nine rows of 2026-11-10; total 460,278 summed from them |
 | R4-3 | NIT | melious | 4 | "For small B2B software vendors" (plural); READ 2d says "written for a small vendor in that market" | fixed | Draft and source row: "one for a small B2B software vendor" |
 | R4-4 | NIT | melious | 4 | Vishwakarma et al. characterised with no READ | fixed | Characterisation cut: "named in the research notes, was not re-read and is left out" |
-| R4-5 | NIT | melious | 4 | The claims sweep catches nothing the hand check does not | no action | REVIEW-RULES makes the claims sweep part of a prose gate; it is an aid, as the plan says, and costs no review tokens |
+| R4-5 | NIT | melious | 4 | The claims sweep catches nothing the hand check does not | no action | The independent-review skill, step 2: "A prose change gets the sweep at every depth"; it is an aid, as the plan says, and costs no review tokens |
+
+Claims sweep (`sweep_claims.sh --file` on the plan at 9ab36a11): 42 sentences listed, each checked
+against the READs. One narrowed: "the 2026 work answers that question" became "addresses". The
+rest hold as written.
+
+Gate total: rounds 1–4 and the wording pass, 10 seat runs, 508,342 tokens logged (fresh-eyes
+included). Result: CLEAN. No BUG or RISK open; every NIT fixed, refuted with evidence, or answered.
