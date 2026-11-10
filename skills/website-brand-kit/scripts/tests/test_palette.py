@@ -1882,7 +1882,7 @@ class Rule9ALineEndThatIsNoPlainNewLine(unittest.TestCase):
         if more:
             self.assertIn(" The text holds %d more character%s of that kind%s. " % (more, "" if more == 1 else "s", kinds and " (%s)" % kinds), message)
         self.assertIn(" so it read nothing of this text: its tables were not looked at, and may be fine as they are.", message)
-        self.assertTrue(message.endswith(" If you pasted this text from a word processor or a PDF, look there. Replace each such character with an ordinary line break (or delete it), or ask your assistant to, then check again."), message)
+        self.assertTrue(message.endswith(" If you pasted this text from a word processor or a PDF, paste it again as plain text. Or replace each such character with an ordinary line break (or delete it), then check again."), message)
         return message
 
     @staticmethod
@@ -1999,7 +1999,7 @@ class Rule9ALineEndThatIsNoPlainNewLine(unittest.TestCase):
                          'Line 4, "| Muted | #5a5a72 | still pro<U+2028>posed |", holds a character that this check takes for the end of a line and a Markdown reader does not '
                          "(U+2028, written as <U+2028> in the quote). This check would begin a new line there where the text has none, which can cut a word or a value in "
                          "two, so it read nothing of this text: its tables were not looked at, and may be fine as they are. The text holds 1 more character of that kind "
-                         "(U+000B). If you pasted this text from a word processor or a PDF, look there. Replace each such character with an ordinary line break (or delete it), or ask your assistant to, then check again.")
+                         "(U+000B). If you pasted this text from a word processor or a PDF, paste it again as plain text. Or replace each such character with an ordinary line break (or delete it), then check again.")
         message = self.refused("### Light theme\n" + "x" * 3000 + "\x85" + "y" * 3000 + "\n", 2, "\x85")
         self.assertIn('Line 2, "...%s<U+0085>%s...", holds' % ("x" * 39, "y" * 40), message)
         # with it, nothing else is said of the text, and nothing is raised: not the comment that is never closed, not two palettes pasted together
