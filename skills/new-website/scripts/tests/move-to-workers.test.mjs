@@ -213,11 +213,11 @@ describe('1: the token', () => {
     assert.ok(r.text.includes("Its link, for the Cloudflare check's --preview: https://abcdef12-lenas-backstube-site.lenas-backstube.workers.dev/\n"), r.text);
   });
 
-  test('a token whose DNS reaches two zones is refused, and names them', async () => {
+  test('a token with DNS Edit in two zones is refused, and names them', async () => {
     const s = scenario({ world: { extraZones: 1 } });
     const r = await s.go(['check']);
     assert.equal(r.code, 1);
-    assert.match(r.text, /DNS or settings of 2 zones \(lenas-backstube\.example, extra0\.example\)/);
+    assert.match(r.text, /DNS of 2 zones \(lenas-backstube\.example, extra0\.example\)/);
     assert.ok(!s.w.calls.some((c) => c.method !== 'GET'));
   });
 
@@ -248,13 +248,22 @@ describe('1: the token', () => {
     const r = await s.go(['check']);
     assert.equal(r.code, 0, r.text);
   });
-  test('a second zone with DNS Edit refuses, and so does one with only DNS Read or zone settings', async () => {
-    for (const extra of [['#dns_records:edit', '#dns_records:read', '#zone:read'], ['#dns_records:read'], ['#zone_settings:read', '#zone:read']]) {
+  test('a second zone with DNS Edit refuses', async () => {
+    const { zones } = tokenZones();
+    zones[0].permissions = [...zones[0].permissions, '#dns_records:edit', '#dns_records:read', '#zone:read'];
+    const r = await scenario({ world: { zones } }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /edit the DNS of 2 zones \(other-1\.example, lenas-backstube\.example\)/);
+  });
+  test('a second zone with only read or account-level permissions does not count: the DNS Edit zone is the site\'s', async () => {
+    for (const extra of [['#dns_records:read'], ['#zone_settings:read', '#zone:read'], ['#zone_settings:read', '#worker:edit', '#organization:edit', '#zone:read']]) {
       const { zones } = tokenZones();
       zones[0].permissions = [...zones[0].permissions, ...extra];
-      const r = await scenario({ world: { zones } }).go(['check']);
-      assert.equal(r.code, 1, `${extra}: ${r.text}`);
-      assert.match(r.text, /DNS or settings of 2 zones \(other-1\.example, lenas-backstube\.example\)/, extra.join());
+      const s = scenario({ world: { zones } });
+      const r = await s.go(['check']);
+      assert.equal(r.code, 0, `${extra}: ${r.text}`);
+      assert.ok(r.text.includes(ZONE.name), `${extra}: names the DNS Edit zone: ${r.text}`);
+      assert.ok(!s.w.calls.some((c) => c.method !== 'GET'));
     }
   });
   test('a token with DNS Edit in no zone refuses and says what to make', async () => {
@@ -383,7 +392,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     const site = recipe().find((z) => z.name === ZONE.name);
     const r = await run('https://www.lenas-backstube.example', [...accountOnly(), site]);
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes('Stopped: This token can reach the DNS or settings of 4 zones (other-1.example, other-2.example, other-3.example, lenas-backstube.example).\n'), r.text);
+    assert.ok(r.text.includes('Stopped: This token can edit the DNS of 4 zones (other-1.example, other-2.example, other-3.example, lenas-backstube.example).\n'), r.text);
     // By hand from the two captures: the 2026-11-08 zones list DNS Edit and Read, the site zone adds zone settings Read.
     assert.ok(r.text.includes('\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read, #zone_settings:read.\n'), r.text);
     assert.ok(r.text.includes('\nMake one limited to lenas-backstube.example (Zone Resources: that one domain).'), r.text);
@@ -417,7 +426,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
   test('S7: the 2026-11-08 token alone: three zones, their permissions, and a domain that may not be on Cloudflare', async () => {
     const r = await run('https://lenas-backstube.example', accountOnly());
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes('Stopped: This token can reach the DNS or settings of 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
+    assert.ok(r.text.includes('Stopped: This token can edit the DNS of 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
   });
 });
 
@@ -469,7 +478,7 @@ describe('2: real captures, expected values written by hand', () => {
 
   test('a captured list of one zone and a captured list of eight', async () => {
     const eight = scenario({ world: { zones: JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-api', 'T2-002-zones-list.json'), 'utf8')).response.result } });
-    assert.match((await eight.go(['check'])).text, /DNS or settings of 8 zones/);
+    assert.match((await eight.go(['check'])).text, /edit the DNS of 8 zones/);
   });
 
   test('the Worker-domain answers are made from the API reference, not captured', () => {
