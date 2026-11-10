@@ -515,13 +515,51 @@ async function readToken(root, git, env) {
   return m[1];
 }
 
-// src/config.ts at a commit: PROD_BRANCH, and the analytics mode.
+// The enabled: line of the 0.35 release notes, which reads Workers Builds' branch variable.
+export const ENABLED_LINE = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,';
+
+// src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether a block comment or a multi-line
+// template sits outside strings and // comments (the script reads lines, so it refuses what one could hide), whether
+// analytics is on (from the one-line declaration the gate reads; null unless USE_ANALYTICS is
+// unnamed or declared once in that form), whether it is declared, and the process.env names the
+// enabled: property of the one ANALYTICS object reads (null when either is not exactly one).
 async function readSiteConfig(git, sha) {
   const r = await git('show', `${sha}:src/config.ts`);
   if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
   const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
   if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
-  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout) };
+  // One left-to-right pass over comments and strings, as JavaScript reads them, keeping line breaks:
+  // comments go, strings become '' (a template a marker the enabled: check refuses), and a block
+  // comment or a template over more than one line, or nested in another, is noted for refusal. A /* or ` left over is unclosed.
+  let block = false;
+  let multi = false;
+  const code = r.stdout.replace(/\r\n?/g, '\n').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\/|'(?:\\[\s\S]|[^'\\\n])*'|"(?:\\[\s\S]|[^"\\\n])*"|`(?:\\[\s\S]|[^`\\])*`/g, (s) => {
+    const breaks = '\n'.repeat((s.match(/\n/g) ?? []).length);
+    if (s.startsWith('//')) return '';
+    if (s.startsWith('/*')) { block = true; return breaks; }
+    // An unclosed ${ means a template inside another's ${…}, which this pass cannot follow.
+    if (s[0] === '`') { multi ||= breaks !== '' || (s.match(/\$\{/g) ?? []).length > (s.match(/\}/g) ?? []).length; return `TEMPLATE_STRING${breaks}`; }
+    return `''${breaks}`;
+  }).split('\n');
+  const text = code.join('\n');
+  const uses = [...text.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*$/gm)];
+  const declared = (text.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
+  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !text.includes('USE_ANALYTICS') ? true : null;
+  const starts = code.filter((l) => /^export const ANALYTICS = \{/.test(l)).length;
+  const start = starts === 1 ? code.findIndex((l) => /^export const ANALYTICS = \{/.test(l)) : -1;
+  const end = start < 0 ? -1 : code.findIndex((l, i) => i > start && /^\}/.test(l));
+  // A ...spread could bring in an enabled: of its own, so an object with one is not read.
+  const body = end < 0 || code.slice(start + 1, end).some((l) => l.includes('...')) ? [] : code.slice(start + 1, end);
+  // The enabled: property runs to the first line that ends with a comma, or to the object's end.
+  const at = body.flatMap((l, i) => (/^\s*enabled\s*:/.test(l) ? [i] : []));
+  const stop = at.length === 1 ? body.findIndex((l, i) => i >= at[0] && /,\s*$/.test(l)) : -1;
+  const whole = at.length === 1 ? body.slice(at[0], stop < 0 ? undefined : stop + 1).join('\n').replace(/,\s*$/, '') : null;
+  // Refused, not read: another comma (a second property, a call), a template string, a slash (a regex),
+  // a backslash (an escaped name), or env reached any way but process.env.NAME.
+  const plain = (s) => !s.includes(',') && !s.includes('TEMPLATE_STRING') && !s.includes('/') && !s.includes('\\') && (s.match(/\benv\b/g) ?? []).length === (s.match(/\bprocess\.env\.[A-Za-z_][A-Za-z0-9_]*/g) ?? []).length;
+  const enabled = whole !== null && plain(whole) ? whole : null;
+  const envNames = enabled === null ? null : [...new Set([...enabled.matchAll(/process\.env\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]))];
+  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), blockComment: block || code.some((l) => l.includes('/*')), template: multi || code.some((l) => l.includes('`')), analyticsOn, declared: declared > 0, envNames };
 }
 
 // The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
@@ -892,7 +930,7 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 // ---------------------------------------------------------------- the refusals of a first move
 
 // What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
-// and analytics server mode. Read from git only, so a run lists all of them at once.
+// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts and, with analytics on, an enabled: line that reads CF_PAGES_BRANCH only. Read from git only, so a run lists all of them at once.
 async function stageOneGaps(git, sha) {
   const gaps = [];
   const asLines = async (fn) => { try { await fn(); } catch (e) { if (!(e instanceof Stop)) throw e; gaps.push(...e.lines); } };
@@ -903,7 +941,15 @@ async function stageOneGaps(git, sha) {
   const fns = files.filter((f) => f.startsWith('functions/') && f !== 'functions/_middleware.ts');
   if (fns.length) gaps.push(`${short(sha)} holds ${fns.slice(0, 3).join(', ')}${fns.length > 3 ? ' and more' : ''} in functions/. The Worker would not run that code. Stage 1 of the move section takes functions/go/ out.`);
   if (files.includes('public/_worker.js')) gaps.push(`${short(sha)} holds public/_worker.js: code the Worker would not run.`);
-  await asLines(async () => { if ((await readSiteConfig(git, sha)).serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.'); });
+  await asLines(async () => {
+    const cfg = await readSiteConfig(git, sha);
+    if (cfg.serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
+    if (cfg.blockComment) gaps.push(`src/config.ts at ${short(sha)} holds a block comment (/* … */). The script reads the file line by line and cannot tell what such a comment hides, so it does not read analytics there. Turn it into // comments.`);
+    else if (cfg.template) gaps.push(`src/config.ts at ${short(sha)} holds a template string (\`…\`) over more than one line, or one inside another's \${…}. The script reads the file line by line and cannot tell what such a string hides, so it does not read analytics there. Keep each template string on one line, and none inside another.`);
+    else if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as exactly one line "export const USE_ANALYTICS = true;" or "= false;" (a // comment after it is fine), so the script cannot tell whether analytics is on.`);
+    else if (cfg.analyticsOn && cfg.envNames === null) gaps.push(`Analytics is on, but src/config.ts at ${short(sha)} has no single "export const ANALYTICS = {" object, ending at a line that starts with "}", with no ...spread and one line that starts with "enabled:" that the script can read: alone on its line, with no template string, no slash, no backslash, and each variable read as process.env.NAME. Write the enabled: property that way.`);
+    else if (cfg.analyticsOn && cfg.envNames.length === 1 && cfg.envNames[0] === 'CF_PAGES_BRANCH') gaps.push(`Analytics is on, but the enabled: line in src/config.ts at ${short(sha)} reads only CF_PAGES_BRANCH. Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so the Worker's pages would count nothing. Use the 0.35 line: "${ENABLED_LINE}"${cfg.declared ? '' : ' It names USE_ANALYTICS, so also add the line "export const USE_ANALYTICS = true;" above it.'} A site built some other way can read the variable its own build sets instead.`);
+  });
   return gaps;
 }
 // One gap stops as it always has; more are listed under one line.
