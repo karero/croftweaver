@@ -1239,15 +1239,15 @@ class PaletteCommand(unittest.TestCase):
                         lines = out.splitlines()
                         self.assertEqual(len([l for l in lines if l.startswith("Not read: ")]), 1, out)
                         self.assertTrue([l for l in lines if l.startswith("Not read: " + said) and l.endswith(
-                            " so it read nothing of this text: its tables were not looked at, and may be fine as they are. Delete each such character, or put a plain new "
-                            "line in its place, then check again.")], out)
+                            " so it read nothing of this text: its tables were not looked at, and may be fine as they are. If you pasted this text from a word processor or a PDF, look there. "
+                            "Replace each such character with an ordinary line break (or delete it), or ask your assistant to, then check again.")], out)
                         self.assertIn("No pair could be checked.", lines)
                         self.assertEqual(snapshot(self.dir), before)
         # two of them: the first is named and the other is counted, by its code point where it is another (R9-205)
         code, out, _err = self.run_bytes("palette", "-", stdin=(good.replace("### Light theme", "### Light theme\x0b") + "\u2028").encode("utf-8"))
         self.assertEqual(code, 2, out)
         self.assertIn('Not read: Line 6, "### Light theme<U+000B>", ' + self.HOLDS % (11, 11), out)
-        self.assertIn(" The text holds 1 more character of that kind (U+2028). Delete each such character, or put a plain new line in its place, then check again.", out)
+        self.assertIn(" The text holds 1 more character of that kind (U+2028). If you pasted this text from a word processor or a PDF, look there. Replace each such character with an ordinary line break (or delete it), or ask your assistant to, then check again.", out)
         # in a comment the quote is the line as the file has it (R9-205: it was a row of blanks)
         code, out, _err = self.run_bytes("palette", "-", stdin=("<!-- a pro\u2028posed note -->\n" + good).encode("utf-8"))
         self.assertIn('Not read: Line 1, "<!-- a pro<U+2028>posed note -->", ' + self.HOLDS % (0x2028, 0x2028), out)
