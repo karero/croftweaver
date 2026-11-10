@@ -46,11 +46,12 @@ computer, and a second computer would not know the move had begun.
    change the line: change it by hand and ship it with the rest of stage 1. The 0.35
    `tests/check_analytics_gate.sh` fails until it is changed. Left as it is, a Worker that
    Workers Builds builds serves its pages without analytics, so `record` stops on their body
-   difference. `check` lists a gap when the `ANALYTICS` object reads `CF_PAGES_BRANCH` and no
-   other variable. A site built some other way may read its own build's variable beside it;
-   `check` lets that pass, and the analytics gate's build shows whether it counts. `check`
-   refuses when it cannot tell whether analytics is on, and when `src/config.ts` holds a block
-   comment (`/* … */`): turn one into `//` comments. A site with no `USE_ANALYTICS` line at all counts as
+   difference. `check` lists a gap when the `ANALYTICS` object's `enabled:` line reads
+   `CF_PAGES_BRANCH` and no other variable. A site built some other way may read its own
+   build's variable beside it; `check` lets that pass, but the analytics gate refuses any
+   variable other than these two, so build such a site with its own variable set and check that
+   the built pages carry the analytics tag. `check` refuses when it cannot tell whether analytics
+   is on, and when `src/config.ts` holds a block comment (`/* … */`): turn one into `//` comments. A site with no `USE_ANALYTICS` line at all counts as
    on; since the new line names it, add `export const USE_ANALYTICS = true;` above it too.
    With analytics off, leave the line alone.
 2. **Freeze and record.** `check`, then `record`. Nothing is merged or shipped from here until

@@ -430,9 +430,9 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
   });
 });
 
-// Stage 1's fifth gap: with analytics on, an ANALYTICS object that reads CF_PAGES_BRANCH and no other
-// variable counts nothing on Workers Builds. A line that also reads another variable passes: the site's
-// own analytics gate builds it to prove analytics is on.
+// Stage 1's fifth gap: with analytics on, an enabled: line that reads CF_PAGES_BRANCH and no other
+// variable counts nothing on Workers Builds. A line that also reads another variable passes, by the
+// maintainer's decision: a site deployed by its own command reads its own variable there.
 describe('1b: the analytics enabled: line at stage 1', () => {
   const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
   const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const ANALYTICS = {\n  mode: 'script',\n  ${line}\n};\n` } });
@@ -453,6 +453,8 @@ describe('1b: the analytics enabled: line at stage 1', () => {
   });
   for (const [what, line] of [['the old CF_PAGES_BRANCH-only line', OLD],
     ['the old line with the other variable named in a // comment', `${OLD} // process.env.WORKERS_CI_BRANCH`],
+    ['the old line with the other variable in a // comment right after the comma', `${OLD}// process.env.WORKERS_CI_BRANCH`],
+    ['the old line, and another property that reads a variable', `${OLD}\n  scriptHost: process.env.ANALYTICS_HOST,`],
     ['the old line over two lines', 'enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,']]) {
     test(`analytics on with ${what}: check lists the gap`, async () => {
       const r = await scenario({ site: site(true, line) }).go(['check']);
@@ -469,17 +471,22 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
   });
-  // The script reads lines, so a block comment anywhere in src/config.ts is refused: it could hide a line or the end of one.
+  // The script reads lines, so a block comment outside strings and // comments is refused: it could hide a line or the end of one.
   for (const [what, body] of [
     ['a declaration in a block comment beside a multi-line one', `/*\nexport const USE_ANALYTICS = false;\n*/\nexport const USE_ANALYTICS =\n  true;\nexport const ANALYTICS = {\n  ${OLD}\n};\n`],
     ['the other variable named in a block comment', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  ${OLD} /* process.env.WORKERS_CI_BRANCH */\n};\n`],
-    ['a comment that opens /* on a // line', `// Start with /*\nexport const USE_ANALYTICS = false;\n// End with */\nexport const ANALYTICS = {\n  ${OLD}\n};\n`]]) {
+    ['a block comment right after a name', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH/* process.env.WORKERS_CI_BRANCH */,\n};\n`]]) {
     test(`${what}: refused, not read`, async () => {
       const r = await scenario({ site: config(body) }).go(['check']);
       assert.equal(r.code, 1, r.text);
       assert.match(r.text, /holds a block comment \(\/\* … \*\/\)\. The script reads the file line by line/);
     });
   }
+  test('a /* on a // line is part of that comment: read, not refused', async () => {
+    const r = await scenario({ site: config(`// Start with /*\nexport const USE_ANALYTICS = true;\n// End with */\nexport const ANALYTICS = {\n  ${OLD}\n};\n`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
   test('a /* inside a path string is no block comment', async () => {
     const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const IMAGE_PATH = '/images/*';\nexport const X = {`) }).go(['check']);
     assert.equal(r.code, 0, r.text);

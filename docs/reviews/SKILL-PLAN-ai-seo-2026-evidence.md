@@ -13,7 +13,7 @@ private feature hub). Nothing is built before the maintainer's go.
 | Build (steps 1–7 below) | done | 7cab775a |
 | DIFF gate (Normal) | done: clean | 3 rounds, 10 findings; trail `REVIEW-diff-2026-11-10-ai-seo-2026-evidence.md` |
 | BUGLOG "Next release notes" row | done | `docs/BUGLOG.md`, 2026-11-10 |
-| Merged; IDEAS.md status updated | — | — |
+| Merged; IDEAS.md status updated | done | #519 merged as 194e98df; hub IDEAS.md updated by karero/croftweaver-features#73 (0ffde28c) |
 
 ## What and why
 
