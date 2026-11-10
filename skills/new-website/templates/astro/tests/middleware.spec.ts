@@ -102,10 +102,16 @@ for (const bad of [
   'https://example..com',
   'http://example.com',
   'example.com',
+  'https://localhost',
+  'https://example',
+  'https://192.168.1.1',
+  'https://0x7f.1',
+  'https://[::ffff:192.168.1.1]',
+  'https://[::1]',
 ]) {
   test(`a CANONICAL_URL of "${bad}" is ignored, never a redirect loop or downgrade`, async () => {
     // A pages.dev value would redirect the alias to itself; plain http or a bare host is
-    // a typo. Failing safe keeps the pre-launch behaviour instead of breaking the site.
+    // a typo; a one-label host or an IP address is no live domain. Failing safe keeps the pre-launch behaviour instead of breaking the site.
     const { res, served } = await serve(`https://${PROJECT}.pages.dev/`, { CANONICAL_URL: bad });
     expect(served).toBe(true);
     expect(res.headers.get('x-robots-tag')).toBe('noindex, nofollow');
