@@ -15,7 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMPTY_BODY, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
+import { EMPTY_BODY, ENABLED_LINE, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -424,29 +424,28 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
 // Stage 1's fifth gap: with analytics on, the enabled: line must read WORKERS_CI_BRANCH too.
 describe('1b: the analytics enabled: line at stage 1', () => {
   const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
-  const NEW = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,';
   const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const analytics = {\n  mode: 'script',\n  ${line}\n};\n` } });
-  const GAP = /enabled: line in src\/config\.ts at [0-9a-f]{7} reads only CF_PAGES_BRANCH\. It must read process\.env\.WORKERS_CI_BRANCH/;
-  test('analytics on with the old CF_PAGES_BRANCH-only line: check lists the gap', async () => {
-    const r = await scenario({ site: site(true, OLD) }).go(['check']);
-    assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /^Stopped: Analytics is on, but /m);
-    assert.match(r.text, GAP);
+  const GAP = /^Stopped: Analytics is on, but src\/config\.ts at [0-9a-f]{7} lacks this enabled: line, exactly as written: enabled: USE_ANALYTICS && \(process\.env\.CF_PAGES_BRANCH \?\? process\.env\.WORKERS_CI_BRANCH\) === PROD_BRANCH, /m;
+  test('the line the script asks for is the starter\'s own', () => {
+    const starter = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'src', 'config.ts'), 'utf8');
+    assert.ok(starter.split('\n').some((l) => l.trim() === ENABLED_LINE), ENABLED_LINE);
   });
   test('analytics on with the 0.35 line: no gap', async () => {
-    const r = await scenario({ site: site(true, NEW) }).go(['check']);
+    const r = await scenario({ site: site(true, ENABLED_LINE) }).go(['check']);
     assert.equal(r.code, 0, r.text);
   });
-  // A comment is not code: naming the variable there must not hide the gap, nor add one.
-  test('analytics on with the old line and the variable named only in a comment: check lists the gap', async () => {
-    const r = await scenario({ site: site(true, `${OLD} // TODO process.env.WORKERS_CI_BRANCH`) }).go(['check']);
-    assert.equal(r.code, 1, r.text);
-    assert.match(r.text, GAP);
-  });
-  test('analytics on with the 0.35 line and another variable in a comment: no gap', async () => {
-    const r = await scenario({ site: site(true, `${NEW} // not process.env.NODE_ENV`) }).go(['check']);
-    assert.equal(r.code, 0, r.text);
-  });
+  // The script compares the text, so a comment, an added test or the old line all stop it: none can pass unseen.
+  for (const [what, line] of [['the old CF_PAGES_BRANCH-only line', OLD],
+    ['the old line with the variable named in a comment', `${OLD} // process.env.WORKERS_CI_BRANCH`],
+    ['the old line with the variable named in a block comment', OLD.replace(' ===', ' /* process.env.WORKERS_CI_BRANCH */ ===')],
+    ['a line that needs both variables', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH && process.env.WORKERS_CI_BRANCH === PROD_BRANCH,'],
+    ['the 0.35 line with a comment', `${ENABLED_LINE} // live only`]]) {
+    test(`analytics on with ${what}: check lists the gap`, async () => {
+      const r = await scenario({ site: site(true, line) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, GAP);
+    });
+  }
   test('analytics off with the old line: no gap', async () => {
     const r = await scenario({ site: site(false, OLD) }).go(['check']);
     assert.equal(r.code, 0, r.text);
