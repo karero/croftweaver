@@ -24,9 +24,9 @@ ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"\\]*)['"]\s*,?\s*(?://.*)?$"""
 # Every line of the ANALYTICS block must be one of these forms (or blank, or a // comment), else the
 # file is refused: nothing cleverer is read, never guessed.
 # The enabled value is never read (the switch and the live page decide), so an expression is fine
-# there, but not a brace, bracket or backtick: each could open a nested object or a multi-line string
-# that hides later lines from this line-by-line read.
-ENABLED_LINE = re.compile(r"^\s*enabled:[^,{}\[\]`]*,?\s*(?://.*)?$")
+# there, but nothing that could span lines and hide later lines from this line-by-line read: no
+# brace, bracket, backtick or backslash (a /* is refused file-wide, above).
+ENABLED_LINE = re.compile(r"^\s*enabled:[^,{}\[\]`\\]*,?\s*(?://.*)?$")
 MODE_LINE = re.compile(
     r"""^\s*mode:\s*'(script|server)'(?:\s+as\s+'(?:script|server)'(?:\s*\|\s*'(?:script|server)')?)?\s*,?\s*(?://.*)?$""")
 BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{\s*(?://.*)?$")

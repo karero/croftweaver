@@ -4,7 +4,7 @@ Plan: `docs/reviews/SKILL-PLAN-live-analytics-check.md` (PLAN gate closed, trail
 Depth: Normal (a script a site's owner runs; no box, user data, login, money, deletion or schema).
 Seats: Codex gpt-6.1-sol alone in rounds 1 to 5 (melious out of balance, no rerun owed); Codex and
 GLM 5.3 on melious (`SECOND_SEAT=melious MELIOUS_MODEL=glm-5.3`) from round 6. Built by the build
-session `local_4be595ef` (rounds 1 to 5) and `local_1f478129` (rounds 6 to 9, after the account
+session `local_4be595ef` (rounds 1 to 5) and `local_1f478129` (rounds 6 to 10, after the account
 switch and a rebase onto `9f7d3ff6`). Gate 20261109T210813Z-33270.
 
 Rounds 1 to 5 were written up from the commit messages and the cost log: the old session's
@@ -23,8 +23,9 @@ findings files were not kept, so the per-finding detail for rounds 3 to 5 is not
 | 7 | `668d1d2e` | verify since `6c5348ae`; `mode-key-syntax,config-line-syntax` | Codex 165 s, 28,677 · melious 241 s, 16,804 | Codex 3 BUG (one a false test comment); GLM 0 BUG, 2 NIT |
 | 8 | `caa3440f` | verify since `668d1d2e`; cut: a whitelist of block lines replaces the per-property patches | Codex 229 s, 35,042 · melious 530 s, 34,315 | Codex 2 BUG, GLM 0 BUG, 2 NIT |
 | 9 | `23da3ae8` | verify since `caa3440f`; grant: Daniel, "Run round 9" (2026-11-10) | Codex 180 s, 33,387 · melious 241 s, 13,557 | Codex 1 BUG, GLM 0 BUG, 1 NIT |
+| 10 | `8c5e00e1` | verify since `23da3ae8`; grant: Daniel, "Run round 10" (2026-11-10) | Codex 109 s, 24,000 · melious 217 s, 11,980 | Codex 0 BUG, 1 NIT; GLM 1 BUG, 1 NIT |
 
-## Round 6 to 9 findings
+## Round 6 to 10 findings
 
 | id | Sev | Source | Round | Finding | Status |
 |---|---|---|---|---|---|
@@ -42,10 +43,14 @@ findings files were not kept, so the per-finding detail for rounds 3 to 5 is not
 | 8c | NIT | GLM | 8 | `block[1:]` invariant; enabled-line comment | fixed: both commented |
 | 9a | BUG | Codex | 9 | A multi-line template literal in `enabled` hides nested mode, host and id lines | fixed: a backtick in the enabled value refuses the file; test |
 | 9b | NIT | GLM | 9 | The enabled-line comment blamed the comma | fixed: comment names brace, bracket and backtick |
+| 10a | BUG | GLM | 10 | `enabled: PROD /*` opens a hidden comment | refuted: any `/*` in the file exits 2 before the line checks; regression case added |
+| 10b | BUG | GLM | 10 | `enabled: "x\` (line continuation) swallows later lines | fixed: a backslash in the enabled value refuses the file; test; the old class accepts it, the new does not |
+| 10c | NIT | Codex | 10 | The backtick test passed on the old regex too | fixed: the case now opens the template on the enabled line |
+| 10d | NIT | GLM | 10 | The comment listed an incomplete set of characters | fixed: reworded |
 
 ## State
 
 Tests: `make test-launch-check`, 54 tests, OK at `23da3ae8`. Live run against the guide's real
 `src/config.ts` and https://guide.croftweaver.com/ at `caa3440f`: exit 0.
-The fix of 9a is not yet re-reviewed: round 10 needs Daniel's word (past the round-8 stop).
-Totals through round 9: 13 seat runs, about 525,000 tokens (the script's running total, round 8: 475,829).
+The fix of 10b is not yet re-reviewed: round 11 needs Daniel's word (past the round-8 stop).
+Totals through round 10: 15 seat runs, about 561,000 tokens (the script's running total; round 8 stood at 475,829).
