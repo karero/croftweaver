@@ -159,16 +159,18 @@ block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has
   notifications arriving once Crawler Hints has fired on a content change.
 - **AI crawlers (free, on Cloudflare):** your domain → **AI Crawl Control** → **Overview** shows
   how many requests from each AI company's crawlers Cloudflare let through, and offers
-  Hostname and Path filters. Look in the first days after launch: Cloudflare's page says that on
-  free plans the Metrics tab shows only the past 24 hours, and the kit hasn't checked how far
-  back the Overview's longer ranges reach. On the free plan Cloudflare knows a crawler by the
-  name the request gives ([Cloudflare](https://developers.cloudflare.com/ai-crawl-control/get-started/)),
-  so a crawler that doesn't name itself isn't counted as an AI crawler, and the Cloudflare
-  check's own crawler-named requests may show up here as well. A visit is not a mention: it
+  Hostname and Path filters. Look in the first days after launch, and again every few days:
+  Cloudflare's page says that on free plans the **Metrics** tab shows only the past 24 hours,
+  and we haven't checked how far back the Overview's own date ranges reach. On the free plan
+  Cloudflare knows a crawler by the name the request gives
+  ([Cloudflare](https://developers.cloudflare.com/ai-crawl-control/get-started/)), so a crawler
+  that doesn't name itself isn't counted as an AI crawler, and the Cloudflare check's own
+  crawler-named requests may show up here as well. A visit is not a mention: it
   can't tell you whether any AI answer names you.
-- **How long AI assistants take:** we found no published measurement, with a stated method, of
-  how long AI assistants take to first cite a brand-new website. The ranges Google gives, and
-  what companies measured for new pages on sites that already exist, are in
+- **How long AI assistants take:** when we last checked, in November 2026, we found no
+  published measurement, with a stated method, of how long AI assistants take to first cite a
+  brand-new website. The ranges Google gives, and what companies measured for new pages on
+  sites that already exist, are in
   [How long until Google and AI assistants find a new website?](https://guide.croftweaver.com/how-long)
   Check that the crawlers come (above), and later Google's and Bing's AI reports
   (`search-console-insights`).
