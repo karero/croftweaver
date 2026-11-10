@@ -426,7 +426,7 @@ describe('1b: the analytics enabled: line at stage 1', () => {
   const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
   const NEW = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,';
   const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const analytics = {\n  mode: 'script',\n  ${line}\n};\n` } });
-  const GAP = /enabled: line in src\/config\.ts at [0-9a-f]{7} does not read WORKERS_CI_BRANCH \(it reads: only CF_PAGES_BRANCH\)/;
+  const GAP = /enabled: line in src\/config\.ts at [0-9a-f]{7} reads only CF_PAGES_BRANCH\. It must read process\.env\.WORKERS_CI_BRANCH/;
   test('analytics on with the old CF_PAGES_BRANCH-only line: check lists the gap', async () => {
     const r = await scenario({ site: site(true, OLD) }).go(['check']);
     assert.equal(r.code, 1, r.text);
@@ -437,6 +437,16 @@ describe('1b: the analytics enabled: line at stage 1', () => {
     const r = await scenario({ site: site(true, NEW) }).go(['check']);
     assert.equal(r.code, 0, r.text);
   });
+  // A comment is not code: naming the variable there must not hide the gap, nor add one.
+  test('analytics on with the old line and the variable named only in a comment: check lists the gap', async () => {
+    const r = await scenario({ site: site(true, `${OLD} // TODO process.env.WORKERS_CI_BRANCH`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
+  test('analytics on with the 0.35 line and another variable in a comment: no gap', async () => {
+    const r = await scenario({ site: site(true, `${NEW} // not process.env.NODE_ENV`) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
   test('analytics off with the old line: no gap', async () => {
     const r = await scenario({ site: site(false, OLD) }).go(['check']);
     assert.equal(r.code, 0, r.text);
@@ -444,7 +454,7 @@ describe('1b: the analytics enabled: line at stage 1', () => {
   test('a USE_ANALYTICS line the script cannot read is refused, not guessed', async () => {
     const r = await scenario({ site: makeSite({ files: { 'src/config.ts': "export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = !!process.env.X;\n" } }) }).go(['check']);
     assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /names USE_ANALYTICS, but not as one line/);
+    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
   });
 });
 
