@@ -22,9 +22,9 @@ findings files were not kept, so the per-finding detail for rounds 3 to 5 is not
 | 6 | `6c5348ae` (rebased on `9f7d3ff6`) | whole change; cut: the comment scanner `code_of` deleted, `/*` in the block refused | Codex 179 s, 72,297 · melious 320 s, 58,619 | Codex 3 BUG; GLM 2 RISK, 3 NIT |
 | 7 | `668d1d2e` | verify since `6c5348ae`; `mode-key-syntax,config-line-syntax` | Codex 165 s, 28,677 · melious 241 s, 16,804 | Codex 3 BUG (one a false test comment); GLM 0 BUG, 2 NIT |
 | 8 | `caa3440f` | verify since `668d1d2e`; cut: a whitelist of block lines replaces the per-property patches | Codex 229 s, 35,042 · melious 530 s, 34,315 | Codex 2 BUG, GLM 0 BUG, 2 NIT |
-| 9 | `23da3ae8` | verify since `caa3440f`; grant: Daniel, "Run round 9" (2026-11-10) | Codex 180 s, 33,387 · melious 241 s, 13,557 | Codex 1 BUG, GLM 0 BUG, 1 NIT |
-| 10 | `8c5e00e1` | verify since `23da3ae8`; grant: Daniel, "Run round 10" (2026-11-10) | Codex 109 s, 24,000 · melious 217 s, 11,980 | Codex 0 BUG, 1 NIT; GLM 1 BUG, 1 NIT |
-| 11 | `60142951` | verify since `8c5e00e1`; grant: Daniel, "Run round 11" (2026-11-10) | Codex 160 s, 26,869 · melious 436 s, 23,663 | Codex 1 BUG; GLM 2 RISK, 1 NIT |
+| 9 | `23da3ae8` | verify since `caa3440f`; grant: the owner, "Run round 9" (2026-11-10) | Codex 180 s, 33,387 · melious 241 s, 13,557 | Codex 1 BUG, GLM 0 BUG, 1 NIT |
+| 10 | `8c5e00e1` | verify since `23da3ae8`; grant: the owner, "Run round 10" (2026-11-10) | Codex 109 s, 24,000 · melious 217 s, 11,980 | Codex 0 BUG, 1 NIT; GLM 1 BUG, 1 NIT |
+| 11 | `60142951` | verify since `8c5e00e1`; grant: the owner, "Run round 11" (2026-11-10) | Codex 160 s, 26,869 · melious 436 s, 23,663 | Codex 1 BUG; GLM 2 RISK, 1 NIT |
 
 ## Round 6 to 11 findings
 
@@ -57,5 +57,5 @@ findings files were not kept, so the per-finding detail for rounds 3 to 5 is not
 
 Tests: `make test-launch-check`, 54 tests, OK at `23da3ae8`. Live run against the guide's real
 `src/config.ts` and https://guide.croftweaver.com/ at `caa3440f`: exit 0.
-The fix of 11a is not re-reviewed: Daniel chose "Push, no round 12" (2026-11-10). It is a one-character regex change with a test, and a mutation shows the test fails without it (past the round-8 stop).
+The fix of 11a is not re-reviewed: the owner chose "Push, no round 12" (2026-11-10). It is a one-character regex change with a test, and a mutation shows the test fails without it (past the round-8 stop).
 Totals through round 11: 17 seat runs, about 612,000 tokens (the script's running total; round 8 stood at 475,829).
