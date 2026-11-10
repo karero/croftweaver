@@ -358,6 +358,5 @@ Mermaid diagram showing page relationships and navigation zones. Use `graph TD` 
 ## Related Skills
 
 - **seo-audit**: For technical SEO, on-page optimization, and indexation issues
-- **page-cro**: For optimizing individual pages for conversion
 - **schema-markup**: For implementing breadcrumb and site navigation structured data
 - **website-new-page**: For writing a new page, a comparison page included
