@@ -19,14 +19,14 @@ from pathlib import Path
 
 CONFIG = Path("src/config.ts")
 USE_LINE = re.compile(r"^export const USE_ANALYTICS = (true|false);?[ \t]*(//.*)?$")
-HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]""")
-ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]""")
+HOST_LINE = re.compile(r"""^\s*scriptHost:\s*['"]([^'"]*)['"]\s*,?\s*(?://.*)?$""")
+ID_LINE = re.compile(r"""^\s*scriptId:\s*['"]([^'"]*)['"]\s*,?\s*(?://.*)?$""")
 # A line that starts with the mode key must be exactly one of the starter's forms, else the file is
 # refused: anything cleverer (an expression, a computed or quoted key) is not read, never guessed.
 MODE_START = re.compile(r"""^\s*(?:\[|['"`]*mode\b)""")
 MODE_LINE = re.compile(
     r"""^\s*mode:\s*'(script|server)'(?:\s+as\s+'(?:script|server)'(?:\s*\|\s*'(?:script|server)')?)?\s*,?\s*(?://.*)?$""")
-BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{")
+BLOCK_START = re.compile(r"^export const ANALYTICS\s*=\s*\{\s*(?://.*)?$")
 BLOCK_END = re.compile(r"^\}")
 
 # The gate's expressions (check_analytics_gate.sh, tags_program): comments dropped outside
@@ -53,6 +53,8 @@ def read_config():
         raise NotChecked(f"cannot read {CONFIG}: {e.strerror or e}")
     except UnicodeError:
         raise NotChecked(f"{CONFIG} is not UTF-8 text")
+    if "/*" in text:  # not scanned: a block comment could hide or fake a line, so the file is refused
+        raise NotChecked(f"{CONFIG} has /* in it: this check reads only // comments")
     lines = text.splitlines()
     uses = [m.group(1) for m in map(USE_LINE.match, lines) if m]
     if not uses:
@@ -74,16 +76,16 @@ def read_config():
     if not block:
         raise NotChecked(f'no "export const ANALYTICS = {{ … }}" block in {CONFIG}')
 
-    def first(pattern):
+    def only(pattern, name):
         found = [m.group(1) for m in map(pattern.match, block) if m]
+        if len(found) > 1:
+            raise NotChecked(f"more than one {name} line in the ANALYTICS block of {CONFIG}")
         return found[0] if found else ""
 
-    host, sid = first(HOST_LINE), first(ID_LINE)
+    host, sid = only(HOST_LINE, "scriptHost"), only(ID_LINE, "scriptId")
     host = host[:-1] if host.endswith("/") else host
     if not host or not sid:
-        raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines in the ANALYTICS block of {CONFIG}")
-    if any("/*" in line for line in block):
-        raise NotChecked(f"the ANALYTICS block of {CONFIG} has a /* comment: use // comments there")
+        raise NotChecked(f"no scriptHost: '…' and scriptId: '…' lines (each a plain quoted value) in the ANALYTICS block of {CONFIG}")
     starts = [line for line in block if MODE_START.match(line)]
     found = [m.group(1) for m in map(MODE_LINE.match, starts) if m]
     if len(found) != len(starts) or len(starts) > 1:
@@ -96,7 +98,7 @@ def read_config():
 def fetch(address):
     if not re.match(r"https?://[^/\s]", address):
         raise NotChecked(f"the address {address!r} is not an http(s) address")
-    cb = f"cb={random.getrandbits(40):x}"
+    cb = f"cb={random.getrandbits(40):010x}"
     url = f"{address}&{cb}" if "?" in address else f"{address.rstrip('/')}/?{cb}"
     req = urllib.request.Request(url, headers={"User-Agent": "croftweaver-launch-check"})
     try:

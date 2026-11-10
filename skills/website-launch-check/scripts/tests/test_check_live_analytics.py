@@ -144,7 +144,36 @@ class OnScriptMode(unittest.TestCase):
                 cfg = config().replace("  scriptHost:", note + "  scriptHost:")
                 code, out, _ = run(cfg, None, GUIDE)
                 self.assertEqual(code, 2, out)
-                self.assertIn("use // comments", out)
+                self.assertIn("reads only // comments", out)
+
+    def test_a_block_comment_anywhere_in_the_file_is_refused(self):
+        # A commented switch line must not override the live one.
+        cfg = "/* export const USE_ANALYTICS = true; */\n" + config(use="export const USE_ANALYTICS = false;")
+        code, out, _ = run(cfg, None, GUIDE)
+        self.assertEqual(code, 2, out)
+        self.assertIn("reads only // comments", out)
+
+    def test_lines_that_are_more_than_a_plain_value_are_refused(self):
+        # Node would evaluate each of these to something other than what a prefix match reads.
+        base = config()
+        cases = {
+            "opening line": base.replace("export const ANALYTICS = {\n", "export const ANALYTICS = { mode: 'server',\n"),
+            "host expression": base.replace(f"'{HOST}',", f"'{HOST}' + '/proxy',"),
+            "id expression": base.replace(f"'{SID}',", f"'{SID}' + 'x',"),
+            "second host": base.replace("  scriptHost:", "  scriptHost: 'https://a.example.org',\n  scriptHost:"),
+        }
+        for name, cfg in cases.items():
+            with self.subTest(name):
+                self.assertNotEqual(cfg, base)
+                code, out, _ = run(cfg, None, GUIDE)
+                self.assertEqual(code, 2, out)
+
+    @unittest.skipUnless((STARTER / "src" / "config.ts").is_file() or REQUIRE_STARTER, "no starter in this checkout")
+    def test_the_starters_own_config_is_read(self):
+        # The forms the regexes accept must include what the starter ships, or every site is "not checked".
+        code, out, _ = run((STARTER / "src" / "config.ts").read_text(encoding="utf-8"), None, BARE)
+        self.assertEqual(code, 0, out)  # the starter ships with analytics off; a bare page agrees
+        self.assertIn("analytics is off", out)
 
     def test_no_mode_line_means_script_mode(self):
         cfg = config().replace("  mode: 'script' as 'script',\n", "")
