@@ -515,13 +515,19 @@ async function readToken(root, git, env) {
   return m[1];
 }
 
-// src/config.ts at a commit: PROD_BRANCH, and the analytics mode.
+// src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether analytics is on (read as
+// tests/check_analytics_gate.sh reads it; null when USE_ANALYTICS is named but not in its one-line
+// form) and the branch variables the enabled: line reads (null when it is not exactly one line).
 async function readSiteConfig(git, sha) {
   const r = await git('show', `${sha}:src/config.ts`);
   if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
   const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
   if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
-  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout) };
+  const uses = [...r.stdout.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
+  const analyticsOn = uses.length === 1 ? uses[0][1] === 'true' : uses.length === 0 && !r.stdout.includes('USE_ANALYTICS') ? true : null;
+  const enabled = r.stdout.split(/\r?\n/).filter((l) => /^\s*enabled:.*process\.env\./.test(l));
+  const enabledVars = enabled.length === 1 ? [...new Set([...enabled[0].matchAll(/process\.env\.([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]))].filter((v) => v !== 'CF_PAGES_BRANCH').sort() : null;
+  return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), analyticsOn, enabledVars };
 }
 
 // The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
@@ -892,7 +898,7 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 // ---------------------------------------------------------------- the refusals of a first move
 
 // What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
-// and analytics server mode. Read from git only, so a run lists all of them at once.
+// analytics server mode and, with analytics on, the 0.35 enabled: line. Read from git only, so a run lists all of them at once.
 async function stageOneGaps(git, sha) {
   const gaps = [];
   const asLines = async (fn) => { try { await fn(); } catch (e) { if (!(e instanceof Stop)) throw e; gaps.push(...e.lines); } };
@@ -903,7 +909,12 @@ async function stageOneGaps(git, sha) {
   const fns = files.filter((f) => f.startsWith('functions/') && f !== 'functions/_middleware.ts');
   if (fns.length) gaps.push(`${short(sha)} holds ${fns.slice(0, 3).join(', ')}${fns.length > 3 ? ' and more' : ''} in functions/. The Worker would not run that code. Stage 1 of the move section takes functions/go/ out.`);
   if (files.includes('public/_worker.js')) gaps.push(`${short(sha)} holds public/_worker.js: code the Worker would not run.`);
-  await asLines(async () => { if ((await readSiteConfig(git, sha)).serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.'); });
+  await asLines(async () => {
+    const cfg = await readSiteConfig(git, sha);
+    if (cfg.serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
+    if (cfg.analyticsOn === null) gaps.push(`src/config.ts at ${short(sha)} names USE_ANALYTICS, but not as one line "export const USE_ANALYTICS = true;" or "= false;", so the script cannot tell whether analytics is on.`);
+    else if (cfg.analyticsOn && cfg.enabledVars?.join() !== 'WORKERS_CI_BRANCH') gaps.push(`Analytics is on, but the enabled: line in src/config.ts at ${short(sha)} does not read WORKERS_CI_BRANCH (${cfg.enabledVars ? `it reads: ${cfg.enabledVars.join(', ') || 'only CF_PAGES_BRANCH'}` : 'there is not exactly one such line'}). Workers Builds sets that name, so the Worker would serve its pages without analytics. Stage 1 of the move section gives the line to use.`);
+  });
   return gaps;
 }
 // One gap stops as it always has; more are listed under one line.

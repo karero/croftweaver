@@ -59,7 +59,7 @@ function makeSite({ files = {}, prodBranch = 'production' } = {}) {
   git(work, 'init', '-q');
   git(work, 'checkout', '-q', '-b', prodBranch === 'main' ? 'main' : 'production');
   const all = {
-    'src/config.ts': `export const SITE = { name: 'Lenas Backstube' };\nexport const PROD_BRANCH = '${prodBranch}';\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n`,
+    'src/config.ts': `export const SITE = { name: 'Lenas Backstube' };\nexport const PROD_BRANCH = '${prodBranch}';\nexport const USE_ANALYTICS = false;\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n`,
     'workers.jsonc': `{\n  // The Worker that serves the built site\n  "name": "${WORKER}",\n  "compatibility_date": "2026-01-01",\n  "assets": { "directory": "./dist" },\n}\n`,
     'wrangler.toml': 'name = "lenas-backstube"\npages_build_output_dir = "dist"\n',
     'package.json': JSON.stringify({ name: 'lenas-backstube', private: true, scripts: { build: 'node build.mjs' } }),
@@ -418,6 +418,33 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     const r = await run('https://lenas-backstube.example', accountOnly());
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('Stopped: This token can reach the DNS or settings of 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
+  });
+});
+
+// Stage 1's fifth gap: with analytics on, the enabled: line must read WORKERS_CI_BRANCH too.
+describe('1b: the analytics enabled: line at stage 1', () => {
+  const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
+  const NEW = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,';
+  const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const analytics = {\n  mode: 'script',\n  ${line}\n};\n` } });
+  const GAP = /enabled: line in src\/config\.ts at [0-9a-f]{7} does not read WORKERS_CI_BRANCH \(it reads: only CF_PAGES_BRANCH\)/;
+  test('analytics on with the old CF_PAGES_BRANCH-only line: check lists the gap', async () => {
+    const r = await scenario({ site: site(true, OLD) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /^Stopped: Analytics is on, but /m);
+    assert.match(r.text, GAP);
+  });
+  test('analytics on with the 0.35 line: no gap', async () => {
+    const r = await scenario({ site: site(true, NEW) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('analytics off with the old line: no gap', async () => {
+    const r = await scenario({ site: site(false, OLD) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('a USE_ANALYTICS line the script cannot read is refused, not guessed', async () => {
+    const r = await scenario({ site: makeSite({ files: { 'src/config.ts': "export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = !!process.env.X;\n" } }) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /names USE_ANALYTICS, but not as one line/);
   });
 });
 
