@@ -440,14 +440,17 @@ class WhatIsMadeIsLookedAt(WithTheSitesSharp):
                         self.lie(wrong)
                     self.assertEqual(cm.exception.code, "png-bad")
 
-    def test_a_blank_32_pixel_icon_is_not_installed(self):
-        def wrong(job, path):
-            if job["name"] == "favicon-32":
-                with open(path, "wb") as f:
-                    f.write(T.make_png(32, 32, T.solid_rgba(32, 32, (0, 0, 0, 0))))
-        with self.assertRaises(Refusal) as cm:
-            self.lie(wrong)
-        self.assertEqual(cm.exception.code, "blank-render")
+    def test_a_blank_favicon_frame_of_any_size_is_not_installed(self):
+        for side in (16, 32, 48, 64):
+            with self.subTest(side=side):
+                def wrong(job, path, side=side):
+                    if job["name"] == "favicon-%d" % side:
+                        with open(path, "wb") as f:
+                            f.write(T.make_png(side, side, T.solid_rgba(side, side, (0, 0, 0, 0))))
+                with self.assertRaises(Refusal) as cm:
+                    self.lie(wrong)
+                self.assertEqual(cm.exception.code, "blank-render")
+                self.assertIn("%d pixel" % side, str(cm.exception))
 
     def test_an_app_icon_that_is_not_opaque_is_not_installed(self):
         for name in ("apple-touch", "maskable"):

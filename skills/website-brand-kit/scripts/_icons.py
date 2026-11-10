@@ -203,8 +203,9 @@ def build(clean, mono, palette, renderer, workdir):
         if _png.size(png[name]) != (side, side):
             raise Refusal("icon-bad", "The %s icon did not come out %d x %d." % (name, side, side))
         pictures[name] = _png.decode(png[name])  # all of it, not its header alone: a file cut short is not installed
-    if _png.is_blank(pictures["favicon-32"]):
-        raise Refusal("blank-render", "The 32 pixel icon came out blank. Ask the tool for the SVG again.")
+    for side in ICO_SIZES:
+        if _png.is_blank(pictures["favicon-%d" % side]):
+            raise Refusal("blank-render", "The %d pixel icon came out blank. Ask the tool for the SVG again." % side)
     for name in ("apple-touch", "maskable"):
         if not _png.is_opaque(pictures[name]):
             raise Refusal("icon-bad", "The %s icon is not fully opaque." % name)

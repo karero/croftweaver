@@ -94,7 +94,7 @@ pixels square, and an ICO with 16, 32, 48 and 64 pixel frames.
 - **The ICO has four frames.** 16, 32 and 48 pixels are the usual favicon sizes. The 64 pixel
   frame is there for the test below, which draws every file at 64 pixels: a 48 pixel
   frame scaled up to 64 blurred the outline (9.6 grey levels on the client site).
-- **The intake writes the same four frames.** It renders them with the site's own
+- **The intake writes the same four frame sizes.** It renders them with the site's own
   `sharp`; this recipe builds them by hand, outside the intake.
 
 ## The tests
