@@ -28,6 +28,7 @@ parser or a guard let through.
 | F7 | BUG | codex r3, outside scope | `contentTypeKnown` | A redirect losing `charset=iso-8859-1` or `foo=bar` was excused | fixed | The redirect exception needs no parameters, or only utf-8 charset ones |
 | F8 | NIT | fresh-eyes | tests | A difference only in case or spacing (`UTF-8` against `utf-8`) is refused | not changed | A false refusal is loud and safe; no capture shows it |
 
-Mutation check (mutation-check skill, throwaway copy): 10 mutations of the fix, then 6 and 1 more
-after rounds 1 to 3; the first run left 3 alive (any type to JS, a same value excused, an added
-header excused), three tests were added, and every one was then killed.
+Mutation check (mutation-check skill, throwaway copy): 10 mutations of the fix; 3 survived (any type
+to JS, a same value excused, an added header excused), three assertions were added and all 10 were
+then killed. The guards added in rounds 1 to 3 (quotes, second charset, the JS parameters, the utf-8
+pattern, guard order, redirect parameters) were each reverted once and each failed a test.
