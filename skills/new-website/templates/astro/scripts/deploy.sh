@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploy this site as a Cloudflare Worker from this folder, with no GitHub connection:
 #   npm run deploy:preview   a Preview, to look at (builds the files as they are)
-#   npm run deploy:live      the live Worker (stops if any file is unsaved)
+#   npm run deploy:live      the live Worker (stops if any file is unsaved or the branch is not PROD_BRANCH)
 # Add `-- --dry-run` to do everything up to Wrangler and print the command instead. Workers
 # sites only: a Pages site must not take this file until it has moved.
 #
@@ -102,6 +102,17 @@ deploy() {
     prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src/config.ts)"
     if [ -z "$prod" ]; then
       echo "✗ No \"export const PROD_BRANCH = '…';\" line in src/config.ts: the live build needs it."
+      return 1
+    fi
+    # Only the production branch goes live, as with a push: a Git-connected Worker builds that
+    # branch, and would undo another branch's commit at its next build.
+    local branch
+    branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
+    if [ "$branch" != "$prod" ]; then
+      local on="no branch"
+      [ -z "$branch" ] || on="the branch \"$branch\""
+      echo "✗ The live site comes from the branch \"$prod\" (PROD_BRANCH in src/config.ts), but this folder is on $on."
+      echo "  Switch to it first (git switch $prod), or look at this one with npm run deploy:preview. Nothing was built or deployed."
       return 1
     fi
   fi
