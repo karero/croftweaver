@@ -127,8 +127,8 @@ deploy() {
   [ "$mode" = live ] || return 0
 
   if [ "$domain" != yes ]; then
-    echo "✓ Deployed the Worker \"$name\". It has no domain yet (wrangler.jsonc has no custom_domain route), so"
-    echo "  there is no public address to check. Look at it with npm run deploy:preview."
+    echo "✓ Deployed the Worker \"$name\". wrangler.jsonc has no custom_domain route, so"
+    echo "  there is no address to check here (a domain added in the dashboard is not looked at). Look at it with npm run deploy:preview."
     return 0
   fi
 

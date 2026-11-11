@@ -105,9 +105,10 @@ workers_state() { # <folder>
 }
 
 # One look at the site's build.txt, for a Workers config with no domain route. Prints `served` (it
-# answers with a commit), `notserved` (DNS has no such host, or the answer is no build.txt: a
-# Worker with no domain yet) or `unclear <why>` (a timeout, a refused or reset connection, a TLS
-# fault, a 5xx, a DNS failure that is not "no such host": nothing a launch decides).
+# answers with a commit), `notserved` (DNS has no such host, a 404 or 410, or a 200 that is no
+# commit: a Worker with no domain yet) or `unclear <why>` (a timeout, a refused or reset connection,
+# a TLS fault, any other HTTP answer such as a 403 or 429 that a firewall or a limit may give, a DNS
+# failure that is not "no such host": nothing a launch decides).
 probe_site() { # <site address>
   local out rc=0 code body host dns
   out="$(curl -sL -m 8 -w '\n%{http_code}' "$1/build.txt?cb=$RANDOM" 2>/dev/null)" || rc=$?
@@ -115,9 +116,9 @@ probe_site() { # <site address>
     code="${out##*$'\n'}"
     body="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
     case "$code" in
-      5*) echo "unclear HTTP $code" ;;
       200) if grep -qE '^[0-9a-f]{7,64}$' <<<"$body"; then echo served; else echo notserved; fi ;;
-      *) echo notserved ;;
+      404|410) echo notserved ;;
+      *) echo "unclear HTTP $code" ;;
     esac
   elif [ "$rc" = 6 ]; then
     host="${1#*://}"; host="${host%%[/:]*}"

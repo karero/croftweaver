@@ -1871,7 +1871,7 @@ export default { site: 'https://ship-test.example.invalid' };"
   want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show the change."
   want "checks no address" test ! -e "$M/curl"
 
-  # --- W1–W16: a Workers config (D17: a .json or .jsonc with `assets` and no pages_build_output_dir) ---
+  # --- W1–W19: a Workers config (D17: a .json or .jsonc with `assets` and no pages_build_output_dir) ---
   # Before launch a Worker has no custom domain, so its site: address serves no build.txt: ship
   # says the change was sent and is checked at launch, and exits 0 (D31). Anything else keeps the
   # live check: a route, a Pages site, a Pages wrangler.jsonc, and (W9) a Pages site in a move's
@@ -1924,7 +1924,7 @@ export default { site: 'https://ship-test.example.invalid' };"
   workers_case w9 github "$noroute"; exits 0
   want "a route-less Workers config on a site whose address serves a build is a Pages site mid-move: the live check runs" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
   want "... and not the sent-at-launch line" lacks "$sent"
-  # W10–W16: the probe tells "not served" (sent, checked at launch) from "cannot tell" (stop, exit
+  # W10–W19: the probe tells "not served" (sent, checked at launch) from "cannot tell" (stop, exit
   # 1, run it again), so a network fault on a Pages site mid-move never reads as launch-day quiet.
   unclear="but ship could not tell whether"
   workers_case w10 github "$noroute" SHIP_T_CODE=404; exits 0
@@ -1945,6 +1945,13 @@ export default { site: 'https://ship-test.example.invalid' };"
   want "DNS says no such host: not served" last_starts "$sent"
   workers_case w16 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=EAI_AGAIN "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
   want "a resolver that did not answer is unclear" has "EAI_AGAIN"
+  workers_case w17 github "$noroute" SHIP_T_CODE=403; exits 1
+  want "a 403 (a firewall may give it) is unclear, not 'not served'" has "HTTP 403"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w18 github "$noroute" SHIP_T_CODE=429; exits 1
+  want "a 429 is unclear" has "HTTP 429"
+  workers_case w19 github "$noroute" SHIP_T_CODE=410; exits 0
+  want "a 410 is not served" last_starts "$sent"
 
   # --- T1–T8: the question, on a fake terminal (`script`); only where SHIP_TEST_TTY=1 ---------
   # The question needs no `script`, only these cases do: so an owner's push or a site's CI, where
