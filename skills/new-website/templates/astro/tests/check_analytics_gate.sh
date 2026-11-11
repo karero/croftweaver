@@ -4,7 +4,8 @@
 #
 # Base.astro emits the Plausible <script> only when that is true, and the build decides it:
 # Cloudflare Pages sets CF_PAGES_BRANCH when it builds (Workers Builds sets WORKERS_CI_BRANCH
-# instead), and a deploy-by-command owner sets CF_PAGES_BRANCH by hand
+# instead; `npm run deploy:live` sets it for a Worker deployed by command, scripts/deploy.sh),
+# and a Pages owner deploying by command sets CF_PAGES_BRANCH by hand
 # (`CF_PAGES_BRANCH=<production-branch> npm run build` for the live site, PUBLISHING.md;
 # `CF_PAGES_BRANCH= npm run build` for a preview, new-website's CLOUDFLARE_FIRST_DEPLOY.md).
 # Both ways it fails silently: off on the live site, it counts no visitors and nothing says
@@ -28,13 +29,11 @@
 #      the rest, with no tag, no half of one and no mention of the script's path or id. No
 #      build links to /go/email: the browser counts the tap. The Workers branch variable is
 #      the one src/config.ts names, checked against a real Workers Builds capture.
-#   4. In server mode (USE_ANALYTICS = true and ANALYTICS.mode = 'server' in src/config.ts),
-#      steps 2 and 3 are replaced: the four Pages builds, all with no analytics tag (no page
-#      loads the script, so _headers needs no analytics host); on the live build every email
-#      link goes to /go/email, the Function that counts the tap, and on the other three none
-#      does. A live build on Workers Builds, or without functions/go/email.ts, must fail.
-# With USE_ANALYTICS = false in src/config.ts (as the starter ships), steps 2 to 4
-# turn around (the mode is then ignored): public/_headers must NOT list the host (with or without a path) in
+#   4. Server mode (ANALYTICS.mode = 'server' in src/config.ts) is Pages-only and left the
+#      starter in 0.35: the gate says so, skips, and exits 0 before any check. A site in
+#      server mode keeps its 0.34 copy of this file.
+# With USE_ANALYTICS = false in src/config.ts (as the starter ships), steps 2 and 3
+# turn around: public/_headers must NOT list the host (with or without a path) in
 # script-src, script-src-elem, connect-src or default-src, and every build, the live ones
 # included, must be off. A config.ts that never
 # names USE_ANALYTICS (a site made before the switch) counts as true; one that names it
@@ -98,13 +97,17 @@ if [ -z "$host" ] || [ -z "$id" ]; then
 fi
 host="${host%/}"
 ANALYTICS_SRC="${host}/js/${id}.js"
-# The mode: 'script' (the default, and what a config.ts from before the key existed means)
-# or 'server', where the Pages Function counts and no page carries a tag.
+# The mode: 'script' (what a config.ts without the key means, as in 0.35) or 'server', which
+# a 0.34 site on Pages may still set.
 mode="$(sed -nE "s/^[[:space:]]*mode:[[:space:]]*['\"]([a-z]+)['\"].*/\1/p" src/config.ts)"
 mode="${mode:-script}"
 if [ "$mode" != script ] && [ "$mode" != server ]; then
   echo "✗ analytics gate: mode in src/config.ts is '$mode'; expected 'script' or 'server'."
   exit 1
+fi
+if [ "$mode" = server ]; then
+  echo "· analytics gate: server mode is Pages-only and left the starter in 0.35; a site in server mode keeps its 0.34 copy of this file. Skipped."
+  exit 0
 fi
 export ANALYTICS_SRC
 # A branch Cloudflare builds as a preview: main on a two-stage site.
@@ -139,8 +142,7 @@ if [ "$use" != false ]; then
 fi
 
 work="$(mktemp -d)"
-aside=0
-trap '[ "$aside" = 0 ] || mv "$work/email.ts.aside" functions/go/email.ts; rm -rf "$work"' EXIT
+trap 'rm -rf "$work"' EXIT
 
 fail=0
 checked=0
@@ -703,10 +705,9 @@ go_selftest() {
   echo "✓ analytics gate: the email-link reader reads its $k fixture pages as expected"
 }
 
-# expect_go <case> <what> <all|none>: all = every email link on every page goes to
-# /go/email (the live build in server mode, else taps go uncounted); none = no link goes
-# there (every other build: no Function answers /go/email under astro preview or dev, and
-# in script mode the browser counts the tap instead).
+# expect_go <case> <what> <all|none>: none = no email link goes to /go/email: no build here
+# writes one (the browser counts the tap), so a link a stale EmailLink writes fails. all, which
+# no build here needs any more, = every link on every page does.
 expect_go() {
   local name="$1" what="$2" want="$3" counts bad
   counts="$(go_links "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
@@ -726,21 +727,6 @@ expect_go() {
   fi
 }
 
-# A server-mode build where no Function can answer /go/email must fail with EmailLink's message.
-expect_refused() {
-  local name="$1" what="$2" rc=0
-  shift 2
-  checked=$((checked + 1))
-  run_build "$name" "$@" || rc=$?
-  if [ "$rc" -ne 0 ] && grep -q 'EmailLink: server mode needs Cloudflare Pages Functions' "$work/$name.log"; then
-    echo "✓ $what: the build refuses server mode"
-  else
-    echo "✗ $what: the build did not refuse server mode (exit $rc), so its email links would go to a /go/email that 404s."
-    echo "  src/components/EmailLink.astro needs the server-mode refusal of the 0.35 release notes."
-    fail=1
-  fi
-}
-
 # Report what a problem list holds, as one ✗ line each.
 report_problems() {
   local problems="$1" ok_msg="$2" line
@@ -754,34 +740,6 @@ report_problems() {
 
 selftest
 go_selftest
-
-if [ "$use" != false ] && [ "$mode" = server ]; then
-  echo "· analytics gate: server mode, so no page loads the script and public/_headers needs no analytics host"
-  build live set "$prod"
-  expect_off live "CF_PAGES_BRANCH=$prod (the live build, server mode)"
-  expect_go live "CF_PAGES_BRANCH=$prod (the live build, server mode)" all
-  for c in "unset:unset::CF_PAGES_BRANCH unset (a plain npm run build)" \
-           "empty:set::CF_PAGES_BRANCH= (a preview by command)" \
-           "preview:set:$preview:CF_PAGES_BRANCH=$preview (a preview branch)"; do
-    IFS=: read -r name how value what <<<"$c"
-    build "$name" "$how" "$value"
-    expect_off "$name" "$what"
-    expect_go "$name" "$what" none
-  done
-  # Workers runs no Pages Function, so a live build there must fail, not link to /go/email.
-  expect_refused workers-live "$wvar=$prod (a Workers Builds live build, server mode)" unset "" "$prod"
-  if [ -f functions/go/email.ts ]; then
-    mv functions/go/email.ts "$work/email.ts.aside"; aside=1
-    expect_refused no-function "CF_PAGES_BRANCH=$prod without functions/go/email.ts (a moved site)" set "$prod"
-    mv "$work/email.ts.aside" functions/go/email.ts; aside=0
-  else
-    expect_refused no-function "CF_PAGES_BRANCH=$prod without functions/go/email.ts (this site has none)" set "$prod"
-  fi
-  if [ "$fail" -eq 0 ]; then
-    echo "✓ analytics gate: $checked builds in server mode, no script in any; email links counted on the live Pages build only, refused where no Function runs"
-  fi
-  exit "$fail"
-fi
 
 if [ "$use" = false ]; then
   report_problems "$(csp_host_left public/_headers)" "analytics is off, and public/_headers lists $host in none of script-src, script-src-elem, connect-src and default-src"

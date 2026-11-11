@@ -9,14 +9,11 @@
 //   <EmailLink address="hello@example.com" subject="Project enquiry" text="Email us" />
 //   <EmailLink address="hello@example.com" subject="Anfrage" lang="de" />
 //
-// Analytics in server mode (src/config.ts), live build only: the link goes to /go/email,
-// where functions/go/email.ts counts the "Email Tap" and answers with the mailto: link.
-// The address stays encoded in that link, and the link works without JavaScript too.
-// Elsewhere (previews, `astro dev`, `astro preview`, where no Function runs) it stays
-// the plain mailto: link set below.
-import { existsSync } from 'node:fs';
+// Every link is a plain mailto: link; the browser script below counts the tap when analytics
+// is on (src/config.ts). Server mode, which counted it through a Pages Function, left the
+// starter in 0.35: Workers runs no Functions.
 import { encodeEmail, emailHint } from '../lib/obfuscate';
-import { SITE, ANALYTICS, USE_ANALYTICS } from '../config';
+import { SITE, ANALYTICS } from '../config';
 
 interface Props {
   address: string;
@@ -29,26 +26,14 @@ const { address, subject, text, lang = SITE.locale, class: className } = Astro.p
 const data = encodeEmail(address);
 const subj = subject ? encodeURIComponent(subject) : '';
 const label = text ?? emailHint(address, lang);
-const viaServer = ANALYTICS.enabled && ANALYTICS.mode === 'server';
-// /go/email is a Pages Function. Workers runs none, and a moved site has deleted functions/go/,
-// so there the build fails rather than ship email links that 404.
-if (viaServer && (process.env.WORKERS_CI || !existsSync('functions/go/email.ts'))) {
-  throw new Error("EmailLink: server mode needs Cloudflare Pages Functions (functions/go/email.ts), which Workers does not run. Set ANALYTICS.mode to 'script' in src/config.ts.");
+// A src/config.ts from 0.34 may still set mode: 'server', whose /go/email link would 404 on
+// Workers. Fail every build, on any platform, rather than ship it. The key left the type, so
+// it is read through a cast.
+if ((ANALYTICS as { mode?: string }).mode === 'server') {
+  throw new Error("EmailLink: analytics server mode left the starter in 0.35 (Workers runs no Pages Functions). Delete the mode line from src/config.ts: the script mode that remains counts the email tap in the browser.");
 }
-// functions/go/email.ts refuses a longer subject (MAX_SUBJECT, in lockstep): fail every
-// build in server mode, previews, local builds and a site whose variables are not set yet
-// included, rather than the visitor's click on the live site.
-if (USE_ANALYTICS && ANALYTICS.mode === 'server' && subject && subject.length > 200) {
-  throw new Error(`EmailLink: the subject "${subject.slice(0, 40)}…" is ${subject.length} characters; server mode allows 200.`);
-}
-// URLSearchParams escapes the base64 (+, /, =) and the subject for the query string.
-const goHref = `/go/email?${new URLSearchParams({ e: data, ...(subject ? { s: subject } : {}), l: lang })}`;
 ---
-{viaServer ? (
-  <a class:list={['email-link', className]} href={goHref} rel="nofollow" data-email={data} data-via="server">{label}</a>
-) : (
-  <a class:list={['email-link', className]} href="#" data-email={data} data-subject={subj}>{label}</a>
-)}
+<a class:list={['email-link', className]} href="#" data-email={data} data-subject={subj}>{label}</a>
 
 <script>
   // Reassemble on the client; the address is not in the served HTML.
@@ -57,8 +42,6 @@ const goHref = `/go/email?${new URLSearchParams({ e: data, ...(subject ? { s: su
       const addr = atob(a.dataset.email!).split('').reverse().join('');
       if (a.textContent && a.textContent.includes('[at]')) a.textContent = addr;
       a.removeAttribute('data-email');
-      // Server mode: the link already goes to /go/email, which counts the tap on the server.
-      if (a.dataset.via === 'server') continue;
       const q = a.dataset.subject ? `?subject=${a.dataset.subject}` : '';
       // encodeEmail allows a % in the address, which a mailto: link must escape.
       a.href = `mailto:${addr.replace(/%/g, '%25')}${q}`;

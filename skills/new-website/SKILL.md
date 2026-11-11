@@ -499,7 +499,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    The `cp` copies step 0's file again, with no git command, so it works where an assistant's
    `git checkout` is refused. Nothing is installed yet:
    `templates/astro/README.md` step 3 runs `npm install` after the overlay.) Then copy
-   the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `functions/`,
+   the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `wrangler.jsonc`,
    `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, `CROFTWEAVER-LICENSE.md` (the licence of
    these copied files; it stays in the site's top folder), root configs — see `templates/astro/README.md`
    for exact steps and npm deps). **Do not copy the starter's `README.md`:** it is the kit's

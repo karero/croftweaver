@@ -76,8 +76,10 @@ NOT_RUN=(
   skills/independent-review/scripts/test_sweep_claims.sh        # builds throwaway repos; needs git and python3
   skills/new-website/templates/astro/tests/check_ship_push.sh   # template test; needs a built site
   skills/new-website/templates/astro/tests/check_analytics_gate.sh # template test; needs npm ci, builds the site several times
+  skills/new-website/templates/astro/tests/check_deploy.sh      # template test; needs npm ci, builds the site in a throwaway copy
   skills/new-website/templates/astro/scripts/hooks/pre-push     # git hook; expects a push context
   skills/new-website/templates/astro/scripts/ship.sh            # template: pushes a site live
+  skills/new-website/templates/astro/scripts/deploy.sh          # template: deploys a Worker; needs a built site and Wrangler
   skills/new-website/templates/astro/scripts/check_external_links.sh # template: needs a built site + network
   skills/new-website/templates/astro/scripts/check_internal_links.sh # template: needs a built site
   skills/search-console-insights/scripts/track.sh               # network + OAuth

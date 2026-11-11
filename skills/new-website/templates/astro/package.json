@@ -13,6 +13,8 @@
     "preview": "astro preview",
     "og": "node scripts/run_og.mjs",
     "ship": "bash scripts/ship.sh",
+    "deploy:preview": "bash scripts/deploy.sh preview",
+    "deploy:live": "bash scripts/deploy.sh live",
     "test": "playwright test",
     "test:ui": "playwright test --ui",
     "check": "astro check",
@@ -30,9 +32,12 @@
     "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.19.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "wrangler": "4.156.0"
   },
   "allowScripts": {
-    "fsevents@2.3.3": true
+    "fsevents@2.3.3": true,
+    "esbuild": false,
+    "workerd": false
   }
 }

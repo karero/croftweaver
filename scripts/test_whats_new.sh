@@ -52,6 +52,7 @@ cp "$HERE/whats-new.sh" "$S/scripts/"
 put "$S/$A/scripts/hooks/pre-push" v1
 put "$S/$A/scripts/set_pdf_title.py" v1
 put "$S/$A/tests/a.spec.ts" v1
+put "$S/$A/tests/middleware.spec.ts" v1
 $git -C "$S" init -q && $git -C "$S" add -A && $git -C "$S" commit -qm base
 BASE="$($git -C "$S" rev-parse HEAD)"
 put "$S/$A/scripts/hooks/pre-push" v2               # changed, the site has it
@@ -62,6 +63,8 @@ put "$S/$A/tests/b.spec.ts" v1                      # added, the site lacks it
 echo "import { y } from '../src/lib/y';" >> "$S/$A/tests/b.spec.ts"  # a site file it imports
 put "$S/$C/hooks/git-stand.mjs" v1                  # added, the site lacks it
 put "$S/$A/CROFTWEAVER-LICENSE.md" v1               # added, the site lacks it (0.35)
+put "$S/$A/scripts/deploy.sh" v1                    # added, a Workers-only file (0.35)
+$git -C "$S" rm -q "$A/tests/middleware.spec.ts"    # a Pages-only spec, removed from the starter (0.35)
 $git -C "$S" add -A && $git -C "$S" commit -qm later
 
 # The site, stamped at the baseline and holding only the files it had then.
@@ -71,6 +74,7 @@ stamp "$P/.claude/skills/SUITE-VERSION" "$BASE"
 stamp "$P/tests/TESTS-VERSION" "$BASE"
 echo v1 > "$P/scripts/hooks/pre-push"
 echo v1 > "$P/tests/a.spec.ts"
+echo v1 > "$P/tests/middleware.spec.ts"
 
 report "$S" "$P" "a site missing files"
 has   "a file added upstream that the site lacks is MISSING" "    MISSING: the site has no scripts/verify.mjs"
@@ -82,6 +86,11 @@ hasnt "a changed file the site has is not MISSING"            "no scripts/hooks/
 hasnt "a changed test the site has is not MISSING"            "no tests/a.spec.ts"
 has   "a file deleted upstream is still listed as drift"      "  templates/astro/scripts/set_pdf_title.py (site copy: scripts/set_pdf_title.py)"
 hasnt "a file deleted upstream is not MISSING"                "no scripts/set_pdf_title.py"
+# deploy.sh is for Workers sites: a site still on Pages must not be told to copy it.
+has   "a Workers-only script is listed as drift"              "  templates/astro/scripts/deploy.sh (site copy: scripts/deploy.sh — Workers sites only; a site still on Cloudflare Pages must not take it until it has moved, and also needs wrangler.jsonc, the \"wrangler\" devDependency and the deploy:preview and deploy:live scripts in its package.json)"
+hasnt "a Workers-only script is never MISSING"                "no scripts/deploy.sh"
+# A spec removed with Pages Functions tells the site to keep its copy, not to delete it.
+has   "a removed Pages-only spec says keep your copy"         "  tests/middleware.spec.ts (removed from the starter with Pages Functions and analytics server mode; keep your copy while the site keeps the functions/ file it imports, otherwise delete it)"
 # The changed spec's import the site lacks is named (the full import cases are further down).
 has   "a changed spec names an import the site lacks"         "    IMPORT NOT FOUND: src/lib/y (this spec imports it)"
 
@@ -105,8 +114,9 @@ hasnt "a site with every file shows no MISSING summary"       "MISSING from the 
 # line's "(site copy: X" must be followed by "MISSING: the site has no X". The tests entry
 # is a directory; its file sits in a subfolder, which must keep its path on the site.
 # NO_FIXED_PATH names the site copies that may live under another name (an owner may save a
-# translated PUBLISHING.md as PUBLISHING.de.md): their drift line must have no MISSING line.
-NO_FIXED_PATH=" PUBLISHING.md "
+# translated PUBLISHING.md as PUBLISHING.de.md), or that only some sites take (deploy.sh,
+# Workers sites only): their drift line must have no MISSING line.
+NO_FIXED_PATH=" PUBLISHING.md scripts/deploy.sh "
 TRACKED="$(sed -n "s/^TEMPLATE_TRACKED='\(.*\)'\$/\1/p" "$HERE/whats-new.sh")"
 S2="$T/suite2" P2="$T/site2" n=0
 mkdir -p "$S2/scripts" "$P2/.claude/skills" "$P2/tests"

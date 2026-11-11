@@ -1,0 +1,17 @@
+// Cloudflare Worker that serves the built site from dist/ as static assets, with no code of its
+// own. `npm run deploy:preview` and `npm run deploy:live` deploy it (scripts/deploy.sh). No
+// domain until launch: the live workers.dev address stays off, so only Previews answer.
+// Keep this file plain JSON with comments: scripts/ship.sh and scripts/deploy.sh read it with
+// Node, and a trailing comma stops them. Change "name" to the Worker's real name first.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "example-site",
+  "compatibility_date": "2026-10-30",
+  "workers_dev": false,
+  "preview_urls": true,
+  "previews": {},
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page"
+  }
+}

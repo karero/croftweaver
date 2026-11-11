@@ -30,6 +30,9 @@
 # the last line for a *.pages.dev address and for a real domain, in both modes. Its L cases check
 # what the run says about the commits that go live: the list, and the lines after the push.
 #
+# Its W cases check what ship.sh does with a Workers config: before launch (no custom_domain route)
+# it says the change was sent and is checked at launch; a route, a Pages site and a site mid-move keep the live check.
+#
 # Its T cases drive ship.sh under `script`, a fake terminal, to check the question that asks for a y
 # before anything is published; they run only where SHIP_TEST_TTY=1 is set (the toolkit's CI).
 #
@@ -37,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.26   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.27   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -996,10 +999,12 @@ fi
 exit 0
 NPM
   # Stub curl: the live site serves whatever GitHub's production is, as if Cloudflare built it
-  # at once; or an old build, for the case stopped during the live check.
+  # at once; or an old build, for the case stopped during the live check; or nothing (curl's
+  # exit 22, as `curl -f` ends on a 404), for a site address that serves no build.txt.
   cat > "$G/bin/curl" <<'CURL'
 #!/bin/sh
 : > "$SHIP_T_MARKS/curl"
+if [ -n "${SHIP_T_NOSITE:-}" ]; then exit 22; fi
 if [ -n "${SHIP_T_STALE:-}" ]; then echo 0000000000000000000000000000000000000000; exit 0; fi
 git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production
 CURL
@@ -1851,6 +1856,60 @@ export default { site: 'https://ship-test.example.invalid' };"
   want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show the change."
   want "checks no address" test ! -e "$M/curl"
 
+  # --- W1–W9: a Workers config (D17: a .json or .jsonc with `assets` and no pages_build_output_dir) ---
+  # Before launch a Worker has no custom domain, so its site: address serves no build.txt: ship
+  # says the change was sent and is checked at launch, and exits 0 (D31). Anything else keeps the
+  # live check: a route, a Pages site, a Pages wrangler.jsonc, and (W9) a Pages site in a move's
+  # stage 1, which holds a route-less Workers config while its domain still serves a build.
+  # The comment and string cases check the reader: a custom_domain named only in a comment is no route.
+  workers_case() { # <case> <github|folder> <wrangler.jsonc text, or - for none> [VAR=value…]
+    local c="$1" how="$2" text="$3"; shift 3
+    fixture "$c"
+    if [ "$text" != - ]; then printf '%s\n' "$text" > "$S/wrangler.jsonc"; fi
+    git -C "$S" add -A; git -C "$S" commit -q --allow-empty -am "workers config"; git -C "$S" push -q origin main
+    git -C "$C" pull -q --ff-only
+    if [ "$how" = folder ]; then
+      git -C "$C" config --unset ship.fromGitHub
+      find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+      git -C "$C" update-index -q --refresh
+    fi
+    m="$(gh main)"
+    run_ship "$c" ${1+"$@"}
+  }
+  sent="✓ Sent. This Worker has no domain yet (wrangler.jsonc has no custom_domain route), so there is no live address to check; the change is checked at launch."
+  noroute='{ "name": "w", "assets": { "directory": "./dist" } }'
+  workers_case w1 github "$noroute" SHIP_T_NOSITE=1; exits 0
+  want "production is GitHub's main" eq "$(gh production)" "$m"
+  want "the last line says sent, checked at launch" last_starts "$sent"
+  want "never says LIVE" lacks "✓ LIVE"
+  want "the site address was probed once" test -e "$M/curl"
+  workers_case w2 github '{
+  // "custom_domain": true is for launch day
+  /* "routes": [{ "pattern": "x.com", "custom_domain": true }] */
+  "name": "https://a//b", "assets": { "directory": "./dist" }
+}' SHIP_T_NOSITE=1; exits 0
+  want "a custom_domain in a comment or a string with // is no route" last_starts "$sent"
+  workers_case w3 folder "$noroute" SHIP_T_NOSITE=1; exits 0
+  want "a folder's own copy is read too" last_starts "$sent"
+  bad_cfg="✗ The publish went out (GitHub's production is now"
+  workers_case w4 github '{ "name": "w", "assets": { ' SHIP_T_NOSITE=1; exits 1
+  want "production is GitHub's main: the publish went out" eq "$(gh production)" "$m"
+  want "a Wrangler file that does not parse is named, and the live check is not made" has "$bad_cfg ${m:0:12}), but wrangler.jsonc: not JSON with comments"
+  want "... and the run says what it could not tell" has "cannot tell whether the site has its domain yet"
+  workers_case w5 github '{ "name": "w", "assets": { "directory": "./dist" }, }' SHIP_T_NOSITE=1; exits 1
+  want "a trailing comma ends the check with its own message" has "wrangler.jsonc: not JSON with comments (a trailing comma is not allowed)"
+  live="✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch (${m:0:12})"
+  workers_case w6 github '{ "name": "w", "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "ship-test.example.invalid", "custom_domain": true }] }'; exits 0
+  want "after launch the live check runs: a route on one line is a route" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch ($(gh main | cut -c1-12))"
+  workers_case w7 github - ; exits 0
+  want "a Pages site (no Wrangler config) keeps the live check" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
+  workers_case w8 github '{ "name": "p", "pages_build_output_dir": "./dist" }'; exits 0
+  want "a Pages wrangler.jsonc keeps the live check" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
+  workers_case w9 github "$noroute"; exits 0
+  want "a route-less Workers config on a site whose address serves a build is a Pages site mid-move: the live check runs" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
+  want "... and not the sent-at-launch line" lacks "$sent"
+
   # --- T1–T8: the question, on a fake terminal (`script`); only where SHIP_TEST_TTY=1 ---------
   # The question needs no `script`, only these cases do: so an owner's push or a site's CI, where
   # SHIP_TEST_TTY is not set, never depends on it. The cases find the question by its text.
@@ -1953,7 +2012,7 @@ STAND
 real_git_cases
 
 # The ✓ line names only the real-git checks that ran; the reasons for any skipped follow it.
-rg_list="the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, the list of commits that go live,"
+rg_list="the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, what a Workers config says about the domain, the list of commits that go live,"
 if [ -n "$t_ran" ]; then
   rg_list="$rg_list the first line naming the site and repo, and the question on a fake terminal"
 else
