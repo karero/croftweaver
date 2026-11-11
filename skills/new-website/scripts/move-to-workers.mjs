@@ -1143,6 +1143,24 @@ async function fetchAll(ctx, base, paths, names, into, save) {
   if (failed) throw failed;
 }
 
+// Why a content-type header may differ: the media-type rules of compare() below, and the Worker
+// serving a text file without "charset=utf-8". Any other lost or changed parameter stays unknown.
+// A quoted value or a second charset is refused rather than parsed: no real header sends one.
+const UTF8 = /^charset\s*=\s*utf-8$/i;
+const CHARSET = /^charset\s*=/i;
+function contentTypeKnown(x, y, sameRedirect) {
+  if (x === null || x.includes('"') || y?.includes('"') || x.split(';').filter((v) => CHARSET.test(v.trim())).length > 1) return null;
+  const [tx, ...px] = x.split(';').map((v) => v.trim());
+  if (y === null) return sameRedirect && px.every((v) => UTF8.test(v)) ? 'Pages sends a short text with a redirect; the Worker sends none' : null;
+  const [ty, ...py] = y.split(';').map((v) => v.trim());
+  const js = tx.toLowerCase() === 'application/javascript' && ty.toLowerCase() === 'text/javascript';
+  if (!js && tx.toLowerCase() !== ty.toLowerCase()) return null;
+  const kept = px.filter((v) => !UTF8.test(v));
+  const same = py.join(';') === kept.join(';');
+  if (js) return same || py.join(';') === px.join(';') ? 'text/javascript where Pages sends application/javascript' : null;
+  return same && kept.length < px.length ? 'the Worker sends the same media type without charset=utf-8' : null;
+}
+
 // The differences between what a platform answered when recorded (`was`) and now. `change` says the
 // platform changed (Pages to Worker); `onVersion` that `now` is the Worker's version URL, not a
 // domain. A known difference carries its reason; anything else is unknown.
@@ -1172,6 +1190,7 @@ export function compare(was, now, { change, onVersion, expect }) {
       if (onVersion && (n === 'nel' || n === 'report-to') && x === null && y !== null) known = "Cloudflare's workers.dev zone adds NEL to the version URL; the domain's zone setting is checked by after";
       if (onVersion && n === 'x-robots-tag' && /noindex/i.test(y ?? '')) known = 'the version URL is noindex';
       if (change && n === 'access-control-allow-origin' && x !== null && y === null) known = 'Pages sends access-control-allow-origin; the Worker does not';
+      if (change && n === 'content-type') known = contentTypeKnown(x, y, sameRedirect);
       add(p, `header ${n}`, x, y, known);
     }
   }
