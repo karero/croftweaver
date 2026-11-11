@@ -68,8 +68,9 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 copy="$work/site"
 mkdir "$copy"
-# The site as it is, less what a build or an install makes; its dependencies are linked in.
-tar -C "$site" --exclude=./node_modules --exclude=./dist --exclude=./.astro -cf - . | tar -C "$copy" -xf -
+# The site as it is, less what a build or an install makes and its own git; its dependencies are
+# linked in.
+tar -C "$site" --exclude=./node_modules --exclude=./dist --exclude=./.astro --exclude=./.git -cf - . | tar -C "$copy" -xf -
 ln -s "$site/node_modules" "$copy/node_modules"
 # A link does not match the `node_modules/` line of .gitignore.
 git_in() { git -C "$copy" "$@"; }
@@ -80,9 +81,17 @@ git_in config commit.gpgsign false
 mkdir -p "$copy/.git/info"
 echo node_modules >> "$copy/.git/info/exclude"
 if [ -f "$site/.gitignore" ]; then cp "$site/.gitignore" "$copy/.gitignore"; else cp "$site/../.gitignore" "$copy/.gitignore"; fi
+# set_name <name>: the copy's Worker name, whatever the site's own is (the first "name" key).
+set_name() {
+  perl -pi -e 'if (!$d && s/^(\s*"name"\s*:\s*)"[^"]*"/$1"$ENV{NEW}"/) { $d = 1 }' "$copy/wrangler.jsonc"
+  grep -qF "\"$1\"" "$copy/wrangler.jsonc" || { echo "✗ check_deploy: could not set the Worker name in the copy's wrangler.jsonc."; exit 1; }
+}
 # A real Worker name for the copy; the placeholder is what the refusal case puts back.
-sed -i.bak 's/"name": "example-site"/"name": "check-deploy-site"/' "$copy/wrangler.jsonc"
-rm -f "$copy/wrangler.jsonc.bak"
+NEW=check-deploy-site; export NEW
+set_name check-deploy-site
+# A page below the top folder: the tag must be on nested pages too.
+mkdir -p "$copy/src/pages/nested-check"
+printf -- "---\nimport Base from '../../layouts/Base.astro';\n---\n<Base title=\"Nested check\" description=\"A page below the top folder, so the checks read every built page.\"><main><h1>Nested check</h1></main></Base>\n" > "$copy/src/pages/nested-check/page.astro"
 # A build step that prints its own environment.
 envlog="$work/build-env.txt"
 sed -i.bak "s|\"build\": \"|\"build\": \"env > '$envlog' \&\& |" "$copy/package.json"
@@ -112,14 +121,17 @@ run() {
 # tagged <expect: yes|no> <label> — every built page carries (or none carries) the script and the init stub.
 tagged() {
   local expect="$1" label="$2" pages=0 with=0 half=0 f s p
-  for f in "$copy"/dist/*.html; do
-    [ -e "$f" ] || continue
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
     pages=$((pages + 1))
     s=0; p=0
     grep -qF "$host$script_path" "$f" && s=1
     grep -qF 'plausible.init' "$f" && p=1
     if [ "$s" = 1 ] && [ "$p" = 1 ]; then with=$((with + 1)); elif [ "$s" = 1 ] || [ "$p" = 1 ]; then half=$((half + 1)); fi
-  done
+  done <<PAGES
+$(find "$copy/dist" -name '*.html' 2>/dev/null | sort)
+PAGES
+  if [ ! -f "$copy/dist/nested-check/page.html" ]; then bad "$label: the nested test page was not built."; return; fi
   if [ "$pages" = 0 ]; then bad "$label: no built pages in dist/."; return; fi
   if [ "$expect" = yes ] && [ "$with" = "$pages" ] && [ "$half" = 0 ]; then ok "$label: the tag and stub are on all $pages pages"
   elif [ "$expect" = no ] && [ "$with" = 0 ] && [ "$half" = 0 ]; then ok "$label: no page has the tag or the stub ($pages pages)"
@@ -171,8 +183,7 @@ if [ "$rc" = 0 ]; then ok "preview builds an untracked file"; else bad "preview 
 rm -f "$copy/unsaved.txt"
 
 cp "$copy/wrangler.jsonc" "$work/wrangler.jsonc.good"
-sed -i.bak 's/"name": "check-deploy-site"/"name": "example-site"/' "$copy/wrangler.jsonc"
-rm -f "$copy/wrangler.jsonc.bak"
+NEW=example-site set_name example-site
 git_in commit -q -am "placeholder name"
 run name-live -- deploy:live -- --dry-run
 refused "live with the placeholder name" 'placeholder name "example-site"' name-live

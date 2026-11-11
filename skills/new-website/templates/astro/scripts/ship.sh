@@ -104,6 +104,30 @@ workers_state() { # <folder>
   ' || echo "error: could not read the Wrangler config (is node on the PATH?)"
 }
 
+# One look at the site's build.txt, for a Workers config with no domain route. Prints `served` (it
+# answers with a commit), `notserved` (DNS has no such host, or the answer is no build.txt: a
+# Worker with no domain yet) or `unclear <why>` (a timeout, a refused or reset connection, a TLS
+# fault, a 5xx, a DNS failure that is not "no such host": nothing a launch decides).
+probe_site() { # <site address>
+  local out rc=0 code body host dns
+  out="$(curl -sL -m 8 -w '\n%{http_code}' "$1/build.txt?cb=$RANDOM" 2>/dev/null)" || rc=$?
+  if [ "$rc" = 0 ]; then
+    code="${out##*$'\n'}"
+    body="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
+    case "$code" in
+      5*) echo "unclear HTTP $code" ;;
+      200) if grep -qE '^[0-9a-f]{7,64}$' <<<"$body"; then echo served; else echo notserved; fi ;;
+      *) echo notserved ;;
+    esac
+  elif [ "$rc" = 6 ]; then
+    host="${1#*://}"; host="${host%%[/:]*}"
+    dns="$(node -e 'require("dns").promises.lookup(process.argv[1]).then(() => console.log("resolves"), (e) => console.log(e.code))' "$host" 2>/dev/null)" || dns=""
+    if [ "$dns" = ENOTFOUND ]; then echo notserved; else echo "unclear DNS lookup of $host failed (${dns:-no answer})"; fi
+  else
+    echo "unclear curl exit $rc"
+  fi
+}
+
 # The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
 # A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
 # NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
@@ -1006,11 +1030,18 @@ case "$wstate" in
     exit 1 ;;
   noroute)
     if [ -n "$site" ]; then
-      served="$(curl -sfL -m 8 "$site/build.txt?cb=$RANDOM" 2>/dev/null | tr -d '[:space:]')" || served=""
-      if ! grep -qE '^[0-9a-f]{7,64}$' <<<"$served"; then
-        finish "✓ Sent. This Worker has no domain yet (wrangler.jsonc has no custom_domain route), so there is no live address to check; the change is checked at launch."
-        exit 0
-      fi
+      probe="$(probe_site "$site")"
+      case "$probe" in
+        served) ;;
+        notserved)
+          finish "✓ Sent. This Worker has no domain yet (wrangler.jsonc has no custom_domain route), so there is no live address to check; the change is checked at launch."
+          exit 0 ;;
+        *)
+          echo ""
+          echo "✗ The publish went out (GitHub's production is now ${id:0:12}), but ship could not tell whether"
+          echo "  the site is live: ${probe#unclear }. It did not check further. Run npm run ship again: it checks again."
+          exit 1 ;;
+      esac
     fi ;;
 esac
 

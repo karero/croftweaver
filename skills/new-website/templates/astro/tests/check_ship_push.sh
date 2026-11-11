@@ -1000,14 +1000,29 @@ exit 0
 NPM
   # Stub curl: the live site serves whatever GitHub's production is, as if Cloudflare built it
   # at once; or an old build, for the case stopped during the live check; or nothing (curl's
-  # exit 22, as `curl -f` ends on a 404), for a site address that serves no build.txt.
+  # exit 22, as `curl -f` ends on a 404, or a 404 page where the status is asked for), for a site
+  # address that serves no build.txt.
   cat > "$G/bin/curl" <<'CURL'
 #!/bin/sh
 : > "$SHIP_T_MARKS/curl"
+# The probe of a Workers site's address asks for the status too (-w): the answer is the body,
+# a newline and the code. SHIP_T_NOSITE: a 404 page; SHIP_T_CODE: that status with no body;
+# SHIP_T_CURL_RC: curl itself fails with that exit status.
+if [ -n "${SHIP_T_CURL_RC:-}" ]; then exit "$SHIP_T_CURL_RC"; fi
+case " $* " in *" -w "*)
+  if [ -n "${SHIP_T_NOSITE:-}" ]; then printf '<html>not found</html>\n404'; exit 0; fi
+  if [ -n "${SHIP_T_CODE:-}" ]; then printf '\n%s' "$SHIP_T_CODE"; exit 0; fi
+  printf '%s\n200' "$(git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production)"; exit 0 ;;
+esac
 if [ -n "${SHIP_T_NOSITE:-}" ]; then exit 22; fi
 if [ -n "${SHIP_T_STALE:-}" ]; then echo 0000000000000000000000000000000000000000; exit 0; fi
 git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production
 CURL
+  # Preloaded into node (NODE_OPTIONS) by the cases that need DNS to answer: the lookup fails with
+  # the code in SHIP_T_DNS (ENOTFOUND is "no such host"; EAI_AGAIN a resolver that did not answer).
+  cat > "$G/dns-stub.cjs" <<'DNS'
+require("dns").promises.lookup = async () => { const e = new Error("stub"); e.code = process.env.SHIP_T_DNS; throw e; };
+DNS
   # Stub sleep: no waiting, unless a case needs the live check to be waiting when it signals.
   cat > "$G/bin/sleep" <<'SLEEP'
 #!/bin/sh
@@ -1856,7 +1871,7 @@ export default { site: 'https://ship-test.example.invalid' };"
   want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show the change."
   want "checks no address" test ! -e "$M/curl"
 
-  # --- W1–W9: a Workers config (D17: a .json or .jsonc with `assets` and no pages_build_output_dir) ---
+  # --- W1–W16: a Workers config (D17: a .json or .jsonc with `assets` and no pages_build_output_dir) ---
   # Before launch a Worker has no custom domain, so its site: address serves no build.txt: ship
   # says the change was sent and is checked at launch, and exits 0 (D31). Anything else keeps the
   # live check: a route, a Pages site, a Pages wrangler.jsonc, and (W9) a Pages site in a move's
@@ -1909,6 +1924,27 @@ export default { site: 'https://ship-test.example.invalid' };"
   workers_case w9 github "$noroute"; exits 0
   want "a route-less Workers config on a site whose address serves a build is a Pages site mid-move: the live check runs" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
   want "... and not the sent-at-launch line" lacks "$sent"
+  # W10–W16: the probe tells "not served" (sent, checked at launch) from "cannot tell" (stop, exit
+  # 1, run it again), so a network fault on a Pages site mid-move never reads as launch-day quiet.
+  unclear="but ship could not tell whether"
+  workers_case w10 github "$noroute" SHIP_T_CODE=404; exits 0
+  want "an HTTP 404 with no commit in it is not served" last_starts "$sent"
+  workers_case w11 github "$noroute" SHIP_T_CURL_RC=28; exits 1
+  want "production is GitHub's main: the publish went out" eq "$(gh production)" "$m"
+  want "a timeout: ship says it could not tell, and why" has "$unclear"
+  want "... naming curl's exit status" has "curl exit 28"
+  want "... and says to run it again" has "Run npm run ship again"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w12 github "$noroute" SHIP_T_CURL_RC=7; exits 1
+  want "a refused connection is unclear" has "curl exit 7"
+  workers_case w13 github "$noroute" SHIP_T_CURL_RC=35; exits 1
+  want "a TLS fault is unclear" has "curl exit 35"
+  workers_case w14 github "$noroute" SHIP_T_CODE=503; exits 1
+  want "a 5xx is unclear" has "HTTP 503"
+  workers_case w15 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
+  want "DNS says no such host: not served" last_starts "$sent"
+  workers_case w16 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=EAI_AGAIN "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "a resolver that did not answer is unclear" has "EAI_AGAIN"
 
   # --- T1–T8: the question, on a fake terminal (`script`); only where SHIP_TEST_TTY=1 ---------
   # The question needs no `script`, only these cases do: so an owner's push or a site's CI, where
