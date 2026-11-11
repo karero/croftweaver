@@ -110,8 +110,9 @@ workers_state() { # <folder>
 # reset connection, a TLS fault, any other HTTP answer such as a 403 or 429 that a firewall or a
 # limit may give, a DNS failure that is not "no such host": nothing a launch decides).
 # The system lookup can say "no such host" when the Mac is offline, so that answer is asked again
-# of the DNS servers themselves (A and AAAA, no cache); only "no such host" or "no address" for
-# both counts. Any address, or a server that does not answer, is unclear.
+# of the DNS servers themselves (A and AAAA; Node's resolver keeps no cache). It counts only when
+# both say "no such host" or "no address" and the same servers give github.com an address, which
+# proves one answered. Anything else is unclear.
 probe_site() { # <site address>
   local out rc=0 code body host dns
   out="$(curl -sL -m 8 -w '\n%{http_code}' "$1/build.txt?cb=$RANDOM" 2>/dev/null)" || rc=$?
@@ -130,10 +131,11 @@ probe_site() { # <site address>
       dns.promises.lookup(h).then(() => console.log("resolves"), async (e) => {
         if (e.code !== "ENOTFOUND") return console.log(e.code);
         const r = new dns.promises.Resolver({ timeout: 3000, tries: 2 });
-        const got = await Promise.allSettled([r.resolve4(h), r.resolve6(h)]);
-        if (got.some((g) => g.status === "fulfilled")) return console.log("ENOTFOUND, but the DNS server has an address");
-        const other = got.map((g) => g.reason.code).find((c) => c !== "ENOTFOUND" && c !== "ENODATA");
-        console.log(other ? "ENOTFOUND, then the DNS server: " + other : "nohost");
+        const [a, aaaa, gh] = await Promise.allSettled([r.resolve4(h), r.resolve6(h), r.resolve4("github.com")]);
+        if (a.status === "fulfilled" || aaaa.status === "fulfilled") return console.log("ENOTFOUND, but the DNS server has an address");
+        const other = [a, aaaa].map((g) => g.reason.code).find((c) => c !== "ENOTFOUND" && c !== "ENODATA");
+        if (other) return console.log("ENOTFOUND, then the DNS server: " + other);
+        console.log(gh.status === "fulfilled" ? "nohost" : "ENOTFOUND, and no DNS server answered for github.com: " + gh.reason.code);
       });
     ' "$host" 2>/dev/null)" || dns=""
     if [ "$dns" = nohost ]; then echo notserved; else echo "unclear DNS lookup of $host failed (${dns:-no answer})"; fi

@@ -1021,8 +1021,9 @@ CURL
   # Preloaded into node (NODE_OPTIONS) by the cases that need DNS to answer: the lookup fails with
   # the code in SHIP_T_DNS (ENOTFOUND is "no such host"; EAI_AGAIN a resolver that did not answer).
   # The DNS server's own answers: SHIP_T_RESOLVE fails the A and AAAA queries with that code, or
-  # ADDR gives an address (SHIP_T_RESOLVE6, if set, for AAAA alone); SHIP_T_DNS_SERVER instead
-  # sends the real queries to that server (a closed port: offline).
+  # ADDR gives an address (SHIP_T_RESOLVE6, if set, for AAAA alone); github.com gets an address
+  # unless SHIP_T_GITHUB names a failure. SHIP_T_DNS_SERVER instead sends the real queries to that
+  # server (a closed port: offline).
   cat > "$G/dns-stub.cjs" <<'DNS'
 const P = require("dns").promises, R = P.Resolver;
 const fail = (code) => { const e = new Error("stub"); e.code = code; return e; };
@@ -1030,7 +1031,10 @@ P.lookup = async () => { throw fail(process.env.SHIP_T_DNS); };
 P.Resolver = class extends R {
   constructor(o) { super(o); if (process.env.SHIP_T_DNS_SERVER) this.setServers([process.env.SHIP_T_DNS_SERVER]); }
   answer(c, real) { if (c === "ADDR") return Promise.resolve(["192.0.2.7"]); return c ? Promise.reject(fail(c)) : real(); }
-  resolve4(h) { return this.answer(process.env.SHIP_T_RESOLVE, () => super.resolve4(h)); }
+  resolve4(h) {
+    const c = h === "github.com" && !process.env.SHIP_T_DNS_SERVER ? process.env.SHIP_T_GITHUB || "ADDR" : process.env.SHIP_T_RESOLVE;
+    return this.answer(c, () => super.resolve4(h));
+  }
   resolve6(h) { return this.answer(process.env.SHIP_T_RESOLVE6 || process.env.SHIP_T_RESOLVE, () => super.resolve6(h)); }
 };
 DNS
@@ -1961,6 +1965,9 @@ export default { site: 'https://ship-test.example.invalid' };"
   workers_case w15c github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_DNS_SERVER=127.0.0.1:9 "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
   want "no such host from the lookup alone, with no DNS server answering, is unclear" has "$unclear"
   want "... naming the second query's failure" has "ENOTFOUND, then the DNS server:"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w15f github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENOTFOUND SHIP_T_GITHUB=ETIMEOUT "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "no such host, but github.com gets no answer either (no server proven to answer): unclear" has "no DNS server answered for github.com: ETIMEOUT"
   want "... and is not the sent-at-launch line" lacks "$sent"
   workers_case w15d github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ADDR "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
   want "the DNS server has an address the lookup did not find: unclear" has "the DNS server has an address"
