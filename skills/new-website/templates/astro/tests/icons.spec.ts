@@ -86,6 +86,32 @@ for (const icon of ICONS) {
   });
 }
 
+// The sizes the <link rel="icon"> tag declares for the ICO are the frames the file holds, so the tag
+// cannot hide a frame or claim one that is not there. Each frame is checked whole: its width and
+// height, its place inside the file, and that the browser decodes it to that size.
+test('icons — the sizes declared for favicon.ico are the frames inside it', async ({ page, request }) => {
+  await page.goto('/');
+  const declared = await page.locator('link[rel~="icon"][href$="/favicon.ico"]').getAttribute('sizes');
+  expect(declared, 'the ICO link has a sizes attribute').not.toBeNull();
+  const body = Buffer.from(await (await request.get('/favicon.ico')).body());
+  const count = body.readUInt16LE(4);
+  const frames: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const at = 6 + 16 * i;
+    const [w, h] = [body[at] || 256, body[at + 1] || 256];
+    const length = body.readUInt32LE(at + 8);
+    const offset = body.readUInt32LE(at + 12);
+    expect(length > 0 && offset >= 6 + 16 * count && offset + length <= body.length, `frame ${i + 1} lies inside the file`).toBe(true);
+    const at22 = Buffer.alloc(4);
+    at22.writeUInt32LE(22);
+    const alone = Buffer.concat([Buffer.from([0, 0, 1, 0, 1, 0]), body.subarray(at, at + 12), at22, body.subarray(offset, offset + length)]);
+    expect(await decodedSize(page, alone, 'image/x-icon'), `frame ${i + 1} decodes to ${w} x ${h}`).toEqual([w, h]);
+    frames.push(`${w}x${h}`);
+  }
+  const norm = (list: string[]) => [...new Set(list)].sort();
+  expect(norm(declared!.trim().split(/\s+/)), 'sizes in the tag, against the frames in the file').toEqual(norm(frames));
+});
+
 // Warns, never fails: the starter's icons show the colour or letter the site had when they were
 // drawn, and the site has changed it since. The brand kit's icons are not read.
 test('icons — the starter\'s icons still show the site\'s colour and letter (warns only)', async () => {
