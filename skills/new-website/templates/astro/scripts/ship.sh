@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.26
+# template-version: 0.27
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -60,6 +60,73 @@ log_view() { grep -v '^  | ' "$1" 2>/dev/null || true; }
 # The text of <folder>/astro.config.mjs; empty if there is none.
 config_text() { # <folder>
   cat -- "$1/astro.config.mjs" 2>/dev/null || true
+}
+
+# What the site's Workers config says about its domain, for the folder given. A Workers config is
+# a .json or .jsonc file in the root that holds `assets` and no `pages_build_output_dir` (as the
+# move tools find it). Prints `none` (no such file: a Pages site), `route` (a custom_domain
+# route in its root `routes`), `noroute`, or `error <file>: <why>` for a Wrangler file that is
+# not JSON with comments (a trailing comma is one). Comments are dropped outside strings, then
+# JSON.parse.
+workers_state() { # <folder>
+  CDPATH= cd -- "$1" 2>/dev/null && node -e '
+    const fs = require("fs");
+    let state = "none";
+    for (const f of fs.readdirSync(".").filter((n) => /\.jsonc?$/.test(n)).sort()) {
+      const t = fs.readFileSync(f, "utf8");
+      let s = "", i = 0, conf;
+      try {
+        while (i < t.length) {
+          const c = t[i], d = t[i + 1];
+          if (c === "\"") {
+            let j = i + 1;
+            while (j < t.length && t[j] !== "\"") j += t[j] === "\\" ? 2 : 1;
+            s += t.slice(i, j + 1); i = j + 1;
+          } else if (c === "/" && d === "/") {
+            while (i < t.length && t[i] !== "\n") i++;
+          } else if (c === "/" && d === "*") {
+            const j = t.indexOf("*/", i + 2);
+            if (j < 0) throw new Error("a comment never ends");
+            i = j + 2;
+          } else { s += c; i++; }
+        }
+        conf = JSON.parse(s);
+      } catch (e) {
+        if (f.startsWith("wrangler.")) { console.log("error " + f + ": not JSON with comments (a trailing comma is not allowed): " + String(e.message).split("\n")[0]); process.exit(0); }
+        continue;
+      }
+      if (!conf || typeof conf !== "object" || !("assets" in conf) || "pages_build_output_dir" in conf) continue;
+      const routes = Array.isArray(conf.routes) ? conf.routes : [];
+      if (routes.some((r) => r && r.custom_domain === true)) { state = "route"; break; }
+      state = "noroute";
+    }
+    console.log(state);
+  ' || echo "error: could not read the Wrangler config (is node on the PATH?)"
+}
+
+# One look at the site's build.txt, for a Workers config with no domain route. Prints `served` (it
+# answers with a commit), `notserved` (DNS has no such host, a 404 or 410, or a 200 that is no
+# commit: a Worker with no domain yet) or `unclear <why>` (a timeout, a refused or reset connection,
+# a TLS fault, any other HTTP answer such as a 403 or 429 that a firewall or a limit may give, a DNS
+# failure that is not "no such host": nothing a launch decides).
+probe_site() { # <site address>
+  local out rc=0 code body host dns
+  out="$(curl -sL -m 8 -w '\n%{http_code}' "$1/build.txt?cb=$RANDOM" 2>/dev/null)" || rc=$?
+  if [ "$rc" = 0 ]; then
+    code="${out##*$'\n'}"
+    body="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
+    case "$code" in
+      200) if grep -qE '^[0-9a-f]{7,64}$' <<<"$body"; then echo served; else echo notserved; fi ;;
+      404|410) echo notserved ;;
+      *) echo "unclear HTTP $code" ;;
+    esac
+  elif [ "$rc" = 6 ]; then
+    host="${1#*://}"; host="${host%%[/:]*}"
+    dns="$(node -e 'require("dns").promises.lookup(process.argv[1]).then(() => console.log("resolves"), (e) => console.log(e.code))' "$host" 2>/dev/null)" || dns=""
+    if [ "$dns" = ENOTFOUND ]; then echo notserved; else echo "unclear DNS lookup of $host failed (${dns:-no answer})"; fi
+  else
+    echo "unclear curl exit $rc"
+  fi
 }
 
 # The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
@@ -950,6 +1017,34 @@ if [ "$live_n" = 0 ]; then
 else
   echo "✓ Pushed. Cloudflare is building the live site now."
 fi
+
+# A Workers site before launch has no custom domain, so its site: address does not serve this
+# Worker: there is no build.txt to read (D4). A Pages site in a move's stage 1 holds the same
+# route-less config but its domain is served, so the address answering with a commit settles it.
+wstate="$(workers_state "${wt:-.}")"
+case "$wstate" in
+  error*)
+    echo ""
+    echo "✗ The publish went out (GitHub's production is now ${id:0:12}), but ${wstate#error } so this"
+    echo "  cannot tell whether the site has its domain yet and did not check the live site."
+    echo "  Fix that file; nothing else was changed."
+    exit 1 ;;
+  noroute)
+    if [ -n "$site" ]; then
+      probe="$(probe_site "$site")"
+      case "$probe" in
+        served) ;;
+        notserved)
+          finish "✓ Sent. This Worker has no domain yet (wrangler.jsonc has no custom_domain route), so there is no live address to check; the change is checked at launch."
+          exit 0 ;;
+        *)
+          echo ""
+          echo "✗ The publish went out (GitHub's production is now ${id:0:12}), but ship could not tell whether"
+          echo "  the site is live: ${probe#unclear }. It did not check further. Run npm run ship again: it checks again."
+          exit 1 ;;
+      esac
+    fi ;;
+esac
 
 # Push ≠ live: Cloudflare can silently stop building (webhook auth lapse — seen in
 # production 2026-07-02: two green pushes, no deploy for 40+ min). So VERIFY: the
