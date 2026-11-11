@@ -3177,6 +3177,9 @@ describe('content-type in _headers: the Worker may drop charset=utf-8, nothing e
     const worker = { s: 301, t: null, l: '/b', h: EMPTY_BODY, hd: { 'content-type': null } };
     const known = (type) => ctype(compare({ '/a': redirect(type) }, { '/a': worker }, ON_VERSION)).map((d) => !!d.known);
     assert.deepEqual(known('text/plain;charset=UTF-8'), [true], 'the captured shape');
+    assert.deepEqual(known('text/plain'), [true]);
+    assert.deepEqual(known('text/plain; charset=iso-8859-1'), [false], 'only the captured charset is dropped');
+    assert.deepEqual(known('text/plain; foo=bar'), [false]);
     assert.deepEqual(known('text/plain; note="a; b"'), [false]);
     assert.deepEqual(known('text/plain; charset="utf-8'), [false]);
     assert.deepEqual(known('text/plain; charset=utf-8; charset=iso-8859-1'), [false]);

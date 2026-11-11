@@ -1150,8 +1150,8 @@ const UTF8 = /^charset\s*=\s*utf-8$/i;
 const CHARSET = /^charset\s*=/i;
 function contentTypeKnown(x, y, sameRedirect) {
   if (x === null || x.includes('"') || y?.includes('"') || x.split(';').filter((v) => CHARSET.test(v.trim())).length > 1) return null;
-  if (y === null) return sameRedirect ? 'Pages sends a short text with a redirect; the Worker sends none' : null;
   const [tx, ...px] = x.split(';').map((v) => v.trim());
+  if (y === null) return sameRedirect && px.every((v) => UTF8.test(v)) ? 'Pages sends a short text with a redirect; the Worker sends none' : null;
   const [ty, ...py] = y.split(';').map((v) => v.trim());
   const js = tx.toLowerCase() === 'application/javascript' && ty.toLowerCase() === 'text/javascript';
   if (!js && tx.toLowerCase() !== ty.toLowerCase()) return null;
