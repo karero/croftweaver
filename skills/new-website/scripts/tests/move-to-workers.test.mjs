@@ -3172,6 +3172,16 @@ describe('content-type in _headers: the Worker may drop charset=utf-8, nothing e
     assert.deepEqual(diffs.filter((d) => !d.known), [], 'the whole record is accepted');
   });
 
+  test('a redirect whose Pages type carries a quote or a second charset is not excused', () => {
+    const redirect = (type) => ({ s: 301, t: 'text/plain', l: '/b', h: pagesRedirectBody('/b'), hd: { 'content-type': type } });
+    const worker = { s: 301, t: null, l: '/b', h: EMPTY_BODY, hd: { 'content-type': null } };
+    const known = (type) => ctype(compare({ '/a': redirect(type) }, { '/a': worker }, ON_VERSION)).map((d) => !!d.known);
+    assert.deepEqual(known('text/plain;charset=UTF-8'), [true], 'the captured shape');
+    assert.deepEqual(known('text/plain; note="a; b"'), [false]);
+    assert.deepEqual(known('text/plain; charset="utf-8'), [false]);
+    assert.deepEqual(known('text/plain; charset=utf-8; charset=iso-8859-1'), [false]);
+  });
+
   test('the same record with the platform unchanged: every content-type difference is unknown', () => {
     const diffs = compare(CAP['apreet.com'], CAP.version, { ...ON_VERSION, change: false });
     assert.equal(ctype(diffs).length, 6);
@@ -3185,7 +3195,9 @@ describe('content-type in _headers: the Worker may drop charset=utf-8, nothing e
     assert.deepEqual(one('text/html; charset="utf-8"', 'text/html'), [false], 'a quoted value is refused, not parsed');
     assert.deepEqual(one('text/html; note="a; b"; charset=utf-8', 'text/html; note="a;b"'), [false]);
     assert.deepEqual(one('text/html; foo="a; charset=utf-8"', 'text/html; foo="a'), [false]);
-    assert.deepEqual(one('text/html; charset=utf-8; charset=iso-8859-1', 'text/html; charset=iso-8859-1'), [false], 'the second charset wins, and changed');
+    assert.deepEqual(one('text/html; charset=utf-8; charset=iso-8859-1', 'text/html; charset=iso-8859-1'), [false], 'a second charset is refused');
+    assert.deepEqual(one('text/plain;charset=UTF-8', null), [false], 'a lost header is known only for a redirect: see the capture');
+    assert.deepEqual(one(null, 'text/html; foo="a"'), [false]);
     assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript; charset=utf-8'), [true], 'the JS rule keeps the parameters');
     assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript'), [true]);
     assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript; charset=iso-8859-1'), [false]);
