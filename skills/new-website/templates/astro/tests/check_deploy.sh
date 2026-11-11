@@ -9,7 +9,8 @@
 #   - preview: the same, but no tag either way, and the command is `wrangler preview`. So with
 #     analytics on, a WORKERS_CI_BRANCH set in the caller's shell must not switch the tag on.
 #   - refusals, each with its own message: an unsaved file (live; an untracked one counts, preview
-#     builds it), a branch other than PROD_BRANCH or no branch (live; preview builds it), the
+#     builds it), a branch other than PROD_BRANCH or no branch (live; preview builds it, and live
+#     still runs on PROD_BRANCH when a tag has its name), the
 #     placeholder Worker name (both), a wrangler.toml beside wrangler.jsonc.
 #   - the build's environment (a build step that prints it): no CF_* or CLOUDFLARE_* variable,
 #     WORKERS_CI=1, WORKERS_CI_BRANCH only for live; a CF_PAGES_COMMIT_SHA from the caller does
@@ -194,6 +195,11 @@ refused "live with no branch (detached HEAD)" "but this folder is on no branch" 
 run detached-preview -- deploy:preview -- --dry-run
 if [ "$rc" = 0 ]; then ok "preview builds with no branch"; else bad "preview refused a detached HEAD (exit $rc)."; fi
 git_in switch -q "$prod"
+# A tag with the branch's name must not hide the branch.
+git_in tag "$prod"
+run tag-live -- deploy:live -- --dry-run
+if [ "$rc" = 0 ]; then ok "live on $prod with a tag of the same name exits 0"; else bad "live on $prod with a tag named $prod exited $rc:"; sed 's/^/  | /' "$work/tag-live.log"; fi
+git_in tag -d "$prod" >/dev/null
 
 cp "$copy/wrangler.jsonc" "$work/wrangler.jsonc.good"
 NEW=example-site set_name example-site

@@ -106,11 +106,12 @@ deploy() {
     fi
     # Only the production branch goes live, as with a push: a Git-connected Worker builds that
     # branch, and would undo another branch's commit at its next build.
-    local branch
-    branch="$(git symbolic-ref --short -q HEAD 2>/dev/null || true)"
-    if [ "$branch" != "$prod" ]; then
+    # The full ref: with a tag of the same name, git's short name would be "heads/<branch>".
+    local ref
+    ref="$(git symbolic-ref -q HEAD 2>/dev/null || true)"
+    if [ "$ref" != "refs/heads/$prod" ]; then
       local on="no branch"
-      [ -z "$branch" ] || on="the branch \"$branch\""
+      [ -z "$ref" ] || on="the branch \"${ref#refs/heads/}\""
       echo "✗ The live site comes from the branch \"$prod\" (PROD_BRANCH in src/config.ts), but this folder is on $on."
       echo "  Switch to it first (git switch $prod), or look at this one with npm run deploy:preview. Nothing was built or deployed."
       return 1
