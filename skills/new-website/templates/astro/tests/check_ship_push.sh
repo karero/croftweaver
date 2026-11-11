@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.27   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.28   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -1020,8 +1020,23 @@ git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production
 CURL
   # Preloaded into node (NODE_OPTIONS) by the cases that need DNS to answer: the lookup fails with
   # the code in SHIP_T_DNS (ENOTFOUND is "no such host"; EAI_AGAIN a resolver that did not answer).
+  # The DNS server's own answers: SHIP_T_RESOLVE fails the A and AAAA queries with that code, or
+  # ADDR gives an address (SHIP_T_RESOLVE6, if set, for AAAA alone); github.com gets an address
+  # unless SHIP_T_GITHUB names a failure. SHIP_T_DNS_SERVER instead sends the real queries to that
+  # server (a closed port: offline).
   cat > "$G/dns-stub.cjs" <<'DNS'
-require("dns").promises.lookup = async () => { const e = new Error("stub"); e.code = process.env.SHIP_T_DNS; throw e; };
+const P = require("dns").promises, R = P.Resolver;
+const fail = (code) => { const e = new Error("stub"); e.code = code; return e; };
+P.lookup = async () => { throw fail(process.env.SHIP_T_DNS); };
+P.Resolver = class extends R {
+  constructor(o) { super(o); if (process.env.SHIP_T_DNS_SERVER) this.setServers([process.env.SHIP_T_DNS_SERVER]); }
+  answer(c, real) { if (c === "ADDR") return Promise.resolve(["192.0.2.7"]); return c ? Promise.reject(fail(c)) : real(); }
+  resolve4(h) {
+    const c = h === "github.com" && !process.env.SHIP_T_DNS_SERVER ? process.env.SHIP_T_GITHUB || "ADDR" : process.env.SHIP_T_RESOLVE;
+    return this.answer(c, () => super.resolve4(h));
+  }
+  resolve6(h) { return this.answer(process.env.SHIP_T_RESOLVE6 || process.env.SHIP_T_RESOLVE, () => super.resolve6(h)); }
+};
 DNS
   # Stub sleep: no waiting, unless a case needs the live check to be waiting when it signals.
   cat > "$G/bin/sleep" <<'SLEEP'
@@ -1941,8 +1956,24 @@ export default { site: 'https://ship-test.example.invalid' };"
   want "a TLS fault is unclear" has "curl exit 35"
   workers_case w14 github "$noroute" SHIP_T_CODE=503; exits 1
   want "a 5xx is unclear" has "HTTP 503"
-  workers_case w15 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
-  want "DNS says no such host: not served" last_starts "$sent"
+  workers_case w15 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENOTFOUND "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
+  want "the lookup and the DNS server both say no such host: not served" last_starts "$sent"
+  workers_case w15b github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENODATA "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
+  want "a DNS server with no address for the name (ENODATA, as Cloudflare answers) is not served too" last_starts "$sent"
+  # W15c: offline, the system lookup can say "no such host" too; the second query then reaches no
+  # server (a real query to a closed port), and a Pages site mid-move must not read as not served.
+  workers_case w15c github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_DNS_SERVER=127.0.0.1:9 "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "no such host from the lookup alone, with no DNS server answering, is unclear" has "$unclear"
+  want "... naming the second query's failure" has "ENOTFOUND, then the DNS server:"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w15f github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENOTFOUND SHIP_T_GITHUB=ETIMEOUT "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "no such host, but github.com gets no answer either (no server proven to answer): unclear" has "no DNS server answered for github.com: ETIMEOUT"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w15d github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ADDR "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "the DNS server has an address the lookup did not find: unclear" has "the DNS server has an address"
+  workers_case w15e github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENODATA SHIP_T_RESOLVE6=ADDR "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "no A record but an AAAA one is an address: unclear" has "the DNS server has an address"
+  want "... and is not the sent-at-launch line" lacks "$sent"
   workers_case w16 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=EAI_AGAIN "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
   want "a resolver that did not answer is unclear" has "EAI_AGAIN"
   workers_case w17 github "$noroute" SHIP_T_CODE=403; exits 1
