@@ -1,8 +1,8 @@
 {
  "tool": "move-to-workers.mjs record, kit main 7ef2f232 (unpatched)",
- "site": "apreet.com",
+ "site": "lenas-backstube.example",
  "recorded": "2026-11-11T06:41:40.874Z",
- "note": "entries cut from the real recording, not edited; \"apreet.com\" = Pages domain, \"version\" = Worker version URL",
+ "note": "entries cut from the real recording, not edited; \"lenas-backstube.example\" = Pages domain, \"version\" = Worker version URL",
  "names": [
   "access-control-allow-origin",
   "content-disposition",
@@ -17,7 +17,7 @@
   "x-frame-options",
   "x-robots-tag"
  ],
- "apreet.com": {
+ "lenas-backstube.example": {
   "/about/": {
    "s": 301,
    "t": "text/plain",
@@ -26,7 +26,7 @@
    "hd": {
     "access-control-allow-origin": "*",
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/plain;charset=UTF-8",
     "nel": null,
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -46,7 +46,7 @@
    "hd": {
     "access-control-allow-origin": "*",
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/html; charset=utf-8",
     "nel": null,
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -66,7 +66,7 @@
    "hd": {
     "access-control-allow-origin": "*",
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/plain; charset=utf-8",
     "nel": null,
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -86,7 +86,7 @@
    "hd": {
     "access-control-allow-origin": "*",
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/css; charset=utf-8",
     "nel": null,
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -106,7 +106,7 @@
    "hd": {
     "access-control-allow-origin": "*",
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "application/javascript",
     "nel": null,
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -126,7 +126,7 @@
    "hd": {
     "access-control-allow-origin": "*",
     "content-disposition": "inline",
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "application/json",
     "nel": null,
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -146,7 +146,7 @@
    "hd": {
     "access-control-allow-origin": "*",
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/html; charset=utf-8",
     "nel": null,
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -168,7 +168,7 @@
    "hd": {
     "access-control-allow-origin": null,
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": null,
     "nel": "present",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -188,7 +188,7 @@
    "hd": {
     "access-control-allow-origin": null,
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/html",
     "nel": "present",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -208,7 +208,7 @@
    "hd": {
     "access-control-allow-origin": null,
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/plain",
     "nel": "present",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -228,7 +228,7 @@
    "hd": {
     "access-control-allow-origin": null,
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/css",
     "nel": "present",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -248,7 +248,7 @@
    "hd": {
     "access-control-allow-origin": null,
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/javascript",
     "nel": "present",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -268,7 +268,7 @@
    "hd": {
     "access-control-allow-origin": null,
     "content-disposition": "inline",
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "application/json",
     "nel": "present",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -288,7 +288,7 @@
    "hd": {
     "access-control-allow-origin": null,
     "content-disposition": null,
-    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.example.com; connect-src 'self' https://analytics.example.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
     "content-type": "text/html",
     "nel": "present",
     "permissions-policy": "camera=(), microphone=(), geolocation=()",

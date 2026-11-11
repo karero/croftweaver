@@ -3155,12 +3155,12 @@ describe('the time-limit stop names its call and, while reading addresses, how m
 });
 
 describe('content-type in _headers: the Worker may drop charset=utf-8, nothing else', () => {
-  const CAP = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'move-content-type', 'capture-apreet-record-2026-11-11-move-to-workers-7ef2f232.json'), 'utf8'));
+  const CAP = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'move-content-type', 'capture-record-2026-11-11-move-to-workers-7ef2f232.json'), 'utf8'));
   const ON_VERSION = { change: true, onVersion: true, expect: 'c' };
   const ctype = (diffs) => diffs.filter((d) => d.field === 'header content-type');
 
-  test('the real apreet.com record: six content-type differences, each known with its reason, no other unknown', () => {
-    const diffs = compare(CAP['apreet.com'], CAP.version, ON_VERSION);
+  test('the real record: six content-type differences, each known with its reason, no other unknown', () => {
+    const diffs = compare(CAP['lenas-backstube.example'], CAP.version, ON_VERSION);
     // By hand: the redirect, both HTML pages, llms.txt, the CSS and the JS file differ; the
     // app-site-association file is application/json on both sides.
     const rows = ctype(diffs).map((d) => [d.path, d.known]).sort();
@@ -3186,7 +3186,7 @@ describe('content-type in _headers: the Worker may drop charset=utf-8, nothing e
   });
 
   test('the same record with the platform unchanged: every content-type difference is unknown', () => {
-    const diffs = compare(CAP['apreet.com'], CAP.version, { ...ON_VERSION, change: false });
+    const diffs = compare(CAP['lenas-backstube.example'], CAP.version, { ...ON_VERSION, change: false });
     assert.equal(ctype(diffs).length, 6);
     assert.ok(ctype(diffs).every((d) => !d.known), 'without a platform change nothing is excused');
   });

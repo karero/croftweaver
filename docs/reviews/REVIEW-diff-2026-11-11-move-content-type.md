@@ -2,9 +2,9 @@
 
 Depth: Normal (a fix to the move script, which runs code against a live zone; not Light). Seats:
 Codex (effort medium) + GLM 5.3 on melious (`SECOND_SEAT=melious`), fresh-eyes on Claude Sonnet in
-round 1. No PLAN gate: a fix that restores intended behaviour (Daniel, 2026-11-10: "Include workers
+round 1. No PLAN gate: a fix that restores intended behaviour (the owner, 2026-11-10: "Include workers
 and 520, 519 and 523 in 0.35 – Ideally I'd like a clean plate"). Gate id 20261111T081035Z-7658.
-Every round ran as **Codex alone, melious out of balance** (`Available: 0`; no rerun owed, Daniel,
+Every round ran as **Codex alone, melious out of balance** (`Available: 0`; no rerun owed, the owner,
 2026-10-27).
 
 | Round | Diff | Codex | Findings |
