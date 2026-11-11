@@ -1,0 +1,304 @@
+{
+ "tool": "move-to-workers.mjs record, kit main 7ef2f232 (unpatched)",
+ "site": "apreet.com",
+ "recorded": "2026-11-11T06:41:40.874Z",
+ "note": "entries cut from the real recording, not edited; \"apreet.com\" = Pages domain, \"version\" = Worker version URL",
+ "names": [
+  "access-control-allow-origin",
+  "content-disposition",
+  "content-security-policy",
+  "content-type",
+  "nel",
+  "permissions-policy",
+  "referrer-policy",
+  "report-to",
+  "strict-transport-security",
+  "x-content-type-options",
+  "x-frame-options",
+  "x-robots-tag"
+ ],
+ "apreet.com": {
+  "/about/": {
+   "s": 301,
+   "t": "text/plain",
+   "l": "/about",
+   "h": "c3fc1f30f523e6eb",
+   "hd": {
+    "access-control-allow-origin": "*",
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/plain;charset=UTF-8",
+    "nel": null,
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": null,
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": null
+   }
+  },
+  "/about": {
+   "s": 200,
+   "t": "text/html",
+   "l": null,
+   "h": "8ca3f35fe498bdd0",
+   "hd": {
+    "access-control-allow-origin": "*",
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/html; charset=utf-8",
+    "nel": null,
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": null,
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": null
+   }
+  },
+  "/llms.txt": {
+   "s": 200,
+   "t": "text/plain",
+   "l": null,
+   "h": "7a0bb96691f6669b",
+   "hd": {
+    "access-control-allow-origin": "*",
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/plain; charset=utf-8",
+    "nel": null,
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": null,
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": null
+   }
+  },
+  "/css/style.css": {
+   "s": 200,
+   "t": "text/css",
+   "l": null,
+   "h": "003b80fb9023dd70",
+   "hd": {
+    "access-control-allow-origin": "*",
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/css; charset=utf-8",
+    "nel": null,
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": null,
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": null
+   }
+  },
+  "/js/cta.js": {
+   "s": 200,
+   "t": "application/javascript",
+   "l": null,
+   "h": "7c17fc121f057291",
+   "hd": {
+    "access-control-allow-origin": "*",
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "application/javascript",
+    "nel": null,
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": null,
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": null
+   }
+  },
+  "/.well-known/apple-app-site-association": {
+   "s": 200,
+   "t": "application/json",
+   "l": null,
+   "h": "8a751eb7291c4b86",
+   "hd": {
+    "access-control-allow-origin": "*",
+    "content-disposition": "inline",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "application/json",
+    "nel": null,
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": null,
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": null
+   }
+  },
+  "/croftweaver-move-check-no-such-page": {
+   "s": 404,
+   "t": "text/html",
+   "l": null,
+   "h": "c3964ad1cd5dcddb",
+   "hd": {
+    "access-control-allow-origin": "*",
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/html; charset=utf-8",
+    "nel": null,
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": null,
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": null
+   }
+  }
+ },
+ "version": {
+  "/about/": {
+   "s": 301,
+   "t": null,
+   "l": "/about",
+   "h": "e3b0c44298fc1c14",
+   "hd": {
+    "access-control-allow-origin": null,
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": null,
+    "nel": "present",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": "present",
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": "noindex"
+   }
+  },
+  "/about": {
+   "s": 200,
+   "t": "text/html",
+   "l": null,
+   "h": "8ca3f35fe498bdd0",
+   "hd": {
+    "access-control-allow-origin": null,
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/html",
+    "nel": "present",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": "present",
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": "noindex"
+   }
+  },
+  "/llms.txt": {
+   "s": 200,
+   "t": "text/plain",
+   "l": null,
+   "h": "7a0bb96691f6669b",
+   "hd": {
+    "access-control-allow-origin": null,
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/plain",
+    "nel": "present",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": "present",
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": "noindex"
+   }
+  },
+  "/css/style.css": {
+   "s": 200,
+   "t": "text/css",
+   "l": null,
+   "h": "003b80fb9023dd70",
+   "hd": {
+    "access-control-allow-origin": null,
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/css",
+    "nel": "present",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": "present",
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": "noindex"
+   }
+  },
+  "/js/cta.js": {
+   "s": 200,
+   "t": "text/javascript",
+   "l": null,
+   "h": "7c17fc121f057291",
+   "hd": {
+    "access-control-allow-origin": null,
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/javascript",
+    "nel": "present",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": "present",
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": "noindex"
+   }
+  },
+  "/.well-known/apple-app-site-association": {
+   "s": 200,
+   "t": "application/json",
+   "l": null,
+   "h": "8a751eb7291c4b86",
+   "hd": {
+    "access-control-allow-origin": null,
+    "content-disposition": "inline",
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "application/json",
+    "nel": "present",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": "present",
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": "noindex"
+   }
+  },
+  "/croftweaver-move-check-no-such-page": {
+   "s": 404,
+   "t": "text/html",
+   "l": null,
+   "h": "c3964ad1cd5dcddb",
+   "hd": {
+    "access-control-allow-origin": null,
+    "content-disposition": null,
+    "content-security-policy": "default-src 'self'; script-src 'self' 'sha256-0/HKKq+eCyOE7pcDz0cCm6HVEiBn1TAhP3sird4ZBAk=' 'sha256-lNQXL6fKC9T2Bz3kLcmSLhrahwsiQ23Lw53VVB7vzYE=' https://analytics.m-squad.com; connect-src 'self' https://analytics.m-squad.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-ancestors 'self'; upgrade-insecure-requests",
+    "content-type": "text/html",
+    "nel": "present",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "referrer-policy": "strict-origin-when-cross-origin",
+    "report-to": "present",
+    "strict-transport-security": "max-age=15552000",
+    "x-content-type-options": "nosniff",
+    "x-frame-options": "SAMEORIGIN",
+    "x-robots-tag": "noindex"
+   }
+  }
+ }
+}

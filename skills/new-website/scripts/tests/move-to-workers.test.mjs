@@ -3153,3 +3153,81 @@ describe('the time-limit stop names its call and, while reading addresses, how m
     assert.ok(!r.text.includes(process.execPath), 'the stand-in program was named');
   });
 });
+
+describe('content-type in _headers: the Worker may drop charset=utf-8, nothing else', () => {
+  const CAP = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'move-content-type', 'capture-apreet-record-2026-11-11-move-to-workers-7ef2f232.json'), 'utf8'));
+  const ON_VERSION = { change: true, onVersion: true, expect: 'c' };
+  const ctype = (diffs) => diffs.filter((d) => d.field === 'header content-type');
+
+  test('the real apreet.com record: six content-type differences, each known with its reason, no other unknown', () => {
+    const diffs = compare(CAP['apreet.com'], CAP.version, ON_VERSION);
+    // By hand: the redirect, both HTML pages, llms.txt, the CSS and the JS file differ; the
+    // app-site-association file is application/json on both sides.
+    const rows = ctype(diffs).map((d) => [d.path, d.known]).sort();
+    assert.deepEqual(rows.map(([p]) => p), ['/about', '/about/', '/croftweaver-move-check-no-such-page', '/css/style.css', '/js/cta.js', '/llms.txt']);
+    const why = Object.fromEntries(rows);
+    assert.equal(why['/about/'], 'Pages sends a short text with a redirect; the Worker sends none');
+    assert.equal(why['/js/cta.js'], 'text/javascript where Pages sends application/javascript');
+    for (const p of ['/about', '/llms.txt', '/css/style.css', '/croftweaver-move-check-no-such-page']) assert.equal(why[p], 'the Worker sends the same media type without charset=utf-8', p);
+    assert.deepEqual(diffs.filter((d) => !d.known), [], 'the whole record is accepted');
+  });
+
+  test('the same record with the platform unchanged: every content-type difference is unknown', () => {
+    const diffs = compare(CAP['apreet.com'], CAP.version, { ...ON_VERSION, change: false });
+    assert.equal(ctype(diffs).length, 6);
+    assert.ok(ctype(diffs).every((d) => !d.known), 'without a platform change nothing is excused');
+  });
+
+  test('a charset the Worker drops is known only when it is utf-8 and the rest of the header is the same', () => {
+    const one = (x, y) => ctype(compare({ '/p': { s: 200, t: 'x', l: null, h: 'aa', hd: { 'content-type': x } } }, { '/p': { s: 200, t: 'x', l: null, h: 'aa', hd: { 'content-type': y } } }, ON_VERSION)).map((d) => !!d.known);
+    assert.deepEqual(one('text/html; charset=utf-8', 'text/html'), [true]);
+    assert.deepEqual(one('Text/HTML;Charset="UTF-8"', 'text/html'), [true], 'any case and spacing');
+    assert.deepEqual(one('multipart/form-data; boundary=abc', 'multipart/form-data'), [false], 'another parameter is not excused');
+    assert.deepEqual(one('multipart/form-data; boundary=abc; charset=utf-8', 'multipart/form-data'), [false], 'the boundary goes with the charset');
+    assert.deepEqual(one('multipart/form-data; boundary=abc; charset=utf-8', 'multipart/form-data; boundary=abc'), [true]);
+    assert.deepEqual(one('text/html; charset=iso-8859-1', 'text/html'), [false], 'only utf-8');
+    assert.deepEqual(one('text/html; charset=utf-8', 'text/html; charset=iso-8859-1'), [false], 'a changed charset');
+    assert.deepEqual(one('text/html', 'text/html; charset=utf-8'), [false], 'a charset the Worker adds');
+    assert.deepEqual(one('text/html; charset=utf-8', 'application/json'), [false], 'another media type');
+    assert.deepEqual(one('text/html; charset=utf-8', 'application/json; charset=utf-8'), [false]);
+    assert.deepEqual(one('text/html', null), [false], 'a lost header, which is not a redirect');
+    assert.deepEqual(one('application/javascript', 'text/javascript'), [true]);
+    assert.deepEqual(one('application/javascript', 'text/css'), [false]);
+    assert.deepEqual(one('text/html', 'text/javascript'), [false], 'the JS rule is for application/javascript only');
+    assert.deepEqual(one(null, 'text/html'), [false], 'a type the Worker adds');
+    assert.deepEqual(one('multipart/form-data; boundary=abc', 'multipart/form-data;boundary=abc'), [false], 'spacing alone is not a dropped charset');
+    assert.deepEqual(one('text/javascript', 'application/javascript'), [false], 'the JS rule runs one way');
+  });
+
+  // The entry point: record and after run compare() on a site whose _headers names Content-Type.
+  const named = { 'site/_headers': '/*\n  X-Frame-Options: DENY\n  Content-Type: text/html\n' };
+  const page = (type) => ({ status: 200, headers: { 'content-type': type, 'x-frame-options': 'DENY', 'access-control-allow-origin': '*' }, body: '<h1>Lena\'s Backstube</h1>' });
+  const noCors = (r) => { delete r.headers['access-control-allow-origin']; return r; };
+  const kit = (over = {}) => scenario({ site: makeSite({ files: named }), world: { domainNoNel: true, captured: { pages: { '/': page('text/html; charset=utf-8') }, ...over } } });
+
+  test('record: Pages and the Worker differ only in charset, redirect text and JS type: nothing is unknown', async () => {
+    const s = kit({ version: { '/': noCors(page('text/html')) } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, /, 0 unknown\./);
+  });
+
+  test('after: the Worker on the domain drops the charset, and the move is accepted', async () => {
+    const s = kit({ version: { '/': noCors(page('text/html')) }, worker: { '/': noCors(page('text/html')) } });
+    assert.equal((await recordDone(s)).code, 0, s.text());
+    const q = await s.go(['move']);
+    assert.equal((await s.go(['move', '--confirm', codeOf(q)])).code, 0, s.text());
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    const r = await s.go(['after']);
+    assert.equal(r.code, 0, r.text);
+    assert.doesNotMatch(r.text, /unknown:/);
+  });
+
+  test('record: a real content-type change stays unknown', async () => {
+    const s = kit({ version: { '/': noCors(page('application/json')) } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /unknown: \S+\/ header content-type: text\/html; charset=utf-8 ≠ application\/json/);
+  });
+});
