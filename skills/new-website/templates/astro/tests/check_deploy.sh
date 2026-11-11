@@ -183,9 +183,9 @@ run preview-dirty -- deploy:preview -- --dry-run
 if [ "$rc" = 0 ]; then ok "preview builds an untracked file"; else bad "preview refused an unsaved file (exit $rc)."; fi
 rm -f "$copy/unsaved.txt"
 
-git_in switch -q -c feature-check
+git_in switch -q -c "not-$prod"
 run branch-live -- deploy:live -- --dry-run
-refused "live on a branch other than $prod" "The live site comes from the branch \"$prod\" (PROD_BRANCH in src/config.ts), but this folder is on the branch \"feature-check\"." branch-live
+refused "live on a branch other than $prod" "The live site comes from the branch \"$prod\" (PROD_BRANCH in src/config.ts), but this folder is on the branch \"not-$prod\"." branch-live
 run branch-preview -- deploy:preview -- --dry-run
 if [ "$rc" = 0 ]; then ok "preview builds another branch"; else bad "preview refused another branch (exit $rc)."; fi
 git_in switch -q --detach "$prod"
