@@ -3181,7 +3181,14 @@ describe('content-type in _headers: the Worker may drop charset=utf-8, nothing e
   test('a charset the Worker drops is known only when it is utf-8 and the rest of the header is the same', () => {
     const one = (x, y) => ctype(compare({ '/p': { s: 200, t: 'x', l: null, h: 'aa', hd: { 'content-type': x } } }, { '/p': { s: 200, t: 'x', l: null, h: 'aa', hd: { 'content-type': y } } }, ON_VERSION)).map((d) => !!d.known);
     assert.deepEqual(one('text/html; charset=utf-8', 'text/html'), [true]);
-    assert.deepEqual(one('Text/HTML;Charset="UTF-8"', 'text/html'), [true], 'any case and spacing');
+    assert.deepEqual(one('Text/HTML;Charset = UTF-8', 'text/html'), [true], 'any case and spacing');
+    assert.deepEqual(one('text/html; charset="utf-8"', 'text/html'), [false], 'a quoted value is refused, not parsed');
+    assert.deepEqual(one('text/html; note="a; b"; charset=utf-8', 'text/html; note="a;b"'), [false]);
+    assert.deepEqual(one('text/html; foo="a; charset=utf-8"', 'text/html; foo="a'), [false]);
+    assert.deepEqual(one('text/html; charset=utf-8; charset=iso-8859-1', 'text/html; charset=iso-8859-1'), [false], 'the second charset wins, and changed');
+    assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript; charset=utf-8'), [true], 'the JS rule keeps the parameters');
+    assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript'), [true]);
+    assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript; charset=iso-8859-1'), [false]);
     assert.deepEqual(one('multipart/form-data; boundary=abc', 'multipart/form-data'), [false], 'another parameter is not excused');
     assert.deepEqual(one('multipart/form-data; boundary=abc; charset=utf-8', 'multipart/form-data'), [false], 'the boundary goes with the charset');
     assert.deepEqual(one('multipart/form-data; boundary=abc; charset=utf-8', 'multipart/form-data; boundary=abc'), [true]);

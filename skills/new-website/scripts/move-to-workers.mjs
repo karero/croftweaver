@@ -1145,18 +1145,20 @@ async function fetchAll(ctx, base, paths, names, into, save) {
 
 // Why a content-type header may differ: the media-type rules of compare() below, and the Worker
 // serving a text file without "charset=utf-8". Any other lost or changed parameter stays unknown.
-const UTF8 = /^charset\s*=\s*"?utf-8"?$/i;
+// A quoted value or a second charset is refused rather than parsed: no real header sends one.
+const UTF8 = /^charset\s*=\s*utf-8$/i;
+const CHARSET = /^charset\s*=/i;
 function contentTypeKnown(x, y, sameRedirect) {
   if (y === null) return sameRedirect ? 'Pages sends a short text with a redirect; the Worker sends none' : null;
-  if (x === null) return null;
+  if (x === null || x.includes('"') || y.includes('"') || x.split(';').filter((v) => CHARSET.test(v.trim())).length > 1) return null;
   const [tx, ...px] = x.split(';').map((v) => v.trim());
   const [ty, ...py] = y.split(';').map((v) => v.trim());
   const js = tx.toLowerCase() === 'application/javascript' && ty.toLowerCase() === 'text/javascript';
   if (!js && tx.toLowerCase() !== ty.toLowerCase()) return null;
   const kept = px.filter((v) => !UTF8.test(v));
-  if (kept.join(';') !== py.join(';')) return null;
-  if (js) return 'text/javascript where Pages sends application/javascript';
-  return kept.length < px.length ? 'the Worker sends the same media type without charset=utf-8' : null;
+  const same = py.join(';') === kept.join(';');
+  if (js) return same || py.join(';') === px.join(';') ? 'text/javascript where Pages sends application/javascript' : null;
+  return same && kept.length < px.length ? 'the Worker sends the same media type without charset=utf-8' : null;
 }
 
 // The differences between what a platform answered when recorded (`was`) and now. `change` says the
