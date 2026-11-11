@@ -191,6 +191,8 @@ if [ "$rc" = 0 ]; then ok "preview builds another branch"; else bad "preview ref
 git_in switch -q --detach "$prod"
 run detached-live -- deploy:live -- --dry-run
 refused "live with no branch (detached HEAD)" "but this folder is on no branch" detached-live
+run detached-preview -- deploy:preview -- --dry-run
+if [ "$rc" = 0 ]; then ok "preview builds with no branch"; else bad "preview refused a detached HEAD (exit $rc)."; fi
 git_in switch -q "$prod"
 
 cp "$copy/wrangler.jsonc" "$work/wrangler.jsonc.good"
