@@ -15,7 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMPTY_BODY, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
+import { EMPTY_BODY, ENABLED_LINE, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -59,7 +59,7 @@ function makeSite({ files = {}, prodBranch = 'production' } = {}) {
   git(work, 'init', '-q');
   git(work, 'checkout', '-q', '-b', prodBranch === 'main' ? 'main' : 'production');
   const all = {
-    'src/config.ts': `export const SITE = { name: 'Lenas Backstube' };\nexport const PROD_BRANCH = '${prodBranch}';\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n`,
+    'src/config.ts': `export const SITE = { name: 'Lenas Backstube' };\nexport const PROD_BRANCH = '${prodBranch}';\nexport const USE_ANALYTICS = false;\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n`,
     'workers.jsonc': `{\n  // The Worker that serves the built site\n  "name": "${WORKER}",\n  "compatibility_date": "2026-01-01",\n  "assets": { "directory": "./dist" },\n}\n`,
     'wrangler.toml': 'name = "lenas-backstube"\npages_build_output_dir = "dist"\n',
     'package.json': JSON.stringify({ name: 'lenas-backstube', private: true, scripts: { build: 'node build.mjs' } }),
@@ -427,6 +427,137 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     const r = await run('https://lenas-backstube.example', accountOnly());
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('Stopped: Cloudflare lists DNS Edit for this token in 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
+  });
+});
+
+// Stage 1's fifth gap: with analytics on, an enabled: line that reads CF_PAGES_BRANCH and no other
+// variable counts nothing on Workers Builds. A line that also reads another variable passes, by the
+// maintainer's decision: a site deployed by its own command reads its own variable there.
+describe('1b: the analytics enabled: line at stage 1', () => {
+  const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
+  const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const ANALYTICS = {\n  mode: 'script',\n  ${line}\n};\n` } });
+  const config = (body) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\n${body}` } });
+  const GAP = /^Stopped: Analytics is on, but the enabled: line in src\/config\.ts at [0-9a-f]{7} reads only CF_PAGES_BRANCH\. Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so the Worker's pages would count nothing\. Use the 0\.35 line: "enabled: USE_ANALYTICS && \(process\.env\.CF_PAGES_BRANCH \?\? process\.env\.WORKERS_CI_BRANCH\) === PROD_BRANCH,"/m;
+  test('the line the script advises is the starter\'s own', () => {
+    const starter = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'src', 'config.ts'), 'utf8');
+    assert.ok(starter.split('\n').some((l) => l.trim() === ENABLED_LINE), ENABLED_LINE);
+  });
+  test('analytics on with the 0.35 line: no gap', async () => {
+    const r = await scenario({ site: site(true, ENABLED_LINE) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  // A real site deployed by its own command: no USE_ANALYTICS (so on), and a line that reads a second variable.
+  test('a live site\'s own line that reads a variable of its own build: no gap', async () => {
+    const r = await scenario({ site: config("export const ANALYTICS = {\n  enabled: process.env.CF_PAGES_BRANCH === 'production' || process.env.WORKER_LIVE_BUILD === '1',\n  mode: 'script',\n} as const;\n") }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  for (const [what, line] of [['the old CF_PAGES_BRANCH-only line', OLD],
+    ['the old line with the other variable named in a // comment', `${OLD} // process.env.WORKERS_CI_BRANCH`],
+    ['the old line with the other variable in a // comment right after the comma', `${OLD}// process.env.WORKERS_CI_BRANCH`],
+    ['the old line, and another property that reads a variable', `${OLD}\n  scriptHost: process.env.ANALYTICS_HOST,`],
+    ['the old line, and a quoted property that reads a variable', `${OLD}\n  'scriptHost': process.env.ANALYTICS_HOST,`],
+    ['the old line over two lines', 'enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,']]) {
+    test(`analytics on with ${what}: check lists the gap`, async () => {
+      const r = await scenario({ site: site(true, line) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, GAP);
+    });
+  }
+  test('analytics off with the old line: no gap', async () => {
+    const r = await scenario({ site: site(false, OLD) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('a USE_ANALYTICS line the script cannot read is refused, not guessed', async () => {
+    const r = await scenario({ site: config('export const USE_ANALYTICS = !!process.env.X;\n') }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
+  });
+  // The script reads lines, so a block comment outside strings and // comments is refused: it could hide a line or the end of one.
+  for (const [what, body] of [
+    ['a declaration in a block comment beside a multi-line one', `/*\nexport const USE_ANALYTICS = false;\n*/\nexport const USE_ANALYTICS =\n  true;\nexport const ANALYTICS = {\n  ${OLD}\n};\n`],
+    ['the other variable named in a block comment', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  ${OLD} /* process.env.WORKERS_CI_BRANCH */\n};\n`],
+    ['a block comment right after a name', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH/* process.env.WORKERS_CI_BRANCH */,\n};\n`]]) {
+    test(`${what}: refused, not read`, async () => {
+      const r = await scenario({ site: config(body) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, /holds a block comment \(\/\* … \*\/\)\. The script reads the file line by line/);
+    });
+  }
+  test('a /* on a // line is part of that comment: read, not refused', async () => {
+    const r = await scenario({ site: config(`// Start with /*\nexport const USE_ANALYTICS = true;\n// End with */\nexport const ANALYTICS = {\n  ${OLD}\n};\n`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
+  for (const [what, line] of [['a second property on the enabled: line', `${OLD} scriptHost: process.env.ANALYTICS_HOST,`],
+    ['a template string in the enabled: line', 'enabled: USE_ANALYTICS && `${process.env.CF_PAGES_BRANCH}` === PROD_BRANCH,'],
+    ['process.env text inside a template part', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === `${"process.env.UNRELATED".slice(0, 0)}production`,'],
+    ['a variable read with brackets', "enabled: USE_ANALYTICS && process.env['CF_PAGES_BRANCH'] === PROD_BRANCH,"],
+    ['a variable read with ?.', 'enabled: USE_ANALYTICS && process.env?.CF_PAGES_BRANCH === PROD_BRANCH,'],
+    ['an escaped letter in the variable name', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BR\\u0041NCH === PROD_BRANCH,'],
+    ['a regex that names the other variable', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH && !/process.env.WORKERS_CI_BRANCH/.test(PROD_BRANCH),']]) {
+    test(`${what}: refused, not read`, async () => {
+      const r = await scenario({ site: site(true, line) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, /that the script can read: alone on its line, with no template string, no slash, no backslash, and each variable read as process\.env\.NAME/);
+    });
+  }
+  test('a declaration inside a string continued with a backslash is no declaration', async () => {
+    const r = await scenario({ site: config("export const NOTE = 'x\\\nexport const USE_ANALYTICS = false; // \\\n';\nexport const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
+  test('a quote in a // comment opens no string that hides a block comment', async () => {
+    const r = await scenario({ site: config("// '\\\n/* \\\n// '\nexport const USE_ANALYTICS = false;\n*/\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a block comment/);
+  });
+  test('a template string continued with a backslash is over more than one line: refused', async () => {
+    const r = await scenario({ site: config("export const EXAMPLE = `\\\nexport const USE_ANALYTICS = false;\\\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line/);
+  });
+  test('a template string inside another template\'s ${…} is refused, not read', async () => {
+    const r = await scenario({ site: config("export const NOTE = `${`\nexport const USE_ANALYTICS = false;\n`}`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line, or one inside another's \$\{…\}/);
+  });
+  test('a ...spread in the ANALYTICS object is refused, not read', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n  ...legacy,`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /with no \.\.\.spread and one line that starts with "enabled:"/);
+  });
+  test('a template string over more than one line is refused, not read', async () => {
+    const r = await scenario({ site: config("export const EXAMPLE = `\nexport const USE_ANALYTICS = false;\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line/);
+  });
+  test('one-line template strings elsewhere, as real sites have them, are read', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const ORG_ID = \`\${SITE.url}/#organization\`;\nexport const X = {`) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('a /* inside a path string is no block comment', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const IMAGE_PATH = '/images/*';\nexport const X = {`) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('the 0.35 line in another object does not stand in for the ANALYTICS one', async () => {
+    const r = await scenario({ site: site(true, `${OLD}\n};\nexport const BANNER = {\n  ${ENABLED_LINE}`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
+  test('a second ANALYTICS declaration is refused', async () => {
+    const r = await scenario({ site: config("export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + ENABLED_LINE + "\n};\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /has no single "export const ANALYTICS = \{" object/);
+  });
+  // A site made before the switch has no USE_ANALYTICS and counts as on; the advised line names it.
+  test('a site made before the switch is told to add USE_ANALYTICS too, and passes once it has both', async () => {
+    const before = (extra, line) => config(`${extra}export const ANALYTICS = {\n  mode: 'script',\n  ${line}\n};\n`);
+    const r = await scenario({ site: before('', 'enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,') }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+    assert.match(r.text, /so also add the line "export const USE_ANALYTICS = true;" above it\./);
+    const fixed = await scenario({ site: before('export const USE_ANALYTICS = true;\n', ENABLED_LINE) }).go(['check']);
+    assert.equal(fixed.code, 0, fixed.text);
   });
 });
 

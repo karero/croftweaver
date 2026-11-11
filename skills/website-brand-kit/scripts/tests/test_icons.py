@@ -168,21 +168,38 @@ class ChoosingABackground(unittest.TestCase):
 
 
 class IcoContainer(unittest.TestCase):
-    def test_a_png_inside_a_22_byte_header(self):
-        png = T.make_png(32, 32, T.solid_rgba(32, 32, (1, 2, 3, 255)))
-        ico = _icons.ico_from_png(png)
-        self.assertEqual(ico[:6], b"\x00\x00\x01\x00\x01\x00", "reserved, type 1 (icon), one image")
-        width, height, colours, reserved, planes, bpp, size, offset = struct.unpack("<BBBBHHII", ico[6:22])
-        self.assertEqual((width, height, colours, reserved, planes, bpp), (32, 32, 0, 0, 1, 32))
-        self.assertEqual((size, offset), (len(png), 22))
-        self.assertEqual(ico[22:], png)
+    SIDES = (16, 32, 48, 64)
 
-    def test_only_a_32_by_32_png_is_wrapped(self):
-        for w, h in ((16, 16), (32, 31), (256, 256)):
-            with self.assertRaises(Refusal):
-                _icons.ico_from_png(T.make_png(w, h, T.solid_rgba(w, h, (1, 2, 3, 255))))
+    def frames(self):
+        return {n: T.make_png(n, n, T.solid_rgba(n, n, (1, 2, 3, 255))) for n in self.SIDES}
+
+    def test_four_pngs_behind_a_header_and_four_entries(self):
+        pngs = self.frames()
+        ico = _icons.ico_from_pngs(pngs)
+        self.assertEqual(ico[:6], b"\x00\x00\x01\x00\x04\x00", "reserved, type 1 (icon), four images")
+        offset = 6 + 16 * 4  # written out by hand: 70
+        self.assertEqual(offset, 70)
+        for i, side in enumerate((16, 32, 48, 64)):
+            width, height, colours, reserved, planes, bpp, size, at = struct.unpack("<BBBBHHII", ico[6 + 16 * i:22 + 16 * i])
+            self.assertEqual((width, height, colours, reserved, planes, bpp), (side, side, 0, 0, 1, 32))
+            self.assertEqual((size, at), (len(pngs[side]), offset))
+            self.assertEqual(ico[at:at + size], pngs[side])
+            offset += size
+        self.assertEqual(len(ico), offset)
+
+    def test_a_missing_or_wrongly_sized_frame_is_refused(self):
+        pngs = self.frames()
+        del pngs[48]
         with self.assertRaises(Refusal):
-            _icons.ico_from_png(b"not a png")
+            _icons.ico_from_pngs(pngs)
+        pngs = self.frames()
+        pngs[64] = T.make_png(32, 32, T.solid_rgba(32, 32, (1, 2, 3, 255)))
+        with self.assertRaises(Refusal):
+            _icons.ico_from_pngs(pngs)
+        pngs = self.frames()
+        pngs[16] = b"not a png"
+        with self.assertRaises(Refusal):
+            _icons.ico_from_pngs(pngs)
 
 
 class SolidPixels(unittest.TestCase):
@@ -254,12 +271,17 @@ class TheSevenFiles(WithTheSitesSharp):
                 w, h = (int(n) for n in sizes.split("x"))
                 self.assertEqual(_png.size(icons.files["public/" + src]), (w, h))
 
-    def test_the_favicon_ico_holds_a_32_pixel_picture_that_is_not_blank(self):
+    def test_the_favicon_ico_holds_pictures_of_16_32_48_and_64_pixels_that_are_not_blank(self):
         _clean, icons = self.build()
         ico = icons.files["public/favicon.ico"]
-        png = ico[22:]
-        self.assertEqual(_png.size(png), (32, 32))
-        self.assertFalse(_png.is_blank(_png.decode(png)))
+        self.assertEqual(struct.unpack("<HHH", ico[:6]), (0, 1, 4))
+        for i, side in enumerate((16, 32, 48, 64)):
+            with self.subTest(side=side):
+                width, height, _c, _r, _p, _b, size, at = struct.unpack("<BBBBHHII", ico[6 + 16 * i:22 + 16 * i])
+                self.assertEqual((width, height), (side, side))
+                png = ico[at:at + size]
+                self.assertEqual(_png.size(png), (side, side))
+                self.assertFalse(_png.is_blank(_png.decode(png)))
 
     def test_apple_touch_is_opaque_with_no_alpha_channel_and_so_is_the_maskable_one(self):
         _clean, icons = self.build()
@@ -406,7 +428,7 @@ class WhatIsMadeIsLookedAt(WithTheSitesSharp):
 
     def test_an_icon_whose_file_stops_after_its_header_is_not_installed(self):
         # the header alone says 192 x 192 (or 512 x 512, which is images/logo.png too): the size check passes on it
-        for name in ("icon-192", "icon-512", "apple-touch", "maskable", "favicon-32"):
+        for name in ("icon-192", "icon-512", "apple-touch", "maskable", "favicon-16", "favicon-32", "favicon-48", "favicon-64"):
             for what, keep in (("the header and nothing else", lambda data: data[:33]), ("its end cut off", lambda data: data[:-20])):
                 with self.subTest(name=name, what=what):
                     def wrong(job, path, name=name, keep=keep):
@@ -418,14 +440,17 @@ class WhatIsMadeIsLookedAt(WithTheSitesSharp):
                         self.lie(wrong)
                     self.assertEqual(cm.exception.code, "png-bad")
 
-    def test_a_blank_32_pixel_icon_is_not_installed(self):
-        def wrong(job, path):
-            if job["name"] == "favicon-32":
-                with open(path, "wb") as f:
-                    f.write(T.make_png(32, 32, T.solid_rgba(32, 32, (0, 0, 0, 0))))
-        with self.assertRaises(Refusal) as cm:
-            self.lie(wrong)
-        self.assertEqual(cm.exception.code, "blank-render")
+    def test_a_blank_favicon_frame_of_any_size_is_not_installed(self):
+        for side in (16, 32, 48, 64):
+            with self.subTest(side=side):
+                def wrong(job, path, side=side):
+                    if job["name"] == "favicon-%d" % side:
+                        with open(path, "wb") as f:
+                            f.write(T.make_png(side, side, T.solid_rgba(side, side, (0, 0, 0, 0))))
+                with self.assertRaises(Refusal) as cm:
+                    self.lie(wrong)
+                self.assertEqual(cm.exception.code, "blank-render")
+                self.assertIn("%d pixel" % side, str(cm.exception))
 
     def test_an_app_icon_that_is_not_opaque_is_not_installed(self):
         for name in ("apple-touch", "maskable"):

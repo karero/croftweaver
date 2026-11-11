@@ -5988,7 +5988,7 @@ class TheStartersOwnIcons(SiteCase):
             self.assertEqual(self.png_size(rel), (size, size), rel)
         ico = self.bytes("public/favicon.ico")
         self.assertEqual(struct.unpack("<HH", ico[:4]), (0, 1))
-        self.assertIn(32, [ico[6 + 16 * i] or 256 for i in range(struct.unpack("<H", ico[4:6])[0])], "an ICO with a 32 px frame")
+        self.assertEqual([ico[6 + 16 * i] or 256 for i in range(struct.unpack("<H", ico[4:6])[0])], [16, 32, 48, 64], "an ICO with four frames, as the starter's script draws")
         self.assertIn(b"<svg", self.bytes("public/favicon.svg"))
         for rel, before in starter.items():
             self.assertNotEqual(self.bytes(rel), before, rel + " is the owner's logo now")
