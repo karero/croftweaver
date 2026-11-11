@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.27
+# template-version: 0.28
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -110,7 +110,8 @@ workers_state() { # <folder>
 # reset connection, a TLS fault, any other HTTP answer such as a 403 or 429 that a firewall or a
 # limit may give, a DNS failure that is not "no such host": nothing a launch decides).
 # The system lookup can say "no such host" when the Mac is offline, so that answer is asked again
-# of the DNS servers themselves (dns.resolve, no cache); only their "no such host" counts.
+# of the DNS servers themselves (A and AAAA, no cache); only "no such host" or "no address" for
+# both counts. Any address, or a server that does not answer, is unclear.
 probe_site() { # <site address>
   local out rc=0 code body host dns
   out="$(curl -sL -m 8 -w '\n%{http_code}' "$1/build.txt?cb=$RANDOM" 2>/dev/null)" || rc=$?
@@ -128,12 +129,11 @@ probe_site() { # <site address>
       const dns = require("dns"), h = process.argv[1];
       dns.promises.lookup(h).then(() => console.log("resolves"), async (e) => {
         if (e.code !== "ENOTFOUND") return console.log(e.code);
-        try {
-          await new dns.promises.Resolver({ timeout: 3000, tries: 2 }).resolve(h);
-          console.log("ENOTFOUND, but the DNS server has an address");
-        } catch (f) {
-          console.log(f.code === "ENOTFOUND" || f.code === "ENODATA" ? "nohost" : "ENOTFOUND, then the DNS server: " + f.code);
-        }
+        const r = new dns.promises.Resolver({ timeout: 3000, tries: 2 });
+        const got = await Promise.allSettled([r.resolve4(h), r.resolve6(h)]);
+        if (got.some((g) => g.status === "fulfilled")) return console.log("ENOTFOUND, but the DNS server has an address");
+        const other = got.map((g) => g.reason.code).find((c) => c !== "ENOTFOUND" && c !== "ENODATA");
+        console.log(other ? "ENOTFOUND, then the DNS server: " + other : "nohost");
       });
     ' "$host" 2>/dev/null)" || dns=""
     if [ "$dns" = nohost ]; then echo notserved; else echo "unclear DNS lookup of $host failed (${dns:-no answer})"; fi
