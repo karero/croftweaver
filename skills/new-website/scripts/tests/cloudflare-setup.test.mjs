@@ -1327,6 +1327,10 @@ const siteZoneOf = (zones, pick) => {
   return zones;
 };
 
+// The deployments of a Worker that Builds made from its template, as the first build's test saw them (C4,
+// newest first). The capture is read as it is; the stub fills in the ids and versions it lacks (MADE).
+const BUILDS_FIRST = JSON.parse(readFileSync(path.join(import.meta.dirname, 'fixtures', 'builds-deployments', 'c4-builds-first-deployments-2026-11-12-cloudflare-api-v4.json'), 'utf8'));
+
 describe('TS: the setup stage, at a Worker', { concurrency: true }, () => {
   test('TS1: the token the move guide makes (DNS Edit in one zone of three) picks the site\'s zone', () => {
     const zones = siteZoneOf(capturedZones('cloudflare-api-zones-list-move-token-2026-11-04.json'), 2);
@@ -1381,10 +1385,11 @@ describe('TS: the setup stage, at a Worker', { concurrency: true }, () => {
     }, { worker: 'none' }));
 
   test('TS7: a Worker Builds made from its template (every deployment a dash_template) is pending: setup ends with 4 after its zone lines; launch ends with 4 and writes nothing', () =>
-    scenario((h) => Object.assign(freshState(), { workers: { [WORKER]: worker({ sources: ['dash_template', 'dash_template'], serves: null }) } }), async ({ where, api, dns, preview, go }) => {
+    scenario((h) => Object.assign(freshState(), { workers: { [WORKER]: worker({ sources: BUILDS_FIRST.slice(1).map((d) => d.source), serves: null }) } }), async ({ where, api, dns, preview, go }) => {
+      assert.deepEqual(BUILDS_FIRST.slice(1).map((d) => d.source), ['dash_template', 'dash_template'], 'by hand: the capture\'s two older deployments are the template\'s');
       const q = await go();
       assert.equal(q.code, 3, q.out);
-      assert.match(q.out, /The Worker lenas-backstube exists, and Cloudflare's Builds has uploaded only its template so far: no build of this site has passed\./);
+      assert.match(q.out, /The Worker lenas-backstube exists, and Cloudflare's Builds has uploaded only its template so far: no build of this site has passed\. .*If Builds shows no repository connected, this Worker is not this site's: rename it in wrangler\.jsonc\./);
       const done = await go(['--confirm', codeOf(q)]);
       assert.equal(done.code, 4, done.out);
       assert.ok(writesOf(api).length > 0, 'the zone lines were written');
@@ -1393,6 +1398,15 @@ describe('TS: the setup stage, at a Worker', { concurrency: true }, () => {
       assert.equal(launched.code, 4, launched.out);
       assert.match(launched.out, /Nothing was changed\. Status 4\./);
       assert.equal(writesOf(api).length, before, 'launch wrote nothing');
+    }));
+
+  test('TS9: a template upload followed by a wrangler deploy (the whole C4 capture, no build.txt) is not pending: refused, no write', () =>
+    scenario((h) => Object.assign(freshState(), { workers: { [WORKER]: worker({ sources: BUILDS_FIRST.map((d) => d.source), serves: null }) } }), async ({ api, go }) => {
+      assert.deepEqual(BUILDS_FIRST.map((d) => d.source), ['wrangler', 'dash_template', 'dash_template'], 'by hand: the capture, newest first');
+      const r = await go();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /serves no build\.txt that names a commit: it is not this site's/);
+      assert.equal(writesOf(api).length, 0);
     }));
 
   test('TS8: a Worker of the name that is neither this repository\'s nor a Builds template (a stranger\'s, uploaded by wrangler) is refused, no write', () =>

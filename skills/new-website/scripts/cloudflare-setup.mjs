@@ -671,7 +671,7 @@ async function prepare(opts, io) {
 const workerWords = (ctx, state) => {
   const { worker, configFile, repository } = ctx;
   if (state.kind === 'serves') return `The Worker ${worker} serves commit ${short(state.sha)} at its version link.`;
-  if (state.kind === 'pending') return `The Worker ${worker} exists, and Cloudflare's Builds has uploaded only its template so far: no build of this site has passed. Look at Workers & Pages → ${worker} → Builds, and run this again after a build passes.`;
+  if (state.kind === 'pending') return `The Worker ${worker} exists, and Cloudflare's Builds has uploaded only its template so far: no build of this site has passed. Look at Workers & Pages → ${worker} → Builds, and run this again after a build passes. If Builds shows no repository connected, this Worker is not this site's: rename it in ${configFile}.`;
   return `The Worker ${worker} is not on Cloudflare yet. The script makes none; the first deploy does. Either connect the repository to Workers Builds, or deploy once from this computer:`;
 };
 // What to do when the Worker is missing: Builds (with the token D33 asks for), or one deploy by hand.
