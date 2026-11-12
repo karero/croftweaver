@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.28
+# template-version: 0.29
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -1083,6 +1083,11 @@ fi
 # Checks 10 s apart; the slowest Workers build seen took about 300 s, so wait about 6 minutes.
 wait_min=6
 echo "→ Verifying the live site serves this exact build (about $wait_min min)…"
+# What the last look got, and whether any look got an answer at all. Read as probe_site reads
+# build.txt (no -f, the status asked for), so "no reply" (curl's code 000: DNS, a blocked network,
+# a timeout), "an HTTP error" and "this build is not served yet" stay three different things.
+# Only the last is Cloudflare's to fix.
+last_look="" last_code="" ever_reached=0
 for i in $(seq 1 $((wait_min * 6))); do
   # A Ctrl-C ends the wait (or the request), not the script, so the note is read.
   sleep 10 || true
@@ -1090,7 +1095,20 @@ for i in $(seq 1 $((wait_min * 6))); do
   if [ "$stop_live" = 0 ]; then
     # -L: follow 3xx so a domain-level redirect (naked → www) can't yield an empty
     # body and a false "old build" verdict; the exact-SHA match keeps the check honest.
-    live="$(curl -sfL -m 8 "$site/build.txt?cb=$RANDOM$i" 2>/dev/null | tr -d '[:space:]')" || true
+    live="" crc=0
+    out="$(curl -sL -m 8 -w '\n%{http_code}' "$site/build.txt?cb=$RANDOM$i" 2>/dev/null)" || crc=$?
+    last_code="${out##*$'\n'}"
+    if [ "$crc" != 0 ] || [ "$last_code" = 000 ] || [ -z "$last_code" ]; then
+      last_look=noreply
+    else
+      ever_reached=1
+      if [ "$last_code" = 200 ]; then
+        live="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
+        last_look=other
+      else
+        last_look=http
+      fi
+    fi
     [ "$stop_asked" = 1 ] && stop_live=1
   fi
   if [ "$stop_live" = 1 ]; then
@@ -1119,12 +1137,37 @@ for i in $(seq 1 $((wait_min * 6))); do
   fi
 done
 echo ""
+if [ "$ever_reached" = 0 ]; then
+  # Exit 1, as for the other "published but unverified" ends above (a stop during the check, a
+  # probe that could not tell): the push landed, but nothing confirmed the live site, and a 0
+  # would let a caller read this as verified. Nothing here blames Cloudflare: no look got a reply,
+  # so this says nothing about the build, only about this machine's way to the site.
+  if [ "$live_n" = 0 ]; then
+    echo "⚠ Nothing was pushed ('production' already had this commit), but $site could not be"
+  else
+    echo "⚠ Pushed OK (GitHub's production is now ${id:0:12}), but $site could not be"
+  fi
+  echo "  reached from this machine: no reply in $wait_min minutes (no network to it, a blocked"
+  echo "  address or a timeout). So this could not check the deploy; it does not mean the build failed."
+  echo "  Check it yourself: open $build_txt in your browser. It should show"
+  echo "    $id"
+  echo "  If it shows another id after a few minutes, run npm run ship again from a machine that"
+  echo "  can reach the site: it checks again and says what to do."
+  exit 1
+fi
+# The site answered at least once. What its last look got says how to word it: only a 200 with
+# another commit is an OLD build; an HTTP error or a late lapse in replies is named as such.
+case "$last_look" in
+  http) stale="does not serve this build (its last answer was HTTP $last_code)." ;;
+  noreply) stale="did not show this build (it answered earlier; the last look got no reply)." ;;
+  *) stale="serves an OLD build." ;;
+esac
 if [ "$live_n" = 0 ]; then
   echo "⚠ Nothing was pushed ('production' already had this commit), and after $wait_min minutes the"
-  echo "  live site still serves an OLD build."
+  echo "  live site still $stale"
   echo "  This usually means Cloudflare didn't build (it can stop silently). Check, in the"
 else
-  echo "⚠ Pushed OK, but after $wait_min minutes the live site still serves an OLD build."
+  echo "⚠ Pushed OK, but after $wait_min minutes the live site still $stale"
   echo "  The build may still be running: in a few minutes, $build_txt should show"
   echo "  ${id:0:12}. If it doesn't, Cloudflare didn't build (it can stop silently). Check, in the"
 fi
