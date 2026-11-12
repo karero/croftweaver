@@ -325,7 +325,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
       rm -f "$idx"
       rm -rf "${skills_dir:?}/$s"
       if [ -e "$skills_dir/$s" ] || [ -L "$skills_dir/$s" ] || ! mv "$new" "$skills_dir/$s"; then
-        echo "error: could not replace the site's copy of $s (the new one is in $new); the stamp is not advanced." >&2
+        echo "error: could not replace the site's copy of $s, which may now be partly removed (restore it from the site's git history; the new one is in $new); the stamp is not advanced." >&2
         return 1
       fi
       case "$LEFT_BEHIND" in "$s"/*) rm -rf "${skills_dir:?}/$LEFT_BEHIND" ;; esac

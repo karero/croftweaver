@@ -196,6 +196,7 @@ err="$(bash "$WN" --refresh "$S8D" 2>&1 >/dev/null)"; rc=$?
 chmod 755 "$S8D/.claude/skills/alpha/locked"
 check "locked old copy: refresh exits 1"                        test "$rc" -eq 1
 check "locked old copy: says it could not replace it"           has "$err" "could not replace the site's copy of alpha"
+check "locked old copy: warns it may be partly removed"         has "$err" "may now be partly removed"
 check "locked old copy: leaves the stamp"                       test "$(stamp "$S8D")" = "$OLD"
 check "locked old copy: the new copy is not nested inside"      test ! -e "$S8D/.claude/skills/alpha/.alpha.refresh"
 
