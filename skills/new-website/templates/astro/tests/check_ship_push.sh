@@ -964,6 +964,13 @@ printf "const re = /'/; /* ' site: 'https://old.example' */\n" > "$work/cwd/astr
 want_line1="$one_comment"; expect regexquote 1 0 "not for a network reason"
 printf "const c = 'prefix\\\\\n/*'; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect continued 1 0 "not for a network reason"
+# The same in double quotes, and over a CRLF line end, where a string the scan wrongly closed
+# would hide the /* and name the commented address.
+mark dqcontinued noorigin; mark crlfcontinued noorigin
+printf "const c = \"prefix\\\\\n/*\"; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect dqcontinued 1 0 "not for a network reason"
+printf "const c = 'x\\\\\r\n'; /* ' site: 'https://old.example' */\r\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect crlfcontinued 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
