@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.28
+# template-version: 0.29
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -156,10 +156,39 @@ site_of() { # <astro.config.mjs text>
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
 # an old address kept in a comment counts. Many means no one address can be named or checked.
+# commented: the text before the one match does not end in plain code (js_state), so the build
+# may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
-  local h
+  local h pre
   h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
-  case "$h" in '') echo none ;; *$'\n'*) echo many ;; *) echo one ;; esac
+  case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
+  # The counted match starts at the text's first occurrence of $h: an earlier one would itself
+  # be a match, and grep would have counted it first.
+  pre="${1%%"$h"*}"
+  case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
+}
+
+# Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
+# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments. A / that opens no comment, a regex
+# literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
+# The | ends the text on a character of its own, so a line comment that closed at a final
+# newline is not reported.
+js_state() { # <text>
+  printf '%s|' "$1" | awk '
+    { sub(/\r$/, "")
+      if (cont) cont = 0; else if (st != "block" && st != "tpl" && st != "slash") st = "code"
+      for (i = 1; i <= length($0) && st != "slash"; i++) {
+        c = substr($0, i, 1); d = substr($0, i, 2)
+        if (st == "code") {
+          if (d == "//") { st = "line"; break }
+          if (d == "/*") { st = "block"; i++ }
+          else if (c == "/") st = "slash"
+          else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"
+        } else if (st == "block") { if (d == "*/") { st = "code"; i++ } }
+        else if (c == "\\") { if (i == length($0)) cont = 1; i++ }
+        else if ((st == "sq" && c == "\047") || (st == "dq" && c == "\"") || (st == "tpl" && c == "`")) st = "code"
+      } }
+    END { print (st == "" ? "code" : st) }'
 }
 
 # owner/name of the address `git push origin` uses; empty when there is none, when it has
@@ -181,6 +210,7 @@ name_site() { # <astro.config.mjs text>
   case "$(site_count "$1")" in
     one) site_a="$(site_of "$1")"; site_p="$site_a" ;;
     many) site_a="more than one site: address in astro.config.mjs — check which one is live"; site_p="($site_a)" ;;
+    commented) site_a="the only site: address in astro.config.mjs is in a comment, or ship can't tell — check which one is live"; site_p="($site_a)" ;;
     *) site_a="no site: address in astro.config.mjs"; site_p="($site_a)" ;;
   esac
   repo_a="$(repo_of_origin)"
@@ -1070,6 +1100,8 @@ esac
 if [ -z "$site" ]; then
   if [ "$site_n" = many ]; then
     echo "⚠ astro.config.mjs has more than one site: address (an old one in a comment counts), so there is no one address to check — can't verify the deploy."
+  elif [ "$site_n" = commented ]; then
+    echo "⚠ The only site: address in astro.config.mjs is in a comment, or ship can't tell, so the build may use another one — can't verify the deploy."
   else
     echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
   fi
