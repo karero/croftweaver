@@ -40,3 +40,18 @@ partly fixed; its replacement drew F7 and F8.
 | F7 | BUG | codex | "each run sends your home page one request per AI crawler name" | A run with `--only` that leaves out the AI item sends no crawler requests | fixed | "each time it checks the AI crawlers (a full run does)"; `observe()` asks every request when `--only` is not given (`cloudflare-check.mjs`, `asked = only ? … : null`) |
 | F8 | RISK | melious | "Take those off" | The owner can't subtract without knowing when the check ran | fixed | "Note when you run it, and take one request per name off the counts for each such run" |
 | F9 | RISK | melious | "pick the longest date range on offer" | The longest range may hold little data, and the edit dropped the hedge on the Overview's reach | refuted | A longer range covers every shorter one's period, so picking it can't show fewer visits than a shorter one; the bullet makes no claim about how far back data reaches |
+
+## Round 3 (verification, diff at 9504c964)
+
+`reviewers: codex OK, melious OK`. `timings: codex 79s (35767 tokens), melious 300s (18705
+tokens)`. `make check` exit 0 before the round. Both seats: F7 and F8 fixed. Melious re-raised
+F9 as G2. No BUG, so the rounds end here (three rounds without a BUG); a wording pass follows.
+
+| Id | Sev | Source | Where | Finding | Status | Fix / reason |
+|---|---|---|---|---|---|---|
+| G1 | RISK | codex | "take one request per name off" | Subtracting for every run undercounts when a run falls outside the range or filters looked at | fixed | "For each run inside the range you picked, take seven home-page requests off" |
+| G2 | RISK | melious | "pick the longest date range on offer" | Only the Metrics picker's options were seen; the Overview's were not, so "longest" may not cover the most | fixed | "pick a date range that reaches back to your last look": no claim about the picker |
+| G3 | NIT | melious | "one request per name" | The Overview counts by company, and the bullet names no crawlers | fixed | Per company: two each from Anthropic and OpenAI, one each from Perplexity, Common Crawl and Amazon (`CRAWLERS` in `cloudflare-check.mjs`) |
+| G4 | NIT | melious | "it offered longer ranges" | "it" can read as the Overview | fixed | "its Metrics tab offered" |
+| G5 | NIT | melious | "(a full run does)" | The evidence run was `--only ai`, which the text does not name | fixed | "(a full run does, and so does `--only ai`)" |
+| G6 | NIT | melious | `new-website/scripts/cloudflare-check.mjs` | Path lacks `skills/` | refuted | The file names sibling skills the same way (`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, lines 26 and 38) |
