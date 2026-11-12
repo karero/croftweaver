@@ -156,16 +156,16 @@ site_of() { # <astro.config.mjs text>
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
 # an old address kept in a comment counts. Many means no one address can be named or checked.
-# commented: the text before the only match's own key holds, on its line, a `//` that is not part
-# of a `://`, or a `/*` with no `*/` after it, so the build may use another address. Both err
-# toward commented, the safe side: a `//` or `/*` inside a string reads as a comment too.
+# commented: the text before the one match holds, on its line, a `//` that is not part of an
+# `http://` or `https://`, or a `/*` with no `*/` after it, so the build may use another address.
+# Both err toward commented, the safe side: a `//` or `/*` inside a string reads as a comment too.
 site_count() { # <astro.config.mjs text>
-  local h pre lp re="^(.*)site:[[:space:]]*['\"]https?://[^'\"]+"
+  local h pre lp
   h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  [[ "$1" =~ $re ]] || { echo one; return; }
-  pre="${BASH_REMATCH[1]}"
-  lp="${pre##*$'\n'}"; lp="${lp//:\/\//}"
+  # The match is the text's only occurrence of $h: a second would be a second grep match.
+  pre="${1%%"$h"*}"
+  lp="${pre##*$'\n'}"; lp="${lp//https:\/\//}"; lp="${lp//http:\/\//}"
   case "$lp" in *//*) echo commented; return ;; esac
   case "$pre" in */\**) case "${pre##*/\*}" in *\*/*) ;; *) echo commented; return ;; esac ;; esac
   echo one

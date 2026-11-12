@@ -940,6 +940,15 @@ printf "export default { /* production */ site: 'https://new.example' };\n" > "$
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect closedcomment 1 0 "not for a network reason"
 printf "export default { integrations: [x({ endpoint: 'https://api.example' })], site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect urlbefore 1 0 "not for a network reason"
+# A comment straight after a key's colon is still a comment; a key split over two lines is not
+# counted, so the only counted address, the commented one, is named as commented.
+mark colonslash noorigin; mark splitkey noorigin; mark splitlive noorigin
+printf "const live = 'https://live.example';\nexport default { trailingSlash:// site: 'https://old.example'\n'always', site: live };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect colonslash 1 0 "not for a network reason"
+printf "// site: 'https://old.example'\nexport default {\n  site:\n    'https://new.example'\n};\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect splitkey 1 0 "not for a network reason"
+printf "export default { site: 'https://new.example' };\n/*\n  site:\n    'https://old.example'\n*/\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect splitlive 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
