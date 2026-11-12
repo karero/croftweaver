@@ -311,7 +311,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > to undo an update, `git revert` is equally live. From a zip, re-run
 > `./scripts/install.sh` in a newer unzipped copy. After `npm create croftweaver` the
 > installed skills are copies, not symlinks: run the command again, and it replaces them
-> with the latest release. A site scaffolded from those copies is stamped
+> with the latest release. A skill that is still a working symlink from an earlier
+> `./scripts/install.sh` is left alone and keeps updating from the folder it points to;
+> `npm create croftweaver -- --force` replaces it with a copy. A site scaffolded from those copies is stamped
 > `suite_commit: unknown`, as one scaffolded from a zip is, so `make whats-new` has no
 > baseline for it.
 >
