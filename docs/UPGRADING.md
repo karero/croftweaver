@@ -21,7 +21,7 @@ SETUP.md has the details; update Node before the bump when it is older.
 ## Steps
 
 1. **Bump the dependency.** In `package.json`, change `"astro": "^6.0.0"` (or whatever's
-   currently pinned) to `"astro": "^7.4.2"` (the floor the template currently ships). Run
+   currently pinned) to `"astro": "^7.4.7"` (the floor the template currently ships). Run
    `npm install` to regenerate
    `package-lock.json`. Commit the lockfile — CI uses `npm ci`, which needs it.
 
