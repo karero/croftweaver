@@ -745,6 +745,7 @@ async function setupStage(opts, io) {
       if (sameTarget && !address.proxied) line.state = 'as-is';
       else if (sameTarget) { line.state = 'clash'; line.why = `${fullName} already points to ${r.content}, but through Cloudflare (proxied); a verification record must be DNS only. Switch its proxy off by hand (DNS → Records → the record → Proxy status)`; }
       else if (address) { line.state = 'clash'; line.why = `${fullName} already has ${address.type} ${address.content}; this one would point it to ${r.content}. Cloudflare allows one of them, and the script changes no record it did not make: decide which is right and change it by hand`; }
+      else if (fullName === host) { line.state = 'clash'; line.why = `${fullName} is the site's own host: the launch makes its address record and replaces any record there, so a verification record cannot be written at it by this script. Add it by hand after the launch`; }
       else line.state = 'change';
     }
     return line;
@@ -1301,7 +1302,7 @@ async function launchRun(opts, ctx, run) {
   if (leftNow.length && !fits(leftNow)) {
     const lines = [];
     if (mode !== 'attached') {
-      if (noteNow && mode === 'recover') lines.push([`The record of ${host} is already deleted and kept in ${RUN_DIR}/. Attach it now; a refused attach puts it back at once:`, ...recordWords(noteNow)]);
+      if (noteNow && mode === 'recover') lines.push([`The record of ${host} is already deleted and kept in ${RUN_DIR}/. Attach ${host} now; a refused attach puts it back at once:`, ...recordWords(noteNow)]);
       else if (noteNow) lines.push([`Delete the record of ${host}, after keeping it in ${RUN_DIR}/ (it is printed here in full, and a refused attach puts it back at once):`, ...recordWords(noteNow)]);
       else lines.push(`${host} has no record to replace.`);
       lines.push(`Attach ${host} to the Worker ${worker} (Cloudflare makes the record that points it there).${host === zone.name ? ' A www that is a CNAME to the apex is not attached by this.' : ''}`);
@@ -1437,7 +1438,7 @@ async function launchReport(ctx, { whole, opts, commit, nelRule, ai, replaced, c
 
   say('', `Live: https://${host}/ serves ${short(commit)}.`);
   if (!nelRule) say('The NEL rule was left out (--skip nel-rule).');
-  say(`The route commit is in this folder${committed ? ` (${short(committed.commit)})` : ' already'} and is not pushed. On the owner's word the assistant pushes it (git push), so the next build keeps the domain.`);
+  say(`The route commit is in this folder${committed ? ` (${short(committed.commit)})` : ' already'} and is not pushed. On the owner's word the assistant pushes it (git push origin main), so the next build keeps the domain.`);
   if (replaced) {
     say('', `The record that ${host} had before is kept in ${RUN_DIR}/${replaced.name ?? '(its file)'} and reads:`, ...recordWords(replaced.note));
   }

@@ -695,6 +695,15 @@ test('17: a CNAME of the wanted name already points elsewhere: nothing is writte
   });
 });
 
+test('17b: a CNAME at the site\'s own host (an apex Bing record) with no address there: nothing is written, the line is "by hand", and no question is asked the gate would then refuse', () =>
+  scenario((h) => finishedState(h), async ({ api, go }) => {
+    const r = await go(['--record', 'CNAME @ verify.bing.com']);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /lenas-backstube\.example is the site's own host: the launch makes its address record and replaces any record there/);
+    assert.doesNotMatch(r.out, /gate: refused/);
+    onlyReads(api);
+  }));
+
 test('18: a record written that the nameservers do not show within the run: "written; the nameservers do not show it yet", status 0', () =>
   scenario((h) => finishedState(h), async ({ go, dns, setSilent }) => {
     setSilent(true);
