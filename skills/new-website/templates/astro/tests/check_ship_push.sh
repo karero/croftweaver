@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.28   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.29   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -925,6 +925,11 @@ printf "// site: 'https://old.example'\nexport default { site: 'https://new.exam
 want_line1="$two_sites"; expect twosite1 1 0 "not for a network reason"
 printf "/* site: 'https://old.example' */ export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="$two_sites"; expect twosite2 1 0 "not for a network reason"
+# The only address, in a comment at the end of a line: named as commented, not as the site.
+mark onecomment noorigin
+printf "export default { site: process.env.SITE_URL }; // site: 'https://old.example'\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: (the only site: address in astro.config.mjs is in a comment — check which one is live) · GitHub repo: $repo_fallback"
+expect onecomment 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
@@ -1885,6 +1890,23 @@ export default { site: 'https://ship-test.example.invalid' };"
   want "says why it checks none" has "$many"
   want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show the change."
   want "checks no address" test ! -e "$M/curl"
+  # P8, P9: the only address is in a comment (the real key gone, or set from a variable), so the
+  # build may use another address: checking that one could print LIVE for the wrong site.
+  one_commented="⚠ The only site: address in astro.config.mjs is in a comment, so the build may use another one — can't verify the deploy."
+  site_case p8 github https://ship-test.example.invalid "// site: 'https://ship-test.example.invalid'
+export default { site: process.env.SITE_URL };"
+  want "the first line says the only address is in a comment" eq "$(first_line)" "→ Site: (the only site: address in astro.config.mjs is in a comment — check which one is live) · GitHub repo: p8/origin"
+  want "says why it checks none" has "$one_commented"
+  want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show GitHub's main as of the fetch (${m:0:12})."
+  want "checks no address" test ! -e "$M/curl"
+  want "never says LIVE" lacks "✓ LIVE"
+  site_case p9 folder https://ship-test.example.invalid "/**
+ * site: 'https://ship-test.example.invalid'
+ */
+export default {};"
+  want "a line of a block comment counts as a comment" has "$one_commented"
+  want "checks no address" test ! -e "$M/curl"
+  want "never says LIVE" lacks "✓ LIVE"
 
   # --- W1–W19: a Workers config (D17: a .json or .jsonc with `assets` and no pages_build_output_dir) ---
   # Before launch a Worker has no custom domain, so its site: address serves no build.txt: ship
