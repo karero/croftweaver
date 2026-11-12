@@ -153,25 +153,29 @@ check "leftover: the site's copy is not overwritten"            test "$(cat "$S8
 rm -rf "$SUITE/skills/beta"
 
 # --- 8b. a file the suite clone holds but git does not track stays out of the site: the refresh
-# copies the committed skill, the one the stamp names. One untracked, one ignored. An
-# export-ignore attribute on SKILL.md must not thin the copy either.
+# copies the committed skill, the one the stamp names. One untracked, one ignored, and an
+# assume-unchanged edit git status does not show. An export-ignore attribute must not thin it.
 mkdir -p "$SUITE/.git/info" && printf 'cache.pyc\n' >> "$SUITE/.git/info/exclude"
 printf 'SKILL.md export-ignore\n' >> "$SUITE/.git/info/attributes"
 printf 'a stray note\n' > "$SUITE/skills/alpha/notes.md"
 printf 'x\n' > "$SUITE/skills/alpha/cache.pyc"
+$git -C "$SUITE" update-index --assume-unchanged skills/alpha/SKILL.md
+printf '# a hidden edit\n' > "$SUITE/skills/alpha/SKILL.md"
 S8B="$(make_site stray alpha)"
 bash "$WN" --refresh "$S8B" >/dev/null 2>&1; rc=$?
 check "untracked: refresh exits 0"                              test "$rc" -eq 0
 check "untracked: the stamp moves to the suite's head"          test "$(stamp "$S8B")" = "$NEW"
-check "untracked: alpha's SKILL.md is the committed one"        test "$(cat "$S8B/.claude/skills/alpha/SKILL.md")" = "# alpha, edited"
+check "untracked: alpha's SKILL.md is the committed one, not the hidden edit"     test "$(cat "$S8B/.claude/skills/alpha/SKILL.md")" = "# alpha, edited"
 check "untracked: an untracked file stays behind"               test ! -e "$S8B/.claude/skills/alpha/notes.md"
 check "untracked: an ignored file stays behind"                 test ! -e "$S8B/.claude/skills/alpha/cache.pyc"
 rm -f "$SUITE/skills/alpha/notes.md" "$SUITE/skills/alpha/cache.pyc" "$SUITE/.git/info/attributes"
+$git -C "$SUITE" update-index --no-assume-unchanged skills/alpha/SKILL.md
+$git -C "$SUITE" checkout -q -- skills/alpha/SKILL.md
 
-# --- 8c. a copy that fails (a git that refuses `ls-files` stands in) stops the refresh, keeps the
+# --- 8c. a copy that fails (a git that refuses `checkout-index` stands in) stops the refresh, keeps the
 # stamp and leaves the site's old copy as it was, with no half-built folder beside it.
 mkdir -p "$T/noarchive"
-printf '#!/bin/sh\n[ "$1" = ls-files ] && { echo "fatal: no ls-files" >&2; exit 128; }\nexec "%s" "$@"\n' "$(command -v git)" > "$T/noarchive/git"
+printf '#!/bin/sh\n[ "$3" = checkout-index ] && { echo "fatal: no checkout-index" >&2; exit 128; }\nexec "%s" "$@"\n' "$(command -v git)" > "$T/noarchive/git"
 chmod +x "$T/noarchive/git"
 S8C="$(make_site nocopy alpha)"
 err="$(PATH="$T/noarchive:$PATH" bash "$WN" --refresh "$S8C" 2>&1 >/dev/null)"; rc=$?
@@ -180,6 +184,20 @@ check "failed copy: says it could not copy"                     has "$err" "coul
 check "failed copy: leaves the stamp"                           test "$(stamp "$S8C")" = "$OLD"
 check "failed copy: the site's old copy is intact"              test "$(cat "$S8C/.claude/skills/alpha/SKILL.md")" = "$($git -C "$SUITE" show "$OLD:skills/alpha/SKILL.md")"
 check "failed copy: no half-built folder is left"               test ! -e "$S8C/.claude/skills/.alpha.refresh"
+check "failed copy: no throwaway index is left"                 test ! -e "$S8C/.claude/skills/.alpha.refresh.index"
+
+# --- 8d. an old copy that cannot be fully removed (a folder rm cannot empty stands in) stops the
+# refresh before the new copy is moved: mv would nest it inside, and the stamp must not move.
+S8D="$(make_site locked alpha)"
+mkdir -p "$S8D/.claude/skills/alpha/locked" && printf 'x\n' > "$S8D/.claude/skills/alpha/locked/f"
+$git -C "$S8D" add -A && $git -C "$S8D" commit -q -m locked
+chmod 555 "$S8D/.claude/skills/alpha/locked"
+err="$(bash "$WN" --refresh "$S8D" 2>&1 >/dev/null)"; rc=$?
+chmod 755 "$S8D/.claude/skills/alpha/locked"
+check "locked old copy: refresh exits 1"                        test "$rc" -eq 1
+check "locked old copy: says it could not replace it"           has "$err" "could not replace the site's copy of alpha"
+check "locked old copy: leaves the stamp"                       test "$(stamp "$S8D")" = "$OLD"
+check "locked old copy: the new copy is not nested inside"      test ! -e "$S8D/.claude/skills/alpha/.alpha.refresh"
 
 # --- 9. the brand kit's scripts/tests stays behind on --refresh, and a change inside it alone
 # is not an update. alpha's tests stand for a skill whose tests travel.
