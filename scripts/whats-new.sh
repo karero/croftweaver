@@ -284,8 +284,8 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   # Refresh guards — refuse when either side would lose or skew content.
   if suite_dirty; then
-    echo "error: the suite clone has uncommitted changes under skills/ — a refresh would" >&2
-    echo "copy content matching no commit while stamping HEAD. Commit or stash first." >&2
+    echo "error: the suite clone has uncommitted changes under skills/ — a refresh copies" >&2
+    echo "the committed skills, so those edits would not reach the site. Commit or stash first." >&2
     return 1
   fi
   if git -C "$PROJECT" rev-parse --show-toplevel >/dev/null 2>&1; then
@@ -310,7 +310,11 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     fi
     if suite_has "$s"; then
       rm -rf "${skills_dir:?}/$s"
-      cp -R "$REPO_DIR/skills/$s" "$skills_dir/"
+      # Copy the committed tree, the one the stamp names: a file in the clone that git does not
+      # track (untracked or ignored) must not reach the site. `|| return`: set -e is off in here.
+      mkdir "$skills_dir/$s" \
+        && git -C "$REPO_DIR" archive --format=tar "HEAD:skills/$s" | tar -xf - -C "$skills_dir/$s" \
+        || { echo "error: could not copy $s from the suite's HEAD; the stamp is not advanced." >&2; return 1; }
       case "$LEFT_BEHIND" in "$s"/*) rm -rf "${skills_dir:?}/$LEFT_BEHIND" ;; esac
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
       echo "refreshed $s"

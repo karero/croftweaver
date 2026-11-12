@@ -152,6 +152,30 @@ check "leftover: refresh leaves the stamp"                      test "$(stamp "$
 check "leftover: the site's copy is not overwritten"            test "$(cat "$S8/.claude/skills/beta/SKILL.md")" = "# beta"
 rm -rf "$SUITE/skills/beta"
 
+# --- 8b. a file the suite clone holds but git does not track stays out of the site: the refresh
+# copies the committed skill, the one the stamp names. One untracked, one ignored.
+mkdir -p "$SUITE/.git/info" && printf 'cache.pyc\n' >> "$SUITE/.git/info/exclude"
+printf 'a stray note\n' > "$SUITE/skills/alpha/notes.md"
+printf 'x\n' > "$SUITE/skills/alpha/cache.pyc"
+S8B="$(make_site stray alpha)"
+bash "$WN" --refresh "$S8B" >/dev/null 2>&1; rc=$?
+check "untracked: refresh exits 0"                              test "$rc" -eq 0
+check "untracked: the stamp moves to the suite's head"          test "$(stamp "$S8B")" = "$NEW"
+check "untracked: alpha's SKILL.md is the committed one"        test "$(cat "$S8B/.claude/skills/alpha/SKILL.md")" = "# alpha, edited"
+check "untracked: an untracked file stays behind"               test ! -e "$S8B/.claude/skills/alpha/notes.md"
+check "untracked: an ignored file stays behind"                 test ! -e "$S8B/.claude/skills/alpha/cache.pyc"
+rm -f "$SUITE/skills/alpha/notes.md" "$SUITE/skills/alpha/cache.pyc"
+# A copy that fails (a git that refuses `archive` stands in) must stop the refresh and keep the
+# stamp, not leave an empty skill folder under a stamp that says it is current.
+mkdir -p "$T/noarchive"
+printf '#!/bin/sh\n[ "$3" = archive ] && { echo "fatal: no archive" >&2; exit 128; }\nexec "%s" "$@"\n' "$(command -v git)" > "$T/noarchive/git"
+chmod +x "$T/noarchive/git"
+S8C="$(make_site nocopy alpha)"
+err="$(PATH="$T/noarchive:$PATH" bash "$WN" --refresh "$S8C" 2>&1 >/dev/null)"; rc=$?
+check "failed copy: refresh exits 1"                            test "$rc" -eq 1
+check "failed copy: says it could not copy"                     has "$err" "could not copy alpha"
+check "failed copy: leaves the stamp"                           test "$(stamp "$S8C")" = "$OLD"
+
 # --- 9. the brand kit's scripts/tests stays behind on --refresh, and a change inside it alone
 # is not an update. alpha's tests stand for a skill whose tests travel.
 SB="$T/suite-bk" BK=skills/website-brand-kit
