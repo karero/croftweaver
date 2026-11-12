@@ -153,8 +153,10 @@ check "leftover: the site's copy is not overwritten"            test "$(cat "$S8
 rm -rf "$SUITE/skills/beta"
 
 # --- 8b. a file the suite clone holds but git does not track stays out of the site: the refresh
-# copies the committed skill, the one the stamp names. One untracked, one ignored.
+# copies the committed skill, the one the stamp names. One untracked, one ignored. An
+# export-ignore attribute on SKILL.md must not thin the copy either.
 mkdir -p "$SUITE/.git/info" && printf 'cache.pyc\n' >> "$SUITE/.git/info/exclude"
+printf 'SKILL.md export-ignore\n' >> "$SUITE/.git/info/attributes"
 printf 'a stray note\n' > "$SUITE/skills/alpha/notes.md"
 printf 'x\n' > "$SUITE/skills/alpha/cache.pyc"
 S8B="$(make_site stray alpha)"
@@ -164,17 +166,20 @@ check "untracked: the stamp moves to the suite's head"          test "$(stamp "$
 check "untracked: alpha's SKILL.md is the committed one"        test "$(cat "$S8B/.claude/skills/alpha/SKILL.md")" = "# alpha, edited"
 check "untracked: an untracked file stays behind"               test ! -e "$S8B/.claude/skills/alpha/notes.md"
 check "untracked: an ignored file stays behind"                 test ! -e "$S8B/.claude/skills/alpha/cache.pyc"
-rm -f "$SUITE/skills/alpha/notes.md" "$SUITE/skills/alpha/cache.pyc"
-# A copy that fails (a git that refuses `archive` stands in) must stop the refresh and keep the
-# stamp, not leave an empty skill folder under a stamp that says it is current.
+rm -f "$SUITE/skills/alpha/notes.md" "$SUITE/skills/alpha/cache.pyc" "$SUITE/.git/info/attributes"
+
+# --- 8c. a copy that fails (a git that refuses `ls-files` stands in) stops the refresh, keeps the
+# stamp and leaves the site's old copy as it was, with no half-built folder beside it.
 mkdir -p "$T/noarchive"
-printf '#!/bin/sh\n[ "$3" = archive ] && { echo "fatal: no archive" >&2; exit 128; }\nexec "%s" "$@"\n' "$(command -v git)" > "$T/noarchive/git"
+printf '#!/bin/sh\n[ "$1" = ls-files ] && { echo "fatal: no ls-files" >&2; exit 128; }\nexec "%s" "$@"\n' "$(command -v git)" > "$T/noarchive/git"
 chmod +x "$T/noarchive/git"
 S8C="$(make_site nocopy alpha)"
 err="$(PATH="$T/noarchive:$PATH" bash "$WN" --refresh "$S8C" 2>&1 >/dev/null)"; rc=$?
 check "failed copy: refresh exits 1"                            test "$rc" -eq 1
 check "failed copy: says it could not copy"                     has "$err" "could not copy alpha"
 check "failed copy: leaves the stamp"                           test "$(stamp "$S8C")" = "$OLD"
+check "failed copy: the site's old copy is intact"              test "$(cat "$S8C/.claude/skills/alpha/SKILL.md")" = "$($git -C "$SUITE" show "$OLD:skills/alpha/SKILL.md")"
+check "failed copy: no half-built folder is left"               test ! -e "$S8C/.claude/skills/.alpha.refresh"
 
 # --- 9. the brand kit's scripts/tests stays behind on --refresh, and a change inside it alone
 # is not an update. alpha's tests stand for a skill whose tests travel.

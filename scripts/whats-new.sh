@@ -309,12 +309,21 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
       continue
     fi
     if suite_has "$s"; then
+      # Copy only the files git tracks: they match HEAD, the commit the stamp names (suite_dirty
+      # refused otherwise), so an untracked or ignored file never reaches the site. Not `git
+      # archive`, which export-ignore attributes can thin. Built beside the old copy and swapped in
+      # only once complete. `|| return`: set -e is off in here; pipefail catches a failing git.
+      new="$skills_dir/.$s.refresh"
+      rm -rf "${new:?}"
+      if ! { mkdir "$new" \
+          && (cd "$REPO_DIR/skills/$s" && git ls-files -z | tar -cf - --null -T -) | tar -xf - -C "$new"; }; then
+        rm -rf "${new:?}"
+        echo "error: could not copy $s from the suite; the site's copy of $s is unchanged and the stamp is not advanced." >&2
+        return 1
+      fi
       rm -rf "${skills_dir:?}/$s"
-      # Copy the committed tree, the one the stamp names: a file in the clone that git does not
-      # track (untracked or ignored) must not reach the site. `|| return`: set -e is off in here.
-      mkdir "$skills_dir/$s" \
-        && git -C "$REPO_DIR" archive --format=tar "HEAD:skills/$s" | tar -xf - -C "$skills_dir/$s" \
-        || { echo "error: could not copy $s from the suite's HEAD; the stamp is not advanced." >&2; return 1; }
+      mv "$new" "$skills_dir/$s" \
+        || { echo "error: could not move the new copy of $s into place (it is in $new); the stamp is not advanced." >&2; return 1; }
       case "$LEFT_BEHIND" in "$s"/*) rm -rf "${skills_dir:?}/$LEFT_BEHIND" ;; esac
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
       echo "refreshed $s"
