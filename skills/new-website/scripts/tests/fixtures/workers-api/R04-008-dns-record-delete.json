@@ -1,0 +1,17 @@
+{
+ "capture": "R04-008",
+ "request": {
+  "method": "DELETE",
+  "path": "/zones/c0ffee00000000000000000000000002/dns_records/c0ffee00000000000000000000000005",
+  "body": null
+ },
+ "status": 200,
+ "response": {
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+   "id": "c0ffee00000000000000000000000005"
+  }
+ }
+}
