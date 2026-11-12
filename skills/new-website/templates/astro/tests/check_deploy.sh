@@ -9,7 +9,9 @@
 #   - preview: the same, but no tag either way, and the command is `wrangler preview`. So with
 #     analytics on, a WORKERS_CI_BRANCH set in the caller's shell must not switch the tag on.
 #   - refusals, each with its own message: an unsaved file (live; an untracked one counts, preview
-#     builds it), the placeholder Worker name (both), a wrangler.toml beside wrangler.jsonc.
+#     builds it), a branch other than PROD_BRANCH or no branch (live; preview builds it, and live
+#     still runs on PROD_BRANCH when a tag has its name), the
+#     placeholder Worker name (both), a wrangler.toml beside wrangler.jsonc.
 #   - the build's environment (a build step that prints it): no CF_* or CLOUDFLARE_* variable,
 #     WORKERS_CI=1, WORKERS_CI_BRANCH only for live; a CF_PAGES_COMMIT_SHA from the caller does
 #     not replace HEAD in build.txt.
@@ -74,7 +76,7 @@ tar -C "$site" --exclude=./node_modules --exclude=./dist --exclude=./.astro --ex
 ln -s "$site/node_modules" "$copy/node_modules"
 # A link does not match the `node_modules/` line of .gitignore.
 git_in() { git -C "$copy" "$@"; }
-git_in init -q
+git_in init -q -b "$prod"
 git_in config user.email check@example.com
 git_in config user.name check
 git_in config commit.gpgsign false
@@ -181,6 +183,23 @@ refused "live with an untracked file" "Unsaved changes" live-dirty
 run preview-dirty -- deploy:preview -- --dry-run
 if [ "$rc" = 0 ]; then ok "preview builds an untracked file"; else bad "preview refused an unsaved file (exit $rc)."; fi
 rm -f "$copy/unsaved.txt"
+
+git_in switch -q -c "not-$prod"
+run branch-live -- deploy:live -- --dry-run
+refused "live on a branch other than $prod" "The live site comes from the branch \"$prod\" (PROD_BRANCH in src/config.ts), but this folder is on the branch \"not-$prod\"." branch-live
+run branch-preview -- deploy:preview -- --dry-run
+if [ "$rc" = 0 ]; then ok "preview builds another branch"; else bad "preview refused another branch (exit $rc)."; fi
+git_in switch -q --detach "$prod"
+run detached-live -- deploy:live -- --dry-run
+refused "live with no branch (detached HEAD)" "but this folder is on no branch" detached-live
+run detached-preview -- deploy:preview -- --dry-run
+if [ "$rc" = 0 ]; then ok "preview builds with no branch"; else bad "preview refused a detached HEAD (exit $rc)."; fi
+git_in switch -q "$prod"
+# A tag with the branch's name must not hide the branch.
+git_in tag "$prod"
+run tag-live -- deploy:live -- --dry-run
+if [ "$rc" = 0 ]; then ok "live on $prod with a tag of the same name exits 0"; else bad "live on $prod with a tag named $prod exited $rc:"; sed 's/^/  | /' "$work/tag-live.log"; fi
+git_in tag -d "$prod" >/dev/null
 
 cp "$copy/wrangler.jsonc" "$work/wrangler.jsonc.good"
 NEW=example-site set_name example-site
