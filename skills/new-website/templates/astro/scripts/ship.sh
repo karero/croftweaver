@@ -156,19 +156,36 @@ site_of() { # <astro.config.mjs text>
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
 # an old address kept in a comment counts. Many means no one address can be named or checked.
-# commented: the text before the one match holds, on its line, a `//` that is not part of an
-# `http://` or `https://`, or a `/*` with no `*/` after it, so the build may use another address.
-# Both err toward commented, the safe side: a `//` or `/*` inside a string reads as a comment too.
+# commented: the text before the one match does not end in plain code (js_state), so the build
+# may use another address and ship checks none.
 site_count() { # <astro.config.mjs text>
-  local h pre lp
+  local h pre
   h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  # The match is the text's only occurrence of $h: a second would be a second grep match.
+  # The counted match starts at the text's first occurrence of $h: an earlier one would itself
+  # be a match, and grep would have counted it first.
   pre="${1%%"$h"*}"
-  lp="${pre##*$'\n'}"; lp="${lp//https:\/\//}"; lp="${lp//http:\/\//}"
-  case "$lp" in *//*) echo commented; return ;; esac
-  case "$pre" in */\**) case "${pre##*/\*}" in *\*/*) ;; *) echo commented; return ;; esac ;; esac
-  echo one
+  case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
+}
+
+# Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings, //
+# and /* */ comments; a regex literal holding a quote can mislead it, toward "string" mostly.
+# The | ends the text on a character of its own, so a line comment that closed at a final
+# newline is not reported.
+js_state() { # <text>
+  printf '%s|' "$1" | awk '
+    { if (st != "block" && st != "tpl") st = "code"
+      for (i = 1; i <= length($0); i++) {
+        c = substr($0, i, 1); d = substr($0, i, 2)
+        if (st == "code") {
+          if (d == "//") { st = "line"; break }
+          if (d == "/*") { st = "block"; i++ }
+          else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"
+        } else if (st == "block") { if (d == "*/") { st = "code"; i++ } }
+        else if (c == "\\") i++
+        else if ((st == "sq" && c == "\047") || (st == "dq" && c == "\"") || (st == "tpl" && c == "`")) st = "code"
+      } }
+    END { print (st == "" ? "code" : st) }'
 }
 
 # owner/name of the address `git push origin` uses; empty when there is none, when it has

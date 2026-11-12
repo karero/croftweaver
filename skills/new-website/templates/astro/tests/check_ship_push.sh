@@ -949,6 +949,14 @@ printf "// site: 'https://old.example'\nexport default {\n  site:\n    'https://
 want_line1="$one_comment"; expect splitkey 1 0 "not for a network reason"
 printf "export default { site: 'https://new.example' };\n/*\n  site:\n    'https://old.example'\n*/\n" > "$work/cwd/astro.config.mjs"
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect splitlive 1 0 "not for a network reason"
+# A key named http before a comment; a scheme or a /* inside a string; a comment line just above.
+mark httpkey noorigin; mark instring noorigin; mark commentabove noorigin
+printf "export default { http:// site: 'https://old.example'\ntrue, site: live };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect httpkey 1 0 "not for a network reason"
+printf "const c = ['https://*.cdn.example', 'ws://a']; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect instring 1 0 "not for a network reason"
+printf "// the live address\nsite: 'https://new.example'\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect commentabove 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
