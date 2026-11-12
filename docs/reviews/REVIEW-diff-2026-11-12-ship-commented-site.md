@@ -61,3 +61,7 @@ locally, and CI runs the test on Linux.
 
 Result: CLEAN, 6 rounds, 24 findings (8 BUG, 4 RISK, 12 NIT; fresh-eyes F1 and F2 counted with A4
 and A2), 453,711 tokens logged by the gate plus 100,303 for fresh-eyes.
+
+The last reviewed head is e5a3e17c. The commit after it, 53db73af (this trail and G1's clause in
+row 275), had no round of its own, nor did the merge of `origin/main` (3dcffd57) that cleared a
+conflict. The coordinator checked both and merged #539 at 3dcffd57 on CI 61 of 61.
