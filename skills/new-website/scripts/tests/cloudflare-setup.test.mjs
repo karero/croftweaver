@@ -1339,7 +1339,7 @@ const siteZoneOf = (zones, pick) => {
 
 // The deployments of a Worker that Builds made from its template, as the first build's test saw them (C4,
 // newest first). The capture is read as it is; the stub fills in the ids and versions it lacks (MADE).
-const BUILDS_FIRST = JSON.parse(readFileSync(path.join(import.meta.dirname, 'fixtures', 'builds-deployments', 'c4-builds-first-deployments-2026-11-12-cloudflare-api-v4.json'), 'utf8'));
+const BUILDS_FIRST = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'builds-deployments', 'c4-builds-first-deployments-2026-11-12-cloudflare-api-v4.json'), 'utf8'));
 
 describe('TS: the setup stage, at a Worker', { concurrency: true }, () => {
   test('TS1: the token the move guide makes (DNS Edit in one zone of three) picks the site\'s zone', () => {

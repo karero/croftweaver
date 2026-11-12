@@ -1438,7 +1438,7 @@ async function launchReport(ctx, { whole, opts, commit, nelRule, ai, replaced, c
 
   say('', `Live: https://${host}/ serves ${short(commit)}.`);
   if (!nelRule) say('The NEL rule was left out (--skip nel-rule).');
-  say(`The route commit is in this folder${committed ? ` (${short(committed.commit)})` : ' already'} and is not pushed. On the owner's word the assistant pushes it (git push origin main), so the next build keeps the domain.`);
+  say(`The route commit is in this folder${committed ? ` (${short(committed.commit)})` : ' already'} and is not pushed. On the owner's word the assistant pushes it (git push origin HEAD:main), so the next build keeps the domain.`);
   if (replaced) {
     say('', `The record that ${host} had before is kept in ${RUN_DIR}/${replaced.name ?? '(its file)'} and reads:`, ...recordWords(replaced.note));
   }
