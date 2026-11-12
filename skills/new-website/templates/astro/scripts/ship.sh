@@ -156,17 +156,19 @@ site_of() { # <astro.config.mjs text>
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
 # an old address kept in a comment counts. Many means no one address can be named or checked.
-# commented: the only match has `//` or `/*` before it on its line, or its line starts with `*`,
-# so the build may use another address. Read line by line: a line inside a /* */ block that
-# starts otherwise still counts as one; a `//` in a string before the key reads as a comment.
+# commented: the text before the only match's own key holds, on its line, a `//` that is not part
+# of a `://`, or a `/*` with no `*/` after it, so the build may use another address. Both err
+# toward commented, the safe side: a `//` or `/*` inside a string reads as a comment too.
 site_count() { # <astro.config.mjs text>
-  local h l re="^(.*)site:[[:space:]]*['\"]https?://"
+  local h pre lp re="^(.*)site:[[:space:]]*['\"]https?://[^'\"]+"
   h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  l="$(grep -m1 -E "site:[[:space:]]*['\"]https?://" <<<"$1" 2>/dev/null || true)"
-  # What stands before the address's own key, not before an earlier `site:` on the same line.
-  [[ "$l" =~ $re ]] && case "${BASH_REMATCH[1]}" in *//*|*/\**) echo commented; return ;; esac
-  if [[ "$l" =~ ^[[:space:]]*\* ]]; then echo commented; else echo one; fi
+  [[ "$1" =~ $re ]] || { echo one; return; }
+  pre="${BASH_REMATCH[1]}"
+  lp="${pre##*$'\n'}"; lp="${lp//:\/\//}"
+  case "$lp" in *//*) echo commented; return ;; esac
+  case "$pre" in */\**) case "${pre##*/\*}" in *\*/*) ;; *) echo commented; return ;; esac ;; esac
+  echo one
 }
 
 # owner/name of the address `git push origin` uses; empty when there is none, when it has

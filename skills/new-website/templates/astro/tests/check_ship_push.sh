@@ -928,8 +928,18 @@ want_line1="$two_sites"; expect twosite2 1 0 "not for a network reason"
 # The only address, in a comment at the end of a line: named as commented, not as the site.
 mark onecomment noorigin
 printf "export default { site: process.env.SITE_URL }; // site: 'https://old.example'\n" > "$work/cwd/astro.config.mjs"
-want_line1="→ Site: (the only site: address in astro.config.mjs is in a comment — check which one is live) · GitHub repo: $repo_fallback"
-expect onecomment 1 0 "not for a network reason"
+one_comment="→ Site: (the only site: address in astro.config.mjs is in a comment — check which one is live) · GitHub repo: $repo_fallback"
+want_line1="$one_comment"; expect onecomment 1 0 "not for a network reason"
+# A line inside a /* */ block that does not start with `*` is in a comment too.
+mark blockbody noorigin
+printf "/*\nsite: 'https://old.example',\n*/\nexport default { site: process.env.SITE_URL };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect blockbody 1 0 "not for a network reason"
+# A comment closed before the key, and a URL in a string before it, leave the key live.
+mark closedcomment noorigin; mark urlbefore noorigin
+printf "export default { /* production */ site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect closedcomment 1 0 "not for a network reason"
+printf "export default { integrations: [x({ endpoint: 'https://api.example' })], site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect urlbefore 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
@@ -1904,7 +1914,7 @@ export default { site: process.env.SITE_URL };"
  * site: 'https://ship-test.example.invalid'
  */
 export default {};"
-  want "a line of a block comment counts as a comment" has "$one_commented"
+  want "a line starting with * inside a block comment counts as a comment" has "$one_commented"
   want "checks no address" test ! -e "$M/curl"
   want "never says LIVE" lacks "✓ LIVE"
 
