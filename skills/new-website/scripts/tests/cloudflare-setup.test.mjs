@@ -81,7 +81,7 @@ function makeSite({ prodBranch = 'production', production = true, url = `https:/
     mkdirSync(path.dirname(path.join(site, f)), { recursive: true });
     writeFileSync(path.join(site, f), text);
   }
-  git(site, 'add', ...['src', 'public', 'tests', '.github', '.gitignore', 'wrangler.jsonc'].filter((f) => existsSync(path.join(site, f))));
+  git(site, 'add', ...['src', 'public', 'tests', '.github', '.gitignore', 'wrangler.jsonc', 'workers.jsonc'].filter((f) => existsSync(path.join(site, f))));
   if (trackDevVars) git(site, 'add', '-f', '.dev.vars');
   git(site, 'commit', '-q', '-m', 'Lena\'s site');
   git(site, 'remote', 'add', 'origin', REMOTE);
@@ -1083,9 +1083,9 @@ test('the launch\'s small parts: a fixed text from a pattern, the differences th
   assert.equal(fixedText('\\[FEHLT:'), '[FEHLT:');
   assert.equal(fixedText('\\[MISS.*:'), null);
   assert.equal(fixedText('[A-Z]'), null);
-  const args = checkArgs({ site: HOST, preview: `https://${versionHost(VERSION, WORKER)}`, commit: 'a'.repeat(40), timeoutS: 9, only: ['build', 'nel'], nameservers: ['192.0.2.53', '192.0.2.54'] });
-  assert.deepEqual(args.slice(1), [HOST, '--json', '--timeout', '9', '--site', '.', '--preview', `https://${versionHost(VERSION, WORKER)}`, '--build', 'a'.repeat(40), '--only', 'build,nel', '--nameserver', '192.0.2.53,192.0.2.54']);
-  assert.ok(!checkArgs({ site: 'http://127.0.0.1:1', preview: 'x', commit: 'a', timeoutS: 1, nameservers: null }).includes('--nameserver'));
+  const args = checkArgs({ site: HOST, preview: `https://${versionHost(VERSION, WORKER)}`, commit: 'a'.repeat(40), timeoutS: 9, only: ['build', 'nel'], nameservers: ['192.0.2.53', '192.0.2.54'], configFile: 'workers.jsonc' });
+  assert.deepEqual(args.slice(1), [HOST, '--json', '--timeout', '9', '--site', '.', '--config', 'workers.jsonc', '--preview', `https://${versionHost(VERSION, WORKER)}`, '--build', 'a'.repeat(40), '--only', 'build,nel', '--nameserver', '192.0.2.53,192.0.2.54']);
+  assert.ok(!checkArgs({ site: 'http://127.0.0.1:1', preview: 'x', commit: 'a', timeoutS: 1, nameservers: null, configFile: 'wrangler.jsonc' }).includes('--nameserver'));
   assert.ok(LAUNCH_SKIP_IDS.every((id) => !SKIP_IDS.includes(id)));
 });
 
@@ -1502,6 +1502,16 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
     await refused((w) => { mkdirSync(RUN_DIR_OF(w), { recursive: true }); writeFileSync(path.join(RUN_DIR_OF(w), 'lock'), `${process.pid}\nabc\n`); }, /Another run \(process \d+\) holds .*setup-run\/lock/);
   });
 
+  test('TL1b: a site whose Workers config has another name (workers.jsonc): the check is told which file, and the route commit is made in it', () =>
+    launchScenario(before, async ({ where, launch }) => {
+      const q = await launch();
+      assert.equal(q.code, 3, q.out);
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 0, r.out);
+      assert.match(r.out, /as a custom-domain route in workers\.jsonc/);
+      assert.match(readFileSync(path.join(where.site, 'workers.jsonc'), 'utf8'), /lenas-backstube\.example/);
+    }, { routed: false, files: { 'wrangler.jsonc': null, 'workers.jsonc': WRANGLER } }));
+
   test('TL5: a PUT that is never answered after the DELETE: the next run prints the noted record, re-checks step 1, and attaches on the same code; with too little time, nothing is written', async () => {
     await launchScenario(before, async ({ where, api, state, launch }) => {
       const q = await launch();
@@ -1513,12 +1523,30 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
       assert.ok(existsSync(pendingOf(where)) && keptFiles(where).length === 1, 'the note stays');
       assert.equal(writesOf(api).filter((e) => e.method === 'DELETE').length, 1);
       delete state.drop['PUT wdomains'];
+      const asked = await launch();
+      assert.equal(asked.code, 3, asked.out);
+      assert.match(asked.out, /The record of lenas-backstube\.example is already deleted and kept in setup-run\//);
+      assert.doesNotMatch(asked.out, /Delete the record of/);
       const again = await launch(['--confirm', code]);
       assert.equal(again.code, 0, again.out);
       assert.match(again.out, /A launch stopped after it deleted the record of lenas-backstube\.example, and the host has no record\. The record is kept in setup-run\/replaced-/);
       assert.match(again.out, /"content": "192\.0\.2\.10"/);
       assert.equal(keptFiles(where).length, 1, 'no second file: the run attached from the note');
       assert.ok(!existsSync(pendingOf(where)));
+      assert.equal(writesOf(api).filter((e) => e.method === 'DELETE').length, 1, 'no second DELETE');
+    }, site);
+
+    // The PUT was applied and its answer lost: the next run finds the host attached, clears the note, and sends no second PUT.
+    await launchScenario(before, async ({ where, api, state, launch }) => {
+      const q = await launch();
+      state.drop['PUT wdomains'] = 'lost';
+      const hung = await launch(['--confirm', codeOf(q)]);
+      assert.equal(hung.code, 4, hung.out);
+      delete state.drop['PUT wdomains'];
+      const again = await launch(['--confirm', codeOf(q)]);
+      assert.equal(again.code, 0, again.out);
+      assert.ok(!existsSync(pendingOf(where)), 'the note is cleared');
+      assert.equal(writesOf(api).filter((e) => e.method === 'PUT').length, 1, 'no second PUT');
       assert.equal(writesOf(api).filter((e) => e.method === 'DELETE').length, 1, 'no second DELETE');
     }, site);
 
@@ -1586,6 +1614,13 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
     refuse('POST', `${W}/scripts/${WORKER}`, { x: 1 }, 'a POST under workers/scripts');
     refuse('GET', `${W}/scripts/other-worker/deployments`, undefined, 'another script\'s deployments');
     refuse('DELETE', `${W}/domains/c0ffee00000000000000000000000060`, undefined, 'a domain DELETE');
+    // The zone is part of the path: another zone's settings and rules are refused, and so is a setting no line writes.
+    const other = '/zones/c0ffee00000000000000000000000077';
+    allow('PATCH', `${Z}/settings/always_use_https`, { value: 'on' });
+    allow('POST', `${Z}/rulesets/c0ffee00000000000000000000000078/rules`, { x: 1 });
+    refuse('PATCH', `${other}/settings/always_use_https`, { value: 'on' }, 'another zone\'s setting');
+    refuse('POST', `${other}/rulesets/c0ffee00000000000000000000000078/rules`, { x: 1 }, 'another zone\'s ruleset');
+    refuse('PATCH', `${Z}/settings/ssl`, { value: 'off' }, 'a setting no line writes');
     // makeApi runs the gate before it opens a socket: a stub that records its requests sees none.
     await scenario(freshState(), async ({ api }) => {
       const call = makeApi(api.origin, TOKEN, { left: () => 10_000 }, g);

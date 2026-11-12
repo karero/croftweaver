@@ -373,10 +373,10 @@ export function gate(method, url, body, g) {
     }
     if (['TXT', 'CNAME'].includes(body.type)) return; // a verification record, as --record writes it
   }
-  if (Z && method === 'PATCH' && /^\/settings\/[a-z_]+$/.test(route.slice(Z.length)) && !query) return;
+  if (Z && method === 'PATCH' && !query && SETTINGS.some((s) => route === `${Z}/settings/${s.api}`)) return;
   if (Z && route === `${Z}/bot_management` && method === 'PUT' && !query) return;
   if (Z && method === 'PUT' && route === `${Z}/rulesets/phases/${PHASE}/entrypoint` && !query) return;
-  if (Z && method === 'POST' && /^\/rulesets\/[0-9a-f]{32}\/rules$/.test(route.slice(Z.length)) && !query) return;
+  if (tail(Z) !== null && method === 'POST' && /^rulesets\/[0-9a-f]{32}\/rules$/.test(tail(Z)) && !query) return;
   refuse();
 }
 
@@ -1109,8 +1109,8 @@ export async function nameserverIps(zone, { resolverAt, clock, resolve4 = (n) =>
 
 // The check script's arguments: the domain (or, in the tests, the loopback address standing in for it),
 // the Worker's version link, the commit, and the nameservers when the domain is asked by its name.
-export function checkArgs({ site, preview, commit, timeoutS, only, nameservers }) {
-  return [CHECK_SCRIPT, site, '--json', '--timeout', String(timeoutS), '--site', '.', '--preview', preview, '--build', commit,
+export function checkArgs({ site, preview, commit, timeoutS, only, nameservers, configFile }) {
+  return [CHECK_SCRIPT, site, '--json', '--timeout', String(timeoutS), '--site', '.', '--config', configFile, '--preview', preview, '--build', commit,
     ...(only ? ['--only', only.join(',')] : []), ...(nameservers?.length ? ['--nameserver', nameservers.join(',')] : [])];
 }
 
@@ -1118,7 +1118,7 @@ async function runCheck(ctx, { commit, only }) {
   const timeoutS = Math.min(120, Math.floor(ctx.clock.left() / 4000));
   if (timeoutS < 1) throw new Deadline();
   const nameservers = ctx.siteOverride ? null : await nameserverIps(ctx.zone, ctx);
-  const args = checkArgs({ site: ctx.siteOverride ?? ctx.host, preview: ctx.state.link, commit, timeoutS, only, nameservers });
+  const args = checkArgs({ site: ctx.siteOverride ?? ctx.host, preview: ctx.state.link, commit, timeoutS, only, nameservers, configFile: ctx.configFile });
   const r = await runProgram(process.execPath, args, { cwd: ctx.root, env: ctx.childEnv(), clock: ctx.clock });
   let json = null;
   try { json = JSON.parse(r.stdout); } catch { /* reported below */ }
@@ -1301,7 +1301,8 @@ async function launchRun(opts, ctx, run) {
   if (leftNow.length && !fits(leftNow)) {
     const lines = [];
     if (mode !== 'attached') {
-      if (noteNow) lines.push([`Delete the record of ${host}, after keeping it in ${RUN_DIR}/ (it is printed here in full, and a refused attach puts it back at once):`, ...recordWords(noteNow)]);
+      if (noteNow && mode === 'recover') lines.push([`The record of ${host} is already deleted and kept in ${RUN_DIR}/. Attach it now; a refused attach puts it back at once:`, ...recordWords(noteNow)]);
+      else if (noteNow) lines.push([`Delete the record of ${host}, after keeping it in ${RUN_DIR}/ (it is printed here in full, and a refused attach puts it back at once):`, ...recordWords(noteNow)]);
       else lines.push(`${host} has no record to replace.`);
       lines.push(`Attach ${host} to the Worker ${worker} (Cloudflare makes the record that points it there).${host === zone.name ? ' A www that is a CNAME to the apex is not attached by this.' : ''}`);
     }
@@ -1436,7 +1437,7 @@ async function launchReport(ctx, { whole, opts, commit, nelRule, ai, replaced, c
 
   say('', `Live: https://${host}/ serves ${short(commit)}.`);
   if (!nelRule) say('The NEL rule was left out (--skip nel-rule).');
-  say(`The route commit is in this folder${committed ? ` (${short(committed.commit)})` : ' already'} and is not pushed. On the owner's word the assistant pushes it (npm run ship), so the next build keeps the domain.`);
+  say(`The route commit is in this folder${committed ? ` (${short(committed.commit)})` : ' already'} and is not pushed. On the owner's word the assistant pushes it (git push), so the next build keeps the domain.`);
   if (replaced) {
     say('', `The record that ${host} had before is kept in ${RUN_DIR}/${replaced.name ?? '(its file)'} and reads:`, ...recordWords(replaced.note));
   }

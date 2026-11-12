@@ -24,7 +24,7 @@ that is neither made up by pattern nor on `allowed-values.json`.
 | `R04-009` | the attach: the domain made |
 | `R04-010` | the record Cloudflare makes for it: a read-only AAAA `100::` |
 | `R04-011` | the domain removed: 204 |
-| `R04-012` | the record put back with a POST of its eight fields, reading back equal |
+| `R04-012` | a CNAME record put back with a POST of its eight fields, reading back equal (an A record put back that way is not captured) |
 
 What is MADE, not captured: the id, strategy and versions of the `R04-004` deployments (the capture kept
 only their source and time); the zone's DNS export text (the capture kept a note: BIND text with an SOA

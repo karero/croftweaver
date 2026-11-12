@@ -166,7 +166,7 @@ export function freshState(over = {}) {
     domains: {}, // project → the custom domains attached to it, with their status
     ruleset: null, // the zone's ruleset for the response header phase, or none
     refuse: {}, // "<METHOD> <route>" → status
-    drop: {}, // "<METHOD> <route>" → 'reset' (MADE: the connection is dropped) or 'silent' (MADE: never answered)
+    drop: {}, // "<METHOD> <route>" → 'reset' (MADE: the connection is dropped) 'silent' (MADE: never answered) or 'lost' (MADE: applied, then never answered)
     delayMs: 0,
     perPage: { zones: 50, projects: 10, deployments: 25 },
     ...over,
@@ -528,6 +528,7 @@ export async function startApi(state) {
       }
       entry.status = out.status;
       if (state.after) state.after(entry);
+      if (drop === 'lost') return;
       if (out.text !== undefined) { // plain text: the DNS export; a 204 has no body
         res.writeHead(out.status, out.status === 204 ? {} : { 'content-type': 'text/plain' });
         res.end(out.text);
