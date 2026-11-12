@@ -157,7 +157,7 @@ site_of() { # <astro.config.mjs text>
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
 # an old address kept in a comment counts. Many means no one address can be named or checked.
 # commented: the text before the one match does not end in plain code (js_state), so the build
-# may use another address and ship checks none.
+# may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
   local h pre
   h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
@@ -168,21 +168,23 @@ site_count() { # <astro.config.mjs text>
   case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
 }
 
-# Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings, //
-# and /* */ comments; a regex literal holding a quote can mislead it, toward "string" mostly.
+# Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
+# (a \ at a line's end continues one), // and /* */ comments. A / that opens no comment, a regex
+# literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
 # The | ends the text on a character of its own, so a line comment that closed at a final
 # newline is not reported.
 js_state() { # <text>
   printf '%s|' "$1" | awk '
-    { if (st != "block" && st != "tpl") st = "code"
-      for (i = 1; i <= length($0); i++) {
+    { if (cont) cont = 0; else if (st != "block" && st != "tpl" && st != "slash") st = "code"
+      for (i = 1; i <= length($0) && st != "slash"; i++) {
         c = substr($0, i, 1); d = substr($0, i, 2)
         if (st == "code") {
           if (d == "//") { st = "line"; break }
           if (d == "/*") { st = "block"; i++ }
+          else if (c == "/") st = "slash"
           else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"
         } else if (st == "block") { if (d == "*/") { st = "code"; i++ } }
-        else if (c == "\\") i++
+        else if (c == "\\") { if (i == length($0)) cont = 1; i++ }
         else if ((st == "sq" && c == "\047") || (st == "dq" && c == "\"") || (st == "tpl" && c == "`")) st = "code"
       } }
     END { print (st == "" ? "code" : st) }'
@@ -207,7 +209,7 @@ name_site() { # <astro.config.mjs text>
   case "$(site_count "$1")" in
     one) site_a="$(site_of "$1")"; site_p="$site_a" ;;
     many) site_a="more than one site: address in astro.config.mjs — check which one is live"; site_p="($site_a)" ;;
-    commented) site_a="the only site: address in astro.config.mjs is in a comment — check which one is live"; site_p="($site_a)" ;;
+    commented) site_a="the only site: address in astro.config.mjs is in a comment, or ship can't tell — check which one is live"; site_p="($site_a)" ;;
     *) site_a="no site: address in astro.config.mjs"; site_p="($site_a)" ;;
   esac
   repo_a="$(repo_of_origin)"
@@ -1098,7 +1100,7 @@ if [ -z "$site" ]; then
   if [ "$site_n" = many ]; then
     echo "⚠ astro.config.mjs has more than one site: address (an old one in a comment counts), so there is no one address to check — can't verify the deploy."
   elif [ "$site_n" = commented ]; then
-    echo "⚠ The only site: address in astro.config.mjs is in a comment, so the build may use another one — can't verify the deploy."
+    echo "⚠ The only site: address in astro.config.mjs is in a comment, or ship can't tell, so the build may use another one — can't verify the deploy."
   else
     echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
   fi
