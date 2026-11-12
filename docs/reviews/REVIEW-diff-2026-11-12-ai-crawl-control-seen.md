@@ -28,3 +28,15 @@ tokens)`; fresh-eyes 17 s, 89,064 tokens. Evidence: Cloudflare's get-started pag
 Codex also listed as unverifiable, not as findings: the dashboard behaviour itself (it has no
 access to the dashboard; the record is the evidence) and the definition of a "request" in
 Cloudflare's metric.
+
+## Round 2 (verification, diff at f9c15e56)
+
+`reviewers: codex OK, melious OK`. `timings: codex 65s (28572 tokens), melious 248s (14589
+tokens)`. Both seats: E1, E2, E4 fixed as claimed; E5 and E6 rightly left (outside the diff). E3
+partly fixed; its replacement drew F7 and F8.
+
+| Id | Sev | Source | Where | Finding | Status | Fix / reason |
+|---|---|---|---|---|---|---|
+| F7 | BUG | codex | "each run sends your home page one request per AI crawler name" | A run with `--only` that leaves out the AI item sends no crawler requests | fixed | "each time it checks the AI crawlers (a full run does)"; `observe()` asks every request when `--only` is not given (`cloudflare-check.mjs`, `asked = only ? … : null`) |
+| F8 | RISK | melious | "Take those off" | The owner can't subtract without knowing when the check ran | fixed | "Note when you run it, and take one request per name off the counts for each such run" |
+| F9 | RISK | melious | "pick the longest date range on offer" | The longest range may hold little data, and the edit dropped the hedge on the Overview's reach | refuted | A longer range covers every shorter one's period, so picking it can't show fewer visits than a shorter one; the bullet makes no claim about how far back data reaches |

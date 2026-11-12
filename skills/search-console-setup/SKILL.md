@@ -166,10 +166,11 @@ block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has
   Cloudflare knows a crawler by the name the request gives
   ([Cloudflare](https://developers.cloudflare.com/ai-crawl-control/get-started/)), so a crawler
   that doesn't name itself isn't counted as an AI crawler. Croftweaver's Cloudflare check
-  (`new-website/scripts/cloudflare-check.mjs`) is counted too: each run sends your home page one
-  request per AI crawler name, and on that domain every one showed up within a few minutes.
-  Take those off before you count crawler visits. A visit is not a mention: it can't tell you
-  whether any AI answer names you.
+  (`new-website/scripts/cloudflare-check.mjs`) is counted too: each time it checks the AI
+  crawlers (a full run does), it sends your home page one request per AI crawler name, and on
+  that domain every one showed up within a few minutes. Note when you run it, and take one
+  request per name off the counts for each such run. A visit is not a mention: it can't tell
+  you whether any AI answer names you.
 - **How long AI assistants take:** when we last checked, in November 2026, we found no
   published measurement, with a stated method, of how long AI assistants take to first cite a
   brand-new website. The ranges Google gives, and what companies measured for new pages on
