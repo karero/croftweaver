@@ -1495,6 +1495,18 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
       assert.ok(state.dns.some((x) => x.name === HOST && x.type === 'A' && x.content === '192.0.2.10'), 'the host has its record again');
     }, site));
 
+  test('TL3b: a CNAME at the host that setup\'s --record wrote (to verify.bing.com) is the one record the launch replaces, and it is kept in setup-run/ with its content', () =>
+    launchScenario((h) => launchState(h, { record: { ...A_RECORD, type: 'CNAME', content: 'verify.bing.com' } }), async ({ where, launch }) => {
+      const q = await launch();
+      assert.equal(q.code, 3, q.out);
+      assert.match(q.out, /"content": "verify\.bing\.com"/);
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 0, r.out);
+      const kept = keptFiles(where);
+      assert.equal(kept.length, 1);
+      assert.equal(JSON.parse(readFileSync(path.join(RUN_DIR_OF(where), kept[0]), 'utf8')).record.content, 'verify.bing.com');
+    }, site));
+
   test('TL3: two address records, or a CNAME to a pages.dev address, are refused before any write (the CNAME names the move guide)', async () => {
     const two = (h) => { const s = launchState(h); s.dns.push({ ...A_RECORD, id: 'c0ffee00000000000000000000000051', content: '192.0.2.11' }); return s; };
     await launchScenario(two, async ({ api, launch }) => {

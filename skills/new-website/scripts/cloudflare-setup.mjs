@@ -369,7 +369,7 @@ export function gate(method, url, body, g) {
     const atHost = hosts.has(body.name) && ADDRESS_TYPES.includes(body.type);
     if (atHost) {
       if (g.note && isDeepStrictEqual(body, g.note)) return;
-      if (g.stage === 'setup' && body.type === 'CNAME') return; // setup's --record, as before
+      if (g.stage === 'setup' && body.type === 'CNAME') return; // any CNAME at the host in setup; only --record writes one
       refuse(g.note ? 'not the record as it was read' : 'an address record at the site\'s host');
     }
     if (['TXT', 'CNAME'].includes(body.type)) return; // a verification record, as --record writes it
