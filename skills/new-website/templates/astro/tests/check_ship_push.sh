@@ -1045,24 +1045,21 @@ fi
 exit 0
 NPM
   # Stub curl: the live site serves whatever GitHub's production is, as if Cloudflare built it
-  # at once; or an old build, for the case stopped during the live check; or nothing (curl's
-  # exit 22, as `curl -f` ends on a 404, or a 404 page where the status is asked for), for a site
-  # address that serves no build.txt.
+  # at once; or an old build (the stall cases, and the case stopped during the live check); or a
+  # 404 page or another status, for a site address that serves no build.txt; or no reply at all.
   cat > "$G/bin/curl" <<'CURL'
 #!/bin/sh
 : > "$SHIP_T_MARKS/curl"
-# The probe of a Workers site's address asks for the status too (-w): the answer is the body,
-# a newline and the code. SHIP_T_NOSITE: a 404 page; SHIP_T_CODE: that status with no body;
-# SHIP_T_CURL_RC: curl itself fails with that exit status.
-if [ -n "${SHIP_T_CURL_RC:-}" ]; then exit "$SHIP_T_CURL_RC"; fi
-case " $* " in *" -w "*)
-  if [ -n "${SHIP_T_NOSITE:-}" ]; then printf '<html>not found</html>\n404'; exit 0; fi
-  if [ -n "${SHIP_T_CODE:-}" ]; then printf '\n%s' "$SHIP_T_CODE"; exit 0; fi
-  printf '%s\n200' "$(git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production)"; exit 0 ;;
-esac
-if [ -n "${SHIP_T_NOSITE:-}" ]; then exit 22; fi
-if [ -n "${SHIP_T_STALE:-}" ]; then echo 0000000000000000000000000000000000000000; exit 0; fi
-git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production
+# Both the probe of a Workers site's address and the live check ask for the status (-w): the
+# answer is the body, a newline and the code. SHIP_T_NOSITE: a 404 page; SHIP_T_CODE: that status
+# with no body; SHIP_T_STALE: a 200 with another commit; SHIP_T_CURL_RC: curl itself fails with
+# that exit status, after printing code 000 as curl does when nothing answered.
+if [ -n "${SHIP_T_CURL_RC:-}" ]; then printf '\n000'; exit "$SHIP_T_CURL_RC"; fi
+case " $* " in *" -w "*) ;; *) echo "STUB: curl without -w: $*" >&2; exit 2 ;; esac
+if [ -n "${SHIP_T_NOSITE:-}" ]; then printf '<html>not found</html>\n404'; exit 0; fi
+if [ -n "${SHIP_T_CODE:-}" ]; then printf '\n%s' "$SHIP_T_CODE"; exit 0; fi
+if [ -n "${SHIP_T_STALE:-}" ]; then printf '0000000000000000000000000000000000000000\n200'; exit 0; fi
+printf '%s\n200' "$(git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production)"
 CURL
   # Preloaded into node (NODE_OPTIONS) by the cases that need DNS to answer: the lookup fails with
   # the code in SHIP_T_DNS (ENOTFOUND is "no such host"; EAI_AGAIN a resolver that did not answer).
@@ -1819,6 +1816,36 @@ GATE
   run_ship l3b SHIP_T_STALE=1; exits 1
   want "the stall message does not say a push happened" lacks "Pushed OK"
   want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 6 minutes the"
+
+  # --- L3c–L3f: the stall message says what the live check got (GenAI-Wednesday.de#87) ---------
+  # L3c: a 200 with another commit is an OLD build, and the Cloudflare steps follow. L3d: no look
+  # got a reply (curl's code 000: a sandbox with no way to the site): no OLD build, no Cloudflare,
+  # the owner is sent to build.txt. L3e: a refused connection, the same. L3f: an HTTP error.
+  after_verify() { LC_ALL=C awk '/^→ Verifying the live site/ { f = 1 } f' "$L"; }
+  verdict_lacks() { ! grep -qF -- "$1" <<<"$(after_verify)"; }
+  fixture l3c; advance 1; m="$(gh main)"
+  run_ship l3c SHIP_T_STALE=1; exits 1
+  want "a 200 with another commit is an OLD build" has "⚠ Pushed OK, but after 6 minutes the live site still serves an OLD build."
+  want "... and the Cloudflare steps follow" has "Cloudflare dashboard → Workers & Pages"
+  fixture l3d; advance 1; m="$(gh main)"
+  run_ship l3d SHIP_T_CURL_RC=6; exits 1
+  want "production is GitHub's main: the push landed" eq "$(gh production)" "$m"
+  want "no reply: says the push went out" has "⚠ Pushed OK (GitHub's production is now ${m:0:12}), but https://ship-test.example.invalid could not be"
+  want "... that this machine could not reach the site" has "reached from this machine: no reply in 6 minutes"
+  want "... so the deploy could not be checked" has "So this could not check the deploy; it does not mean the build failed."
+  want "... and sends the owner to build.txt with the commit id" has "open https://ship-test.example.invalid/build.txt in your browser. It should show"
+  want "... the full commit id on its own line" has "    $m"
+  want "... never claims an OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  fixture l3e
+  run_ship l3e SHIP_T_CURL_RC=7; exits 1
+  want "nothing new and no reply: says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), but https://ship-test.example.invalid could not be"
+  want "... never claims an OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  fixture l3f; advance 1
+  run_ship l3f SHIP_T_CODE=503; exits 1
+  want "an HTTP error is named, not called an OLD build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its last answer was HTTP 503)."
+  want "... and never says OLD build" lacks "OLD build"
 
   # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
   # The clone asks for colour, decorations, the long format and signature lines; one subject holds
