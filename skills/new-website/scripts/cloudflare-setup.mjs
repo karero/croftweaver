@@ -336,7 +336,7 @@ const PHASE = 'http_response_headers_transform';
 
 // Every call to Cloudflare passes here first. `g` is what this run has learned: the account, the zone,
 // the Worker, the hosts of this site, and, once the launch has read them, the one record it may delete
-// (`recordId`) and the record as it may be put back (`note`). Anything not listed is refused.
+// (`recordId`) and the record as it may be put back (`note`); `stage` is setup or launch. Anything not listed is refused.
 export function gate(method, url, body, g) {
   const [route, query = ''] = url.split('?');
   const refuse = (why) => { throw new Stop(1, `gate: refused ${method} ${route}${why ? ` (${why})` : ''}`); };
@@ -369,6 +369,7 @@ export function gate(method, url, body, g) {
     const atHost = hosts.has(body.name) && ADDRESS_TYPES.includes(body.type);
     if (atHost) {
       if (g.note && isDeepStrictEqual(body, g.note)) return;
+      if (g.stage === 'setup' && body.type === 'CNAME') return; // setup's --record, as before
       refuse(g.note ? 'not the record as it was read' : 'an address record at the site\'s host');
     }
     if (['TXT', 'CNAME'].includes(body.type)) return; // a verification record, as --record writes it
@@ -562,7 +563,7 @@ async function prepare(opts, io) {
 
   const token = await readToken(root, git);
   env = childEnv(token);
-  const g = { hosts: new Set(), worker: null, accountId: null, zoneId: null, recordId: null, note: null };
+  const g = { stage: opts.stage, hosts: new Set(), worker: null, accountId: null, zoneId: null, recordId: null, note: null };
   const api = makeApi(apiOrigin ?? API_HOST, token, clock, g);
 
   let heads;
@@ -745,7 +746,6 @@ async function setupStage(opts, io) {
       if (sameTarget && !address.proxied) line.state = 'as-is';
       else if (sameTarget) { line.state = 'clash'; line.why = `${fullName} already points to ${r.content}, but through Cloudflare (proxied); a verification record must be DNS only. Switch its proxy off by hand (DNS → Records → the record → Proxy status)`; }
       else if (address) { line.state = 'clash'; line.why = `${fullName} already has ${address.type} ${address.content}; this one would point it to ${r.content}. Cloudflare allows one of them, and the script changes no record it did not make: decide which is right and change it by hand`; }
-      else if (fullName === host) { line.state = 'clash'; line.why = `${fullName} is the site's own host: the launch makes its address record and replaces any record there, so a verification record cannot be written at it by this script. Add it by hand after the launch`; }
       else line.state = 'change';
     }
     return line;

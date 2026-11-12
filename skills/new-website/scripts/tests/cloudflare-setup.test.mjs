@@ -695,13 +695,14 @@ test('17: a CNAME of the wanted name already points elsewhere: nothing is writte
   });
 });
 
-test('17b: a CNAME at the site\'s own host (an apex Bing record) with no address there: nothing is written, the line is "by hand", and no question is asked the gate would then refuse', () =>
+test('17b: a --record CNAME at the site\'s own host, with no address record there, is asked and written as before the Workers change', () =>
   scenario((h) => finishedState(h), async ({ api, go }) => {
-    const r = await go(['--record', 'CNAME @ verify.bing.com']);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /lenas-backstube\.example is the site's own host: the launch makes its address record and replaces any record there/);
-    assert.doesNotMatch(r.out, /gate: refused/);
-    onlyReads(api);
+    const q = await go(['--record', 'CNAME @ verify.bing.com']);
+    assert.equal(q.code, 3, q.out);
+    assert.doesNotMatch(q.out, /gate: refused/);
+    const r = await go(['--record', 'CNAME @ verify.bing.com', '--confirm', codeOf(q)]);
+    assert.equal(r.code, 0, r.out);
+    assert.deepEqual(writesOf(api).filter((e) => e.method === 'POST' && /dns_records$/.test(e.path)).map((e) => [e.body.type, e.body.name, e.body.content]), [['CNAME', HOST, 'verify.bing.com']]);
   }));
 
 test('18: a record written that the nameservers do not show within the run: "written; the nameservers do not show it yet", status 0', () =>
@@ -1644,6 +1645,11 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
     refuse('PATCH', `${other}/settings/always_use_https`, { value: 'on' }, 'another zone\'s setting');
     refuse('POST', `${other}/rulesets/c0ffee00000000000000000000000078/rules`, { x: 1 }, 'another zone\'s ruleset');
     refuse('PATCH', `${Z}/settings/ssl`, { value: 'off' }, 'a setting no line writes');
+    // Setup's --record may write a CNAME at the host (as before); the launch may not, nor may setup write an address.
+    const none = { ...g, note: null };
+    assert.doesNotThrow(() => gate('POST', `${Z}/dns_records`, { type: 'CNAME', name: HOST, content: 'verify.bing.com' }, { ...none, stage: 'setup' }), 'setup: a CNAME at the host');
+    assert.throws(() => gate('POST', `${Z}/dns_records`, { type: 'CNAME', name: HOST, content: 'verify.bing.com' }, { ...none, stage: 'launch' }), /gate: refused/, 'launch: a CNAME at the host');
+    assert.throws(() => gate('POST', `${Z}/dns_records`, { type: 'A', name: HOST, content: '192.0.2.1' }, { ...none, stage: 'setup' }), /gate: refused/, 'setup: an A at the host');
     // makeApi runs the gate before it opens a socket: a stub that records its requests sees none.
     await scenario(freshState(), async ({ api }) => {
       const call = makeApi(api.origin, TOKEN, { left: () => 10_000 }, g);
