@@ -55,3 +55,17 @@ F9 as G2. No BUG, so the rounds end here (three rounds without a BUG); a wording
 | G4 | NIT | melious | "it offered longer ranges" | "it" can read as the Overview | fixed | "its Metrics tab offered" |
 | G5 | NIT | melious | "(a full run does)" | The evidence run was `--only ai`, which the text does not name | fixed | "(a full run does, and so does `--only ai`)" |
 | G6 | NIT | melious | `new-website/scripts/cloudflare-check.mjs` | Path lacks `skills/` | refuted | The file names sibling skills the same way (`new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, lines 26 and 38) |
+
+## Wording pass (Codex alone, diff 9504c964..33adbba0)
+
+`reviewers: codex OK`. `timings: codex 102s (45519 tokens)`. `make check` exit 0 before it.
+
+| Id | Sev | Source | Where | Finding | Status | Fix / reason |
+|---|---|---|---|---|---|---|
+| H1 | RISK | codex | "take seven home-page requests off" | The count holds only requests Cloudflare let through; a refused name adds none, so taking seven off undercounts | fixed | "take off the home-page requests it sent that Cloudflare let through: seven when the check reports no name refused". Cloudflare's own grouping by company stays as the record showed it on one zone |
+
+## Close
+
+Normal DIFF gate, 3 rounds and a wording pass, 16 findings (H1 after the pass, fixed in prose,
+`make check` rerun). No BUG open. Gate 20261112T102644Z-58309: 8 seat runs, 266,137 tokens
+logged, which includes the round-1 fresh-eyes run.

@@ -169,9 +169,10 @@ block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has
   (`new-website/scripts/cloudflare-check.mjs`) is counted too: each time it checks the AI
   crawlers (a full run does, and so does `--only ai`), it sends your home page one request per
   AI crawler name, and on that domain every one showed up within a few minutes. Note when you
-  run it. For each run inside the range you picked, take seven home-page requests off: two each
-  from Anthropic and OpenAI, one each from Perplexity, Common Crawl and Amazon. A visit is not
-  a mention: it can't tell you whether any AI answer names you.
+  run it. For each run inside the range you picked, take off the home-page requests it sent
+  that Cloudflare let through: seven when the check reports no name refused (two each from
+  Anthropic and OpenAI, one each from Perplexity, Common Crawl and Amazon). A visit is not a
+  mention: it can't tell you whether any AI answer names you.
 - **How long AI assistants take:** when we last checked, in November 2026, we found no
   published measurement, with a stated method, of how long AI assistants take to first cite a
   brand-new website. The ranges Google gives, and what companies measured for new pages on
