@@ -284,8 +284,8 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
 
   # Refresh guards — refuse when either side would lose or skew content.
   if suite_dirty; then
-    echo "error: the suite clone has uncommitted changes under skills/ — a refresh would" >&2
-    echo "copy content matching no commit while stamping HEAD. Commit or stash first." >&2
+    echo "error: the suite clone has uncommitted changes under skills/ — a refresh copies" >&2
+    echo "the committed skills, so those edits would not reach the site. Commit or stash first." >&2
     return 1
   fi
   if git -C "$PROJECT" rev-parse --show-toplevel >/dev/null 2>&1; then
@@ -309,8 +309,25 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
       continue
     fi
     if suite_has "$s"; then
+      # Write the skill as HEAD holds it, the commit the stamp names, through a throwaway index:
+      # not the clone's files (an untracked, ignored, assume-unchanged or skip-worktree one would
+      # pass suite_dirty) and not `git archive` (export-ignore thins it). Built beside the old
+      # copy and swapped in only once complete. `|| return`: set -e is off in here.
+      new="$skills_dir/.$s.refresh"; idx="$new.index"
+      rm -rf "${new:?}" "${idx:?}"
+      if ! { mkdir "$new" \
+          && GIT_INDEX_FILE="$idx" git -C "$REPO_DIR" read-tree "HEAD:skills/$s" \
+          && GIT_INDEX_FILE="$idx" git -C "$REPO_DIR" checkout-index -a --prefix="$new/"; }; then
+        rm -rf "${new:?}" "${idx:?}"
+        echo "error: could not copy $s from the suite; the site's copy of $s is unchanged and the stamp is not advanced." >&2
+        return 1
+      fi
+      rm -f "$idx"
       rm -rf "${skills_dir:?}/$s"
-      cp -R "$REPO_DIR/skills/$s" "$skills_dir/"
+      if [ -e "$skills_dir/$s" ] || [ -L "$skills_dir/$s" ] || ! mv "$new" "$skills_dir/$s"; then
+        echo "error: could not replace the site's copy of $s, which may now be partly removed (restore it from the site's git history; the new one is in $new); the stamp is not advanced." >&2
+        return 1
+      fi
       case "$LEFT_BEHIND" in "$s"/*) rm -rf "${skills_dir:?}/$LEFT_BEHIND" ;; esac
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
       echo "refreshed $s"
