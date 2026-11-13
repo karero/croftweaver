@@ -561,6 +561,7 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
   CLOUDFLARE-CHECKLIST.md  the Cloudflare settings a site relies on (HTTPS, privacy, search and AI visibility), each with its dashboard path, and an outside check where one exists
+  MOVE-TO-WORKERS.md  moving a live Pages site to a Worker: what you do, what your assistant does, how to go back
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity

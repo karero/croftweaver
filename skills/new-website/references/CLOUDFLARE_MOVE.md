@@ -8,7 +8,8 @@ you push the one commit it writes.
 A site whose domain is not yet on its Pages project has nothing to move: it launches first, as
 `CLOUDFLARE_FIRST_DEPLOY.md` says.
 
-This page tells an assistant when to run each command. It is not the User guide.
+This page tells an assistant when to run each command. It is not the User guide: that is
+`docs/MOVE-TO-WORKERS.md` in the Croftweaver folder.
 
 ## Where it is, and how to run it
 
@@ -67,7 +68,8 @@ computer, and a second computer would not know the move had begun.
 5. **Clean up (later, not this script).** Delete the token if you will not undo soon; an undo
    later needs a new one, made the same way. Keep the Pages project 14 days in
    case you want `undo`, then retire it as a step of its own. Only then do
-   `functions/_middleware.ts` and the Pages config go.
+   `functions/_middleware.ts` and the Pages config go. Retiring it is **not tested yet** (kit row
+   4.3): this page has no steps for it, so leave the Pages project alone.
 
 ## The token
 
@@ -239,4 +241,5 @@ network, and `move-run/` is ignored by git. Tell the User where it is.
   The move stays open for `undo` while the Pages project is kept, and an undo later needs a new
   token, made the same way. After an `undo` that `after` has closed, delete the token.
 - Look at the live site once in a browser.
-- Wait 14 days before retiring the Pages project; that is a step of its own, not this script.
+- Wait 14 days before retiring the Pages project; that is a step of its own, not this script,
+  and **not tested yet** (kit row 4.3): until a later kit release gives the steps, keep it.
