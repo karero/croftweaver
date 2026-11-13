@@ -1387,8 +1387,8 @@ async function launchRun(opts, ctx, run) {
     say('', `${host} is attached but did not answer the check yet: ${first.by.build.detail} Run the same command, with the same code, again in a few minutes. Status 4.`);
     return 4;
   }
-  // A 5xx right after the attach is usually the edge not being ready yet (the plan's 522/530 errors); a run
-  // cannot tell how long ago the attach was, so the line says when to stop waiting.
+  // A 5xx right after the attach is usually the edge not being ready yet (the plan's 522/530 errors); this run
+  // does not read when the attach happened, so the line says when to stop waiting.
   if (first.by.build?.state === 'look' && /^no build\.txt \(5\d\d\)/.test(first.by.build.detail)) {
     say('', `${host} is attached but its build did not answer yet: ${first.by.build.detail} Run the same command, with the same code, again in a few minutes. If it still answers like this after about ten minutes, look at the Worker's logs and its latest deployment. Status 4.`);
     return 4;
