@@ -175,7 +175,9 @@ It builds the site as it is and prints the Preview link (of the form
 save it with `git add -A`, `git commit` and `git push` as above, then put it **live**:
 
 ```bash
-# Get the newest version from GitHub, then put the site LIVE.
+# Get the newest version from GitHub, then put the site LIVE. On a two-stage site,
+# your assistant first brings your change from `main` into `production`: `deploy:live`
+# publishes the commit that `production` is at, nothing else.
 git switch <production-branch> &&
   git pull &&
   npm run deploy:live

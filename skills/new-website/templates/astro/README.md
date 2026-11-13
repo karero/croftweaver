@@ -198,7 +198,7 @@ deployed by command has no automatic preview: `npm run deploy:preview` gives a P
 `npm run deploy:live` puts the live Worker up, and `PUBLISHING.md`, "Deploy by command", has the
 steps. A Worker's Preview links carry `noindex` from Cloudflare; until launch the live
 `workers.dev` address is off. Steps for going live: `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`,
-"Going live". A site made before 0.35 may still be on Pages (`*.pages.dev`, the
+"S" and "A", Launch day (the same guide's "Going live" is for a domain's DNS move). A site made before 0.35 may still be on Pages (`*.pages.dev`, the
 `functions/_middleware.ts` noindex and the `CANONICAL_URL` redirect): the same guide's "Sites
 already on Pages" has its steps. AI assistant deploying or announcing a
 deploy: read `PUBLISHING.md` § "For AI assistants — deploy-time guardrails"

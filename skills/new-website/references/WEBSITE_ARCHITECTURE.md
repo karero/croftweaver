@@ -61,8 +61,8 @@ stay on Pages (a Pages project can still serve the static site after the free pl
 Functions requests run out, "Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`) falls away for a site with
 no script in front of its files ([Workers static
 assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)). The
-starter has no middleware: previews carry `noindex` from Cloudflare, and the analytics gate and
-`build.txt` read the Worker build's branch variable. A site made before 0.35 stays on Pages until
+starter has no middleware: previews carry `noindex` from Cloudflare, and the analytics gate reads the
+Worker build's branch variable (`WORKERS_CI_BRANCH`), and `build.txt` takes its commit from Git. A site made before 0.35 stays on Pages until
 its owner moves it (`CLOUDFLARE_MOVE.md`). `docs/PAGES-OR-WORKERS.md` in the Croftweaver folder
 weighs the choice and has the trial's results.
 

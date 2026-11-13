@@ -51,7 +51,7 @@ cosmetics; red → green → commit.
 - `llms-coverage.spec.ts` — `public/llms.txt` matches `PAGES`: a page missing from the file and
   an entry for a page that is gone both fail. `LLMS_EXEMPT` opts a page out, with a reason.
   Whether an entry's wording still fits its page is a `website-review` judgment. Offline.
-- `workers-config.spec.ts` — every `wrangler.*` file at the repo root describes a Worker with
+- `workers-config.spec.ts` — the Worker's config (the root `.json` or `.jsonc` file with `assets` in it) has
   static assets only: no script of its own and no live `workers.dev` address (previews only,
   until launch). Offline.
 - `middleware.spec.ts` — **a site still on Pages only** (a starter made before 0.35 has it;

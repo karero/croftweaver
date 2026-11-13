@@ -270,8 +270,8 @@ export CLOUDFLARE_ACCOUNT_ID=<account-id>
 npm run deploy:preview
 
 # 2. The live Worker. It stops if any file is unsaved or the branch is not PROD_BRANCH
-#    (src/config.ts), so the live build is exactly a commit. Not before launch day:
-#    see "Launch day" below.
+#    (src/config.ts), so the live build is exactly a commit. The first run makes the
+#    Worker; the domain waits for the route of "Launch day" below.
 npm run deploy:live
 ```
 
@@ -373,8 +373,6 @@ live, offer to go through it with the owner. Offer the token route too (section 
 checklist): the guardrails above apply to it, and the owner runs the checklist's section 5
 before the token is deleted. `scripts/cloudflare-check.mjs` runs that section, and lists the
 dashboard-only items, in one command; `CLOUDFLARE_CHECK.md` beside this file says how to read it.
-
----
 
 ---
 

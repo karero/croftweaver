@@ -239,7 +239,7 @@ cookies, scripts or tracking you didn't choose.
      *The trade-off:* you give up Cloudflare's view of the scripts your visitors load.
 
   Visitors who came in before can keep the old NEL note until that many seconds have
-  passed (the `max_age` from step 1; 604800 seconds is seven days). The
+  passed (the `max_age` from step 1; 604800 seconds is seven days). On a Pages site, the
   `<project>.pages.dev` address is outside your domain, so the rule can't reach it, and we
   have found no way to remove the headers there. Sending that address to your live domain
   (section 1) moves visitors on; it removes nothing. The last command in section 5 shows
@@ -260,7 +260,7 @@ cookies, scripts or tracking you didn't choose.
   allowance (see Fail open).
 - [ ] **Cloudflare Web Analytics: Off.** This is Cloudflare's own measurement, separate
   from any tool you chose for the site. Two places, check both:
-  - Workers & Pages → your project → Metrics → Web Analytics. This is where you would
+  - Workers & Pages → your Worker or project → Metrics → Web Analytics. This is where you would
     switch it on, so it should offer **Enable**, not show data.
   - Web Analytics → Manage site → Disable. If your domain isn't listed there, there is
     nothing to disable.
@@ -417,6 +417,8 @@ You want a redirect (301 or 308) and a `location:` line that starts
 `https://yourdomain.com/`. The slash matters: `https://yourdomain.com.au/` is a different
 site. A status line with no `location:` line means there is no redirect.
 
+On a Pages site only, the same check on its `pages.dev` address (a Worker has none to check):
+
 ```bash
 curl -sI "https://yourproject.pages.dev/?cb=$(date +%s)" | grep -iE '^(HTTP/|location:|nel:|report-to:)'
 ```
@@ -543,7 +545,7 @@ in a file the repository tracks or in the README. Ask the assistant to look befo
 writes, to tell you each change before it makes it, and to read each setting back
 afterwards. A rule must be added to the Transform Rules, never the list sent back whole:
 the setup script adds one rule and sends the others nothing, and writes the whole list only
-where the zone has none yet. A change to one variable may replace the
+where the zone has none yet. On a Pages project, a change to one variable may replace the
 project's others: it must list the variables before and after, and stop and tell you if
 any is missing, because it may not be able to put them back. If the API refuses a setting
 (some are limited to certain plans), or it can't be sure the project's other variables are

@@ -142,8 +142,8 @@ applies there; instead of steps 2 to 4, only this:
   - No signed-in GitHub CLI, or `gh` cannot reach GitHub: say so and ask the person to
     press the button.
 - **Preview before merging:** once the repo is connected to Cloudflare by git
-  integration (the `new-website` skill's setup script does that, or `website-team-setup`
-  §6 by hand), every pull request gets its own preview address from Cloudflare, listed
+  integration (in the Cloudflare dashboard, as the `new-website` setup script says when it
+  finds no Worker, or by `website-team-setup` §6), every pull request gets its own preview address from Cloudflare, listed
   under the pull request's checks. Look at the change there before merging. Until then
   (a site uploaded by command, with `npm run deploy:live` or, on Pages, `wrangler pages deploy`; see `PUBLISHING.md`, "Deploy by command")
   there is no pull-request preview: check locally with `npm run dev`.

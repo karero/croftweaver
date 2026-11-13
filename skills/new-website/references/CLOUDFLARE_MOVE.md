@@ -33,7 +33,7 @@ computer, and a second computer would not know the move had begun.
    `workers_dev: false`, `preview_urls: true`, `not_found_handling: "404-page"` and no domain
    routes. All of it is merged to the live branch. The Worker itself is made as
 `CLOUDFLARE_FIRST_DEPLOY.md` says for a new site: connected to GitHub with Workers Builds
-(B, or the setup script, S), which then builds each push.
+(B; the setup script, S, says how and reads the Worker once a build has made it), which then builds each push.
 
    With analytics on (`USE_ANALYTICS = true` in `src/config.ts`), stage 1 has one more step.
    The `enabled:` line in `src/config.ts` must read as the 0.35 starter's does, on one line:

@@ -84,7 +84,7 @@ name on your marketing site**. Treat consent as a publish gate, applied per pers
    re-adding on approval is a one-line edit.
 
 Caveat: a static preview is usually **not auto-noindexed**, and a Worker's Preview
-link or a `*.pages.dev` URL is public — so a named, unconsented quote sitting on a
+link or a `*.pages.dev` URL can be opened by anyone who has it — so a named, unconsented quote sitting on a
 preview is still exposure. Keep previews unlinked and short-lived (or add a
 branch-only `noindex`);
 the real guarantee is keeping it **off production** until consent lands.

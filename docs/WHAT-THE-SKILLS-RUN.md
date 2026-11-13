@@ -224,7 +224,8 @@ an "Email Tap" event there, as a click on an email address does.
   the record back if the attach fails. On launch day it also writes a commit on your branch
   that adds the domain route to the Worker's config, and does not push it. It runs `git` to
   read your repository's branches and `src/config.ts`, and asks your domain's nameservers
-  whether a record it wrote is there. It sends your domain no request.
+  whether a record it wrote is there. Until launch day it sends your domain no request; on
+  launch day it runs the site check against the domain (a few requests, including the AI-crawler ones).
   Its `scripts/move-to-workers.mjs` is for moving a live site's domain from its Pages project
   to its Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
   short-lived token you make, from `CLOUDFLARE_API_TOKEN` or from the site's `.dev.vars`, which

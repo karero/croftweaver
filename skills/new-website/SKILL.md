@@ -238,7 +238,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      banner-free position at risk by different routes: a YouTube iframe triggers § 25
      itself (device storage/readout), while remote Google Fonts change the
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
-     3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only
+     3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only.
      The
      privacy page must match whatever is chosen here.
    - **When the site needs no consent banner.** Tell the owner plainly: a site built

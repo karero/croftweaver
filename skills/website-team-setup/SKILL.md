@@ -365,11 +365,12 @@ git switch - && git branch -D setup/push-check
 wants a project connected to GitHub (push-to-deploy, one preview address per pull
 request). A site made with kit 0.35 or later is a **Worker**; a site made before may
 still be on **Pages** (`AGENTS.md` and `PUBLISHING.md` say which; a `wrangler.jsonc` at
-the repo root with `assets` in it is a Worker). The setup script there ("S") makes the Worker
-through Cloudflare's API, with the build command of item 4 and the production branch of
-item 5; from the owner's browser it needs a short-lived token and the GitHub app's access to
-the repository; it does not create the `production` branch (item 5) or touch the checks of
-items 2 and 8. By hand it is **B, Workers Builds** (a site still on Pages: "Sites already on
+the repo root with `assets` in it is a Worker). The setup script there ("S") does not make the Worker or
+connect the repository: with no Worker yet it says how to connect it in the dashboard (the
+steps below, with the build command of item 4 and the production branch of item 5), and once a
+build has made the Worker it reads it, changes the domain's settings and attaches the domain on
+launch day. It does not create the `production` branch (item 5) or touch the checks of
+items 2 and 8. The connection is **B, Workers Builds** (a site still on Pages: "Sites already on
 Pages" in the same guide, and the Pages form of each item below): walk the owner through it
 with these warnings ahead of each click:
 
@@ -383,7 +384,8 @@ with these warnings ahead of each click:
 2. **The wrong type leaves a check behind.** A Worker made for a site that is on Pages (or a
    Pages project made for a Worker site) keeps posting its build check on every pull request,
    pending or failing forever, even after the project is deleted. Disconnect it first (a
-   Worker: **Settings → Builds → disconnect**; a Pages project: delete it), then prove the
+   Worker: **Settings → Builds → disconnect**; a Pages project: delete it, then remove the GitHub
+   app's access to the repository if the check still posts), then prove the
    pull request shows only the **CI** check and the one Cloudflare build check of this
    site's type: open a throwaway pull request **after** connecting (the §4 recipe: empty
    commit, close and delete afterwards). The check's exact name on a Worker is not checked.
@@ -452,7 +454,8 @@ with these warnings ahead of each click:
    probed with the wrong token proves the wrong thing.
 9. **A project of the other kind, or a direct-upload one, already exists.** Cloudflare cannot
    turn a direct-upload project into a git-connected one, nor a Pages project into a Worker.
-   A Worker first deployed by command: make a new Worker connected to the repository, then move
+   A Worker first deployed by command: whether it can be connected to the repository later is not
+   checked; the safe route is a new Worker connected to the repository, then move
    the custom domain. A Pages site: create the git-connected project under a new name, let it
    build once, remove the domain from the old project (one Pages project at a time), attach it
    to the new one (Custom domains → Set up a domain), wait for Active, and only then delete the
