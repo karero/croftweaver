@@ -165,8 +165,8 @@ the name if one differs.
 4. Your assistant pushes the undo commit and deploys, as `CLOUDFLARE_MOVE.md` says. If GitHub
    refuses the push it deploys nothing and stops; press no "Retry build" in Workers Builds. Then
    it runs `after`. If `after` says a branch is "not the undo commit … push it", push the undo
-   commit and run `after` again. If it says "not the route commit … push it", the undo commit
-   was never written: do not push the route commit, deploy nothing, and stop.
+   commit and run `after` again. If it says "not the route commit … push it", do not push the route
+   commit and deploy nothing: stop and tell the owner.
 
 Not checked: whether taking a host off the Worker leaves a record behind. The steps leave out
 going forward by hand.
