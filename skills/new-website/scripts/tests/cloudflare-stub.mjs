@@ -378,7 +378,7 @@ export function handle(state, method, p, query, body, contentType) {
     }
     case 'POST rules': { // one rule appended; the rules there keep their ids and versions (T2-024)
       if (!state.ruleset || state.ruleset.id !== args[1]) return notFound('ruleset');
-      state.ruleset.rules.push({ ...copy(body), id: newId(), version: '1' });
+      (state.ruleset.rules ??= []).push({ ...copy(body), id: newId(), version: '1' }); // an empty ruleset has no `rules` key
       state.ruleset.version = String(Number(state.ruleset.version) + 1);
       return { status: 200, body: Object.assign(answer('T2-024'), { result: copy(state.ruleset) }) };
     }
@@ -584,6 +584,7 @@ export async function startSites(state, project = REPO) {
       if (state.settings.always_use_https === 'on') { res.writeHead(301, { ...headers, location: `https://${siteHost}/` }); res.end(); return; }
     }
     if (url.pathname === '/build.txt') {
+      if (state.siteBuildStatus) { res.writeHead(state.siteBuildStatus, headers); res.end(); return; } // MADE: the edge's own error, as a status
       if (state.siteServes === null) { res.writeHead(404, headers); res.end(); return; }
       res.writeHead(200, { ...headers, 'content-type': 'text/plain' });
       res.end(`${state.siteServes ?? state.workers?.[WORKER]?.serves ?? liveBuild()?.deployment_trigger?.metadata?.commit_hash ?? 'dev'}

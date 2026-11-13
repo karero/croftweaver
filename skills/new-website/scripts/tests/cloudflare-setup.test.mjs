@@ -1721,3 +1721,39 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
       assert.match(again.out, /DNS → Records → Add record/);
     }, site));
 });
+
+// ---------------------------------------------------------------- step 7 of a launch: found by the live NEL test (2026-11-13)
+
+// Cloudflare's own answer for a zone whose response header ruleset exists and holds no rule: no `rules` key
+// at all (kit 6e8e98c8's live test, id made up).
+const EMPTY_RULESET = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'response-header-ruleset', 'cloudflare-api-v4-empty-response-header-ruleset-2026-11-13.json'), 'utf8'));
+
+describe('TL: step 7 of a launch, as the live NEL test found it', { concurrency: true }, () => {
+  test('TL9: a zone whose response header ruleset holds no rule gets the NEL rule added, and the run ends with 4, not a crash', () =>
+    launchScenario((h) => Object.assign(attachHost(launchState(h)), { siteSendsNel: true, ruleset: clone(EMPTY_RULESET.result) }), async ({ api, state, launch }) => {
+      assert.equal('rules' in EMPTY_RULESET.result, false, 'by hand: the capture has no rules key');
+      const q = await launch();
+      assert.equal(q.code, 3, q.out);
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 4, r.out);
+      assert.doesNotMatch(r.out, /TypeError|Cannot read properties/);
+      assert.match(r.out, /Added the rule "Remove NEL headers"\./);
+      assert.match(r.out, /Waiting for the NEL rule to take effect\. .* Status 4\./);
+      assert.deepEqual(writesOf(api).map((e) => `${e.method} ${e.path}`), [`POST /zones/${ZONE.id}/rulesets/${EMPTY_RULESET.result.id}/rules`]);
+      assert.deepEqual(writesOf(api)[0].body, { action: 'rewrite', expression: 'true', description: 'Remove NEL headers', action_parameters: { headers: { NEL: { operation: 'remove' }, 'Report-To': { operation: 'remove' } } }, enabled: true });
+      assert.deepEqual(state.ruleset.rules.map((x) => x.description), ['Remove NEL headers']);
+    }));
+
+  test('TL10: a 522 from the domain\'s build.txt right after the attach ends the run with 4 and writes nothing; a 404 there is still a failure', () =>
+    launchScenario((h) => Object.assign(attachHost(launchState(h)), { siteBuildStatus: 522 }), async ({ api, state, launch }) => {
+      const r = await launch();
+      assert.equal(r.code, 4, r.out);
+      assert.match(r.out, /is attached but its build did not answer yet: no build\.txt \(522\)\./);
+      assert.match(r.out, /again in a few minutes\. If it still answers like this after about ten minutes, look at the Worker's logs and its latest deployment\. Status 4\./);
+      assert.equal(writesOf(api).length, 0, 'nothing is written while waiting');
+      state.siteBuildStatus = 404;
+      const gone = await launch();
+      assert.equal(gone.code, 1, gone.out);
+      assert.match(gone.out, /the check of its build is not ok: no build\.txt \(404\)/);
+    }));
+});
