@@ -72,6 +72,9 @@ function makeSite({ prodBranch = 'production', production = true, url = `https:/
   git(dir, 'init', '-q', '--bare', origin);
   git(site, 'init', '-q');
   git(site, 'checkout', '-q', '-b', 'main');
+  // The launch makes a commit with the site's own git identity; a CI runner has no global one.
+  git(site, 'config', 'user.name', 'Lena');
+  git(site, 'config', 'user.email', 'lena@example.com');
   writeFileSync(path.join(site, 'src', 'config.ts'), `export const SITE = {\n  url: '${url}',          // production origin\n  name: 'Lenas Backstube',\n};\n\nexport const PROD_BRANCH = '${prodBranch}';\n`);
   writeFileSync(path.join(site, '.gitignore'), `node_modules/\n${ignoreDevVars ? '.dev.vars\n' : ''}`);
   if (devVars !== null) writeFileSync(path.join(site, '.dev.vars'), devVars);
