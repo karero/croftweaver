@@ -51,14 +51,13 @@ cosmetics; red → green → commit.
 - `llms-coverage.spec.ts` — `public/llms.txt` matches `PAGES`: a page missing from the file and
   an entry for a page that is gone both fail. `LLMS_EXEMPT` opts a page out, with a reason.
   Whether an entry's wording still fits its page is a `website-review` judgment. Offline.
-- `middleware.spec.ts` — `functions/_middleware.ts`, which `astro preview` never runs,
+- `workers-config.spec.ts` — the Worker's config (the root `.json` or `.jsonc` file with `assets` in it) has
+  static assets only: no script of its own and no live `workers.dev` address (previews only,
+  until launch). Offline.
+- `middleware.spec.ts` — **a site still on Pages only** (a starter made before 0.35 has it;
+  a Worker starter does not): `functions/_middleware.ts`, which `astro preview` never runs,
   called directly: previews noindexed, live-domain responses unchanged, and the project alias
   `<project>.pages.dev` 301ing to the live domain only once `CANONICAL_URL` is set. Offline.
-- `analytics-server.spec.ts` — analytics server mode, the middleware and
-  `functions/go/email.ts` called directly with a stand-in for Plausible: one page view per
-  page a visitor opens and none for assets, prefetches, scripts or previews; an email tap
-  counted and answered with the mailto: link; crawlers and links from other sites given the
-  "[at]" hint, never the address. Offline.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
@@ -168,7 +167,7 @@ push if anything is red**. A site without
 repo. In a subfolder of a bigger repo it leaves that repo's hooks alone, so the gate is not
 wired there; say so rather than assume it runs.
 
-This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
+This is the local complement to CI: Cloudflare builds on push **independently of CI**,
 so without this hook a red test would still deploy. The hook runs before each push from a
 clone where it is installed (unless skipped with `--no-verify`), including the owner's own
 direct push to `main` on a single-owner site (`PUBLISHING.md`). It tests the files on disk, not
@@ -230,8 +229,7 @@ into the starters / `website-design-system`:
 - Render-blocking CSS: Astro inlines it (`inlineStylesheets: 'always'`).
 - Fonts: self-hosted woff2, `font-display: swap`, preload only above-the-fold.
 - Layout shift (CLS): explicit `width`/`height` on media.
-- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only; none
-  in analytics server mode).
+- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only).
 
 Fixes that worked on a live site built with this toolkit (mobile 98–99 to 100, LCP about 2.0s
 to 1.5s):
