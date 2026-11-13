@@ -26,7 +26,7 @@ You do not have to move. A Pages site keeps working.
 
 Visitors see the same pages. A Worker that runs no code of its own, which is how the 0.35
 starter is built, has no daily limit to hit: Cloudflare states that requests for static files
-are free and unlimited (the kit has not counted this on a live site), where the old starter's
+are free and unlimited (https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/; the kit has not counted this on a live site), where the old starter's
 middleware made every request count against the free plan's daily limit. Your site's preview
 address changes from a `pages.dev` address to a `workers.dev` one. You can go back (section 8).
 
@@ -79,8 +79,7 @@ Your assistant does this ("stage 1" in `CLOUDFLARE_MOVE.md`) and merges it to yo
   the file outside the site's folder.
 
 Do not delete the script's state file,
-`~/.config/croftweaver/moves/<domain>/<owner>-<repo>/state.json`, or its lock beside it, unless
-the script's own message tells your assistant to.
+`~/.config/croftweaver/moves/<domain>/<owner>-<repo>/state.json`, or its lock beside it.
 
 ## 6. Your token
 
@@ -130,10 +129,11 @@ again, about a minute; the tests saw up to 98 seconds. Then it pushes the undo c
 
 Your assistant runs the same command again at once: a site between platforms is down. Then:
 
-- **The script says to do the move by hand and that nothing was changed.** Your assistant runs
-  `check`. If every host is still on Pages, your site works and the move has not begun: the
-  route commit it wrote stays unpushed, and your assistant stops. This guide has no move by
-  hand. (Plain `undo` cannot close a move that never began.)
+- **The script says to do the move by hand and that nothing was changed.** Every host may still
+  be on Pages, and your site works. Your assistant runs plain `undo`. If it says "No move is
+  open, so there is nothing to undo", the move never began: the route commit it wrote stays
+  local, nobody pushes it, and your assistant stops. This guide has no move by hand. If `undo` goes on, an
+  earlier `--confirm` run had begun the move: go back (section 8; not run in a test).
 - **A host has moved:** go back with the script (section 8).
 - **A host has a record that is not its CNAME:** the script says "delete it by hand". Nobody
   deletes it: your assistant names the record to you and stops. The host may be down while it
@@ -164,9 +164,9 @@ the name if one differs.
    record, stop. Wait for "active".
 4. Your assistant pushes the undo commit and deploys, as `CLOUDFLARE_MOVE.md` says. If GitHub
    refuses the push it deploys nothing and stops; press no "Retry build" in Workers Builds. Then
-   it runs `after`. If `after` says a branch is "not the route commit … push it", do not push
-   the route commit and deploy nothing: wait for "active", check that the host's CNAME is
-   exactly `<project>.pages.dev`, and run `after` again.
+   it runs `after`. If `after` says a branch is "not the undo commit … push it", push the undo
+   commit and run `after` again. If it says "not the route commit … push it", the undo commit
+   was never written: do not push the route commit, deploy nothing, and stop.
 
 Not checked: whether taking a host off the Worker leaves a record behind. The steps leave out
 going forward by hand.

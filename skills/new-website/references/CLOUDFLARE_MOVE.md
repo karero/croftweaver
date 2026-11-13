@@ -70,8 +70,7 @@ computer, and a second computer would not know the move had begun.
 5. **Clean up (later, not this script).** Delete the token if you will not undo soon; an undo
    later needs a new one, made the same way. Keep the Pages project 14 days in
    case you want `undo`, then retire it as a step of its own. Only then do
-   `functions/_middleware.ts` and the Pages config go. Retiring it is **not tested yet** (kit row
-   4.3): this page has no steps for it, so leave the Pages project alone.
+   `functions/_middleware.ts` and the Pages config go. Retiring it is **not tested yet**: this page has no steps for it, so leave the Pages project alone.
 
 ## The token
 
@@ -82,7 +81,8 @@ https://dash.cloudflare.com/profile/api-tokens. (The Workers permission's exact 
 checked yet; the script's error says so if the token lacks it.)
 
 Say this plainly to the User: Pages Edit and the Workers permission reach every project on her
-account. The script keeps to her site: every request it sends is checked against her hosts, her
+account. The script reads some lists across the account (her zones, her Pages projects, the DNS
+export) but changes only her site: every change it sends is checked against her hosts, her
 Pages project and her Worker before it goes out, and anything else is refused.
 
 The Workers permission makes every zone of the account show up in the token's zone list; that is
