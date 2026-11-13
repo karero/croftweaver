@@ -1820,14 +1820,14 @@ GATE
   want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 6 minutes the"
 
   # --- L3c–L3f: the stall message says what the live check got (GenAI-Wednesday.de#87) ---------
-  # L3c: a 200 with another commit is an OLD build, and the Cloudflare steps follow. L3d: no look
+  # L3c: a 200 with another commit is another build, and the Cloudflare steps follow. L3d: no look
   # got a reply (curl's code 000: a sandbox with no way to the site): no OLD build, no Cloudflare,
   # the owner is sent to build.txt. L3e: a refused connection, the same. L3f: an HTTP error.
   after_verify() { LC_ALL=C awk '/^→ Verifying the live site/ { f = 1 } f' "$L"; }
   verdict_lacks() { ! grep -qF -- "$1" <<<"$(after_verify)"; }
   fixture l3c; advance 1; m="$(gh main)"
   run_ship l3c SHIP_T_STALE=1; exits 1
-  want "a 200 with another commit is an OLD build" has "⚠ Pushed OK, but after 6 minutes the live site still serves an OLD build."
+  want "a 200 with another commit is another build, named by its id" has "⚠ Pushed OK, but after 6 minutes the live site still serves another build (000000000000), most likely the OLD build."
   want "... and the Cloudflare steps follow" has "Cloudflare dashboard → Workers & Pages"
   fixture l3d; advance 1; m="$(gh main)"
   run_ship l3d SHIP_T_CURL_RC=6; exits 1
@@ -1849,6 +1849,9 @@ GATE
   want "production is GitHub's main: the push landed" eq "$(gh production)" "$m"
   want "an HTTP error is named, not called an OLD build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its last answer was HTTP 503)."
   want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare: no look showed another build" verdict_lacks "Cloudflare"
+  want "... it sends the owner to build.txt with the commit id" has "    $m"
+  want "... and asks about a domain not connected yet" has "(Brand-new site whose domain isn't connected yet?"
 
   # --- L3g–L3j: an answer is an answer, and only a commit id is a build ----------------------
   # L3g, L3h: a status came back and curl failed on it (a reply cut off, a timeout after the
@@ -1859,19 +1862,25 @@ GATE
   want "an answer curl failed on is named with both numbers" has "⚠ Pushed OK, but after 6 minutes the live site still did not show this build (its last answer was HTTP 503, and the request failed: curl exit 18)."
   want "... the site answered: never 'could not be reached'" lacks "could not be"
   want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  want "... the deploy is unconfirmed, not failed" has "So this could not confirm the deploy; it does not mean the build failed."
   fixture l3h; advance 1
   run_ship l3h SHIP_T_CODE=200 SHIP_T_CURL_RC=28; exits 1
   want "a 200 that timed out is an answer, and its body is not read" has "the live site still did not show this build (its last answer was HTTP 200, and the request failed: curl exit 28)."
   want "... never 'could not be reached'" lacks "could not be"
   want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
   fixture l3i; advance 1
   run_ship l3i 'SHIP_T_BODY=<html>welcome</html>'; exits 1
   want "a 200 with a page is not a build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its build.txt answered, but not with a commit id)."
   want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  want "... and asks about a domain not connected yet" has "(Brand-new site whose domain isn't connected yet?"
   fixture l3j; advance 1
   run_ship l3j SHIP_T_BODY=; exits 1
   want "a 200 with an empty body is not a build" has "the live site still does not serve this build (its build.txt answered, but not with a commit id)."
   want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
 
   # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
   # The clone asks for colour, decorations, the long format and signature lines; one subject holds

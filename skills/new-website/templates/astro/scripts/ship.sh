@@ -1117,9 +1117,9 @@ wait_min=6
 echo "→ Verifying the live site serves this exact build (about $wait_min min)…"
 # What the last look got, and whether any look got an answer at all. Read as probe_site reads
 # build.txt (no -f, the status asked for), so "no reply" (curl's code 000: DNS, a blocked network,
-# a timeout), "an HTTP error" and "this build is not served yet" stay three different things.
-# Only the last is Cloudflare's to fix. The status decides whether the site answered, not curl's
-# exit: a reply that broke off or timed out after its status line is still an answer.
+# a timeout), "an HTTP error" and "another build is served" stay different things. Only the
+# last points at Cloudflare. The status decides whether the site answered, not curl's exit: a
+# reply that broke off or timed out after its status line is still an answer.
 last_look="" last_code="" last_crc=0 ever_reached=0
 for i in $(seq 1 $((wait_min * 6))); do
   # A Ctrl-C ends the wait (or the request), not the script, so the note is read.
@@ -1138,7 +1138,7 @@ for i in $(seq 1 $((wait_min * 6))); do
           last_look=cut # an answer, but curl failed on it: its body is not read
         elif [ "$last_code" = 200 ]; then
           live="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
-          # Another commit id is an old build; an empty body or a page is neither build.
+          # Another commit id is another build; an empty body or a page is no build at all.
           last_look=other
           [ "${#live}" = "${#id}" ] || last_look=notid
           case "$live" in *[!0-9a-f]*) last_look=notid ;; esac
@@ -1194,15 +1194,35 @@ if [ "$ever_reached" = 0 ]; then
   exit 1
 fi
 # The site answered at least once. What its last look got says how to word it: only a 200 with
-# another commit id is an OLD build; an HTTP error, an answer curl failed on, a build.txt that
-# holds no commit id and a late lapse in replies are each named as such.
+# another commit id is another build, most likely the old one (a later publish from another clone
+# would be newer); an HTTP error, an answer curl failed on, a build.txt that holds no commit id
+# and a late lapse in replies are each named as such.
 case "$last_look" in
   http) stale="does not serve this build (its last answer was HTTP $last_code)." ;;
   cut) stale="did not show this build (its last answer was HTTP $last_code, and the request failed: curl exit $last_crc)." ;;
   notid) stale="does not serve this build (its build.txt answered, but not with a commit id)." ;;
   noreply) stale="did not show this build (it answered earlier; the last look got no reply)." ;;
-  *) stale="serves an OLD build." ;;
+  *) stale="serves another build (${live:0:12}), most likely the OLD build." ;;
 esac
+if [ "$last_look" != other ]; then
+  # No look showed another build, so nothing here says Cloudflare failed to build: no dashboard
+  # steps. The owner is sent to build.txt, as when the site could not be reached.
+  if [ "$live_n" = 0 ]; then
+    echo "⚠ Nothing was pushed ('production' already had this commit), and after $wait_min minutes the"
+    echo "  live site still $stale"
+  else
+    echo "⚠ Pushed OK, but after $wait_min minutes the live site still $stale"
+  fi
+  echo "  So this could not confirm the deploy; it does not mean the build failed."
+  echo "  Check it yourself in a few minutes: open $build_txt in your browser. It should show"
+  echo "    $id"
+  echo "  If it shows another id, run npm run ship again: it checks again and says what to do."
+  case "$last_look" in http | notid)
+    echo "  (Brand-new site whose domain isn't connected yet? Then this is expected — verify via"
+    echo "  the project's *.pages.dev URL, or a Worker's *.workers.dev URL if it has one, instead.)" ;;
+  esac
+  exit 1
+fi
 if [ "$live_n" = 0 ]; then
   echo "⚠ Nothing was pushed ('production' already had this commit), and after $wait_min minutes the"
   echo "  live site still $stale"
