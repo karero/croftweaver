@@ -384,9 +384,7 @@ with these warnings ahead of each click:
 2. **The wrong type leaves a check behind.** A Worker made for a site that is on Pages (or a
    Pages project made for a Worker site) keeps posting its build check on every pull request,
    pending or failing forever, even after the project is deleted. Disconnect it first (a
-   Worker: **Settings → Builds → disconnect**; a Pages project: delete it; if its check still posts, look at the
-   Cloudflare GitHub app's settings for the repository, and leave the access the right project
-   needs), then prove the
+   Worker: **Settings → Builds → disconnect**; a Pages project: delete it), then prove the
    pull request shows only the **CI** check and the one Cloudflare build check of this
    site's type: open a throwaway pull request **after** connecting (the §4 recipe: empty
    commit, close and delete afterwards). The check's exact name on a Worker is not checked.

@@ -33,8 +33,8 @@ setting's name.
 
 **While you create the Worker** (Workers & Pages → Create application):
 
-(The four steps for a new Worker below have no box: they are steps to take, and the checker has
-no item for them. The boxes that follow are what it checks.)
+(The four steps for a new Worker below have no box: they are steps to take, not checks of their
+own. The boxes that follow are the checks.)
 
 - **Create a Worker from your repository.**
   Workers & Pages → Create application → **Import a repository** → pick the repository. The
@@ -263,8 +263,9 @@ cookies, scripts or tracking you didn't choose.
   allowance (see Fail open).
 - [ ] **Cloudflare Web Analytics: Off.** This is Cloudflare's own measurement, separate
   from any tool you chose for the site. Two places, check both:
-  - Workers & Pages → your project (on a Worker this path is not checked) → Metrics → Web Analytics. This is where you would
-    switch it on, so it should offer **Enable**, not show data.
+  - Workers & Pages → your project → Metrics → Web Analytics. This is where you would
+    switch it on, so it should offer **Enable**, not show data. (Seen on a Pages project only;
+    on a Worker this place is not checked, so rely on the next one.)
   - Web Analytics → Manage site → Disable. If your domain isn't listed there, there is
     nothing to disable.
 
