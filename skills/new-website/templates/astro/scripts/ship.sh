@@ -1205,8 +1205,8 @@ case "$last_look" in
   *) stale="serves another build (${live:0:12}), most likely the OLD build." ;;
 esac
 if [ "$last_look" != other ]; then
-  # No look showed another build, so nothing here says Cloudflare failed to build: no dashboard
-  # steps. The owner is sent to build.txt, as when the site could not be reached.
+  # The last look did not show another build, so nothing here says Cloudflare failed to build:
+  # no dashboard steps. The owner is sent to build.txt, as when the site could not be reached.
   if [ "$live_n" = 0 ]; then
     echo "⚠ Nothing was pushed ('production' already had this commit), and after $wait_min minutes the"
     echo "  live site still $stale"
