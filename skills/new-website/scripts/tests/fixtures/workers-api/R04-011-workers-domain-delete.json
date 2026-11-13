@@ -1,0 +1,10 @@
+{
+ "capture": "R04-011",
+ "request": {
+  "method": "DELETE",
+  "path": "/accounts/c0ffee00000000000000000000000001/workers/domains/ba5e000000000000000000000000000000000004",
+  "body": null
+ },
+ "status": 204,
+ "response": ""
+}

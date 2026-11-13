@@ -1,0 +1,25 @@
+{
+ "capture": "R04-007",
+ "request": {
+  "method": "PUT",
+  "path": "/accounts/c0ffee00000000000000000000000001/workers/domains",
+  "body": {
+   "hostname": "lenas-backstube.example",
+   "service": "lenas-backstube",
+   "zone_id": "c0ffee00000000000000000000000002",
+   "environment": "production"
+  }
+ },
+ "status": 409,
+ "response": {
+  "success": false,
+  "errors": [
+   {
+    "code": 100117,
+    "message": "Hostname 'lenas-backstube.example' already has externally managed DNS records (A, CNAME, etc). Delete them first or try a different hostname."
+   }
+  ],
+  "messages": [],
+  "result": null
+ }
+}

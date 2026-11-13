@@ -1,0 +1,43 @@
+{
+ "capture": "R04-012",
+ "request": {
+  "method": "POST",
+  "path": "/zones/c0ffee00000000000000000000000002/dns_records",
+  "body": {
+   "type": "CNAME",
+   "name": "lenas-backstube.example",
+   "content": "lenas-backstube.pages.dev",
+   "proxied": true,
+   "ttl": 1,
+   "comment": "made-up comment",
+   "tags": [],
+   "settings": {
+    "flatten_cname": false
+   }
+  }
+ },
+ "status": 200,
+ "response": {
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+   "id": "c0ffee00000000000000000000000007",
+   "name": "lenas-backstube.example",
+   "type": "CNAME",
+   "content": "lenas-backstube.pages.dev",
+   "proxiable": true,
+   "proxied": true,
+   "ttl": 1,
+   "settings": {
+    "flatten_cname": false
+   },
+   "meta": {},
+   "comment": "made-up comment",
+   "tags": [],
+   "created_on": "2026-11-12T09:44:19.70081Z",
+   "modified_on": "2026-11-12T09:44:19.70081Z",
+   "comment_modified_on": "2026-11-12T09:44:19.70081Z"
+  }
+ }
+}
