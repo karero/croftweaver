@@ -32,6 +32,7 @@ Notes:
 - UNVERIFIABLE: 7 asked (Codex 2, melious 5), 0 confirmed. melious's question on the stop block
   became S4, refuted. Cloudflare's own behaviour (why a build is missing, the dashboard paths) was
   not checked by any seat.
-- The tests: `bash tests/check_ship_push.sh` on macOS `/bin/bash` 3.2.57 was started for this
-  review; its result is in this trail's PR.
+- The tests: `/bin/bash tests/check_ship_push.sh` on macOS bash 3.2.57 at `6e8e98c8` passed
+  (exit 0: 82 publish outcomes, 489 checks on real git; T1 to T8 skipped, `SHIP_TEST_TTY` not
+  set). This line was added after the trail's own Light review.
 - No round 2: nothing was fixed in this gate. S1 and S2 need a fix PR with its own review.
