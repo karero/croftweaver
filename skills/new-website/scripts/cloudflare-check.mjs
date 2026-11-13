@@ -69,7 +69,7 @@ export const ITEMS = [
     lookFor: 'it should say Fail open' },
   { id: 'canonical', section: 1, title: 'Send the `<project>.pages.dev` address to your live domain (301)' },
   { id: 'workers-dev', section: 1, title: 'Keep the live `workers.dev` address off' },
-  { id: 'previews', section: 1, title: 'Preview links carry noindex' },
+  { id: 'previews', section: 1, title: 'Preview links carry noindex and no active NEL policy' },
   { id: 'https', section: 2, title: 'Always Use HTTPS: On' },
   { id: 'tls', section: 2, title: 'Minimum TLS Version: TLS 1.2',
     path: 'Your domain → SSL/TLS → Edge Certificates → Minimum TLS Version',
@@ -111,7 +111,7 @@ const USAGE = `Usage: node cloudflare-check.mjs <domain> [options]
   --config <file>     a Workers config with another name (only with --site; a relative path is taken from the --site folder)
   --preview <link>    a Worker's Preview, deployment or version link, https://<prefix>-<worker>
                       .<account>.workers.dev (several separated by commas; only for a Worker).
-                      Each must carry noindex; a live version link also lets the check judge
+                      Each must carry noindex and no active NEL policy; a live version link also lets the check judge
                       the workers.dev address.
   -h, --help          this text
 
@@ -300,6 +300,14 @@ const isFile = (p) => { try { return statSync(p).isFile(); } catch { return fals
 const isFolder = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 // x-robots-tag holds noindex as a bare directive: a list of words, not a value for one named crawler.
 const isPlainNoindex = (v) => /^\s*[a-z-]+(?:\s*,\s*[a-z-]+)*\s*$/i.test(v) && /(?:^|,)\s*noindex\s*(?:,|$)/i.test(v);
+// A version or Preview link's answer may carry a NEL header only to withdraw a policy: JSON with max_age 0.
+function nelProblem(value) {
+  if (!value) return null;
+  let policy;
+  try { policy = JSON.parse(value); } catch { return `with a nel header that is not JSON (${value})`; }
+  return policy && policy.max_age === 0 ? null : `with a nel header that sets a policy (${value}), so browsers report network errors to Cloudflare`;
+}
+const NEL_RULE_FIX = 'Add this rule to the site\'s own public/_headers, after its /* block (the starter\'s file has it), and deploy again: the line https://:version.:sub.workers.dev/* and, indented below it, the line NEL: {"max_age":0}. See section 3 of the Cloudflare checklist.';
 // A Worker's name is a host label; it ends up in the addresses the check asks.
 const WORKER_NAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
@@ -1145,9 +1153,14 @@ export function evaluate(obs, target, opts) {
         const r = answers[i];
         if (!r || r.error) return { state: 'fail', text: r ? `no answer from ${l.origin}: ${whyNoAnswer(r.error, opts.timeoutMs)}.` : `${l.origin} was not asked.` };
         if (r.status < 400) {
-          return isPlainNoindex(header(r, 'x-robots-tag'))
-            ? { state: 'ok', text: `${l.origin} answers ${r.status} with noindex.` }
-            : { state: 'fail', text: `${l.origin} answers ${r.status} without noindex in x-robots-tag (only a plain list of directives counts; a noindex for one named crawler does not), so search engines may index it.` };
+          const problems = [];
+          if (!isPlainNoindex(header(r, 'x-robots-tag'))) problems.push(`without noindex in x-robots-tag (only a plain list of directives counts; a noindex for one named crawler does not), so search engines may index it`);
+          const nel = nelProblem(header(r, 'nel'));
+          if (nel) problems.push(nel);
+          if (header(r, 'report-to')) problems.push('with a report-to header, which sets up network error reporting');
+          return problems.length
+            ? { state: 'fail', text: `${l.origin} answers ${r.status} ${problems.join('; and ')}.`, nel: Boolean(nel) || Boolean(header(r, 'report-to')) }
+            : { state: 'ok', text: `${l.origin} answers ${r.status} with noindex and no active NEL policy.` };
         }
         return r.status === 404 && header(r, 'x-preview-user-error') === 'true'
           ? { state: 'look', text: `${l.origin} does not serve the site (404 from Cloudflare: the link was deleted, mistyped, or is gone for another reason).` }
@@ -1155,7 +1168,7 @@ export function evaluate(obs, target, opts) {
       });
       const worst = ['fail', 'look'].find((st) => judged.some((j) => j.state === st)) ?? 'ok';
       const detail = worst === 'ok' ? judged.map((j) => j.text).join(' ') : judged.filter((j) => j.state !== 'ok').map((j) => j.text).join(' ');
-      put('previews', worst, detail, section(1));
+      put('previews', worst, detail, judged.some((j) => j.nel) ? NEL_RULE_FIX : section(1));
     }
 
     const addr = obs.workersAddress;

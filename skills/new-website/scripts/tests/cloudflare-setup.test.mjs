@@ -1477,7 +1477,7 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
       assert.equal(git(where.site, 'ls-remote', 'origin', 'main').split('\t')[0], pushed, 'nothing was pushed');
       assert.ok(!existsSync(pendingOf(where)), 'pending.json is gone once the attach worked');
       assert.match(r.out, /a Workers site, with no Pages project/, 'the check was given --site');
-      assert.match(r.out, /Preview links carry noindex: http:\/\/d0000099-lenas-backstube\.lenas-backstube\.workers\.dev\.test:\d+ answers 200 with noindex/, 'and --preview');
+      assert.match(r.out, /Preview links carry noindex and no active NEL policy: http:\/\/d0000099-lenas-backstube\.lenas-backstube\.workers\.dev\.test:\d+ answers 200 with noindex/, 'and --preview');
       assert.ok(r.out.includes(`setup-run/${atDelete.name}`), 'the kept file\'s path is printed');
       assert.match(r.out, /"content": "192\.0\.2\.10"/, 'the replaced record is printed');
       assert.match(r.out, /To undo the launch: remove the domain from the Worker .* add the record back \(DNS → Records → Add record, with the values above\), and take lenas-backstube\.example out of "routes" in wrangler\.jsonc in a new commit\./);

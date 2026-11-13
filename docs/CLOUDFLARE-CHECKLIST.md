@@ -92,9 +92,10 @@ items below are the ones your assistant checks with `--site`):
   prints the link.
   *Why:* a second address that serves the same site is how search engines and AI assistants end up
   citing the wrong one.
-- [ ] **Preview links carry noindex.**
-  Version and Preview links of the Worker answer with `x-robots-tag: noindex`, which Cloudflare adds.
-  Your assistant opens each link you give it and tells you the one that does not.
+- [ ] **Preview links carry noindex and no active NEL policy.**
+  Version and Preview links of the Worker answer with `x-robots-tag: noindex`, which Cloudflare adds,
+  and with no NEL policy (section 3 says why). Your assistant opens each link you give it and tells
+  you the one that does not.
 
 Moving an existing domain, with its mail, to Cloudflare is a bigger job: see "Going live"
 in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).
@@ -223,6 +224,9 @@ cookies, scripts or tracking you didn't choose.
   names `cf-nel`, is still there on your own domain after the rule, tell your assistant or
   ask Cloudflare Support. Cloudflare's support article describes a flag, `nel___enable`,
   that stops NEL being enabled on a zone.
+  A Worker's version and Preview links (`workers.dev`) are outside your domain too, so this
+  setting and rule can't reach them; the starter's `public/_headers` has a rule that does, and an
+  older site needs it added (the check's Preview item tells you).
 - [ ] **Bot Fight Mode: Off.**
   Your domain → Security → Settings → filter by **Bot traffic** → Bot fight mode.
   *Why:* Cloudflare says JavaScript detections come with it and can't be switched off.
