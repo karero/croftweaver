@@ -65,7 +65,9 @@ The starter's `src/pages/404.astro` serves every unmatched URL, whatever its
 locale prefix. Translate its strings to the DEFAULT locale's language; a
 per-locale 404 (`src/pages/de/404.astro`) is optional and needs no routing
 changes — Cloudflare Pages serves `/de/404` for unmatched `/de/*` paths when
-it exists. Keep any 404 noindex and out of PAGES (@astrojs/sitemap already
+it exists (on a Worker the starter's `not_found_handling: "404-page"` serves the
+nearest `404.html` up the folder tree, from Cloudflare's docs: not checked on a
+build; a Preview link on a Worker with no 404 file serves a bare "Not found"). Keep any 404 noindex and out of PAGES (@astrojs/sitemap already
 excludes status-code pages from the sitemap by itself).
 
 ## Partial translation (some routes are not translated)

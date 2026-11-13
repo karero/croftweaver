@@ -904,8 +904,11 @@ export function evaluate(obs, target, opts) {
     : challenged ? `Cloudflare answered ${home.status} with a challenge page, so the site itself was not seen`
       : `the home page answered ${home.status}${empty ? ' with an empty page' : page ? '' : ', not a 200 page of HTML'}`;
   const notChecked = `not checked: ${whyNot}`;
+  // What the 522 names: the site's own kind when --site says it, else both.
+  const project = site && !site.neither && site.platform === 'workers' ? 'your Worker'
+    : site && !site.neither && site.platform === 'pages' ? 'your Pages project' : 'your Worker or Pages project';
   const cloudflareError = {
-    522: 'Cloudflare cannot reach your Pages project: the domain is probably not attached to it',
+    522: `Cloudflare cannot reach ${project}: the domain is probably not attached to it`,
     523: 'Cloudflare cannot reach the origin',
     525: 'the secure connection to the origin failed',
     526: 'the origin certificate is not valid',

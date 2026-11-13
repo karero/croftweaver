@@ -8,7 +8,7 @@ description: >
   QA test suite + GDPR privacy draft + owner docs + permission allowlist),
   copying the bundled skill set into the project's skills dir (full copy list
   in §3) so the repo is self-contained for a third party. Default stack
-  Astro → GitHub → Cloudflare Pages. Use at the very start of any new site.
+  Astro → GitHub → Cloudflare Workers. Use at the very start of any new site.
   Trigger phrases: "new website", "start a new site", "scaffold a website",
   "spin up a site", "build a new website", "set up a new web project",
   "website starter", "which stack for this site".
@@ -75,7 +75,7 @@ palette and the seven icon files); the owner is asked once at §2b, right after
 positioning and the story, and it never runs unasked.
 `website-team-setup` is the other on-demand skill — run it once when a **second person**
 joins the repo (invite collaborators, repo settings, prove CI triggers, block direct
-pushes to `main`, connect Cloudflare Pages without the known traps, set the rights level
+pushes to `main`, connect Cloudflare (a Worker with Workers Builds) without the known traps, set the rights level
 in `AGENTS.md`); a single owner needs none of it, though one who works alone but runs several assistant
 sessions at once, or lets the assistant merge, may choose its §4 and §5 (CI starts, then the
 `main` ruleset); its opening note says what to set first. An option, not a step.
@@ -104,7 +104,7 @@ pattern such as `astro.config.*`), and `cat` on the whole `SKILL.md`. Ask your q
 as plain chat messages, not in a pick-list box, which a new owner may not see. The
 owner's first minutes should show no red and no frozen screen.
 
-Default house stack: **Astro (static) → GitHub → Cloudflare Pages**. Six questions
+Default house stack: **Astro (static) → GitHub → Cloudflare Workers**. Six questions
 decide everything downstream — ask them in order, offer the examples so a
 non-expert can answer, and record the answers in the project `README.md`.
 
@@ -128,7 +128,7 @@ non-expert can answer, and record the answers in the project `README.md`.
      **`website-hero-carousel`** (optional, on request; one strong photo is often better).
    - Exactly one small server task — site search, hiding a third-party API
      key, one live widget (e.g. a next-event box fed by an API), a form that
-     must send through a server → **Tier 2** (one Pages Function or server
+     must send through a server → **Tier 2** (one Worker script or server
      island). No skill builds such a form.
    - State per user — accounts/login, a database, checkout, user-generated
      content → **Tier 3** (SSR + D1). Rare; challenge the requirement first.
@@ -228,35 +228,10 @@ non-expert can answer, and record the answers in the project `README.md`.
      by that goal, the dashboard shows which sources and pages bring enquiries. It
      counts visitors who asked to write an email; whether their mail program opened,
      and whether they sent the mail, the site never learns.
-     **Script or server mode.** With analytics switched on, Plausible by default runs as a
-     script in the browser (`ANALYTICS.mode: 'script'`). Offer **server mode** (`'server'`) to an owner who
-     wants no analytics code on the visitor's device: the site's Cloudflare Function
-     sends each page view and email tap to Plausible itself, so no script loads and
-     nothing is read from or written to the device. It loses scroll depth, engaged
-     time, the optional measurements and the exclusion of the owner's own visits (`plausible_ignore`), the contact form's button is not counted
-     (only email links are), and a visitor can no longer opt out by blocking a script.
-     Its numbers differ from the script's: it counts visitors who block scripts, but not
-     a page a browser prefetched or prerendered before the visitor opened it, and not
-     visitors whose browser sends no Fetch Metadata headers (Safari before 16.4, some
-     in-app browsers); a tap on the email link shows those visitors a page with the
-     address written as "name [at] domain" instead of opening their mail program.
-     It forwards the visitor's IP to Plausible, as the script's request carries it;
-     EDPB Guidelines 2/2023 (paras 54–56) say IP-based tracking can itself fall under
-     the ePrivacy rule, so it is a stronger position, not a way out of a review. It
-     needs two Production variables in Cloudflare (`PLAUSIBLE_HOST`,
-     `PLAUSIBLE_DOMAIN`). `PLAUSIBLE_DOMAIN` must equal the site's name in Plausible, or Plausible
-     answers 202 and drops every event without an error. The Function counts nothing on a `*.pages.dev`
-     address, so test on a custom domain. The starter README, step 4, has the setup and a
-     list of what to check when nothing arrives; an existing site also takes the
-     site-owned files that step names, which `whats-new` does not report, or it keeps
-     counting with the script too. It works with self-hosted
-     Plausible (tried on Community Edition 3.2.1) and, per Plausible's documentation,
-     with the cloud version (not tried there with a real site). Counting uses the
-     Functions quota the site already uses (free plan: 100,000 requests a day); past
-     it, with "Fail open" (what the deploy guide sets; Cloudflare names no default, so check it), Cloudflare serves the site
-     without the Function until midnight UTC, so counting stops and email links do not
-     open the mail program until then ("Fail closed" shows an error page for the whole
-     site instead; `references/CLOUDFLARE_FIRST_DEPLOY.md`).
+     **Script only.** Plausible runs as a script in the browser. Server mode, where the
+     site's own Function sent each page view and email tap to Plausible, is no longer offered:
+     a Worker with no script of its own cannot run one. A site made before 0.35 in server
+     mode keeps its own copy of that code.
    - Prefer cookieless tools over Google Analytics, which would pull in a
      cookie-consent banner — for German-market sites the statute behind that
      banner is § 25 TDDDG (formerly TTDSG). Third-party additions put the
@@ -264,8 +239,8 @@ non-expert can answer, and record the answers in the project `README.md`.
      itself (device storage/readout), while remote Google Fonts change the
      answer via the GDPR instead (unconsented IP disclosure — LG München I,
      3 O 17493/20; self-host fonts, as this starter does). Any analytics script is gated to the production branch only
-     (server mode: the Production variables, on the live domain only). The
-     privacy page must match whatever is chosen here, script or server mode included.
+     The
+     privacy page must match whatever is chosen here.
    - **When the site needs no consent banner.** Tell the owner plainly: a site built
      with this kit needs no consent banner in the EU, Germany, Switzerland or California
      as long as it runs no analytics script: nothing reaches the visitor's browser that
@@ -276,10 +251,6 @@ non-expert can answer, and record the answers in the project `README.md`.
      build writes the script (a site's CI does not run it). Plausible runs as a small script in the visitor's
      browser. With it, running without a banner is a defensible position in the EU,
      Germany, Switzerland and California, not a settled one; to be sure, ask a lawyer.
-     Server mode runs no script, but it is not banner-free by definition either: the
-     visitor's IP still reaches Plausible through the site's Function, and EDPB
-     Guidelines 2/2023 (paras 54–56) say IP-based tracking can fall under the same rule;
-     the same headers say what changes in server mode.
      For the EU and Germany, the headers of `privacy.astro` and `_datenschutz.astro` set
      out the sources on both sides and ask you to record who accepted the position. In
      Switzerland and California the position rests on the privacy page informing
@@ -306,15 +277,15 @@ non-expert can answer, and record the answers in the project `README.md`.
    - New domain or subdomain of an existing site? (Affects canonical URLs and whether
      existing SEO authority carries over.) DNS moves to Cloudflare.
    - **Two-stage — recommended (default).** `main` is an **unlisted, noindexed preview**
-     (`*.pages.dev` — noindexed, but public-by-URL, not access-controlled); `production` is
+     (a Worker's Preview link, which Cloudflare noindexes: public-by-URL, not access-controlled); `production` is
      the **live** site. The owner pushes to `main`, checks
      the preview link, then runs **`npm run ship`** to publish. A mistake never reaches the
-     live domain. *Scaffold adds:* the `production` branch, the `_middleware.ts` noindex
-     guard, and the `ship` script.
+     live domain. *Scaffold adds:* the `production` branch and the `ship` script (Cloudflare
+     adds `noindex` to Preview links itself).
    - **Single-stage — simplest.** One branch — `main` is live, so every push goes straight
      to the public site. Fewer moving parts, no safety net. Pick this only for a low-stakes
-     site whose owner is fine with "save = instantly public." **Note:** the `_middleware.ts`
-     noindex guard de-indexes every `*.pages.dev` host, so a single-stage site is invisible
+     site whose owner is fine with "save = instantly public." **Note:** a new site's
+     live `workers.dev` address is off and its Preview links are noindexed, so a single-stage site is invisible
      to Google until a **custom domain** is attached — say this when recommending it.
    - **Don't assume git fluency.** Whichever they choose, hand them
      `templates/PUBLISHING.md` (plain-English `commit` / `push` / `branch` + the exact
@@ -523,7 +494,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch.
    **This starter needs Node ≥22.23.4**, and Node's current security fixes are in 22.23.4, 24.22.1 and 26.12.1 (one per line).
-   The overlay's `.nvmrc` pins 24 for local + Cloudflare Pages builds. If `npm install` prints
+   The overlay's `.nvmrc` pins 24 for local + Cloudflare's builds. If `npm install` prints
    `EBADENGINE` for the site's own package (the `name@version` in the site's `package.json`, whatever the
    owner named it) and `node`, stop and have the owner update Node (SETUP.md) before going on; a warning
    for another package is not this.
@@ -546,10 +517,11 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    Antigravity: its sandbox approval model).* For Claude's allow/deny model and how to extend
    it safely when a prompt keeps recurring, use **`website-permissions`**.
    **Fill `AGENTS.md` now**, per the scaffold note at its top: site name, live URL, the
-   preview URL (two-stage: `main.<project>.pages.dev`; single-stage: "pull-request
-   previews only, `<branch>.<project>.pages.dev`" — `main` is live there; where Cloudflare
-   gives the project an address other than its name, use that address, which the project's
-   page and the setup script's report name, so update it once the project exists), `[TITLE_SUFFIX]` = the
+   preview URL (a Worker: the Preview link of the form `https://<prefix>-<worker>.<account>.workers.dev`,
+   which Cloudflare shows on the build, so update it once the first build exists; single-stage:
+   "pull-request previews only" — `main` is live there; a site on Pages: `main.<project>.pages.dev`,
+   or "pull-request previews only, `<branch>.<project>.pages.dev`", using the address on the
+   project's page where Cloudflare gave it one other than its name), `[TITLE_SUFFIX]` = the
    ` | {SITE.name}` string `Base.astro` appends, `[SUFFIX_LENGTH]` = its length, and
    `[TITLE_MAX]` = 60 minus that length; keep ONE publish-model block in its §2 (the
    interview's Q6 answer) and delete the other. §5 (collaborators, rights level, merge
@@ -801,12 +773,7 @@ hold Search Console Request Indexing until then.
       `[BRACKET]` slot filled, the analytics section matching the real setup.
       No analytics: the analytics paragraphs deleted, `USE_ANALYTICS = false` as shipped.
       With Plausible: `USE_ANALYTICS = true`, `bash tests/check_analytics_gate.sh` green,
-      and the `Email Tap` goal exists in Plausible (§1 Q5). In script mode (the default)
-      also the host in `script-src` and `connect-src` of `public/_headers`.
-      In server mode also: `PLAUSIBLE_HOST` and `PLAUSIBLE_DOMAIN` set as Production
-      variables (and nowhere in script mode or with analytics off), the host left out of
-      `public/_headers` (no script loads), the privacy page's server-mode slots kept, and
-      one page view and one email tap on the live domain seen under Today.
+      and the `Email Tap` goal exists in Plausible (§1 Q5). Also the host in `script-src` and `connect-src` of `public/_headers`.
       Whether the site may run without a consent banner: §1 Q5's last point.
       The kit ships the English `src/pages/legal-notice.astro` (§ 5 DDG + § 18 Abs. 2
       MStV — required for providers established in Germany, whatever the
@@ -829,20 +796,22 @@ hold Search Console Request Indexing until then.
       `AGENTS.md` §5 says (the site carries it; the text is not repeated here), and in the
       same message ask whether the business is based in Germany. The
       Legal Notice and the privacy page carry a draft notice until the owner has answered.
-- [ ] Deployed to Cloudflare Pages per the chosen **publish model** (§1 Q6).
+- [ ] Deployed to Cloudflare, as a Worker, per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
-      *Production branch* = `production` — so
+      the Worker's *production branch* = `production` (Workers Builds, in its import form) — so
       `main` = noindexed preview, `production` = live; analytics, once switched on, fires on production only.
-      **Single-stage:** `main` = live (default Cloudflare production branch).
-      **Creating the Pages project + first deploy** (the step a Cloudflare newcomer
+      **Single-stage:** `main` = live (the production branch is `main`).
+      **Creating the Worker + first deploy** (the step a Cloudflare newcomer
       struggles with) — offer the bootstrap options in
       `references/CLOUDFLARE_FIRST_DEPLOY.md`: for a site on GitHub, recommend the **setup
       script** (`scripts/cloudflare-setup.mjs setup`: one short-lived token, the owner's yes
-      to a printed list, a project connected to GitHub with the checklist's settings; the
-      script's `launch` stage attaches the domain on launch day), with the token-assisted direct
-      upload (no GitHub connection; you run Wrangler), git-integration by hand and
-      browser/manual as the other offered paths.
+      to a printed list, the checklist's settings written, and the Worker checked; with no Worker
+      yet it says how to connect Workers Builds, one dashboard click, or to run
+      `npm run deploy:live`; the script's `launch` stage attaches the domain on launch day), with the
+      no-GitHub path (`npm run deploy:preview` and `npm run deploy:live`; you run them),
+      Workers Builds by hand and browser/manual as the other offered paths. A site made
+      before 0.35 is still on Pages; its steps are in the guide's last section.
       Either way: hand the owner `PUBLISHING.md` and walk the **first** publish with them.
       Non-English-speaking owner? Translate `PUBLISHING.md` in-session first (e.g. save
       as `PUBLISHING.de.md`, or replace the copy) — it is the owner's PERMANENT reference,
@@ -859,9 +828,11 @@ hold Search Console Request Indexing until then.
       while five are open, so merge or close them): keep it if someone will merge the monthly
       pull request (name them in the site's README), delete it if not; security updates
       stay on either way.
-- [ ] **`<project>.pages.dev` redirects to the live domain**: once the live domain serves
+- [ ] **On a site still on Pages: `<project>.pages.dev` redirects to the live domain**: once the live domain serves
       this build, Production variable `CANONICAL_URL` set and redeployed; `curl -sI` on the
-      alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live").
+      alias shows `301` (`references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live"). A Worker has no such
+      address; its check is that the live `workers.dev` address is off, which the setup script's launch run and
+      `cloudflare-check.mjs --site` look at.
 - [ ] **Search engines notified** (`search-console-setup`): live domain added to Google
       Search Console (Domain property + DNS TXT) and Bing (import from GSC),
       `sitemap-0.xml` submitted to both, and **IndexNow on** (Cloudflare Crawler
