@@ -156,7 +156,7 @@ the name if one differs.
    `--confirm` code; here that question goes unanswered, and the status page's "waiting for your
    yes" is wrong. If it refuses over the token, make a new one the same way. If it names a build or
    says to run it again, your assistant waits as it says and runs it again; for anything else
-   ("Another run … holds" among them), stop. Start step 3 only when your assistant says "start now".
+   ("Another run … holds" among them), stop. Start step 3 only when your assistant tells you the undo commit is written.
 3. For each host: take it off the Worker (Workers & Pages → the Worker → Settings → Domains),
    add it to the Pages project's Custom domains (Workers & Pages → the Pages project → Custom
    domains), and add a proxied CNAME to `<project>.pages.dev` only if the host has none
