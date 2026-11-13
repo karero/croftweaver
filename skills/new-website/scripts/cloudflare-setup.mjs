@@ -1387,6 +1387,11 @@ async function launchRun(opts, ctx, run) {
     say('', `${host} is attached but did not answer the check yet: ${first.by.build.detail} Run the same command, with the same code, again in a few minutes. Status 4.`);
     return 4;
   }
+  // A 5xx from a domain attached minutes ago is the edge not being ready yet (the plan's 522/530 errors).
+  if (first.by.build?.state === 'look' && /^no build\.txt \(5\d\d\)/.test(first.by.build.detail)) {
+    say('', `${host} is attached but the edge is not ready yet: ${first.by.build.detail} Run the same command, with the same code, again in a few minutes. Status 4.`);
+    return 4;
+  }
   if (first.by.build?.state !== 'ok') {
     throw new Stop(1, `${host} is attached, but the check of its build is not ok: ${first.by.build?.detail ?? 'no answer'}`, `It should serve ${short(commit)}. Nothing more was changed: the NEL rule waits until it does.`);
   }
@@ -1474,7 +1479,7 @@ async function addNelRule(api, zoneAt, ruleset) {
     ? await api('POST', `${zoneAt}/rulesets/${rs.id}/rules`, { json: NEL_RULE })
     : await api('PUT', `${zoneAt}/rulesets/phases/${PHASE}/entrypoint`, { json: { rules: [NEL_RULE] } });
   if (!ok(r)) throw new Stop(1, `Cloudflare did not add the NEL rule: ${refusal(r, ROW.rules)}. Add it by hand (the checklist's section 3, step 4).`);
-  const kept = rs ? rs.rules.map((x) => x.id) : [];
+  const kept = (rs?.rules ?? []).map((x) => x.id);
   const after = r.body?.result?.rules ?? [];
   if (!after.some((x) => x.description === NEL_RULE.description) || kept.some((id) => !after.some((x) => x.id === id))) {
     throw new Stop(1, 'Cloudflare accepted the NEL rule, but the ruleset does not read back with it and every rule that was there. Look at Rules → Transform Rules.');
