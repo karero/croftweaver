@@ -33,14 +33,17 @@ setting's name.
 
 **While you create the Worker** (Workers & Pages → Create application):
 
-- [ ] **Create a Worker from your repository.**
+(The four steps for a new Worker below have no box: they are steps to take, and the checker has
+no item for them. The boxes that follow are what it checks.)
+
+- **Create a Worker from your repository.**
   Workers & Pages → Create application → **Import a repository** → pick the repository. The
   Worker's name comes from `name` in `wrangler.jsonc`. The address a build prints tells you what you have: a
   Worker's ends in `.workers.dev`, a Pages site's in `.pages.dev`. If the
   screen looks different, look for "Import a repository". (The setup script tells you when to
   make this connection, and the other ways to deploy are in
   [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).)
-- [ ] **Build settings:** build command `npm run build`; what the Worker serves comes from
+- **Build settings:** build command `npm run build`; what the Worker serves comes from
   `wrangler.jsonc`. A two-stage site: set the **production branch** to `production` on this
   same form, or it publishes the preview first, and leave **Preview builds** on. Under
   Advanced settings pick **Create new token** for the build, so this Worker has a token of its
@@ -48,14 +51,14 @@ setting's name.
 
 **After the first deploy:**
 
-- [ ] **Attach your domain to the Worker.**
+- **Attach your domain to the Worker.**
   Your assistant's setup script does it on launch day; by hand: Workers & Pages → your Worker →
   Settings → Domains & Routes → Add → Custom domain (labels from the guide, not re-checked).
   Cloudflare refuses the attach while an address record stands at that name, so the old record
   is deleted first, and put back if the attach is refused: `CLOUDFLARE_FIRST_DEPLOY.md`
   ("S" and "A") has the steps. A DNS record on its own is not enough: without the attach
   visitors get an error 522.
-- [ ] **Nothing to set for a daily limit.** A Worker with no script of its own runs no code
+- **Nothing to set for a daily limit.** A Worker with no script of its own runs no code
   for a page or a file, so there is no Fail open setting to change (the guide's "no daily
   limit" section has the source).
 
@@ -260,7 +263,7 @@ cookies, scripts or tracking you didn't choose.
   allowance (see Fail open).
 - [ ] **Cloudflare Web Analytics: Off.** This is Cloudflare's own measurement, separate
   from any tool you chose for the site. Two places, check both:
-  - Workers & Pages → your Worker or project → Metrics → Web Analytics. This is where you would
+  - Workers & Pages → your project (on a Worker this path is not checked) → Metrics → Web Analytics. This is where you would
     switch it on, so it should offer **Enable**, not show data.
   - Web Analytics → Manage site → Disable. If your domain isn't listed there, there is
     nothing to disable.
