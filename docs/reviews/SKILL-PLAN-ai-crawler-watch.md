@@ -76,6 +76,11 @@ kit has not applied one. **Not checked:** whether the checker's own
 requests appear in AI Crawl Control (an inference from "user agent strings", hence "may"; the
 maintainer can settle it by running the check on a free zone and looking), whether blocked
 requests show in the Overview, and how far back the Overview reaches on Free.
+Settled after the build, on 2026-11-12: on a free zone, every request a run of the check's AI
+item sent showed up within a few minutes, and the Metrics tab offered more than 24 hours. The
+bullet now says so and how to take the check's requests off the counts (karero/croftweaver#542;
+trail `docs/reviews/REVIEW-diff-2026-11-12-ai-crawl-control-seen.md`). Whether blocked requests
+show, and how far back the Overview reaches, are still not checked.
 
 **`docs/BUGLOG.md`:** a "Next release notes" row: Claude-SearchBot added to the check's crawler
 names; search-console-setup says where to see AI crawler visits and how long AI search takes.
