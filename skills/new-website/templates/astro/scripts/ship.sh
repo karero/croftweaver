@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.26
+# template-version: 0.31
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -62,6 +62,88 @@ config_text() { # <folder>
   cat -- "$1/astro.config.mjs" 2>/dev/null || true
 }
 
+# What the site's Workers config says about its domain, for the folder given. A Workers config is
+# a .json or .jsonc file in the root that holds `assets` and no `pages_build_output_dir` (as the
+# move tools find it). Prints `none` (no such file: a Pages site), `route` (a custom_domain
+# route in its root `routes`), `noroute`, or `error <file>: <why>` for a Wrangler file that is
+# not JSON with comments (a trailing comma is one). Comments are dropped outside strings, then
+# JSON.parse.
+workers_state() { # <folder>
+  CDPATH= cd -- "$1" 2>/dev/null && node -e '
+    const fs = require("fs");
+    let state = "none";
+    for (const f of fs.readdirSync(".").filter((n) => /\.jsonc?$/.test(n)).sort()) {
+      const t = fs.readFileSync(f, "utf8");
+      let s = "", i = 0, conf;
+      try {
+        while (i < t.length) {
+          const c = t[i], d = t[i + 1];
+          if (c === "\"") {
+            let j = i + 1;
+            while (j < t.length && t[j] !== "\"") j += t[j] === "\\" ? 2 : 1;
+            s += t.slice(i, j + 1); i = j + 1;
+          } else if (c === "/" && d === "/") {
+            while (i < t.length && t[i] !== "\n") i++;
+          } else if (c === "/" && d === "*") {
+            const j = t.indexOf("*/", i + 2);
+            if (j < 0) throw new Error("a comment never ends");
+            i = j + 2;
+          } else { s += c; i++; }
+        }
+        conf = JSON.parse(s);
+      } catch (e) {
+        if (f.startsWith("wrangler.")) { console.log("error " + f + ": not JSON with comments (a trailing comma is not allowed): " + String(e.message).split("\n")[0]); process.exit(0); }
+        continue;
+      }
+      if (!conf || typeof conf !== "object" || !("assets" in conf) || "pages_build_output_dir" in conf) continue;
+      const routes = Array.isArray(conf.routes) ? conf.routes : [];
+      if (routes.some((r) => r && r.custom_domain === true)) { state = "route"; break; }
+      state = "noroute";
+    }
+    console.log(state);
+  ' || echo "error: could not read the Wrangler config (is node on the PATH?)"
+}
+
+# One look at the site's build.txt, for a Workers config with no domain route. Prints `served` (it
+# answers with a commit), `notserved` (a DNS server says there is no such host, a 404 or 410, or a
+# 200 that is no commit: a Worker with no domain yet) or `unclear <why>` (a timeout, a refused or
+# reset connection, a TLS fault, any other HTTP answer such as a 403 or 429 that a firewall or a
+# limit may give, a DNS failure that is not "no such host": nothing a launch decides).
+# The system lookup can say "no such host" when the Mac is offline, so that answer is asked again
+# of the DNS servers themselves (A and AAAA; Node's resolver keeps no cache). It counts only when
+# both say "no such host" or "no address" and the same servers give github.com an address, which
+# proves one answered. Anything else is unclear.
+probe_site() { # <site address>
+  local out rc=0 code body host dns
+  out="$(curl -sL -m 8 -w '\n%{http_code}' "$1/build.txt?cb=$RANDOM" 2>/dev/null)" || rc=$?
+  if [ "$rc" = 0 ]; then
+    code="${out##*$'\n'}"
+    body="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
+    case "$code" in
+      200) if grep -qE '^[0-9a-f]{7,64}$' <<<"$body"; then echo served; else echo notserved; fi ;;
+      404|410) echo notserved ;;
+      *) echo "unclear HTTP $code" ;;
+    esac
+  elif [ "$rc" = 6 ]; then
+    host="${1#*://}"; host="${host%%[/:]*}"
+    dns="$(node -e '
+      const dns = require("dns"), h = process.argv[1];
+      dns.promises.lookup(h).then(() => console.log("resolves"), async (e) => {
+        if (e.code !== "ENOTFOUND") return console.log(e.code);
+        const r = new dns.promises.Resolver({ timeout: 3000, tries: 2 });
+        const [a, aaaa, gh] = await Promise.allSettled([r.resolve4(h), r.resolve6(h), r.resolve4("github.com")]);
+        if (a.status === "fulfilled" || aaaa.status === "fulfilled") return console.log("ENOTFOUND, but the DNS server has an address");
+        const other = [a, aaaa].map((g) => g.reason.code).find((c) => c !== "ENOTFOUND" && c !== "ENODATA");
+        if (other) return console.log("ENOTFOUND, then the DNS server: " + other);
+        console.log(gh.status === "fulfilled" ? "nohost" : "ENOTFOUND, and no DNS server answered for github.com: " + gh.reason.code);
+      });
+    ' "$host" 2>/dev/null)" || dns=""
+    if [ "$dns" = nohost ]; then echo notserved; else echo "unclear DNS lookup of $host failed (${dns:-no answer})"; fi
+  else
+    echo "unclear curl exit $rc"
+  fi
+}
+
 # The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
 # A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
 # NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
@@ -74,10 +156,39 @@ site_of() { # <astro.config.mjs text>
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
 # an old address kept in a comment counts. Many means no one address can be named or checked.
+# commented: the text before the one match does not end in plain code (js_state), so the build
+# may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
-  local h
+  local h pre
   h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
-  case "$h" in '') echo none ;; *$'\n'*) echo many ;; *) echo one ;; esac
+  case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
+  # The counted match starts at the text's first occurrence of $h: an earlier one would itself
+  # be a match, and grep would have counted it first.
+  pre="${1%%"$h"*}"
+  case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
+}
+
+# Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
+# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments. A / that opens no comment, a regex
+# literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
+# The | ends the text on a character of its own, so a line comment that closed at a final
+# newline is not reported.
+js_state() { # <text>
+  printf '%s|' "$1" | awk '
+    { sub(/\r$/, "")
+      if (cont) cont = 0; else if (st != "block" && st != "tpl" && st != "slash") st = "code"
+      for (i = 1; i <= length($0) && st != "slash"; i++) {
+        c = substr($0, i, 1); d = substr($0, i, 2)
+        if (st == "code") {
+          if (d == "//") { st = "line"; break }
+          if (d == "/*") { st = "block"; i++ }
+          else if (c == "/") st = "slash"
+          else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"
+        } else if (st == "block") { if (d == "*/") { st = "code"; i++ } }
+        else if (c == "\\") { if (i == length($0)) cont = 1; i++ }
+        else if ((st == "sq" && c == "\047") || (st == "dq" && c == "\"") || (st == "tpl" && c == "`")) st = "code"
+      } }
+    END { print (st == "" ? "code" : st) }'
 }
 
 # owner/name of the address `git push origin` uses; empty when there is none, when it has
@@ -99,6 +210,7 @@ name_site() { # <astro.config.mjs text>
   case "$(site_count "$1")" in
     one) site_a="$(site_of "$1")"; site_p="$site_a" ;;
     many) site_a="more than one site: address in astro.config.mjs — check which one is live"; site_p="($site_a)" ;;
+    commented) site_a="the only site: address in astro.config.mjs is in a comment, or ship can't tell — check which one is live"; site_p="($site_a)" ;;
     *) site_a="no site: address in astro.config.mjs"; site_p="($site_a)" ;;
   esac
   repo_a="$(repo_of_origin)"
@@ -951,6 +1063,34 @@ else
   echo "✓ Pushed. Cloudflare is building the live site now."
 fi
 
+# A Workers site before launch has no custom domain, so its site: address does not serve this
+# Worker: there is no build.txt to read (D4). A Pages site in a move's stage 1 holds the same
+# route-less config but its domain is served, so the address answering with a commit settles it.
+wstate="$(workers_state "${wt:-.}")"
+case "$wstate" in
+  error*)
+    echo ""
+    echo "✗ The publish went out (GitHub's production is now ${id:0:12}), but ${wstate#error } so this"
+    echo "  cannot tell whether the site has its domain yet and did not check the live site."
+    echo "  Fix that file; nothing else was changed."
+    exit 1 ;;
+  noroute)
+    if [ -n "$site" ]; then
+      probe="$(probe_site "$site")"
+      case "$probe" in
+        served) ;;
+        notserved)
+          finish "✓ Sent. This Worker has no domain yet (wrangler.jsonc has no custom_domain route), so there is no live address to check; the change is checked at launch."
+          exit 0 ;;
+        *)
+          echo ""
+          echo "✗ The publish went out (GitHub's production is now ${id:0:12}), but ship could not tell whether"
+          echo "  the site is live: ${probe#unclear }. It did not check further. Run npm run ship again: it checks again."
+          exit 1 ;;
+      esac
+    fi ;;
+esac
+
 # Push ≠ live: Cloudflare can silently stop building (webhook auth lapse — seen in
 # production 2026-07-02: two green pushes, no deploy for 40+ min). So VERIFY: the
 # build writes its commit SHA to /build.txt (scripts/build-marker.mjs); poll the
@@ -960,6 +1100,8 @@ fi
 if [ -z "$site" ]; then
   if [ "$site_n" = many ]; then
     echo "⚠ astro.config.mjs has more than one site: address (an old one in a comment counts), so there is no one address to check — can't verify the deploy."
+  elif [ "$site_n" = commented ]; then
+    echo "⚠ The only site: address in astro.config.mjs is in a comment, or ship can't tell, so the build may use another one — can't verify the deploy."
   else
     echo "⚠ Couldn't read the site URL from astro.config.mjs — can't verify the deploy."
   fi
@@ -973,6 +1115,12 @@ fi
 # Checks 10 s apart; the slowest Workers build seen took about 300 s, so wait about 6 minutes.
 wait_min=6
 echo "→ Verifying the live site serves this exact build (about $wait_min min)…"
+# What the last look got, and whether any look got an answer at all. Read as probe_site reads
+# build.txt (no -f, the status asked for), so "no reply" (curl's code 000: DNS, a blocked network,
+# a timeout), "an HTTP error" and "another build is served" stay different things. Only the
+# last points at Cloudflare. The status decides whether the site answered, not curl's exit: a
+# reply that broke off or timed out after its status line is still an answer.
+last_look="" last_code="" last_crc=0 ever_reached=0
 for i in $(seq 1 $((wait_min * 6))); do
   # A Ctrl-C ends the wait (or the request), not the script, so the note is read.
   sleep 10 || true
@@ -980,7 +1128,25 @@ for i in $(seq 1 $((wait_min * 6))); do
   if [ "$stop_live" = 0 ]; then
     # -L: follow 3xx so a domain-level redirect (naked → www) can't yield an empty
     # body and a false "old build" verdict; the exact-SHA match keeps the check honest.
-    live="$(curl -sfL -m 8 "$site/build.txt?cb=$RANDOM$i" 2>/dev/null | tr -d '[:space:]')" || true
+    live="" crc=0
+    out="$(curl -sL -m 8 -w '\n%{http_code}' "$site/build.txt?cb=$RANDOM$i" 2>/dev/null)" || crc=$?
+    last_code="${out##*$'\n'}" last_crc="$crc"
+    case "$last_code" in
+      [1-5][0-9][0-9])
+        ever_reached=1
+        if [ "$crc" != 0 ]; then
+          last_look=cut # an answer, but curl failed on it: its body is not read
+        elif [ "$last_code" = 200 ]; then
+          live="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
+          # Another commit id is another build; an empty body or a page is no build at all.
+          last_look=other
+          [ "${#live}" = "${#id}" ] || last_look=notid
+          case "$live" in *[!0-9a-f]*) last_look=notid ;; esac
+        else
+          last_look=http
+        fi ;;
+      *) last_look=noreply ;;
+    esac
     [ "$stop_asked" = 1 ] && stop_live=1
   fi
   if [ "$stop_live" = 1 ]; then
@@ -1009,12 +1175,60 @@ for i in $(seq 1 $((wait_min * 6))); do
   fi
 done
 echo ""
+if [ "$ever_reached" = 0 ]; then
+  # Exit 1, as for the other "published but unverified" ends above (a stop during the check, a
+  # probe that could not tell): the push landed, but nothing confirmed the live site, and a 0
+  # would let a caller read this as verified. Nothing here blames Cloudflare: no look got a reply,
+  # so this says nothing about the build, only about this machine's way to the site.
+  if [ "$live_n" = 0 ]; then
+    echo "⚠ Nothing was pushed ('production' already had this commit), but $site could not be"
+  else
+    echo "⚠ Pushed OK (GitHub's production is now ${id:0:12}), but $site could not be"
+  fi
+  echo "  reached from this machine: no reply in $wait_min minutes (no network to it, a blocked"
+  echo "  address or a timeout). So this could not check the deploy; it does not mean the build failed."
+  echo "  Check it yourself: open $build_txt in your browser. It should show"
+  echo "    $id"
+  echo "  If it shows another id after a few minutes, run npm run ship again from a machine that"
+  echo "  can reach the site: it checks again and says what to do."
+  exit 1
+fi
+# The site answered at least once. What its last look got says how to word it: only a 200 with
+# another commit id is another build, most likely the old one (a later publish from another clone
+# would be newer); an HTTP error, an answer curl failed on, a build.txt that holds no commit id
+# and a late lapse in replies are each named as such.
+case "$last_look" in
+  http) stale="does not serve this build (its last answer was HTTP $last_code)." ;;
+  cut) stale="did not show this build (its last answer was HTTP $last_code, and the request failed: curl exit $last_crc)." ;;
+  notid) stale="does not serve this build (its build.txt answered, but not with a commit id)." ;;
+  noreply) stale="did not show this build (it answered earlier; the last look got no reply)." ;;
+  *) stale="serves another build (${live:0:12}), most likely the OLD build." ;;
+esac
+if [ "$last_look" != other ]; then
+  # The last look did not show another build, so nothing here says Cloudflare failed to build:
+  # no dashboard steps. The owner is sent to build.txt, as when the site could not be reached.
+  if [ "$live_n" = 0 ]; then
+    echo "⚠ Nothing was pushed ('production' already had this commit), and after $wait_min minutes the"
+    echo "  live site still $stale"
+  else
+    echo "⚠ Pushed OK, but after $wait_min minutes the live site still $stale"
+  fi
+  echo "  So this could not confirm the deploy; it does not mean the build failed."
+  echo "  Check it yourself in a few minutes: open $build_txt in your browser. It should show"
+  echo "    $id"
+  echo "  If it shows another id, run npm run ship again: it checks again and says what to do."
+  case "$last_look" in http | notid)
+    echo "  (Brand-new site whose domain isn't connected yet? Then this is expected — verify via"
+    echo "  the project's *.pages.dev URL, or a Worker's *.workers.dev URL if it has one, instead.)" ;;
+  esac
+  exit 1
+fi
 if [ "$live_n" = 0 ]; then
   echo "⚠ Nothing was pushed ('production' already had this commit), and after $wait_min minutes the"
-  echo "  live site still serves an OLD build."
+  echo "  live site still $stale"
   echo "  This usually means Cloudflare didn't build (it can stop silently). Check, in the"
 else
-  echo "⚠ Pushed OK, but after $wait_min minutes the live site still serves an OLD build."
+  echo "⚠ Pushed OK, but after $wait_min minutes the live site still $stale"
   echo "  The build may still be running: in a few minutes, $build_txt should show"
   echo "  ${id:0:12}. If it doesn't, Cloudflare didn't build (it can stop silently). Check, in the"
 fi

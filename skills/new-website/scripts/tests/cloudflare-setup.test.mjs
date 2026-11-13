@@ -1,25 +1,27 @@
 // Tests for cloudflare-setup.mjs. Standard library only; run with
 //   node --test skills/new-website/scripts/tests/cloudflare-setup.test.mjs
 //
-// The scenarios are the plan's (docs/reviews/SKILL-PLAN-cloudflare-setup.md, "Scenarios"), by their
-// numbers. Each runs the script as a program, the way an assistant does, in a fixture repository
+// Each scenario runs the script as a program, the way an assistant does, in a fixture repository
 // whose origin is a GitHub address that the repository's own git config sends to a local folder
-// (url.<folder>.insteadOf), against a stub of Cloudflare's API and a stub nameserver on 127.0.0.1
-// (cloudflare-stub.mjs). The stub's answers are the trials' captures, cleaned and committed in
-// fixtures/cloudflare-api/; the first tests replay the captured calls against the stub and compare.
+// (url.<folder>.insteadOf), against a stub of Cloudflare's API, a stub nameserver and a stub of the
+// Worker's version link on 127.0.0.1 (cloudflare-stub.mjs). The zone, settings and Bot Management
+// answers are the trials' captures (fixtures/cloudflare-api/); the Workers answers are row 0.4's
+// (fixtures/workers-api/). The Workers plan's scenarios are TS1 to TS6 (setup) and TL1 to TL8 (launch).
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFile, execFileSync, spawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { execFile, execFileSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { BOT_LINES, LAUNCH_FAIL, aiNotes, LAUNCH_SKIP_IDS, SETTINGS, SKIP_IDS, checkArgs, codeFits, defaultName, failed, fixedText, githubRepo, goodProductionBuild, launchVerdict, nameserverIps, notAsWanted, otherDifferences, running, looksSwapped, parseRecord, pushProof, setupCode, UsageError } from '../cloudflare-setup.mjs';
+import { fileURLToPath } from 'node:url';
+import { BOT_LINES, LAUNCH_FAIL, aiNotes, LAUNCH_SKIP_IDS, SETTINGS, SKIP_IDS, checkArgs, codeFits, fixedText, gate, githubRepo, launchVerdict, makeApi, looksSwapped, parseRecord, setupCode, UsageError } from '../cloudflare-setup.mjs';
+import { Stop } from '../move-to-workers.mjs';
 import { ITEMS as CHECK_ITEMS } from '../cloudflare-check.mjs';
-import { ACCOUNT, FIXTURES, OWNER, REPO, TOKEN, ZONE, allFixtures, attachedDomain, deployment, fixture, freshState, handle, project, servedBy, startApi, startDns, startSites, zone } from './cloudflare-stub.mjs';
+import { ACCOUNT, FIXTURES, OWNER, REPO, TOKEN, VERSION, WORKER, ZONE, WORKERS_FIXTURES, allFixtures, allWorkersFixtures, fixture, freshState, handle, project, servedBy, startApi, startDns, startPreview, startSites, versionHost, worker, zone } from './cloudflare-stub.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.join(HERE, '..', 'cloudflare-setup.mjs');
+const NAMES = path.join(HERE, 'resolve-test-names.cjs');
 const CHECKLIST = path.join(HERE, '..', '..', '..', '..', 'docs', 'CLOUDFLARE-CHECKLIST.md');
 const REMOTE = `https://github.com/${OWNER}/${REPO}.git`;
 const HOST = ZONE.name;
@@ -33,6 +35,17 @@ const EMPTY_LIST = (spec) => {
   assert.ok(out.includes('const UNFILLED_UNTIL_LAUNCH = new Set<string>([]);'), 'the starter\'s UNFILLED_UNTIL_LAUNCH line is no longer on one line');
   return out;
 };
+// The site's Worker config: one Worker that serves the built folder, with its workers.dev address off
+// and its version links on, as the kit's starter has it.
+const WRANGLER = `{
+  // Lena's site: one Worker that serves the built folder.
+  "name": "${WORKER}",
+  "compatibility_date": "2026-01-01",
+  "workers_dev": false,
+  "preview_urls": true,
+  "assets": { "directory": "./dist" }
+}
+`;
 
 // ---------------------------------------------------------------- the site and its origin
 
@@ -46,8 +59,8 @@ const git = (cwd, ...args) => execFileSync('git', args, { cwd, env: gitEnv, enco
 const slash = (p) => p.replace(/\\/g, '/');
 
 let sites = 0;
-// A site made with the kit: src/config.ts at the head of main, pushed to its origin; two-stage by
-// default, with production at the same commit.
+// A site made with the kit: src/config.ts and wrangler.jsonc at the head of main, pushed to its origin;
+// two-stage by default, with production at the same commit.
 // The launch stage reads tests/placeholders.spec.ts and .github/workflows/ci.yml: by default the
 // starter's, with its list of unfilled pages emptied, as on a finished site. `files` adds or replaces
 // files (null removes one).
@@ -59,16 +72,19 @@ function makeSite({ prodBranch = 'production', production = true, url = `https:/
   git(dir, 'init', '-q', '--bare', origin);
   git(site, 'init', '-q');
   git(site, 'checkout', '-q', '-b', 'main');
+  // The launch makes a commit with the site's own git identity; a CI runner has no global one.
+  git(site, 'config', 'user.name', 'Lena');
+  git(site, 'config', 'user.email', 'lena@example.com');
   writeFileSync(path.join(site, 'src', 'config.ts'), `export const SITE = {\n  url: '${url}',          // production origin\n  name: 'Lenas Backstube',\n};\n\nexport const PROD_BRANCH = '${prodBranch}';\n`);
   writeFileSync(path.join(site, '.gitignore'), `node_modules/\n${ignoreDevVars ? '.dev.vars\n' : ''}`);
   if (devVars !== null) writeFileSync(path.join(site, '.dev.vars'), devVars);
-  const all = { 'tests/placeholders.spec.ts': EMPTY_LIST(STARTER_SPEC), '.github/workflows/ci.yml': STARTER_CI, 'src/pages/index.astro': '<p>Brot</p>\n', 'public/robots.txt': 'User-agent: *\n', ...files };
+  const all = { 'wrangler.jsonc': WRANGLER, 'tests/placeholders.spec.ts': EMPTY_LIST(STARTER_SPEC), '.github/workflows/ci.yml': STARTER_CI, 'src/pages/index.astro': '<p>Brot</p>\n', 'public/robots.txt': 'User-agent: *\n', ...files };
   for (const [f, text] of Object.entries(all)) {
     if (text === null) continue;
     mkdirSync(path.dirname(path.join(site, f)), { recursive: true });
     writeFileSync(path.join(site, f), text);
   }
-  git(site, 'add', ...['src', 'public', 'tests', '.github', '.gitignore'].filter((f) => existsSync(path.join(site, f))));
+  git(site, 'add', ...['src', 'public', 'tests', '.github', '.gitignore', 'wrangler.jsonc', 'workers.jsonc'].filter((f) => existsSync(path.join(site, f))));
   if (trackDevVars) git(site, 'add', '-f', '.dev.vars');
   git(site, 'commit', '-q', '-m', 'Lena\'s site');
   git(site, 'remote', 'add', 'origin', REMOTE);
@@ -86,12 +102,14 @@ function cleanEnv() {
   for (const k of Object.keys(env)) if (k === 'CLOUDFLARE_API_TOKEN' || k.startsWith('CLOUDFLARE_SETUP_')) delete env[k];
   return env;
 }
+// Names ending in .workers.dev.test resolve to this machine, in the script and in the check it starts.
+const withNames = (extra = '') => `--require ${NAMES}${extra ? ` ${extra}` : ''}`;
 
-function run(where, args, { api, dns, sites, env = {}, token = TOKEN, stage = 'setup' } = {}) {
+function run(where, args, { api, dns, sites, preview, env = {}, token = TOKEN, stage = 'setup' } = {}) {
   const started = Date.now();
   return new Promise((resolve) => {
-    const e = { ...cleanEnv(), ...(token ? { CLOUDFLARE_API_TOKEN: token } : {}), ...(api ? { CLOUDFLARE_SETUP_API: api.origin } : {}), ...(dns ? { CLOUDFLARE_SETUP_RESOLVER: dns.address } : {}),
-      ...(sites ? { CLOUDFLARE_SETUP_SITE: sites.site, CLOUDFLARE_SETUP_PAGES: sites.pages } : {}), ...env };
+    const e = { ...cleanEnv(), NODE_OPTIONS: withNames(), ...(token ? { CLOUDFLARE_API_TOKEN: token } : {}), ...(api ? { CLOUDFLARE_SETUP_API: api.origin } : {}), ...(dns ? { CLOUDFLARE_SETUP_RESOLVER: dns.address } : {}),
+      ...(sites ? { CLOUDFLARE_SETUP_SITE: sites.site } : {}), ...(preview ? { CLOUDFLARE_SETUP_PREVIEW: preview.origin } : {}), ...env };
     execFile(process.execPath, [SCRIPT, stage, ...args], { cwd: where.site, env: e, timeout: 75_000 }, (err, stdout, stderr) => {
       // R10: the token is never printed.
       assert.ok(!stdout.includes(TOKEN) && !stderr.includes(TOKEN), 'the token was printed');
@@ -101,33 +119,33 @@ function run(where, args, { api, dns, sites, env = {}, token = TOKEN, stage = 's
 }
 const codeOf = (r) => /--confirm ([0-9a-f]{16})/.exec(r.out)?.[1];
 
-// A scenario: a site, the stub API with `state`, and the stub nameserver serving what the stub holds.
-// `state` may be a function of the site's branch heads, for a state that holds deployments of them.
+// A scenario: a site, the stub API with `state`, the stub nameserver serving what the stub holds, and
+// the Worker's version link. `state` may be a function of the site's branch heads. Unless the test
+// says `worker: 'none'` (or puts its own in state.workers), the Worker is there and serves main's head.
 async function scenario(stateOrFn, fn, siteOpts = {}) {
   const where = makeSite(siteOpts);
   const state = typeof stateOrFn === 'function' ? stateOrFn(where.heads) : stateOrFn;
   state.heads = where.heads;
+  if (siteOpts.worker !== 'none' && !state.workers[WORKER]) state.workers[WORKER] = worker({ serves: where.heads.main });
   const api = await startApi(state);
+  const preview = await startPreview(state);
   let silent = false;
   const dns = await startDns(servedBy(state, { silent: () => silent }));
   try {
-    return await fn({ where, api, dns, state, setSilent: (v) => { silent = v; }, go: (args = [], o = {}) => run(where, args, { api, dns, ...o }) });
+    return await fn({ where, api, dns, preview, state, setSilent: (v) => { silent = v; }, go: (args = [], o = {}) => run(where, args, { api, dns, preview, ...o }) });
   } finally {
     await api.close();
     await dns.close();
+    await preview.close();
   }
 }
 
-// A finished setup: the project as setup leaves it, a good production build of the head, a push
-// build, and the zone's settings and Bot Management as the checklist wants them.
+// A finished setup: the zone's settings and Bot Management as the checklist wants them, and the Worker
+// serving the head of main.
 function finishedState(heads, over = {}) {
   const s = freshState(over);
   s.heads = heads;
-  s.projects = [project()];
-  s.deployments = { [REPO]: [
-    deployment('push', { commit: heads.main, branch: 'lenas-pr' }),
-    deployment('built', { commit: heads.production }),
-  ] };
+  s.workers[WORKER] = worker({ serves: heads.main });
   s.settings = { always_use_https: 'on', min_tls_version: '1.2', email_obfuscation: 'off', nel: { enabled: false } };
   Object.assign(s.bot, { fight_mode: false, bot_preference_sync_enabled: false });
   return s;
@@ -235,28 +253,6 @@ test('the list of projects carries what the script reads from it, and the deploy
   assert.deepEqual(fixture('T1-030').request.body.emptyForm, { contentType: line[1], bytes: line[2].replace(/\\r\\n/g, '\r\n') });
 });
 
-test('the deployments the stub serves are the captured ones, and the script reads them as the plan says', () => {
-  // A Cloudflare build: clone_repo and build succeeded. An upload: both idle (T1-021). A skipped push: not proof (T2-026).
-  const built = fixture('T1-040').response.result[1];
-  const upload = fixture('T1-021').response.result.find((d) => d.deployment_trigger.type === 'ad_hoc' && d.environment === 'production' && d.stages.find((s) => s.name === 'build').status === 'idle');
-  const skipped = fixture('T2-026').response.result[0];
-  const push = fixture('T1-040').response.result[0];
-  const sha = built.deployment_trigger.metadata.commit_hash;
-  assert.equal(goodProductionBuild(built, sha, 'production'), true, 'a Cloudflare build of the head');
-  assert.equal(goodProductionBuild(upload, upload.deployment_trigger.metadata.commit_hash, 'production'), false, 'an upload is no Cloudflare build');
-  assert.equal(goodProductionBuild(built, sha, 'main'), false, 'built while another branch was the production branch (capture T1-055)');
-  assert.equal(fixture('T1-055').response.result.production_branch, 'main', 'a deployment records the production branch of its time');
-  assert.equal(pushProof(push), true);
-  assert.equal(pushProof(skipped), false, 'a skipped push was never built');
-  assert.equal(pushProof(built), false, 'a build the deployment call started is no proof');
-  // Between two stages (build succeeded, deploy not begun) a deployment is still under way, not failed.
-  const between = { ...built, latest_stage: { name: 'build', status: 'success' } };
-  assert.equal(running(between), true);
-  assert.equal(failed(between), false);
-  // A deployment records its variables, a secret with its value empty, and its build settings (T1-062).
-  assert.deepEqual(fixture('T1-062').response.result.env_vars.SPIKE_SECRET, { type: 'secret_text', value: '' });
-});
-
 // ================================================================ the fixtures hold made-up values only
 
 // Follow-up W5 of the plan's second gate: the fixtures come from real accounts, and check_clean.sh
@@ -268,12 +264,12 @@ test('the deployments the stub serves are the captured ones, and the script read
 // for looking harmless: a value not on the list fails, and is added only after a person has looked.
 const ALLOWED = JSON.parse(readFileSync(path.join(FIXTURES, 'allowed-values.json'), 'utf8'));
 const MADE_UP = [/^c0ffee0{16}\d{10}$/, /^ba5e0{26}\d{10}$/, /^f00d0{50}\d{10}$/, /^d\d{7}-0000-4000-8000-000000000000$/, /^d\d{7}$/,
-  /^100000\d$/, /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/, /^Made-up commit message \d+$/, /^T[1-4]-\d{3}$/];
-function notMadeUp(fixtures) {
-  const strings = new Set(ALLOWED.strings);
-  const tokens = new Set(ALLOWED.tokens);
-  const keys = new Set(ALLOWED.keys);
-  const numbers = new Set(ALLOWED.numbers);
+  /^100000\d$/, /^\d{4}-\d{2}-\d{2}(T[\d:.]+Z)?$/, /^Made-up commit message \d+$/, /^T[1-4]-\d{3}$/, /^R04-\d{3}$/];
+function notMadeUp(fixtures, allowed = ALLOWED) {
+  const strings = new Set(allowed.strings);
+  const tokens = new Set(allowed.tokens);
+  const keys = new Set(allowed.keys);
+  const numbers = new Set(allowed.numbers);
   const madeUp = (v) => MADE_UP.some((re) => re.test(v));
   const bad = [];
   const string = (where, v) => {
@@ -308,6 +304,28 @@ test('every string, key and number in the fixtures is a made-up value or on the 
     assert.doesNotMatch(file, /[0-9a-f]{16}/i, `${file}: a run of hexadecimal digits in a file name`);
   }
   assert.deepEqual(notMadeUp(fixtures), []);
+});
+
+test('every string, key and number in the Workers fixtures is a made-up value or on their own list', () => {
+  const fixtures = allWorkersFixtures();
+  assert.equal(fixtures.length, 12, 'the twelve captures of row 0.4 are there');
+  for (const { file } of fixtures) {
+    assert.match(file, /^R04-\d{3}-[a-z0-9_-]+\.json$/, file);
+    assert.doesNotMatch(file, /[0-9a-f]{16}/i, `${file}: a run of hexadecimal digits in a file name`);
+  }
+  const allowed = JSON.parse(readFileSync(path.join(WORKERS_FIXTURES, 'allowed-values.json'), 'utf8'));
+  assert.deepEqual(notMadeUp(fixtures, allowed), []);
+  // The check can fail here too: a real-looking account id, a name and an address are each caught.
+  const plants = [
+    ['an account id', (f) => { f.request.path = '/client/v4/accounts/5f3a9c1e2b4d6f8091a2b3c4d5e6f708/workers/subdomain'; }, 'R04-001'],
+    ['a Worker\'s name', (f) => { f.response.result[0].service = 'elodies-shop'; }, 'R04-005'],
+    ['an IP address', (f) => { f.response.result[0].content = '203.0.113.7'; }, 'R04-010'],
+  ];
+  for (const [what, plant, capture] of plants) {
+    const planted = allWorkersFixtures();
+    plant(planted.find((x) => x.data.capture === capture).data);
+    assert.notDeepEqual(notMadeUp(planted, allowed), [], `${what} (${capture}) passed the check`);
+  }
 });
 
 test('the fixture check catches what earlier versions let through, wherever it is put', () => {
@@ -366,6 +384,8 @@ test('decision 2: each line the script writes is the checklist\'s item, with its
   for (const b of BOT_LINES) for (const [field, v] of Object.entries(b.fields)) assert.deepEqual(valueIn(field), v, `section 6 gives ${field} another value, or none`);
   assert.deepEqual(valueIn('ai_agents'), 'disabled', 'section 6 gives ai_agents another value, or none (each agent the first read lists)');
   assert.ok(/Zone → DNS → Edit/.test(six), 'section 6\'s table has the DNS row the setup writes records with');
+  assert.ok(/\| Account → Workers Scripts → Edit \|/.test(six), 'section 6\'s table has the Workers row the setup reads and attaches with');
+  assert.ok(!/Cloudflare Pages → Edit/.test(six), 'section 6 asks for no Pages permission any more');
 });
 
 // ================================================================ small parts
@@ -385,291 +405,31 @@ test('15: a record given with name and target swapped is refused before anything
   });
 });
 
-test('the owner and repository come from the remote in any of its forms; the project name follows the repository', () => {
+test('the owner and repository come from the remote in any of its forms', () => {
   for (const u of [`https://github.com/${OWNER}/${REPO}.git`, `https://lena:secret@github.com/${OWNER}/${REPO}`, `git@github.com:${OWNER}/${REPO}.git`, `ssh://git@github.com/${OWNER}/${REPO}.git`]) {
     assert.deepEqual(githubRepo(u), { owner: OWNER, repo: REPO }, u);
   }
   assert.equal(githubRepo('https://gitlab.com/lena/site.git'), null);
-  assert.equal(defaultName('Lenas_Backstube.Site'), 'lenas-backstube-site');
-  assert.equal(defaultName(`--${'x'.repeat(70)}`), 'x'.repeat(56), 'cut to 58, then dashes trimmed');
-  assert.equal(defaultName('___'), '');
 });
 
 test('the code names the end state: the same inputs give the same code, a --skip or a host gives another', () => {
-  const base = { account: ACCOUNT.id, project: REPO, repository: `${OWNER}/${REPO}`, productionBranch: 'production', zone: ZONE.id, skip: [], hosts: [HOST], records: [] };
+  const base = { account: ACCOUNT.id, worker: WORKER, repository: `${OWNER}/${REPO}`, productionBranch: 'production', zone: ZONE.id, skip: [], hosts: [HOST], records: [] };
   assert.match(setupCode(base), /^[0-9a-f]{16}$/);
   assert.equal(setupCode(base), setupCode({ ...base, repository: `${OWNER.toUpperCase()}/${REPO}` }), 'GitHub names compare without case');
   assert.notEqual(setupCode(base), setupCode({ ...base, skip: ['tls'] }));
   assert.notEqual(setupCode(base), setupCode({ ...base, hosts: [HOST, `shop.${HOST}`] }));
   assert.equal(setupCode({ ...base, skip: SKIP_IDS, hosts: [] }), setupCode({ ...base, skip: SKIP_IDS, hosts: [HOST] }), 'with every setting left out, no host is named');
   // The list: the code of a question fits what is left of it, never a list with something more.
-  const listed = ['setting:email', 'setting:tls', 'build:aaaa'];
+  const listed = ['setting:email', 'setting:tls', 'record:aaaa'];
   const code = setupCode(base, listed);
   assert.notEqual(code, setupCode(base, ['setting:email']));
-  const possible = ['setting:email', 'setting:tls', 'setting:https', 'build:aaaa'];
-  assert.equal(codeFits(code, base, ['setting:email'], possible), true, 'tls and the build done since: still fits');
+  const possible = ['setting:email', 'setting:tls', 'setting:https', 'record:aaaa'];
+  assert.equal(codeFits(code, base, ['setting:email'], possible), true, 'tls and the record done since: still fits');
   assert.equal(codeFits(code, base, listed, possible), true);
   assert.equal(codeFits(code, base, ['setting:email', 'setting:https'], possible), false, 'a line the question did not list');
-  assert.equal(codeFits(code, base, ['setting:email'], ['setting:email', 'setting:tls', 'build:bbbb']), false, 'a build of another commit');
+  assert.notEqual(setupCode(base), setupCode({ ...base, worker: 'another-worker' }), 'the Worker is in the end state');
 });
 
-// ================================================================ setup
-
-test('1: a new project: the first run writes nothing and asks; the run with the code creates, builds once, writes the settings, and waits', () =>
-  scenario(freshState(), async ({ api, go, state }) => {
-    const first = await go();
-    assert.equal(first.code, 3, first.out);
-    onlyReads(api);
-    assert.match(first.out, /Create the Pages project lenas-backstube, connected to lena-example\/lenas-backstube: production branch production, build command npm run build, output folder dist, Fail open on/);
-    assert.match(first.out, /Start one build of production/);
-    const code = codeOf(first);
-    assert.ok(code, 'the question ends with a code');
-
-    const second = await go(['--confirm', code]);
-    assert.equal(second.code, 4, second.out);
-    const writes = api.writes();
-    const create = writes.find((e) => e.method === 'POST' && e.path.endsWith('/pages/projects'));
-    assert.deepEqual(create.body, {
-      name: REPO, production_branch: 'production', build_config: { build_command: 'npm run build', destination_dir: 'dist', root_dir: '' },
-      source: { type: 'github', config: { owner: OWNER, repo_name: REPO, production_branch: 'production', pr_comments_enabled: true, deployments_enabled: true, production_deployments_enabled: true, preview_deployment_setting: 'all' } },
-      deployment_configs: { production: { fail_open: true }, preview: { fail_open: true } },
-    });
-    assert.equal(writes.filter((e) => e.path.endsWith('/deployments')).length, 1, 'one build');
-    // The same empty form the trial sent (T1-030), with the script's own boundary.
-    const sent = writes.find((e) => e.path.endsWith('/deployments'));
-    const trial = fixture('T1-030').request.body.emptyForm;
-    const boundary = /boundary=(\S+)/.exec(sent.contentType)[1];
-    assert.equal(sent.contentType, trial.contentType.replace('----spike', boundary));
-    assert.equal(sent.body, trial.bytes.replace('----spike', boundary));
-    assert.deepEqual(state.settings, { always_use_https: 'on', min_tls_version: '1.2', email_obfuscation: 'off', nel: { enabled: false } });
-    assert.equal(state.bot.bot_preference_sync_enabled, false);
-    assert.ok(!api.log.some((e) => /\/domains/.test(e.path)), 'nothing goes near the domain');
-    assert.ok(api.log.every((e) => e.token), 'every call carried the token, and only these went out');
-    assert.match(second.out, /waiting\s+Started a build/);
-    assert.match(second.out, /pushes one commit to a pull request/);
-  }));
-
-test('2: the build has finished and a pull request was built: the same code changes nothing and ends with 0', () =>
-  scenario(freshState(), async ({ api, go, state }) => {
-    const code = codeOf(await go());
-    assert.equal((await go(['--confirm', code])).code, 4);
-    api.finish(REPO, 'success');
-    state.deployments[REPO].unshift(deployment('push', { commit: state.heads.main, branch: 'lenas-pr' }));
-    const before = api.writes().length;
-    const r = await go(['--confirm', code]);
-    assert.equal(r.code, 0, r.out);
-    assert.equal(api.writes().length, before, 'no second create, no second build');
-    assert.match(r.out, /Connected to GitHub: Cloudflare started a build from a push: a preview of lenas-pr/);
-    assert.match(r.out, /read back through the API only/);
-  }));
-
-test('3: the build is still queued: no deployment call, and it waits', () =>
-  scenario(freshState(), async ({ api, go }) => {
-    const code = codeOf(await go());
-    await go(['--confirm', code]);
-    const builds = () => api.writes().filter((e) => e.path.endsWith('/deployments')).length;
-    assert.equal(builds(), 1);
-    const r = await go(['--confirm', code]);
-    assert.equal(r.code, 4, r.out);
-    assert.equal(builds(), 1, 'none while one is queued');
-    assert.match(r.out, /A build is under way/);
-  }));
-
-test('4: a connected project publishing main, with no domain: the list says so, and the first write is that PATCH', () =>
-  scenario(freshState({ projects: [project({ productionBranch: 'main' })], deployments: { [REPO]: [] } }), async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 3);
-    assert.match(r.out, /your live address would publish main, the preview; I will set the production branch to production/);
-    await go(['--confirm', codeOf(r)]);
-    const first = api.writes()[0];
-    assert.deepEqual([first.method, first.path, first.body], ['PATCH', `/accounts/${ACCOUNT.id}/pages/projects/${REPO}`, { production_branch: 'production' }]);
-  }));
-
-test('5: the same project serving her domain, or another one: it stops and writes nothing', async () => {
-  for (const domains of [[HOST], ['lenas-cafe.example']]) {
-    await scenario(freshState({ projects: [project({ productionBranch: 'main', domains })] }), async ({ api, go }) => {
-      const r = await go();
-      assert.equal(r.code, 1, r.out);
-      assert.match(r.out, /does not repair a live site/);
-      assert.match(r.out, /section 1 says how to change the production branch/);
-      onlyReads(api);
-    });
-  }
-});
-
-test('6: PROD_BRANCH is production and GitHub has no production branch: it stops, and says what each model needs', () =>
-  scenario(freshState(), async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /The two signs of the publish model disagree/);
-    assert.match(r.out, /Two-stage .* creates it from the reviewed main/);
-    assert.match(r.out, /Single-stage .* PROD_BRANCH is "main"/);
-    assert.equal(api.log.length, 0);
-  }, { production: false }));
-
-test('7: a project of that name with no source is a Direct Upload project: it stops and points the way round', () =>
-  scenario(freshState({ projects: [project({ source: null })] }), async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /Direct Upload project\. Cloudflare cannot connect one to GitHub/);
-    assert.match(r.out, /website-team-setup §6, item 9/);
-    onlyReads(api);
-  }));
-
-test('8: adopted by its repository under another name; two projects; --project connected elsewhere; --project new', async () => {
-  await scenario(freshState({ projects: [project({ name: 'lenas-shop-site' })], deployments: { 'lenas-shop-site': [] } }), async ({ api, go }) => {
-    const r = await go();
-    assert.match(r.out, /Project lenas-shop-site \(exists\)/);
-    assert.doesNotMatch(r.out, /Create the Pages project/);
-    await go(['--confirm', codeOf(r)]);
-    assert.ok(!api.writes().some((e) => e.method === 'POST' && e.path.endsWith('/pages/projects')), 'nothing created');
-  });
-  await scenario(freshState({ projects: [project({ name: 'one' }), project({ name: 'two' })] }), async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 1);
-    assert.match(r.out, /2 projects are connected to lena-example\/lenas-backstube: one, two/);
-    onlyReads(api);
-  });
-  await scenario(freshState({ projects: [project({ name: 'cafe', source: { owner: OWNER, repo: 'lenas-cafe' } })] }), async ({ api, go }) => {
-    const r = await go(['--project', 'cafe']);
-    assert.equal(r.code, 1);
-    assert.match(r.out, /connected to lena-example\/lenas-cafe, not to lena-example\/lenas-backstube/);
-    onlyReads(api);
-  });
-  await scenario(freshState(), async ({ go }) => {
-    const r = await go(['--project', 'lenas-new']);
-    assert.equal(r.code, 3);
-    assert.match(r.out, /Create the Pages project lenas-new/);
-  });
-});
-
-test('9: an adopted project with a variable and a secret and Fail open off: one PATCH with Fail open alone; both names stay', () => {
-  const p = project({ failOpen: false, envVars: { PLAIN_ONE: { type: 'plain_text', value: 'one' }, A_SECRET: { type: 'secret_text', value: '' } } });
-  const s = freshState({ projects: [p], deployments: { [REPO]: [] } });
-  return scenario(s, async ({ api, go, state }) => {
-    state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
-    const r = await go();
-    assert.match(r.out, /Fail open: off for production, off for previews → on for both/);
-    const done = await go(['--confirm', codeOf(r)]);
-    const patches = api.writes().filter((e) => e.method === 'PATCH' && /pages\/projects/.test(e.path));
-    assert.deepEqual(patches.map((e) => e.body), [{ deployment_configs: { production: { fail_open: true }, preview: { fail_open: true } } }]);
-    assert.match(done.out, /before: A_SECRET \(production\), PLAIN_ONE \(production\); after: A_SECRET \(production\), PLAIN_ONE \(production\)/);
-    assert.match(done.out, /Whether that reaches the build that is live, or only later ones, is not known/);
-  });
-});
-
-test('9b: a PATCH after which a variable is missing ends the run with 1 and names it', () => {
-  // MADE: no trial saw Cloudflare lose a variable; the stub drops it from the PATCH's answer.
-  const p = project({ failOpen: false, envVars: { A_SECRET: { type: 'secret_text', value: '' } } });
-  return scenario(freshState({ projects: [p], loseOnPatch: ['A_SECRET'] }), async ({ api, go, state }) => {
-    state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
-    const r = await go(['--confirm', codeOf(await go())]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /no longer lists A_SECRET \(production\)/);
-    assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'the run ended there');
-  });
-});
-
-test('a PATCH answer without the whole project stops the run before anything else is written', () =>
-  scenario(freshState({ projects: [project({ failOpen: false })], thinPatchAnswer: 'config' }), async ({ api, go, state }) => {
-    state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
-    const r = await go(['--confirm', codeOf(await go())]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /does not read as asked: connected to undefined\/undefined; no preview setting/);
-    assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'nothing after the PATCH');
-  }));
-
-test('an adopted project read without its preview setting stops the run before anything is asked or written', async () => {
-  for (const value of [undefined, null, ['all']]) {
-    await scenario(freshState({ projects: [project({ failOpen: false })], projectRead: (p) => { if (value === undefined) delete p.source.config.preview_deployment_setting; else p.source.config.preview_deployment_setting = value; return p; } }), async ({ api, go }) => {
-      const r = await go();
-      assert.equal(r.code, 1, `${JSON.stringify(value)}: ${r.out}`);
-      assert.match(r.out, /without its preview setting, so a change to it could not be checked afterwards/);
-      onlyReads(api);
-    });
-  }
-});
-
-test('a PATCH answer whose preview setting differs from the one read before stops the run', () =>
-  scenario(freshState({ projects: [project({ failOpen: false })], previewInPatchAnswer: 'none' }), async ({ api, go, state }) => {
-    state.deployments[REPO] = [deployment('built', { commit: state.heads.production })];
-    const r = await go(['--confirm', codeOf(await go())]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /does not read as asked: preview setting none, not all/);
-    assert.ok(!api.writes().some((e) => e.path.includes('/settings/')), 'nothing after the PATCH');
-  }));
-
-test('a create answer that does not read as asked stops the run: no build, no setting', () =>
-  scenario(freshState({ thinCreateAnswer: true }), async ({ api, go }) => {
-    const r = await go(['--confirm', codeOf(await go())]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /it does not read as asked: build_command \(none\), not npm run build; destination_dir \(none\), not dist/);
-    assert.deepEqual(api.writes().map((e) => e.method), ['POST'], 'the create, and nothing after it');
-  }));
-
-test('the check of a returned project names each field that does not hold the end state', () => {
-  const want = { gh: { owner: OWNER, repo: REPO }, prodBranch: 'production', preview: 'all' };
-  const good = fixture('T1-027').response.result; // the captured create answer, the trial's project
-  const asLena = (p) => { const c = JSON.parse(JSON.stringify(p)); c.source.config.owner = OWNER; c.source.config.repo_name = REPO; c.subdomain = `${REPO}.pages.dev`; return c; };
-  assert.deepEqual(notAsWanted(asLena(good), want), []);
-  const cases = [
-    [(p) => { delete p.subdomain; }, /no pages.dev address/],
-    [(p) => { p.source.config.repo_name = 'lenas-cafe'; }, /connected to lena-example\/lenas-cafe/],
-    [(p) => { p.source = null; }, /not connected to GitHub/],
-    [(p) => { p.source.config = []; }, /not connected to GitHub/],
-    [(p) => { delete p.source.config.preview_deployment_setting; }, /no preview setting/],
-    [(p) => { p.production_branch = 'main'; }, /production branch main, not production/],
-    [(p) => { p.build_config = {}; }, /build_command \(none\), not npm run build/],
-    [(p) => { p.deployment_configs.preview = {}; }, /Fail open off for preview/],
-    [(p) => { p.deployment_configs.production = []; }, /no production settings/],
-    [(p) => { p.deployment_configs.production.env_vars = []; }, /the production variables cannot be read/],
-    // Review re-gate 3: a value, not only a type. The preview setting asked for, and the names as strings.
-    [(p) => { p.source.config.preview_deployment_setting = 'none'; }, /preview setting none, not all/],
-    [(p) => { p.source.config.preview_deployment_setting = ''; }, /preview setting , not all/],
-    [(p) => { p.source.config.owner = [OWNER]; }, /connected to \["lena-example"\]\/lenas-backstube/],
-    [(p) => { delete p.source.config.repo_name; }, /connected to lena-example\/undefined/],
-  ];
-  for (const [spoil, want2] of cases) {
-    const p = asLena(good);
-    spoil(p);
-    assert.match(notAsWanted(p, want).join('; '), want2);
-  }
-  assert.deepEqual(notAsWanted(null, want), ['no project in the answer']);
-  // Re-gate 4: with no wanted value to compare with, nothing passes.
-  for (const preview of [undefined, null, ['all']]) assert.match(notAsWanted(asLena(good), { ...want, preview }).join('; '), /the preview setting wanted is not known/);
-  // A repository literally named "undefined" still needs its name in the answer.
-  const named = asLena(good);
-  delete named.source.config.repo_name;
-  assert.match(notAsWanted(named, { ...want, gh: { owner: OWNER, repo: 'undefined' } }).join('; '), /connected to lena-example\/undefined/);
-});
-
-test('10: no build Cloudflare started from a push: each run waits and names the causes; a failed push build is proof, said as a failure', () =>
-  scenario((h) => finishedState(h), async ({ go, state }) => {
-    state.deployments[REPO] = state.deployments[REPO].filter((d) => !pushProof(d));
-    for (let i = 0; i < 2; i++) {
-      const r = await go();
-      assert.equal(r.code, 4, r.out);
-      assert.match(r.out, /Not shown yet: that GitHub and Cloudflare are connected/);
-      assert.match(r.out, /pushes one commit to a pull request/);
-      assert.match(r.out, /the connection was never made or is broken/);
-      assert.match(r.out, /builds are paused/);
-    }
-    state.deployments[REPO].unshift(deployment('failed', { commit: state.heads.main, branch: 'lenas-pr' }));
-    const r = await go();
-    assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /Cloudflare started a build of this commit \([0-9a-f]{7}\) from a push, and it failed/);
-  }));
-
-test('11: a project that builds no previews: the production branch\'s push shows the connection; a skipped push is no proof', () =>
-  scenario((h) => finishedState(h), async ({ go, state }) => {
-    state.projects = [project({ preview: 'none' })];
-    state.deployments[REPO] = [deployment('skipped', { commit: state.heads.main, branch: 'lenas-pr' }), deployment('built', { commit: state.heads.production })];
-    const r = await go();
-    assert.equal(r.code, 4, r.out);
-    assert.match(r.out, /does not build previews \(its setting is none\)/);
-    assert.match(r.out, /npm run ship, on your word/);
-    assert.match(r.out, /skipped it, since this project builds no previews: that is not proof/);
-  }));
 
 test('12: two proxied hosts: every setting line names both; --skip tls leaves TLS out, gives another code, and is not written', () => {
   const s = freshState();
@@ -819,13 +579,13 @@ test('S4: Training on Block with --skip ai: the warning says this run leaves it;
   assert.ok(!blocked.put || blocked.put.body.ai_training === 'block', 'Training is not written');
 });
 
-test('S5a: the zone\'s records could not be read: Training is not written, and the warning says this run did not change it, in the ask and after the yes', async () => {
+test('S5a: the zone\'s records could not be read: Training is not written, and the warning says this run did not change it', async () => {
+  // Every line is "by hand" then, so nothing is asked and nothing written: the one run says it all.
   await scenario(freshState({ bot: botOf(AI.block), refuse: { 'GET dns': 403 } }), async ({ api, go }) => {
-    const ask = await go();
-    const done = await go(['--confirm', codeOf(ask)]);
-    for (const out of [ask.out, done.out]) assert.match(out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run could not change it; the AI crawlers line says why\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and run this with --skip ai\./);
-    assert.ok(!api.writes().some((e) => e.method === 'PUT'), 'Bot Management is not written');
-    assert.ok(api.writes().length > 0, 'the yes wrote something else, the case "nothing was written" got wrong');
+    const r = await go();
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /Training is set to Block\. Cloudflare says Block also keeps Googlebot, Bingbot and Applebot out, which affects search\. This run could not change it; the AI crawlers line says why\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search \(the kit has not tested how crawlers are treated\): .*and run this with --skip ai\./);
+    assert.deepEqual(api.writes(), [], 'Bot Management is not written, nor anything else');
   });
   // Disallow in the same state: the same claim, and S7's note when Sync is off.
   const notes = aiNotes(botOf(AI.disallowSyncOff), 'unread');
@@ -938,6 +698,16 @@ test('17: a CNAME of the wanted name already points elsewhere: nothing is writte
   });
 });
 
+test('17b: a --record CNAME at the site\'s own host, with no address record there, is asked and written as before the Workers change', () =>
+  scenario((h) => finishedState(h), async ({ api, go }) => {
+    const q = await go(['--record', 'CNAME @ verify.bing.com']);
+    assert.equal(q.code, 3, q.out);
+    assert.doesNotMatch(q.out, /gate: refused/);
+    const r = await go(['--record', 'CNAME @ verify.bing.com', '--confirm', codeOf(q)]);
+    assert.equal(r.code, 0, r.out);
+    assert.deepEqual(writesOf(api).filter((e) => e.method === 'POST' && /dns_records$/.test(e.path)).map((e) => [e.body.type, e.body.name, e.body.content]), [['CNAME', HOST, 'verify.bing.com']]);
+  }));
+
 test('18: a record written that the nameservers do not show within the run: "written; the nameservers do not show it yet", status 0', () =>
   scenario((h) => finishedState(h), async ({ go, dns, setSilent }) => {
     setSilent(true);
@@ -950,419 +720,41 @@ test('18: a record written that the nameservers do not show within the run: "wri
 
 // ================================================================ launch
 
-// The stub answers the launch day's calls as Cloudflare did.
-test('the stub answers attaching, a record PATCH and a comment as Cloudflare did (T1-085 to T1-132, T2-042 to T2-058)', () => {
-  const state = freshState({ projects: [project()] });
-  const attach = fixture('T1-085');
-  const r = handle(state, 'POST', `/accounts/a/pages/projects/${REPO}/domains`, new URLSearchParams(), attach.request.body);
-  assert.equal(r.body.result.status, attach.response.result.status, 'initializing, and no record made');
-  assert.equal(state.dns.length, 0);
-  const pending = handle(state, 'GET', `/accounts/a/pages/projects/${REPO}/domains/${attach.request.body.name}`, new URLSearchParams(), null);
-  assert.deepEqual(pending.body.result.verification_data, fixture('T1-086').response.result.verification_data, '"CNAME record not set"');
-  // An A record, PATCHed to a proxied CNAME with a comment: same id, and Cloudflare's message (T2-046).
-  const a = fixture('T2-042');
-  state.dns = [{ ...a.response.result }];
-  const patch = fixture('T2-046');
-  const p = handle(state, 'PATCH', `/zones/z/dns_records/${a.response.result.id}`, new URLSearchParams(), patch.request.body);
-  assert.equal(p.body.result.id, a.response.result.id, 'the PATCH keeps the id');
-  assert.deepEqual([p.body.result.type, p.body.result.proxied, p.body.result.comment], [patch.response.result.type, true, patch.response.result.comment]);
-  assert.deepEqual(p.body.messages, patch.response.messages, 'changing the type is said to be deprecated');
-  assert.equal(patch.response.messages[0].message, 'DNS record type update is deprecated');
-  // A comment of 100 characters is kept; 101 is refused, 9313 (T2-057, T2-058).
-  assert.equal(fixture('T2-057').request.body.comment.length, 100);
-  const long = fixture('T2-058');
-  assert.equal(long.request.body.comment.length, 101);
-  const refused = handle(state, 'PATCH', `/zones/z/dns_records/${a.response.result.id}`, new URLSearchParams(), long.request.body);
-  assert.deepEqual([refused.status, refused.body.errors], [long.status, long.response.errors]);
-});
-
-const LIVE = `${REPO}.pages.dev`;
-// A site ready for launch day: setup finished (finishedState), its live build recording the project's
-// variables, the domain not attached, and the apex holding one A record at the old host.
-function launchState(heads, { record = { id: 'apex1', type: 'A', name: HOST, content: '192.0.2.10', proxied: false, comment: null }, ...over } = {}) {
+// The site's Worker config once the host is on the Worker: the route is committed.
+const ROUTED = WRANGLER.replace('"workers_dev": false,', `"workers_dev": false,\n  "routes": [{ "pattern": "${HOST}", "custom_domain": true }],`);
+// The apex's record before launch, as Cloudflare lists a record (R04-012's shape, made-up values).
+const A_RECORD = { id: 'c0ffee00000000000000000000000050', type: 'A', name: HOST, content: '192.0.2.10', proxiable: true, proxied: false, ttl: 1, settings: {}, meta: {}, comment: null, tags: [] };
+const clone = (o) => JSON.parse(JSON.stringify(o));
+// A site ready for launch day: setup finished, the Worker serving main's head, the host not attached,
+// and the apex holding one A record at the old host.
+function launchState(heads, { record = A_RECORD, ...over } = {}) {
   const s = finishedState(heads, over);
-  s.deployments[REPO][1].env_vars = {};
-  s.dns = record ? [record] : [];
+  s.dns = record ? [clone(record)] : [];
   return s;
 }
-async function launchScenario(stateFn, fn, siteOpts = {}) {
-  return scenario(stateFn, async (x) => {
-    const sites = await startSites(x.state);
-    try {
-      return await fn({ ...x, sites, launch: (args = [], o = {}) => run(x.where, args, { api: x.api, dns: x.dns, sites, stage: 'launch', ...o }) });
-    } finally {
-      await sites.close();
-    }
-  }, siteOpts);
+// The host attached to the Worker, as the attach leaves it: the domain, and Cloudflare's own record.
+function attachHost(s) {
+  s.dns = s.dns.filter((r) => r.name !== HOST);
+  const r = handle(s, 'PUT', `/accounts/${ACCOUNT.id}/workers/domains`, new URLSearchParams(), { hostname: HOST, service: WORKER, zone_id: ZONE.id, environment: 'production' });
+  assert.equal(r.status, 200);
+  return s;
 }
-// The domain attached already, by hand or by an earlier run: on the project's list and in the stub.
-const attachHost = (s, status = 'active') => { s.domains[REPO] = [attachedDomain(HOST, status)]; s.projects[0].domains.push(HOST); return s; };
-const domainsCalls = (api) => api.log.filter((e) => /\/domains/.test(e.path));
-const activate = (state, status = 'active') => { for (const d of state.domains[REPO] ?? []) d.status = status; };
-
-test('23 and 28: everything holds: the question names it all; the code attaches and points the record; once active, the first request, the forwarding, then 0', () =>
-  launchScenario((h) => launchState(h), async ({ api, state, sites, launch }) => {
-    const q = await launch();
-    assert.equal(q.code, 3, q.out);
-    assert.deepEqual(sites.asked.site, [], 'the domain is asked nothing before the yes');
-    assert.deepEqual(api.writes(), []);
-    const commit = state.heads.production.slice(0, 7);
-    assert.match(q.out, new RegExp(`Attach ${HOST} to the project ${REPO}`));
-    assert.match(q.out, new RegExp(`now A 192\\.0\\.2\\.10, DNS only; it becomes CNAME ${LIVE}, proxied`));
-    assert.match(q.out, new RegExp(`This makes the site public: https://${HOST}/ serves commit ${commit}`));
-    assert.match(q.out, /errors for a few minutes/);
-    assert.match(q.out, new RegExp(`CANONICAL_URL = https://${HOST} for production`));
-    assert.match(q.out, /If the domain still sends the NEL headers: add the checklist's rule "Remove NEL headers"/);
-    const code = codeOf(q);
-
-    const first = await launch(['--confirm', code]);
-    assert.equal(first.code, 4, first.out);
-    assert.deepEqual(api.writes().map((e) => `${e.method} ${e.path.replace(/\/(accounts|zones)\/[^/]+/, '/$1/X')}`), [
-      `POST /accounts/X/pages/projects/${REPO}/domains`, 'PATCH /zones/X/dns_records/apex1']);
-    assert.deepEqual(api.writes()[1].body, { type: 'CNAME', content: LIVE, proxied: true, comment: 'Was: A 192.0.2.10, DNS only.' });
-    assert.deepEqual(sites.asked.site, [], 'still nothing asked of the domain while it is pending');
-    assert.match(first.out, /Waiting for Cloudflare to take on lenas-backstube\.example: it says pending \(CNAME record not set\)/);
-    assert.match(first.out, /Cloudflare said: DNS record type update is deprecated/);
-
-    activate(state);
-    const second = await launch(['--confirm', code]);
-    assert.equal(second.code, 4, second.out);
-    assert.ok(sites.asked.site.includes('/build.txt'), 'the first request went to the domain, through the check');
-    assert.match(second.out, new RegExp(`ok\\s+${HOST} serves ${commit}`));
-    const patches = api.writes().filter((e) => e.method === 'PATCH' && /pages\/projects/.test(e.path));
-    assert.deepEqual(patches.map((e) => e.body), [{ deployment_configs: { production: { env_vars: { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } } } } }], 'CANONICAL_URL alone');
-    assert.equal(api.writes().filter((e) => e.path.endsWith('/deployments')).length, 1, 'one production build');
-
-    api.finish(REPO, 'success');
-    const done = await launch(['--confirm', code]);
-    assert.equal(done.code, 0, done.out);
-    assert.ok(sites.asked.pages.some((x) => x.startsWith('/robots.txt?cb=')), 'the forwarding was asked for a page with a query');
-    assert.match(done.out, /Launched\. Status 0\./);
-    const again = await launch();
-    assert.equal(again.code, 0, again.out);
-    assert.doesNotMatch(again.out, /--confirm/, '32: a finished launch asks nothing');
-  }));
-
-test('19: the commit that goes live still lists unfilled pages: refused, the entries named, nothing asked or attached', () =>
-  launchScenario((h) => launchState(h), async ({ api, sites, launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /UNFILLED_UNTIL_LAUNCH in tests\/placeholders\.spec\.ts still lists \/privacy, \/legal-notice, \/manifest\.webmanifest/);
-    assert.match(r.out, /clear the draft notice on a legal page as AGENTS\.md section 5 says/);
-    assert.doesNotMatch(r.out, /--confirm/);
-    assert.deepEqual(domainsCalls(api), [], 'no call to the domains API');
-    assert.deepEqual(sites.asked.site, []);
-  }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC } }));
-
-test('19b: only the manifest is still listed: the stop does not talk about a draft notice', () =>
-  launchScenario((h) => launchState(h), async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /still lists \/manifest\.webmanifest: fill that page, and empty the list first/);
-    assert.doesNotMatch(r.out, /draft notice/);
-  }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC.replace("'/privacy', '/legal-notice', ", '') } }));
-
-test('19c: only the English Legal Notice or only an Impressum is still listed: the stop names the draft notice', async () => {
-  for (const page of ['/legal-notice', '/impressum']) {
-    await launchScenario((h) => launchState(h), async ({ launch }) => {
-      const r = await launch();
-      assert.equal(r.code, 1, r.out);
-      assert.ok(r.out.includes(`still lists ${page}: fill that page, clear the draft notice on a legal page as AGENTS.md section 5 says`), r.out);
-    }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC.replace("'/privacy', '/legal-notice', '/manifest.webmanifest'", `'${page}'`) } });
-  }
-});
-
-test('20: a draft token in src/, a German site\'s own token, two tokens that differ, no placeholder test: refused, and said which', async () => {
-  const german = (spec) => {
-    const out = EMPTY_LIST(spec).replace('const DRAFT_TOKEN = /^\\[MISSING:/;', 'const DRAFT_TOKEN = /^\\[FEHLT:/;');
-    assert.ok(out.includes('const DRAFT_TOKEN = /^\\[FEHLT:/;'), 'the starter\'s DRAFT_TOKEN line changed');
-    return out;
-  };
-  const cases = [
-    [{ 'src/pages/hours.astro': '<p>Open [MISSING: opening hours]</p>\n' }, /the search for "\[MISSING:" in src\/ and public\/ finds src\/pages\/hours\.astro:1/],
-    [{ 'tests/placeholders.spec.ts': german(STARTER_SPEC), '.github/workflows/ci.yml': STARTER_CI.replace("grep -rnI '\\[MISSING:' src public", "grep -rnI '\\[FEHLT:' src public"), 'src/pages/zeiten.astro': '<p>\n[FEHLT: Öffnungszeiten]</p>\n' },
-      /the search for "\[FEHLT:" in src\/ and public\/ finds src\/pages\/zeiten\.astro:2/],
-    [{ 'tests/placeholders.spec.ts': german(STARTER_SPEC) }, /DRAFT_TOKEN in tests\/placeholders\.spec\.ts is "\[FEHLT:" and ci\.yml searches for "\[MISSING:".*cannot tell.*attached by hand/s],
-    [{ 'tests/placeholders.spec.ts': null }, /tests\/placeholders\.spec\.ts is missing at that commit.*cannot tell.*attached by hand/s],
-  ];
-  for (const [files, want] of cases) {
-    await launchScenario((h) => launchState(h), async ({ api, launch }) => {
-      const r = await launch();
-      assert.equal(r.code, 1, r.out);
-      assert.match(r.out, want);
-      assert.deepEqual(domainsCalls(api), []);
-    }, { files });
-  }
-});
-
-test('21: the head has no good production build: queued waits; failed, never built, uploaded, built under main are refused, each named', async () => {
-  const cases = [
-    [(s, h) => { s.deployments[REPO].unshift(deployment('queued', { commit: h.production })); }, 4, /Waiting for the build under way/],
-    [(s, h) => { s.deployments[REPO][1] = deployment('failed', { commit: h.production, env: 'production' }); }, 1, /The build of the head of production failed/],
-    [(s) => { s.deployments[REPO][1] = deployment('built', { commit: 'ba5e000000000000000000000000000000000099' }); }, 1, /Cloudflare did not build the head of production \([0-9a-f]{7}\), so the connection to GitHub may be broken/],
-    [(s, h) => { s.deployments[REPO][1] = deployment('upload', { commit: h.production }); }, 1, /was uploaded, not built by Cloudflare/],
-    [(s, h) => { s.deployments[REPO][1] = deployment('built', { commit: h.production, productionBranch: 'main' }); }, 1, /was built while main was the production branch/],
-  ];
-  for (const [spoil, code, want] of cases) {
-    await launchScenario((h) => { const s = launchState(h); spoil(s, h); return s; }, async ({ api, launch }) => {
-      const r = await launch();
-      assert.equal(r.code, code, r.out);
-      assert.match(r.out, want);
-      assert.doesNotMatch(r.out, /npm run ship/, 'no advice to ship');
-      assert.deepEqual(domainsCalls(api), []);
-    });
-  }
-});
-
-test('22: no push build of any age is refused; an old one, with launch\'s own forwarding build after it, still stands', async () => {
-  await launchScenario((h) => { const s = launchState(h); s.deployments[REPO] = s.deployments[REPO].filter((d) => !pushProof(d)); return s; }, async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /never built this project from a push, so the connection to GitHub was not shown/);
-  });
-  await launchScenario((h) => {
-    const s = launchState(h);
-    const forwardingBuild = deployment('built', { commit: h.production });
-    forwardingBuild.env_vars = {};
-    s.deployments[REPO] = [forwardingBuild, deployment('push', { commit: h.main, branch: 'lenas-pr' }), ...s.deployments[REPO].slice(1)];
-    return s;
-  }, async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 3, r.out);
-  });
-});
-
-test('24: two address records, a CNAME host that also holds a TXT record, a token that cannot read DNS: refused, nothing attached', async () => {
-  const www = `www.${HOST}`;
-  const cases = [
-    [(s) => { s.dns.push({ id: 'apex6', type: 'AAAA', name: HOST, content: '2001:db8::10', proxied: false }); }, {}, /has 2 address records .*deletes no record/],
-    [(s) => { s.dns = [{ id: 'w1', type: 'A', name: www, content: '192.0.2.10', proxied: false }, { id: 'w2', type: 'TXT', name: www, content: '"made-up"', proxied: false }]; }, { url: `https://${www}` }, /also has a TXT record, and a CNAME cannot stand beside a record of another type/],
-    [(s) => { s.refuse['GET dns'] = 403; }, {}, /refused to list the zone's records .*Zone → DNS → Edit.*Going live/s],
-  ];
-  for (const [spoil, siteOpts, want] of cases) {
-    await launchScenario((h) => { const s = launchState(h); spoil(s); return s; }, async ({ api, launch }) => {
-      const r = await launch();
-      assert.equal(r.code, 1, r.out);
-      assert.match(r.out, want);
-      assert.ok(!api.writes().length, 'no attach call');
-    }, siteOpts);
-  }
-});
-
-test('25: Cloudflare says error on a later run: 1 with its words; the domain stays; the old record comes from the comment', () =>
-  launchScenario((h) => launchState(h, { record: { id: 'apex1', type: 'A', name: HOST, content: '192.0.2.10', proxied: false, comment: 'old host, until the relaunch' } }), async ({ api, state, launch }) => {
-    const code = codeOf(await launch());
-    assert.equal((await launch(['--confirm', code])).code, 4);
-    assert.equal(state.dns[0].comment, 'Was: A 192.0.2.10, DNS only. old host, until the relaunch', 'the owner\'s comment after the note');
-    activate(state, 'error');
-    state.domains[REPO][0].verification_data = { status: 'error', error_message: 'MADE: the reason Cloudflare gives' };
-    const r = await launch(['--confirm', code]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /Cloudflare says lenas-backstube\.example is error: MADE: the reason Cloudflare gives\. The domain stays attached/);
-    assert.match(r.out, /as the script noted it in the record's comment: A 192\.0\.2\.10, DNS only\. old host/);
-    assert.ok(!api.log.some((e) => e.method === 'DELETE'), 'nothing detached or deleted');
-  }));
-
-test('26: the domain serves another commit, or no build.txt: a failure, and nothing after it', async () => {
-  for (const serves of ['ba5e000000000000000000000000000000000077', null]) {
-    await launchScenario((h) => { const s = launchState(h); attachHost(s); s.siteServes = serves; return s; }, async ({ api, launch }) => {
-      const r = await launch();
-      assert.equal(r.code, 1, r.out);
-      assert.match(r.out, /is active, but the check of its build is not ok/);
-      assert.deepEqual(api.writes(), [], 'no forwarding, no rule');
-    });
-  }
-});
-
-test('27: the domain still sends the NEL headers: one rule added beside the others; or a ruleset created; or nothing when the kit\'s rule is there', async () => {
-  const other = (n) => ({ id: `c0ffee000000000000000000000001${n}0`, version: '1', action: 'rewrite', expression: 'true', description: `Lena's own rule ${n}`, enabled: true, action_parameters: { headers: { [`x-lena-${n}`]: { operation: 'set', value: '1' } } } });
-  const kit = { ...other(9), description: 'Remove NEL headers', action_parameters: { headers: { NEL: { operation: 'remove' }, 'Report-To': { operation: 'remove' } } } };
-  const live = (h, ruleset) => { const s = launchState(h); attachHost(s); s.siteSendsNel = true; s.ruleset = ruleset; s.projects[0].deployment_configs.production.env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } }; s.deployments[REPO][1].env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } }; return s; };
-  const ruleWrites = (api) => api.writes().filter((e) => /rulesets/.test(e.path));
-  // Two rules there: one call adds the new rule alone; the two keep their ids.
-  await launchScenario((h) => live(h, { id: 'rs1', version: '2', rules: [other(1), other(2)] }), async ({ api, state, launch }) => {
-    const q = await launch();
-    assert.equal(q.code, 3, q.out);
-    assert.match(q.out, /The domain still sends the NEL headers: add the checklist's rule/);
-    assert.doesNotMatch(q.out, /CANONICAL_URL/, 'the forwarding answers already');
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 4, r.out);
-    assert.deepEqual(ruleWrites(api).map((e) => [e.method, e.path.replace(/\/zones\/[^/]+/, '')]), [['POST', '/rulesets/rs1/rules']]);
-    assert.equal(ruleWrites(api)[0].body.description, 'Remove NEL headers');
-    assert.deepEqual(state.ruleset.rules.slice(0, 2).map((x) => x.id), [other(1).id, other(2).id]);
-    const after = await launch(['--confirm', codeOf(q)]);
-    assert.equal(after.code, 0, after.out);
-  });
-  // No ruleset: one PUT creates it with the rule.
-  await launchScenario((h) => live(h, null), async ({ api, launch }) => {
-    const r = await launch(['--confirm', codeOf(await launch())]);
-    assert.equal(r.code, 4, r.out);
-    assert.deepEqual(ruleWrites(api).map((e) => e.method), ['PUT']);
-    assert.deepEqual(ruleWrites(api)[0].body.rules.map((x) => x.description), ['Remove NEL headers']);
-  });
-  // None at the first read, one by the read just before the PUT: the add-rule call, or nothing.
-  for (const [appears, method, code] of [[{ id: 'rs2', version: '1', rules: [other(1)] }, 'POST', 4], [{ id: 'rs3', version: '1', rules: [kit] }, null, 1]]) {
-    await launchScenario((h) => live(h, null), async ({ api, state, launch }) => {
-      const q = await launch();
-      let reads = 0;
-      state.after = (e) => { if (e.method === 'GET' && /phases/.test(e.path) && ++reads === 1) state.ruleset = JSON.parse(JSON.stringify(appears)); };
-      const r = await launch(['--confirm', codeOf(q)]);
-      assert.equal(r.code, code, r.out);
-      assert.deepEqual(ruleWrites(api).map((e) => e.method), method ? [method] : []);
-    });
-  }
-  // The kit's rule already there and the headers still come: nothing added, 1.
-  await launchScenario((h) => live(h, { id: 'rs4', version: '1', rules: [{ ...kit, enabled: false }] }), async ({ api, launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /already hold "Remove NEL headers": the rule is there and the headers still come/);
-    assert.deepEqual(ruleWrites(api), []);
-  });
-  // --skip nel-rule: no rule; nel is left to Lena, status 0.
-  await launchScenario((h) => live(h, null), async ({ api, launch }) => {
-    const r = await launch(['--skip', 'nel-rule']);
-    assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /Left to you: Network Error Logging \(NEL\): Off fails/);
-    assert.deepEqual(api.writes(), []);
-  });
-});
-
-test('28: an adopted project with another variable and a secret: CANONICAL_URL is saved alone, both stay, one build', () =>
-  launchScenario((h) => {
-    const s = launchState(h);
-    const vars = { PLAIN_ONE: { type: 'plain_text', value: 'one' }, A_SECRET: { type: 'secret_text', value: '' } };
-    s.projects[0].deployment_configs.production.env_vars = vars;
-    s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(vars));
-    attachHost(s);
-    return s;
-  }, async ({ api, state, launch }) => {
-    const q = await launch();
-    assert.match(q.out, /takes the project's secrets \(A_SECRET\) as they are saved now/);
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 4, r.out);
-    assert.deepEqual(Object.keys(state.projects[0].deployment_configs.production.env_vars).sort(), ['A_SECRET', 'CANONICAL_URL', 'PLAIN_ONE']);
-    assert.match(r.out, /before: A_SECRET \(production\), PLAIN_ONE \(production\); after: A_SECRET \(production\), CANONICAL_URL \(production\), PLAIN_ONE \(production\)/);
-    assert.equal(api.writes().filter((e) => e.path.endsWith('/deployments')).length, 1);
-  }));
-
-test('29: the head is newer than the live build, another variable changed, or the live build was uploaded: saved, no build, and said why', async () => {
-  const cases = [
-    ['push', /the head of production \([0-9a-f]{7}\) is not the live commit/],
-    [(s) => { s.projects[0].deployment_configs.production.env_vars = { PLAIN_ONE: { type: 'plain_text', value: 'two' } }; s.deployments[REPO][1].env_vars = { PLAIN_ONE: { type: 'plain_text', value: 'one' } }; }, /the variable PLAIN_ONE changed since the live build/],
-    [(s, h) => { s.deployments[REPO][1] = Object.assign(deployment('upload', { commit: h.production }), { env_vars: {} }); }, /the live build was uploaded, not built by Cloudflare/],
-  ];
-  for (const [spoil, want] of cases) {
-    await launchScenario((h) => { const s = launchState(h); attachHost(s); if (spoil !== 'push') spoil(s, h); return s; }, async ({ api, where, state, launch }) => {
-      if (spoil === 'push') { // the production branch moves on after the live build
-        writeFileSync(path.join(where.site, 'news.md'), 'new\n');
-        git(where.site, 'add', 'news.md');
-        git(where.site, 'commit', '-q', '-m', 'news');
-        git(where.site, 'push', '-q', 'origin', 'HEAD:production');
-      }
-      const r = await launch(['--confirm', codeOf(await launch())]);
-      assert.equal(r.code, 1, r.out);
-      assert.match(r.out, /The variable is saved, but no build has picked it up/);
-      assert.match(r.out, want);
-      assert.equal(state.projects[0].deployment_configs.production.env_vars.CANONICAL_URL.value, `https://${HOST}`);
-      assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')), 'no deployment call');
-    });
-  }
-});
-
-test('30: --skip canonical: the question does not name the forwarding, and CANONICAL_URL is not written', () =>
-  launchScenario((h) => launchState(h), async ({ api, state, launch }) => {
-    const q = await launch(['--skip', 'canonical']);
-    assert.equal(q.code, 3, q.out);
-    assert.doesNotMatch(q.out, /CANONICAL_URL/);
-    const code = codeOf(q);
-    await launch(['--skip', 'canonical', '--confirm', code]);
-    activate(state);
-    const r = await launch(['--skip', 'canonical', '--confirm', code]);
-    assert.equal(r.code, 0, r.out);
-    assert.ok(!api.writes().some((e) => e.method === 'PATCH' && /pages\/projects/.test(e.path)), 'no variable written');
-    assert.match(r.out, /does not forward to the domain: --skip canonical/);
-  }));
-
-test('31: attached by hand and active: no launch condition checked, nothing attached; the question names the forwarding and the commit; a newer queued build waits', async () => {
-  // The list of unfilled pages is not checked: the site is public already.
-  await launchScenario((h) => { const s = launchState(h); attachHost(s); return s; }, async ({ api, state, launch }) => {
-    const q = await launch();
-    assert.equal(q.code, 3, q.out);
-    assert.match(q.out, new RegExp(`is live and serves commit ${state.heads.production.slice(0, 7)}, the newest production build that succeeded`));
-    assert.match(q.out, /Save the variable CANONICAL_URL/);
-    assert.doesNotMatch(q.out, /Attach|UNFILLED/);
-    assert.ok(!api.writes().length);
-  }, { files: { 'tests/placeholders.spec.ts': STARTER_SPEC } });
-  await launchScenario((h) => { const s = launchState(h); attachHost(s); s.deployments[REPO].unshift(deployment('queued', { commit: h.production })); return s; }, async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 4, r.out);
-    assert.match(r.out, /Waiting for the production build under way/);
-  });
-});
-
-test('42: the live build has CANONICAL_URL and pages.dev still answers 200: no PATCH, no build, the checklist\'s causes, 1', () =>
-  launchScenario((h) => {
-    const s = launchState(h);
-    attachHost(s);
-    s.deployments[REPO][1].env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
-    s.pagesStays200 = true;
-    return s;
-  }, async ({ api, launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /The live build has CANONICAL_URL = https:\/\/lenas-backstube\.example, and https:\/\/lenas-backstube\.pages\.dev\/ still does not forward/);
-    assert.match(r.out, /the day's Functions allowance ran out/);
-    assert.deepEqual(api.writes(), []);
-  }));
-
-test('41: --skip bot with Bot Fight Mode on: listed as left to Lena, 0; Always Use HTTPS turned off since, with no --skip: 1', async () => {
-  const done = (h) => { const s = launchState(h); attachHost(s); const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } }; s.projects[0].deployment_configs.production.env_vars = v; s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v)); return s; };
-  await launchScenario((h) => { const s = done(h); s.bot.fight_mode = true; return s; }, async ({ launch }) => {
-    const r = await launch(['--skip', 'bot']);
-    assert.equal(r.code, 0, r.out);
-    assert.match(r.out, /Left to you: Bot Fight Mode: Off fails/);
-  });
-  await launchScenario((h) => { const s = done(h); s.settings.always_use_https = 'off'; return s; }, async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /FAIL\s+Always Use HTTPS: On/);
-    assert.match(r.out, /its --skip https belongs on the command/);
-  });
-});
-
-test('36 and 37: the report of a finished launch: two-stage names main\'s preview; single-stage names none', async () => {
-  const finished = (h) => { const s = launchState(h); attachHost(s); const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } }; s.projects[0].deployment_configs.production.env_vars = v; s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v)); return s; };
-  await launchScenario((h) => { const s = finished(h); s.deployments[REPO].unshift(deployment('push', { commit: h.main, branch: 'main' })); return s; }, async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 0, r.out);
-    const report = r.out.slice(r.out.indexOf('Live: '));
-    assert.match(report, /^Live: https:\/\/lenas-backstube\.example\/ serves [0-9a-f]{7}\./m);
-    assert.match(report, /The preview of main, as Cloudflare lists it: https:\/\/main\.lenas-backstube\.pages\.dev/);
-    assert.match(report, /https:\/\/lenas-backstube\.pages\.dev\/ forwards to https:\/\/lenas-backstube\.example\//);
-    assert.match(report, /As the project reads now through the API: Fail open on for production and on for previews; build command npm run build, output folder dist\. This stage does not read Minimum TLS Version, and does not judge AI Labyrinth or the content-bot block: the setup stage, run again, shows them.*ssllabs/s);
-    assert.match(report, /Crawler Hints, the Web Analytics switch, the script monitor's switch/);
-    assert.match(report, /HSTS once the site has worked for a few days, not before \d{4}-\d{2}-\d{2}/);
-    assert.match(report, /behind a sign-in/);
-    assert.match(report, /Delete the token now/);
-  });
-  await launchScenario((h) => finished(h), async ({ api, launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 0, r.out);
-    assert.ok(!api.log.some((e) => /\/settings\//.test(e.path)), 'launch reads no /settings/, and Bot Management once, by GET, for the notes');
-    assert.deepEqual(api.log.filter((e) => /bot_management/.test(e.path)).map((e) => e.method), ['GET'], 'Bot Management: one read, for the AI notes');
-    assert.match(r.out, /main is the live site \(main\); each pull request gets a preview of its own/);
-    assert.doesNotMatch(r.out, /preview of main/);
-  }, { prodBranch: 'main', production: false });
-});
-
-// ---------------------------------------------------------------- launch day's AI notes
-// BUGLOG 2026-10-30: launch day read no Bot Management, so an owner who set Training to Block after
-// setup heard nothing. The final report now carries setup's notes, worded for a run that changes none.
+// A launch scenario: setup's, and the domain's own stub site. By default the config already has the
+// route (a host already attached, as on a later run); `routed: false` is a site before its launch.
+async function launchScenario(stateFn, fn, siteOpts = {}) {
+  const { routed = true, ...rest } = siteOpts;
+  return scenario(stateFn, async (x) => {
+    const domain = await startSites(x.state);
+    try {
+      return await fn({ ...x, sites: domain, launch: (args = [], o = {}) => run(x.where, args, { api: x.api, dns: x.dns, preview: x.preview, sites: domain, stage: 'launch', ...o }) });
+    } finally {
+      await domain.close();
+    }
+  }, { ...rest, files: { ...(routed ? { 'wrangler.jsonc': ROUTED } : {}), ...(rest.files ?? {}) } });
+}
+// A finished launch: attached, the route committed, setup's settings in place; `bot` replaces the zone's.
 const finishedLaunch = (h, bot) => {
   const s = attachHost(launchState(h));
-  const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
-  s.projects[0].deployment_configs.production.env_vars = v;
-  s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v));
   if (bot) s.bot = Object.assign(bot, { fight_mode: false });
   return s;
 };
@@ -1497,15 +889,6 @@ test('E, E2 and E3: the PUT is accepted but ai_agents reads back otherwise: the 
   }
 });
 
-test('F: launch on a zone with one agent blocked: the note names it, and nothing is written', () =>
-  launchScenario((h) => finishedLaunch(h, agentBot()), async ({ api, launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 0, r.out);
-    const notes = r.out.slice(r.out.indexOf(AI_HEADING), r.out.indexOf('Live: '));
-    assert.match(notes, /Personal agent anthropic_agent read block at the start of this run, and launch day leaves it as it is\./);
-    assert.doesNotMatch(notes, /google_agent/);
-    assert.ok(!api.writes().some((e) => /bot_management/.test(e.path)));
-  }));
 
 test('H: a sixth agent the kit has never heard of: the ask, the PUT, the done line, the skip note and the launch note all name it', async () => {
   const bot = () => agentBot({ other_agent: 'block' });
@@ -1648,14 +1031,14 @@ test('LA4: a refused or dropped Bot Management read at launch: one line, the sam
 });
 
 test('LA5: the question (3) and a wait for the domain (4) read no Bot Management', () =>
-  launchScenario((h) => launchState(h, { bot: botOf(AI.block) }), async ({ api, launch }) => {
+  launchScenario((h) => launchState(h, { bot: botOf(AI.block), siteDown: true }), async ({ api, launch }) => {
     const q = await launch();
     assert.equal(q.code, 3, q.out);
     const first = await launch(['--confirm', codeOf(q)]);
     assert.equal(first.code, 4, first.out);
     assert.deepEqual(botCalls(api), []);
     assert.doesNotMatch(q.out + first.out, NOTE);
-  }));
+  }, { routed: false }));
 
 // The test's own timeout fails a read made outside the run's deadline instead of hanging the suite.
 test('LA6: a Bot Management read that never answers ends the run with 4 at its deadline, before any report', { timeout: 90_000 }, () =>
@@ -1685,266 +1068,6 @@ test("aiNotes at launch: one note per branch, each saying launch day changes not
   assert.match(one(botOf(AI.disallowSyncOff, { bot_preference_sync_enabled: 'x' }))[0], /^Bot Preference Sync reads x at the start of this run: a value this kit does not know/);
 });
 
-test('launch report: a preview of main with no alias is not called missing either', () =>
-  launchScenario((h) => {
-    const s = attachHost(launchState(h));
-    const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
-    s.projects[0].deployment_configs.production.env_vars = v;
-    s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v));
-    const p = deployment('push', { commit: h.main, branch: 'main' });
-    p.aliases = null; // as T1-021's deployments have it
-    s.deployments[REPO].unshift(p);
-    return s;
-  }, async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 0, r.out);
-    assert.doesNotMatch(r.out, /preview of main/i, 'nothing is said about a preview with no address');
-  }));
-
-test('launch report: a preview of main further back than the pages read is not called missing', () =>
-  launchScenario((h) => {
-    const s = attachHost(launchState(h));
-    const v = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
-    s.projects[0].deployment_configs.production.env_vars = v;
-    s.deployments[REPO][1].env_vars = JSON.parse(JSON.stringify(v));
-    s.deployments[REPO].push(deployment('push', { commit: h.main, branch: 'main' })); // third, past two pages of one
-    s.perPage = { ...s.perPage, deployments: 1 };
-    return s;
-  }, async ({ launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 0, r.out);
-    assert.doesNotMatch(r.out, /preview of main/i, 'nothing is said about a preview not found among the deployments read');
-  }));
-
-test('35 at launch: the record points at the address Cloudflare gave, and no address is made from the name', () =>
-  launchScenario((h) => { const s = launchState(h); s.projects = [project({ subdomain: `${REPO}-9x2.pages.dev` })]; return s; }, async ({ api, launch }) => {
-    const q = await launch();
-    assert.match(q.out, /it becomes CNAME lenas-backstube-9x2\.pages\.dev, proxied/);
-    await launch(['--confirm', codeOf(q)]);
-    assert.equal(api.writes().find((e) => e.method === 'PATCH').body.content, `${REPO}-9x2.pages.dev`);
-    assert.doesNotMatch(q.out, /lenas-backstube\.pages\.dev/);
-  }));
-
-test('38 at launch: the check script runs without the token in its environment', async (t) => {
-  const record = path.join(scratch, 'check-env.txt');
-  const recorder = path.join(scratch, 'record-env.mjs');
-  writeFileSync(recorder, `import { appendFileSync } from 'node:fs';\nif ((process.argv[1] ?? '').endsWith('cloudflare-check.mjs')) appendFileSync(${JSON.stringify(record)}, JSON.stringify(process.env) + '\\n');\n`);
-  await launchScenario((h) => { const s = launchState(h); attachHost(s); return s; }, async ({ launch }) => {
-    const r = await launch([], { env: { NODE_OPTIONS: `--import ${pathToFileURL(recorder).href}`, LENA_TOKEN_COPY: TOKEN } });
-    assert.equal(r.code, 3, r.out);
-  });
-  if (!existsSync(record)) { t.skip('this Node does not take --import in NODE_OPTIONS'); return; }
-  const seen = readFileSync(record, 'utf8');
-  assert.ok(seen.length > 0, 'the check script ran and was recorded');
-  assert.ok(!seen.includes(TOKEN), 'the check script saw no token, under its own name or another');
-});
-
-test('39 at launch: a run cut off after the attach call: the next run with the code writes the record and carries on', async (t) => {
-  if (process.platform === 'win32') { t.skip('stopping the program mid-run uses a POSIX signal'); return; }
-  await launchScenario((h) => launchState(h), async ({ api, where, dns, sites, state, launch }) => {
-    const code = codeOf(await launch());
-    let release;
-    const held = new Promise((r) => { release = r; });
-    const child = spawn(process.execPath, [SCRIPT, 'launch', '--confirm', code], {
-      cwd: where.site, stdio: 'ignore',
-      env: { ...cleanEnv(), CLOUDFLARE_API_TOKEN: TOKEN, CLOUDFLARE_SETUP_API: api.origin, CLOUDFLARE_SETUP_RESOLVER: dns.address, CLOUDFLARE_SETUP_SITE: sites.site, CLOUDFLARE_SETUP_PAGES: sites.pages },
-    });
-    state.after = (e) => { if (e.method === 'POST' && e.path.endsWith('/domains')) { child.kill('SIGKILL'); release(); } };
-    await held;
-    await new Promise((r) => child.on('close', r));
-    state.after = null;
-    assert.equal(state.dns[0].type, 'A', 'the record was not reached');
-    const r = await launch(['--confirm', code]);
-    assert.equal(r.code, 4, r.out);
-    assert.equal(api.writes().filter((e) => e.method === 'POST' && e.path.endsWith('/domains')).length, 1, 'no second attach');
-    assert.deepEqual([state.dns[0].type, state.dns[0].content], ['CNAME', LIVE]);
-  });
-});
-
-test('launch: a code from another commit does not fit: the question again, with a new code, nothing changed', () =>
-  launchScenario((h) => launchState(h), async ({ api, where, state, launch }) => {
-    const q = await launch();
-    writeFileSync(path.join(where.site, 'news.md'), 'new\n');
-    git(where.site, 'add', 'news.md');
-    git(where.site, 'commit', '-q', '-m', 'news');
-    git(where.site, 'push', '-q', 'origin', 'HEAD:main', 'HEAD:production');
-    // Cloudflare built the new head, so every launch condition holds and only the code can stop it.
-    const built = deployment('built', { commit: git(where.site, 'rev-parse', 'HEAD') });
-    built.env_vars = {};
-    state.deployments[REPO].unshift(built);
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 3, r.out);
-    assert.match(r.out, /does not fit this question/);
-    assert.notEqual(codeOf(r), codeOf(q));
-    assert.deepEqual(api.writes(), []);
-  }));
-
-test('launch: a pending domain the project\'s list does not name is found through the domains API: no second attach', () =>
-  launchScenario((h) => Object.assign(launchState(h), { pendingUnlisted: true }), async ({ api, state, launch }) => {
-    const code = codeOf(await launch());
-    assert.equal((await launch(['--confirm', code])).code, 4);
-    const again = await launch(['--confirm', code]);
-    assert.equal(again.code, 4, again.out);
-    assert.equal(api.writes().filter((e) => e.method === 'POST' && e.path.endsWith('/domains')).length, 1, 'one attach');
-    assert.equal(api.writes().filter((e) => /dns_records/.test(e.path)).length, 1, 'one record write');
-    activate(state);
-    state.projects[0].deployment_configs.production.env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
-    state.deployments[REPO][1].env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
-    const done = await launch(['--confirm', code]);
-    assert.equal(done.code, 0, done.out);
-  }));
-
-test('launch: a yes to the forwarding alone is no yes to a NEL rule: the rule asks again', () =>
-  launchScenario((h) => attachHost(launchState(h)), async ({ api, state, launch }) => {
-    const q = await launch();
-    assert.equal(q.code, 3, q.out);
-    assert.doesNotMatch(q.out, /NEL/, 'the question lists the forwarding only');
-    state.siteSendsNel = true; // the headers appear before the yes
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 3, r.out);
-    assert.match(r.out, /does not fit this question/);
-    assert.ok(!api.writes().some((e) => /rulesets/.test(e.path)), 'no rule written on a yes that did not list it');
-  }));
-
-test('launch: an answer to the build call that names no commit cannot be checked: said, and 1', () =>
-  launchScenario((h) => Object.assign(attachHost(launchState(h)), { deployAnswerNoCommit: true }), async ({ launch }) => {
-    const r = await launch(['--confirm', codeOf(await launch())]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /its answer names no commit, so whether it is of the live commit [0-9a-f]{7} could not be checked/);
-  }));
-
-test('launch: the production branch gone from GitHub just before the build call: no build, said so', () =>
-  launchScenario((h) => attachHost(launchState(h)), async ({ api, where, state, launch }) => {
-    const q = await launch();
-    state.after = (e) => { if (e.method === 'PATCH' && /pages\/projects/.test(e.path)) git(where.site, 'push', '-q', 'origin', ':production'); };
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /GitHub has no branch production any more/);
-    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')));
-  }));
-
-test('launch: a failed build that appears after the variable is saved stops the run too, before any build call', () =>
-  launchScenario((h) => attachHost(launchState(h)), async ({ api, state, launch }) => {
-    const q = await launch();
-    state.after = (e) => { if (e.method === 'PATCH' && /pages\/projects/.test(e.path)) state.deployments[REPO].unshift(deployment('failed', { commit: state.heads.production, env: 'production' })); };
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /CANONICAL_URL is saved, and the newest production build failed/);
-    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')));
-  }));
-
-test('launch: a push to the production branch just before the build call: no build, and said why', () =>
-  launchScenario((h) => attachHost(launchState(h)), async ({ api, where, state, launch }) => {
-    const q = await launch();
-    state.after = (e) => {
-      if (e.method === 'PATCH' && /pages\/projects/.test(e.path)) {
-        writeFileSync(path.join(where.site, 'late.md'), 'late\n');
-        git(where.site, 'add', 'late.md');
-        git(where.site, 'commit', '-q', '-m', 'late');
-        git(where.site, 'push', '-q', 'origin', 'HEAD:production');
-      }
-    };
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /no build was started: production on GitHub is now at [0-9a-f]{7}, not at the live commit/);
-    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')), 'no build call');
-  }));
-
-test('launch: a live build made under another production branch gets no forwarding build', () =>
-  launchScenario((h) => { const s = attachHost(launchState(h)); s.deployments[REPO][1].production_branch = 'main'; return s; }, async ({ api, launch }) => {
-    const r = await launch(['--confirm', codeOf(await launch())]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /the live build was made while main was the production branch/);
-    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')));
-  }));
-
-test('launch: an attach refused because the domain is there already reads it and carries on', () =>
-  launchScenario((h) => { const s = launchState(h, { pendingUnlisted: true }); s.domains[REPO] = [attachedDomain(HOST, 'pending')]; s.pendingUnlisted = true; return s; }, async ({ api, state, launch }) => {
-    // Both runs' reads before the attach miss it (so the question lists the attach), the attach is
-    // refused as already there, and the read after it finds the domain.
-    state.hideDomainReads = 2;
-    const q = await launch();
-    assert.match(q.out, /Attach lenas-backstube\.example/);
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 4, r.out);
-    assert.match(r.out, /is attached already: Cloudflare says pending/);
-    assert.equal(api.writes().filter((e) => /dns_records/.test(e.path)).length, 1, 'the record was still written');
-  }));
-
-test('launch: after a failed production build the run stops; it starts no other', () =>
-  launchScenario((h) => { const s = attachHost(launchState(h)); s.deployments[REPO].unshift(deployment('failed', { commit: h.production, env: 'production' })); return s; }, async ({ api, launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /The newest production build failed/);
-    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')));
-  }));
-
-test('launch: the forwarding build waits for the site\'s own production branch, and says so if the branch moved under it', async () => {
-  await launchScenario((h) => { const s = attachHost(launchState(h)); s.projects[0].production_branch = 'main'; s.projects[0].source.config.production_branch = 'main'; return s; }, async ({ api, launch }) => {
-    const r = await launch(['--confirm', codeOf(await launch())]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /the project's production branch is main, not production/);
-    assert.ok(!api.writes().some((e) => e.path.endsWith('/deployments')), 'no build of the wrong branch');
-  });
-  await launchScenario((h) => attachHost(launchState(h)), async ({ state, launch }) => {
-    const q = await launch();
-    state.after = (e) => { if (e.method === 'PATCH' && /pages\/projects/.test(e.path)) state.heads = { ...state.heads, production: 'ba5e000000000000000000000000000000000066' }; };
-    const r = await launch(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /Cloudflare started a production build of ba5e000, not of the live commit/);
-  });
-});
-
-test('launch: an answer not seen yet waits; a redirect that is not the kit\'s stops', async () => {
-  for (const [flag, code, want] of [
-    ['siteDown', 4, /did not answer the check yet/],
-    ['pagesProbeSilent', 4, /The forwarding could not be judged yet/],
-    ['pagesRedirect302', 1, /forwards, but not as the kit's forwarding does/],
-  ]) {
-    await launchScenario((h) => {
-      const s = Object.assign(attachHost(launchState(h)), { [flag]: true });
-      // The probe is asked only when / forwards: the live build has the variable.
-      if (flag === 'pagesProbeSilent') s.deployments[REPO][1].env_vars = { CANONICAL_URL: { type: 'plain_text', value: `https://${HOST}` } };
-      return s;
-    }, async ({ api, launch }) => {
-      const r = await launch();
-      assert.equal(r.code, code, `${flag}: ${r.out}`);
-      assert.match(r.out, want);
-      assert.deepEqual(api.writes(), []);
-    });
-  }
-});
-
-test('launch: the nameservers\' addresses: looked up one by one; none found is a wait, never a quiet fall back', async () => {
-  const clock = { left: () => 30_000 };
-  const zoneNs = { name: 'lenas.test', name_servers: ['ns1.lenas.test', 'ns2.lenas.test'] };
-  assert.deepEqual(await nameserverIps(zoneNs, { clock, resolve4: async (n) => (n === 'ns1.lenas.test' ? ['192.0.2.53'] : ['192.0.2.53', '192.0.2.54']) }), ['192.0.2.53', '192.0.2.54']);
-  assert.deepEqual(await nameserverIps(zoneNs, { clock, resolve4: async (n) => { if (n === 'ns1.lenas.test') throw new Error('no'); return ['192.0.2.54']; } }), ['192.0.2.54']);
-  // Every way of finding no address gives the one message, which guesses no cause.
-  const none = (e) => e.code === 4 && /This run found no address for the zone's nameservers \(Cloudflare lists: (ns1\.lenas\.test, ns2\.lenas\.test|none)\), and the domain is asked only through them\. Run the same command again in a minute; if this repeats, look them up by hand \(dig NS (lenas\.test|your domain)\)\.$/.test(e.message) && !/time|could not be looked up|undefined/.test(e.message);
-  await assert.rejects(nameserverIps(zoneNs, { clock, resolve4: async () => { throw new Error('no'); } }), none);
-  await assert.rejects(nameserverIps(zoneNs, { clock: { left: () => 2000 }, resolve4: async () => ['192.0.2.53'] }), none, 'too little time left is a wait too');
-  await assert.rejects(nameserverIps({ name: 'lenas.test', name_servers: [] }, { clock, resolve4: async () => ['192.0.2.53'] }), none, 'no nameserver listed');
-  await assert.rejects(nameserverIps({}, { clock, resolve4: async () => ['192.0.2.53'] }), none);
-  assert.deepEqual(await nameserverIps(zoneNs, { clock, resolverAt: '127.0.0.1:5353' }), ['127.0.0.1:5353']);
-});
-
-test('launch: an owner\'s comment that only begins like the script\'s note is not read as the record before', () =>
-  launchScenario((h) => launchState(h, { record: { id: 'apex1', type: 'A', name: HOST, content: '192.0.2.10', proxied: false, comment: 'Was: our old shop' } }), async ({ state, launch }) => {
-    const code = codeOf(await launch());
-    const r = await launch(['--confirm', code]);
-    assert.equal(r.code, 4, r.out);
-    assert.match(r.out, /The record before: A 192\.0\.2\.10, DNS only\./);
-    assert.equal(state.dns[0].comment, 'Was: A 192.0.2.10, DNS only. Was: our old shop');
-  }));
-
-test('launch: a record too long to note in the comment is refused before the question', () =>
-  launchScenario((h) => launchState(h, { record: { id: 'c9', type: 'CNAME', name: HOST, content: `${'x'.repeat(90)}.example.com`, proxied: false } }), async ({ api, launch }) => {
-    const r = await launch();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /too long to note in the comment/);
-    assert.deepEqual(api.writes(), []);
-  }));
 
 // ================================================================ the launch's parts
 
@@ -1973,18 +1096,12 @@ test('the launch\'s small parts: a fixed text from a pattern, the differences th
   assert.equal(fixedText('\\[FEHLT:'), '[FEHLT:');
   assert.equal(fixedText('\\[MISS.*:'), null);
   assert.equal(fixedText('[A-Z]'), null);
-  const d = { env_vars: { A: { type: 'plain_text', value: '1' }, S: { type: 'secret_text', value: '' }, CANONICAL_URL: { type: 'plain_text', value: 'x' } }, build_config: { build_command: 'npm run build', destination_dir: 'dist', root_dir: '' } };
-  const p = (vars, bc = {}) => ({ deployment_configs: { production: { env_vars: vars } }, build_config: { build_command: 'npm run build', destination_dir: 'dist', root_dir: '', ...bc } });
-  assert.deepEqual(otherDifferences(d, p({ A: { type: 'plain_text', value: '1' }, S: { type: 'secret_text', value: '' }, CANONICAL_URL: { type: 'plain_text', value: 'y' } })), [], 'CANONICAL_URL alone; a secret by name');
-  assert.deepEqual(otherDifferences(d, p({ A: { type: 'plain_text', value: '2' }, S: { type: 'secret_text', value: '' } })), ['the variable A changed since the live build']);
-  assert.deepEqual(otherDifferences(d, p({ A: { type: 'plain_text', value: '1' } }, { destination_dir: 'out' })), ['the variable S is in the live build and no longer saved', 'the build setting destination_dir changed since the live build']);
-  const args = checkArgs({ site: HOST, pages: `https://${LIVE}`, commit: 'a'.repeat(40), timeoutS: 9, only: ['build', 'nel'], nameservers: ['192.0.2.53', '192.0.2.54'] });
-  assert.deepEqual(args.slice(1), [HOST, '--json', '--timeout', '9', '--project', `https://${LIVE}`, '--build', 'a'.repeat(40), '--only', 'build,nel', '--nameserver', '192.0.2.53,192.0.2.54']);
-  assert.ok(!checkArgs({ site: 'http://127.0.0.1:1', pages: 'x', commit: 'a', timeoutS: 1, nameservers: null }).includes('--nameserver'));
+  const args = checkArgs({ site: HOST, preview: `https://${versionHost(VERSION, WORKER)}`, commit: 'a'.repeat(40), timeoutS: 9, only: ['build', 'nel'], nameservers: ['192.0.2.53', '192.0.2.54'], configFile: 'workers.jsonc' });
+  assert.deepEqual(args.slice(1), [HOST, '--json', '--timeout', '9', '--site', '.', '--config', 'workers.jsonc', '--preview', `https://${versionHost(VERSION, WORKER)}`, '--build', 'a'.repeat(40), '--only', 'build,nel', '--nameserver', '192.0.2.53,192.0.2.54']);
+  assert.ok(!checkArgs({ site: 'http://127.0.0.1:1', preview: 'x', commit: 'a', timeoutS: 1, nameservers: null, configFile: 'wrangler.jsonc' }).includes('--nameserver'));
   assert.ok(LAUNCH_SKIP_IDS.every((id) => !SKIP_IDS.includes(id)));
 });
 
-// ================================================================ every stage
 
 test('32: a finished setup: no write, no question, status 0', () =>
   scenario((h) => finishedState(h), async ({ api, go }) => {
@@ -1994,10 +1111,11 @@ test('32: a finished setup: no write, no question, status 0', () =>
     onlyReads(api);
   }));
 
+
 test('33: a token with no end date, one reaching a second zone (on page 2), a refused verify, a refused zone list: refused before any write', async () => {
   const cases = [
     [{ token: { status: 'active', expires_on: null } }, /no end date\. Make one with an end date/],
-    [{ zones: [zone(), zone({ id: 'c0ffee00000000000000000000000003', name: 'lenas-cafe.example' })], perPage: { zones: 1, projects: 10, deployments: 25 } }, /reaches 2 zones\. Make one limited to the site's own zone.*may need a few minutes/],
+    [{ zones: [zone(), zone({ id: 'c0ffee00000000000000000000000003', name: 'lenas-cafe.example' })], perPage: { zones: 1, projects: 10, deployments: 25 } }, /has DNS Edit in 2 zones \(lenas-backstube\.example, lenas-cafe\.example\)\. Make one limited to the site's own zone.*may need a few minutes/],
     [{ refuse: { 'GET verify': 403 } }, /did not accept the token .*revoked, or not valid yet/],
     [{ refuse: { 'GET zones': 403 } }, /refused to list the token's zones .*Zone → Zone → Read/],
   ];
@@ -2029,23 +1147,6 @@ test('34: the token in .dev.vars, tracked by git or not ignored: it stops before
   }, { devVars: `CLOUDFLARE_API_TOKEN=${TOKEN}\n` });
 });
 
-test('35: the project\'s address is the one Cloudflare gives, never one made from its name', () =>
-  scenario(freshState({ subdomainFor: (n) => `${n}-9x2.pages.dev` }), async ({ go }) => {
-    const r = await go(['--confirm', codeOf(await go())]);
-    assert.match(r.out, /https:\/\/lenas-backstube-9x2\.pages\.dev\//);
-    assert.doesNotMatch(r.out, /lenas-backstube\.pages\.dev/);
-  }));
-
-test('37: a single-stage site: production branch main, and no preview of main is named', () =>
-  scenario(freshState(), async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 3, r.out);
-    assert.match(r.out, /single-stage: main is the live branch/);
-    assert.match(r.out, /production branch main/);
-    assert.doesNotMatch(r.out, /preview of main|main, the preview/);
-    await go(['--confirm', codeOf(r)]);
-    assert.equal(api.writes().find((e) => e.path.endsWith('/pages/projects')).body.production_branch, 'main');
-  }, { prodBranch: 'main', production: false }));
 
 test('38: git runs without the token in its environment', async (t) => {
   if (process.platform === 'win32') { t.skip('the recording git is a shell script'); return; }
@@ -2064,30 +1165,7 @@ test('38: git runs without the token in its environment', async (t) => {
   assert.ok(!seen.includes(TOKEN), 'no git saw the token, under its own name or another');
 });
 
-test('39: a run cut off between two writes: the next run with the same code reads what is there and carries on', async (t) => {
-  if (process.platform === 'win32') { t.skip('stopping the program mid-run uses a POSIX signal'); return; }
-  await scenario(freshState(), async ({ api, where, dns, go, state }) => {
-    const code = codeOf(await go());
-    // Hold the answer to the first settings write, and kill the run while it waits.
-    let release;
-    const held = new Promise((r) => { release = r; });
-    const child = spawn(process.execPath, [SCRIPT, 'setup', '--confirm', code], {
-      cwd: where.site, env: { ...cleanEnv(), CLOUDFLARE_API_TOKEN: TOKEN, CLOUDFLARE_SETUP_API: api.origin, CLOUDFLARE_SETUP_RESOLVER: dns.address }, stdio: 'ignore',
-    });
-    state.after = (e) => { if (e.method === 'PATCH' && e.path.includes('/settings/')) { child.kill('SIGKILL'); release(); } };
-    await held;
-    await new Promise((r) => child.on('close', r));
-    state.after = null;
-    assert.equal(api.writes().filter((e) => e.path.endsWith('/pages/projects')).length, 1, 'the project was created before the cut');
-    const r = await go(['--confirm', code]);
-    assert.equal(r.code, 4, r.out);
-    assert.equal(api.writes().filter((e) => e.path.endsWith('/pages/projects')).length, 1, 'no second create');
-    assert.equal(api.writes().filter((e) => e.path.endsWith('/deployments')).length, 1, 'no second build: the first is queued');
-    assert.deepEqual(state.settings, { always_use_https: 'on', min_tls_version: '1.2', email_obfuscation: 'off', nel: { enabled: false } });
-  });
-});
 
-// The two tests that wait out the 55-second deadline run side by side.
 describe('the deadline', { concurrency: true }, () => {
   test('39: a stub that answers slowly: the run ends with 4 at its deadline, before 60 seconds', () =>
     scenario(freshState({ delayMs: 30_000 }), async ({ go }) => {
@@ -2130,6 +1208,7 @@ describe('the deadline', { concurrency: true }, () => {
   });
 });
 
+
 test('40: a token that ends in 30 days is refused: the checklist says a week at most', () =>
   scenario(freshState({ token: { status: 'active', expires_on: new Date(Date.now() + 30 * 86_400_000).toISOString() } }), async ({ api, go }) => {
     const r = await go();
@@ -2140,13 +1219,14 @@ test('40: a token that ends in 30 days is refused: the checklist says a week at 
 
 test('the zone\'s records cannot be read: no zone-wide setting is changed, since its hosts cannot be named (R5)', () =>
   scenario(freshState({ refuse: { 'GET dns': 403 } }), async ({ api, go }) => {
+    // Every line is "by hand": nothing is asked, nothing is written, and the run ends with 1.
     const r = await go();
-    assert.equal(r.code, 3, r.out);
-    assert.doesNotMatch(r.out, /Always Use HTTPS: On \(/, 'no setting line is asked');
-    assert.match(r.out, /By hand: Always Use HTTPS: On\. The zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row Zone → DNS → Edit/);
-    const done = await go(['--confirm', codeOf(r)]);
-    assert.equal(done.code, 1, done.out);
-    assert.ok(!api.writes().some((e) => e.path.includes('/settings/') || e.path.endsWith('/bot_management')), 'no zone-wide write');
+    assert.equal(r.code, 1, r.out);
+    assert.doesNotMatch(r.out, /--confirm/, 'nothing to ask');
+    for (const title of ['Always Use HTTPS: On', 'Minimum TLS Version: TLS 1.2', 'Email Address Obfuscation: Off', 'Network Error Logging \\(NEL\\): Off']) {
+      assert.match(r.out, new RegExp(`by hand\\s+${title}: The zone's records could not be read, so the hosts this setting changes cannot be named; the token needs the row Zone → DNS → Edit`), title);
+    }
+    assert.deepEqual(api.writes(), []);
   }));
 
 test('a CNAME that already points where it should, but proxied, is not "there already": it is by hand, and nothing is written', () =>
@@ -2167,42 +1247,9 @@ test('run from a folder inside the site, a tracked .dev.vars at the site\'s root
   }, { devVars: `CLOUDFLARE_API_TOKEN=${TOKEN}\n`, trackDevVars: true });
 });
 
-test('what decides is read from the project itself: a list item without its domains still leaves a live project alone', () =>
-  scenario(freshState({ projects: [project({ productionBranch: 'main', domains: [HOST] })], listItem: (p) => { delete p.domains; delete p.deployment_configs; return p; } }), async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /does not repair a live site/);
-    assert.ok(api.log.some((e) => e.method === 'GET' && e.path === `/accounts/${ACCOUNT.id}/pages/projects/${REPO}`), 'the project was read');
-    onlyReads(api);
-  }));
-
-test('the project read by its name must itself be connected to the repository, whatever the list said', () =>
-  scenario(freshState({
-    projects: [project({ source: { owner: OWNER, repo: 'lenas-cafe' } })],
-    listItem: (p) => { p.source.config.repo_name = REPO; return p; }, // the list says connected; the project read says otherwise
-  }), async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /The project lenas-backstube, read by its name, is not connected to lena-example\/lenas-backstube/);
-    onlyReads(api);
-  }));
-
-test('a build of the head that ended in a way no trial saw counts as failed: no new build, and the run says so', () =>
-  scenario((h) => {
-    const s = finishedState(h);
-    const d = deployment('built', { commit: h.production });
-    d.latest_stage = { name: 'build', status: 'canceled', started_on: null, ended_on: null };
-    s.deployments[REPO] = [deployment('push', { commit: h.main, branch: 'lenas-pr' }), d];
-    return s;
-  }, async ({ api, go }) => {
-    const r = await go();
-    assert.equal(r.code, 1, r.out);
-    assert.match(r.out, /The newest production build of [0-9a-f]{7} failed: production, commit [0-9a-f]{7} \(build: canceled\)/);
-    onlyReads(api);
-  }));
 
 test('a list longer than 200 pages is not read in part: the run stops', () =>
-  scenario(freshState({ projects: Array.from({ length: 201 }, (_, i) => project({ name: `other-${i}`, source: { owner: 'someone', repo: `r${i}` } })), perPage: { zones: 50, projects: 1, deployments: 25 } }), async ({ api, go }) => {
+  scenario(freshState({ zones: Array.from({ length: 201 }, (_, i) => zone({ id: `c0ffee0000000000000000${String(i).padStart(10, '0')}`, name: `other-${i}.example` })), perPage: { zones: 1, projects: 10, deployments: 25 } }), async ({ api, go }) => {
     const r = await go();
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /runs past 200 pages/);
@@ -2226,30 +1273,6 @@ test('R1: a yes covers only the list it answered: a setting someone changed sinc
     onlyReads(api);
   }));
 
-test('R1: a yes to one build setting is not a yes to another', () =>
-  scenario((h) => Object.assign(finishedState(h), { projects: [project({ build: { build_command: 'npm run old' } })] }), async ({ api, go, state }) => {
-    const q = await go();
-    assert.match(q.out, /Build settings: build command npm run old → npm run build\./);
-    state.projects[0].build_config.destination_dir = 'public'; // changed by hand after the question
-    const r = await go(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 3, r.out);
-    assert.match(r.out, /does not fit this question/);
-    onlyReads(api);
-  }));
-
-test('R1: the build the question named is of one commit: once the production branch moves, the code asks again', () =>
-  scenario(freshState(), async ({ api, where, go, state }) => {
-    const q = await go();
-    assert.match(q.out, new RegExp(`Start one build of production \\(commit ${state.heads.production.slice(0, 7)}\\)`));
-    writeFileSync(path.join(where.site, 'news.md'), 'new\n');
-    git(where.site, 'add', 'news.md');
-    git(where.site, 'commit', '-q', '-m', 'news');
-    git(where.site, 'push', '-q', 'origin', 'HEAD:production');
-    const r = await go(['--confirm', codeOf(q)]);
-    assert.equal(r.code, 3, r.out);
-    assert.match(r.out, /does not fit this question/);
-    onlyReads(api);
-  }));
 
 test('a code that does not fit the question changes nothing and asks again', () =>
   scenario(freshState(), async ({ api, go }) => {
@@ -2263,11 +1286,14 @@ test('a wrong command is status 2; the launch ids belong to launch; the override
   const where = makeSite();
   const closed = 'http://127.0.0.1:9'; // so a run that got past its checks could reach no real API
   for (const [args, env, want] of [
-    [['--skip', 'canonical'], {}, /belongs to the launch stage/],
+    [['--skip', 'nel-rule'], {}, /belongs to the launch stage/],
+    [['--skip', 'canonical'], {}, /--skip takes one of https, tls, email, nel, bot, ai \(got "canonical"\)/],
     [['--skip', 'cdn'], {}, /--skip takes one of/],
     [['--confirm', 'yes'], {}, /16-character code/],
     [Array.from({ length: 6 }, (_, i) => ['--record', `TXT r${i} v`]).flat(), {}, /at most five --record/],
-    [['--project', 'Lenas_Site'], {}, /not a Pages project name/],
+    [['--project', 'lenas-site'], {}, /unknown option --project/], // the Worker's name is in wrangler.jsonc, not an option
+    [[], { CLOUDFLARE_SETUP_PREVIEW: 'http://stub.example.com:8080' }, /literal loopback address/],
+    [[], { CLOUDFLARE_SETUP_RUN_MS: '60000' }, /CLOUDFLARE_SETUP_RUN_MS must be a whole number of milliseconds below 55000/],
     [[], { CLOUDFLARE_SETUP_API: 'http://stub.example.com:8080' }, /literal loopback address/],
     [[], { CLOUDFLARE_SETUP_RESOLVER: '8.8.8.8:53' }, /literal loopback address/],
     [[], { CLOUDFLARE_SETUP_RESOLVER: '127.0.0.1:99999' }, /literal loopback address/],
@@ -2278,9 +1304,9 @@ test('a wrong command is status 2; the launch ids belong to launch; the override
   }
   for (const [args, env, want] of [
     [['--record', 'TXT @ v'], {}, /--record belongs to the setup stage/],
-    [['--skip', 'cdn'], {}, /--skip takes one of https, tls, email, nel, bot, ai, canonical, nel-rule/],
+    [['--skip', 'cdn'], {}, /--skip takes one of https, tls, email, nel, bot, ai, nel-rule/],
     [[], { CLOUDFLARE_SETUP_SITE: 'https://lenas-backstube.example' }, /literal loopback address/],
-    [[], { CLOUDFLARE_SETUP_PAGES: 'http://stub.example.com:8080' }, /literal loopback address/],
+    [[], { CLOUDFLARE_SETUP_PREVIEW: 'http://stub.example.com:8080' }, /literal loopback address/],
   ]) {
     const r = await run(where, args, { stage: 'launch', env: { CLOUDFLARE_SETUP_API: closed, ...env } });
     assert.equal(r.code, 2, `launch ${args.join(' ')} ${JSON.stringify(env)}: ${r.err}`);
@@ -2294,3 +1320,440 @@ test('the overrides are said out loud while they are in effect', () =>
     assert.match(r.out, /^Test mode: Cloudflare's API is replaced by http:\/\/127\.0\.0\.1:\d+\.$/m);
     assert.match(r.out, /^Test mode: the zone's nameservers are replaced by 127\.0\.0\.1:\d+\.$/m);
   }));
+
+
+// ================================================================ row 2.2: Workers instead of Pages
+// Expected values below are written by hand from the plan (PLAN-setup-workers.md, TS1 to TS6, TL1 to TL8).
+
+const noPagesCall = (api) => assert.ok(!api.log.some((e) => /\/pages(\/|$)/.test(e.path)), 'a /pages/ request was sent');
+const writesOf = (api) => api.log.filter((e) => e.method !== 'GET');
+const RUN_DIR_OF = (where) => path.join(where.site, 'setup-run');
+const keptFiles = (where) => (existsSync(RUN_DIR_OF(where)) ? readdirSync(RUN_DIR_OF(where)).filter((f) => f.startsWith('replaced-')).sort() : []);
+const pendingOf = (where) => path.join(RUN_DIR_OF(where), 'pending.json');
+// The record at the apex before the launch, written out: what the owner had.
+const NOTE_A = { type: 'A', name: HOST, content: '192.0.2.10', proxied: false, ttl: 1, comment: null, tags: [], settings: {} };
+const capturedZones = (name) => JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-token', name), 'utf8')).result;
+// Cloudflare's own list of zones for a token, with one zone made the site's and all of them one account's.
+const siteZoneOf = (zones, pick) => {
+  zones.forEach((z) => { z.account = { ...ACCOUNT }; });
+  Object.assign(zones[pick], { id: ZONE.id, name: ZONE.name, status: 'active' });
+  return zones;
+};
+
+// The deployments of a Worker that Builds made from its template, as the first build's test saw them (C4,
+// newest first). The capture is read as it is; the stub fills in the ids and versions it lacks (MADE).
+const BUILDS_FIRST = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'builds-deployments', 'c4-builds-first-deployments-2026-11-12-cloudflare-api-v4.json'), 'utf8'));
+
+describe('TS: the setup stage, at a Worker', { concurrency: true }, () => {
+  test('TS1: the token the move guide makes (DNS Edit in one zone of three) picks the site\'s zone', () => {
+    const zones = siteZoneOf(capturedZones('cloudflare-api-zones-list-move-token-2026-11-04.json'), 2);
+    assert.equal(zones.filter((z) => z.permissions.includes('#dns_records:edit')).length, 1, 'by hand: one of the three lists DNS Edit');
+    return scenario((h) => Object.assign(finishedState(h), { zones }), async ({ api, go }) => {
+      const r = await go();
+      assert.equal(r.code, 0, r.out);
+      assert.match(r.out, /Cloudflare setup for lenas-backstube\.example \(zone lenas-backstube\.example, account Lena's Account\)/);
+      onlyReads(api);
+      noPagesCall(api);
+    });
+  });
+
+  test('TS2: the token made for the account alone (DNS Edit in every zone) is refused, and no write is sent', () => {
+    const zones = siteZoneOf(capturedZones('cloudflare-api-zones-list-account-only-token-2026-11-08.json'), 2);
+    assert.equal(zones.filter((z) => z.permissions.includes('#dns_records:edit')).length, 3, 'by hand: all three list DNS Edit');
+    return scenario((h) => Object.assign(finishedState(h), { zones }), async ({ api, go }) => {
+      const r = await go();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /This token has DNS Edit in 3 zones \(other-1\.example, other-2\.example, lenas-backstube\.example\)\. Make one limited to the site's own zone/);
+      assert.equal(writesOf(api).length, 0);
+    });
+  });
+
+  test('TS3: zones from two accounts are refused: the script works in one account', () => {
+    const second = zone({ id: 'c0ffee00000000000000000000000003', name: 'lenas-cafe.example', account: { id: 'c0ffee00000000000000000000000004', name: 'Cafe' } });
+    return scenario((h) => Object.assign(finishedState(h), { zones: [zone(), second] }), async ({ api, go }) => {
+      const r = await go();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /The zones this token lists belong to 2 accounts\. The script works in one account/);
+      assert.equal(writesOf(api).length, 0);
+    });
+  });
+
+  test('TS4: a Worker of the name whose version link serves a commit this repository does not have is not the site\'s: refused, no write', () =>
+    scenario((h) => Object.assign(finishedState(h), { workers: { [WORKER]: worker({ serves: 'd'.repeat(40) }) } }), async ({ api, go }) => {
+      const r = await go();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /A Worker named lenas-backstube exists, and its version link serves the commit ddddddd, which this repository does not have: it is not this site's/);
+      assert.equal(writesOf(api).length, 0);
+    }));
+
+  test('TS5: no Worker yet: the zone lines run on the yes, the run ends with 4, and no /pages/ request is ever sent', () =>
+    scenario(freshState(), async ({ api, go }) => {
+      const q = await go();
+      assert.equal(q.code, 3, q.out);
+      assert.match(q.out, /The Worker lenas-backstube is not on Cloudflare yet\. The script makes none; the first deploy does\./);
+      const done = await go(['--confirm', codeOf(q)]);
+      assert.equal(done.code, 4, done.out);
+      assert.ok(writesOf(api).some((e) => e.method === 'PATCH' && /\/settings\/always_use_https$/.test(e.path)), 'the zone lines were written');
+      noPagesCall(api);
+    }, { worker: 'none' }));
+
+  test('TS7: a Worker Builds made from its template (every deployment a dash_template) is pending: setup ends with 4 after its zone lines; launch ends with 4 and writes nothing', () =>
+    scenario((h) => Object.assign(freshState(), { workers: { [WORKER]: worker({ sources: BUILDS_FIRST.slice(1).map((d) => d.source), serves: null }) } }), async ({ where, api, dns, preview, go }) => {
+      assert.deepEqual(BUILDS_FIRST.slice(1).map((d) => d.source), ['dash_template', 'dash_template'], 'by hand: the capture\'s two older deployments are the template\'s');
+      const q = await go();
+      assert.equal(q.code, 3, q.out);
+      assert.match(q.out, /The Worker lenas-backstube exists, and Cloudflare's Builds has uploaded only its template so far: no build of this site has passed\. .*If Builds shows no repository connected, this Worker is not this site's: rename it in wrangler\.jsonc\./);
+      const done = await go(['--confirm', codeOf(q)]);
+      assert.equal(done.code, 4, done.out);
+      assert.ok(writesOf(api).length > 0, 'the zone lines were written');
+      const before = writesOf(api).length;
+      const launched = await run(where, [], { api, dns, preview, stage: 'launch' });
+      assert.equal(launched.code, 4, launched.out);
+      assert.match(launched.out, /Nothing was changed\. Status 4\./);
+      assert.equal(writesOf(api).length, before, 'launch wrote nothing');
+    }));
+
+  test('TS9: a template upload followed by a wrangler deploy (the whole C4 capture, no build.txt) is not pending: refused, no write', () =>
+    scenario((h) => Object.assign(freshState(), { workers: { [WORKER]: worker({ sources: BUILDS_FIRST.map((d) => d.source), serves: null }) } }), async ({ api, go }) => {
+      assert.deepEqual(BUILDS_FIRST.map((d) => d.source), ['wrangler', 'dash_template', 'dash_template'], 'by hand: the capture, newest first');
+      const r = await go();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /serves no build\.txt that names a commit: it is not this site's/);
+      assert.equal(writesOf(api).length, 0);
+    }));
+
+  test('TS8: a Worker of the name that is neither this repository\'s nor a Builds template (a stranger\'s, uploaded by wrangler) is refused, no write', () =>
+    scenario((h) => Object.assign(freshState(), { workers: { [WORKER]: worker({ sources: ['wrangler'], serves: null }) } }), async ({ api, go }) => {
+      const r = await go();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /A Worker named lenas-backstube exists, and its version link serves no build\.txt that names a commit: it is not this site's\./);
+      assert.equal(writesOf(api).length, 0);
+    }));
+
+  test('TS6: the deployments read refused for want of the Workers row is a failure (1), not a missing Worker (4), and it names the row', () =>
+    scenario((h) => Object.assign(finishedState(h), { refuse: { 'GET wdeployments': 403 } }), async ({ api, go }) => {
+      const r = await go();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /did not return the deployments of the Worker lenas-backstube: .*Account → Workers Scripts → Edit/);
+      assert.equal(writesOf(api).length, 0);
+    }));
+});
+
+describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
+  const before = (h) => launchState(h);
+  const site = { routed: false };
+
+  test('TL0: the host already on another Worker of the account is refused: the script moves no domain between Workers, and writes nothing', () =>
+    launchScenario(before, async ({ api, state, launch }) => {
+      state.workerDomains.push({ id: 'c0ffee00000000000000000000000070', hostname: HOST, service: 'lenas-shop', zone_id: ZONE.id, zone_name: ZONE.name, environment: 'production' });
+      const r = await launch();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /lenas-backstube\.example is attached to the Worker lenas-shop, not to lenas-backstube\. The script moves no domain from one Worker to another/);
+      assert.equal(writesOf(api).length, 0);
+    }, site));
+
+  test('TL1: one A record: kept and noted before the DELETE, then the PUT, then a local route commit; nothing pushed; the check gets --site and --preview', () =>
+    launchScenario(before, async ({ where, api, state, launch }) => {
+      let atDelete = null;
+      state.before = (e) => {
+        if (e.method !== 'DELETE' || !/\/dns_records\//.test(e.path)) return;
+        const name = readdirSync(RUN_DIR_OF(where)).find((f) => f.startsWith('replaced-'));
+        atDelete = { name, kept: name && JSON.parse(readFileSync(path.join(RUN_DIR_OF(where), name), 'utf8')), pending: existsSync(pendingOf(where)) && JSON.parse(readFileSync(pendingOf(where), 'utf8')) };
+      };
+      const q = await launch();
+      assert.equal(q.code, 3, q.out);
+      assert.equal(writesOf(api).length, 0, 'the question writes nothing');
+      const pushed = git(where.site, 'ls-remote', 'origin', 'main').split('\t')[0];
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 0, r.out);
+      assert.ok(atDelete, 'the DELETE was sent');
+      assert.match(atDelete.name, /^replaced-lenas-backstube\.example-\d{8}T\d{6}Z\.json$/);
+      assert.deepEqual(atDelete.kept.record, { ...NOTE_A, id: 'c0ffee00000000000000000000000050', proxiable: true, meta: {} }, 'the kept file holds the record as read');
+      assert.match(atDelete.kept.export, /\sIN\s+SOA\s/, 'and the zone\'s export');
+      assert.deepEqual(atDelete.pending, { host: HOST, file: atDelete.name });
+      assert.deepEqual(writesOf(api).map((e) => `${e.method} ${e.path.replace(/\/[0-9a-f]{32}/g, '/…')}`), ['DELETE /zones/…/dns_records/…', 'PUT /accounts/…/workers/domains']);
+      assert.deepEqual(writesOf(api)[1].body, { hostname: HOST, service: WORKER, zone_id: ZONE.id, environment: 'production' });
+      assert.match(git(where.site, 'log', '-1', '--format=%s'), /^Attach lenas-backstube\.example to the Worker lenas-backstube \(launch commit\)$/);
+      assert.equal(git(where.site, 'ls-remote', 'origin', 'main').split('\t')[0], pushed, 'nothing was pushed');
+      assert.ok(!existsSync(pendingOf(where)), 'pending.json is gone once the attach worked');
+      assert.match(r.out, /a Workers site, with no Pages project/, 'the check was given --site');
+      assert.match(r.out, /Preview links carry noindex and no active NEL policy: http:\/\/d0000099-lenas-backstube\.lenas-backstube\.workers\.dev\.test:\d+ answers 200 with noindex/, 'and --preview');
+      assert.ok(r.out.includes(`setup-run/${atDelete.name}`), 'the kept file\'s path is printed');
+      assert.match(r.out, /"content": "192\.0\.2\.10"/, 'the replaced record is printed');
+      assert.match(r.out, /To undo the launch: remove the domain from the Worker .* add the record back \(DNS → Records → Add record, with the values above\), and take lenas-backstube\.example out of "routes" in wrangler\.jsonc in a new commit\./);
+      noPagesCall(api);
+    }, site));
+
+  test('TL2: the attach refused with 100117: the record is put back as the stub served it, exit 1, the kept file stays, pending.json is gone', () =>
+    launchScenario(before, async ({ where, api, state, launch }) => {
+      state.attachRefused = true;
+      const q = await launch();
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 1, r.out);
+      const post = writesOf(api).find((e) => e.method === 'POST');
+      assert.deepEqual(post.body, NOTE_A, 'the POST is the record the stub served, as written out here');
+      assert.match(r.out, /The record is back as it was \(kept in setup-run\/replaced-/);
+      assert.equal(keptFiles(where).length, 1);
+      assert.ok(!existsSync(pendingOf(where)));
+      assert.ok(state.dns.some((x) => x.name === HOST && x.type === 'A' && x.content === '192.0.2.10'), 'the host has its record again');
+    }, site));
+
+  test('TL3b: a CNAME at the host that setup\'s --record wrote (to verify.bing.com) is the one record the launch replaces, and it is kept in setup-run/ with its content', () =>
+    launchScenario((h) => launchState(h, { record: { ...A_RECORD, type: 'CNAME', content: 'verify.bing.com' } }), async ({ where, launch }) => {
+      const q = await launch();
+      assert.equal(q.code, 3, q.out);
+      assert.match(q.out, /"content": "verify\.bing\.com"/);
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 0, r.out);
+      const kept = keptFiles(where);
+      assert.equal(kept.length, 1);
+      assert.equal(JSON.parse(readFileSync(path.join(RUN_DIR_OF(where), kept[0]), 'utf8')).record.content, 'verify.bing.com');
+    }, site));
+
+  test('TL3: two address records, or a CNAME to a pages.dev address, are refused before any write (the CNAME names the move guide)', async () => {
+    const two = (h) => { const s = launchState(h); s.dns.push({ ...A_RECORD, id: 'c0ffee00000000000000000000000051', content: '192.0.2.11' }); return s; };
+    await launchScenario(two, async ({ api, launch }) => {
+      const r = await launch();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /lenas-backstube\.example has 2 address records \(A 192\.0\.2\.10, A 192\.0\.2\.11\)\. The script replaces one record and deletes no other/);
+      assert.equal(writesOf(api).length, 0);
+    }, site);
+    const cname = (h) => launchState(h, { record: { ...A_RECORD, type: 'CNAME', content: 'lenas-backstube.pages.dev' } });
+    await launchScenario(cname, async ({ api, launch }) => {
+      const r = await launch();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /is a CNAME to lenas-backstube\.pages\.dev: the site is live on Cloudflare Pages\. This script does not move a live Pages site: docs\/MOVE-TO-WORKERS\.md says how\./);
+      assert.equal(writesOf(api).length, 0);
+    }, site);
+  });
+
+  test('TL4: a dirty tree, a HEAD ahead of GitHub\'s main, another run\'s lock: each refused before any write', async () => {
+    const refused = async (prepare, want) => launchScenario(before, async ({ where, api, launch }) => {
+      prepare(where);
+      const r = await launch();
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, want);
+      assert.equal(writesOf(api).length, 0);
+      assert.equal(keptFiles(where).length, 0, 'no file was kept');
+    }, site);
+    await refused((w) => writeFileSync(path.join(w.site, 'notes.txt'), 'x\n'), /The working tree has changes \(\?\? notes\.txt\)/);
+    await refused((w) => git(w.site, 'commit', '-q', '--allow-empty', '-m', 'one ahead'), /HEAD \([0-9a-f]{7}\) is not the head of main on GitHub \([0-9a-f]{7}\)/);
+    await refused((w) => { mkdirSync(RUN_DIR_OF(w), { recursive: true }); writeFileSync(path.join(RUN_DIR_OF(w), 'lock'), `${process.pid}\nabc\n`); }, /Another run \(process \d+\) holds .*setup-run[\\/]lock/);
+  });
+
+  test('TL1b: a site whose Workers config has another name (workers.jsonc): the check is told which file, and the route commit is made in it', () =>
+    launchScenario(before, async ({ where, launch }) => {
+      const q = await launch();
+      assert.equal(q.code, 3, q.out);
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 0, r.out);
+      assert.match(r.out, /as a custom-domain route in workers\.jsonc/);
+      assert.match(readFileSync(path.join(where.site, 'workers.jsonc'), 'utf8'), /lenas-backstube\.example/);
+    }, { routed: false, files: { 'wrangler.jsonc': null, 'workers.jsonc': WRANGLER } }));
+
+  test('TL5: a PUT that is never answered after the DELETE: the next run prints the noted record, re-checks step 1, and attaches on the same code; with too little time, nothing is written', async () => {
+    await launchScenario(before, async ({ where, api, state, launch }) => {
+      const q = await launch();
+      const code = codeOf(q);
+      state.drop['PUT wdomains'] = 'silent';
+      const hung = await launch(['--confirm', code]);
+      assert.equal(hung.code, 4, hung.out);
+      assert.match(hung.out, /The attach got no answer, so lenas-backstube\.example may have no record now\. The record is kept in setup-run\/replaced-/);
+      assert.ok(existsSync(pendingOf(where)) && keptFiles(where).length === 1, 'the note stays');
+      assert.equal(writesOf(api).filter((e) => e.method === 'DELETE').length, 1);
+      delete state.drop['PUT wdomains'];
+      const asked = await launch();
+      assert.equal(asked.code, 3, asked.out);
+      assert.match(asked.out, /The record of lenas-backstube\.example is already deleted and kept in setup-run\//);
+      assert.doesNotMatch(asked.out, /Delete the record of/);
+      const again = await launch(['--confirm', code]);
+      assert.equal(again.code, 0, again.out);
+      assert.match(again.out, /A launch stopped after it deleted the record of lenas-backstube\.example, and the host has no record\. The record is kept in setup-run\/replaced-/);
+      assert.match(again.out, /"content": "192\.0\.2\.10"/);
+      assert.equal(keptFiles(where).length, 1, 'no second file: the run attached from the note');
+      assert.ok(!existsSync(pendingOf(where)));
+      assert.equal(writesOf(api).filter((e) => e.method === 'DELETE').length, 1, 'no second DELETE');
+    }, site);
+
+    // The PUT was applied and its answer lost: the next run finds the host attached, clears the note, and sends no second PUT.
+    await launchScenario(before, async ({ where, api, state, launch }) => {
+      const q = await launch();
+      state.drop['PUT wdomains'] = 'lost';
+      const hung = await launch(['--confirm', codeOf(q)]);
+      assert.equal(hung.code, 4, hung.out);
+      delete state.drop['PUT wdomains'];
+      const again = await launch(['--confirm', codeOf(q)]);
+      assert.equal(again.code, 0, again.out);
+      assert.ok(!existsSync(pendingOf(where)), 'the note is cleared');
+      assert.equal(writesOf(api).filter((e) => e.method === 'PUT').length, 1, 'no second PUT');
+      assert.equal(writesOf(api).filter((e) => e.method === 'DELETE').length, 1, 'no second DELETE');
+    }, site);
+
+    // Step 1's conditions hold on a recovery run: a draft added to production in between refuses it.
+    await launchScenario(before, async ({ where, api, state, launch }) => {
+      const q = await launch();
+      state.drop['PUT wdomains'] = 'silent';
+      await launch(['--confirm', codeOf(q)]);
+      delete state.drop['PUT wdomains'];
+      const spec = readFileSync(path.join(where.site, 'tests', 'placeholders.spec.ts'), 'utf8').replace('new Set<string>([])', "new Set<string>(['/about'])");
+      writeFileSync(path.join(where.site, 'tests', 'placeholders.spec.ts'), spec);
+      git(where.site, 'commit', '-q', '-am', 'a page still to fill');
+      git(where.site, 'push', '-q', 'origin', 'main', 'main:production');
+      const writes = writesOf(api).length;
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 1, r.out);
+      assert.match(r.out, /UNFILLED_UNTIL_LAUNCH in tests\/placeholders\.spec\.ts still lists \/about/);
+      assert.equal(writesOf(api).length, writes, 'refused before any write');
+      assert.ok(existsSync(pendingOf(where)), 'the note is untouched');
+    }, site);
+
+    // The PUT refused on the next run: the record is put back.
+    await launchScenario(before, async ({ where, api, state, launch }) => {
+      const q = await launch();
+      state.drop['PUT wdomains'] = 'silent';
+      await launch(['--confirm', codeOf(q)]);
+      delete state.drop['PUT wdomains'];
+      state.attachRefused = true;
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 1, r.out);
+      assert.deepEqual(writesOf(api).filter((e) => e.method === 'POST').map((e) => e.body), [NOTE_A]);
+      assert.ok(!existsSync(pendingOf(where)) && keptFiles(where).length === 1);
+    }, site);
+
+    // Too little time: no file, no DELETE, status 4.
+    await launchScenario(before, async ({ where, api, launch }) => {
+      const q = await launch([], { env: { CLOUDFLARE_SETUP_RUN_MS: '40000' } });
+      assert.equal(q.code, 3, q.out);
+      const r = await launch(['--confirm', codeOf(q)], { env: { CLOUDFLARE_SETUP_RUN_MS: '40000' } });
+      assert.equal(r.code, 4, r.out);
+      assert.match(r.out, /needs 45\. Nothing was written\. Run the same command again\. Status 4\./);
+      assert.equal(writesOf(api).length, 0);
+      assert.equal(keptFiles(where).length, 0);
+      assert.ok(!existsSync(pendingOf(where)));
+    }, site);
+  });
+
+  test('TL6: the gate refuses what the launch must never send, allows what it sends, and makeApi sends nothing the gate refused', async () => {
+    const g = { hosts: new Set([HOST]), worker: WORKER, accountId: ACCOUNT.id, zoneId: ZONE.id, recordId: 'c0ffee00000000000000000000000050', note: NOTE_A };
+    const Z = `/zones/${ZONE.id}`;
+    const W = `/accounts/${ACCOUNT.id}/workers`;
+    const refuse = (method, url, body, what) => assert.throws(() => gate(method, url, body, g), (e) => e instanceof Stop && /^gate: refused/.test(e.lines?.[0] ?? e.message), what);
+    const allow = (method, url, body, what) => assert.doesNotThrow(() => gate(method, url, body, g), what);
+    // What the launch sends.
+    allow('DELETE', `${Z}/dns_records/${g.recordId}`);
+    allow('POST', `${Z}/dns_records`, { ...NOTE_A });
+    allow('PUT', `${W}/domains`, { hostname: HOST, service: WORKER, zone_id: ZONE.id, environment: 'production' });
+    allow('GET', `${W}/scripts/${WORKER}/deployments`);
+    allow('GET', `${Z}/dns_records/export`);
+    // What it must not.
+    refuse('DELETE', `${Z}/dns_records/c0ffee00000000000000000000000099`, undefined, 'another record id');
+    refuse('POST', `${Z}/dns_records`, { ...NOTE_A, content: '192.0.2.99' }, 'a POST that differs from the note');
+    refuse('PUT', `${W}/domains`, { hostname: `www.${HOST}`, service: WORKER, zone_id: ZONE.id, environment: 'production' }, 'the attach naming another host');
+    refuse('POST', `${Z}/dns_records`, { ...NOTE_A, name: `www.${HOST}` }, 'a POST naming another host');
+    refuse('POST', `${W}/scripts/${WORKER}`, { x: 1 }, 'a POST under workers/scripts');
+    refuse('GET', `${W}/scripts/other-worker/deployments`, undefined, 'another script\'s deployments');
+    refuse('DELETE', `${W}/domains/c0ffee00000000000000000000000060`, undefined, 'a domain DELETE');
+    // The zone is part of the path: another zone's settings and rules are refused, and so is a setting no line writes.
+    const other = '/zones/c0ffee00000000000000000000000077';
+    allow('PATCH', `${Z}/settings/always_use_https`, { value: 'on' });
+    allow('POST', `${Z}/rulesets/c0ffee00000000000000000000000078/rules`, { x: 1 });
+    refuse('PATCH', `${other}/settings/always_use_https`, { value: 'on' }, 'another zone\'s setting');
+    refuse('POST', `${other}/rulesets/c0ffee00000000000000000000000078/rules`, { x: 1 }, 'another zone\'s ruleset');
+    refuse('PATCH', `${Z}/settings/ssl`, { value: 'off' }, 'a setting no line writes');
+    // Setup's --record may write a CNAME at the host (as before); the launch may not, nor may setup write an address.
+    const none = { ...g, note: null };
+    assert.doesNotThrow(() => gate('POST', `${Z}/dns_records`, { type: 'CNAME', name: HOST, content: 'verify.bing.com' }, { ...none, stage: 'setup' }), 'setup: a CNAME at the host');
+    assert.throws(() => gate('POST', `${Z}/dns_records`, { type: 'CNAME', name: HOST, content: 'verify.bing.com' }, { ...none, stage: 'launch' }), /gate: refused/, 'launch: a CNAME at the host');
+    assert.throws(() => gate('POST', `${Z}/dns_records`, { type: 'A', name: HOST, content: '192.0.2.1' }, { ...none, stage: 'setup' }), /gate: refused/, 'setup: an A at the host');
+    // makeApi runs the gate before it opens a socket: a stub that records its requests sees none.
+    await scenario(freshState(), async ({ api }) => {
+      const call = makeApi(api.origin, TOKEN, { left: () => 10_000 }, g);
+      await assert.rejects(() => call('DELETE', `${Z}/dns_records/c0ffee00000000000000000000000099`), (e) => e instanceof Stop && /^gate: refused/.test(e.lines?.[0] ?? e.message));
+      assert.equal(api.log.length, 0, 'the stub saw no request');
+      const sent = await call('GET', '/user/tokens/verify');
+      assert.equal(sent.status, 200);
+      assert.equal(api.log.length, 1, 'and an allowed call does arrive');
+    });
+  });
+
+  test('TL7: an attach refused and the record put back leaves the kept file; when the owner changes the record, the next run notes the new one in a new file and asks a new yes', () =>
+    launchScenario(before, async ({ where, state, launch }) => {
+      state.attachRefused = true;
+      const q = await launch();
+      const refused = await launch(['--confirm', codeOf(q)]);
+      assert.equal(refused.code, 1, refused.out);
+      assert.ok(!existsSync(pendingOf(where)));
+      const first = keptFiles(where);
+      assert.equal(first.length, 1);
+      // The owner changes the record; the stub no longer refuses the attach.
+      state.attachRefused = false;
+      state.dns.find((x) => x.name === HOST && x.type === 'A').content = '192.0.2.77';
+      await new Promise((r) => setTimeout(r, 1100)); // a new second, so a new file name
+      const q2 = await launch();
+      assert.equal(q2.code, 3, q2.out);
+      assert.notEqual(codeOf(q2), codeOf(q), 'the record is another, so the code is another');
+      assert.match(q2.out, /"content": "192\.0\.2\.77"/);
+      const r = await launch(['--confirm', codeOf(q2)]);
+      assert.equal(r.code, 0, r.out);
+      const all = keptFiles(where);
+      assert.equal(all.length, 2, 'a new file, the first one kept');
+      assert.equal(all[0], first[0]);
+      assert.equal(JSON.parse(readFileSync(path.join(RUN_DIR_OF(where), all[0]), 'utf8')).record.content, '192.0.2.10');
+      assert.equal(JSON.parse(readFileSync(path.join(RUN_DIR_OF(where), all[1]), 'utf8')).record.content, '192.0.2.77');
+    }, site));
+
+  test('TL8: the put-back refused after a refused attach: exit 1, the whole record and the way by hand are printed, and the next run prints them again', () =>
+    launchScenario(before, async ({ where, state, launch }) => {
+      state.attachRefused = true;
+      state.refuse['POST dns'] = 500;
+      const q = await launch();
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 1, r.out);
+      for (const want of ['"type": "A"', `"name": "${HOST}"`, '"content": "192.0.2.10"', '"proxied": false', '"ttl": 1', '"comment": null', '"tags": []', '"settings": {}', 'DNS → Records → Add record']) {
+        assert.ok(r.out.includes(want), `${want}\n${r.out}`);
+      }
+      assert.ok(existsSync(pendingOf(where)), 'pending.json stays until the host has a record');
+      assert.equal(keptFiles(where).length, 1);
+      state.refuse = {};
+      const again = await launch();
+      assert.match(again.out, /A launch stopped after it deleted the record of lenas-backstube\.example, and the host has no record\./);
+      assert.match(again.out, /"content": "192\.0\.2\.10"/);
+      assert.match(again.out, /DNS → Records → Add record/);
+    }, site));
+});
+
+// ---------------------------------------------------------------- step 7 of a launch: found by the live NEL test (2026-11-13)
+
+// Cloudflare's own answer for a zone whose response header ruleset exists and holds no rule: no `rules` key
+// at all (kit 6e8e98c8's live test, id made up).
+const EMPTY_RULESET = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'response-header-ruleset', 'cloudflare-api-v4-empty-response-header-ruleset-2026-11-13.json'), 'utf8'));
+
+describe('TL: step 7 of a launch, as the live NEL test found it', { concurrency: true }, () => {
+  test('TL9: a zone whose response header ruleset holds no rule gets the NEL rule added, and the run ends with 4, not a crash', () =>
+    launchScenario((h) => Object.assign(attachHost(launchState(h)), { siteSendsNel: true, ruleset: clone(EMPTY_RULESET.result) }), async ({ api, state, launch }) => {
+      assert.equal('rules' in EMPTY_RULESET.result, false, 'by hand: the capture has no rules key');
+      const q = await launch();
+      assert.equal(q.code, 3, q.out);
+      const r = await launch(['--confirm', codeOf(q)]);
+      assert.equal(r.code, 4, r.out);
+      assert.doesNotMatch(r.out, /TypeError|Cannot read properties/);
+      assert.match(r.out, /Added the rule "Remove NEL headers"\./);
+      assert.match(r.out, /Waiting for the NEL rule to take effect\. .* Status 4\./);
+      assert.deepEqual(writesOf(api).map((e) => `${e.method} ${e.path}`), [`POST /zones/${ZONE.id}/rulesets/${EMPTY_RULESET.result.id}/rules`]);
+      assert.deepEqual(writesOf(api)[0].body, { action: 'rewrite', expression: 'true', description: 'Remove NEL headers', action_parameters: { headers: { NEL: { operation: 'remove' }, 'Report-To': { operation: 'remove' } } }, enabled: true });
+      assert.deepEqual(state.ruleset.rules.map((x) => x.description), ['Remove NEL headers']);
+    }));
+
+  test('TL10: a 522 from the domain\'s build.txt right after the attach ends the run with 4 and writes nothing; a 404 there is still a failure', () =>
+    launchScenario((h) => Object.assign(attachHost(launchState(h)), { siteBuildStatus: 522 }), async ({ api, state, launch }) => {
+      const r = await launch();
+      assert.equal(r.code, 4, r.out);
+      assert.match(r.out, /is attached but its build did not answer yet: no build\.txt \(522\)\./);
+      assert.match(r.out, /again in a few minutes\. If it still answers like this after about ten minutes, look at the Worker's logs and its latest deployment\. Status 4\./);
+      assert.equal(writesOf(api).length, 0, 'nothing is written while waiting');
+      state.siteBuildStatus = 404;
+      const gone = await launch();
+      assert.equal(gone.code, 1, gone.out);
+      assert.match(gone.out, /the check of its build is not ok: no build\.txt \(404\)/);
+    }));
+});

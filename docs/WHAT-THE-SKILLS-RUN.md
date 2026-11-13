@@ -207,18 +207,41 @@ an "Email Tap" event there, as a click on an email address does.
 
 - **`new-website`** creates the site folder (in the folder you confirm), runs `git init`,
   `npm create astro@latest`, copies the templates and 29 skills into the site, and runs the
-  build and tests. For Cloudflare it uses `npx wrangler pages project create` and
-  `npx wrangler pages deploy` with a token you make, or `npx wrangler login`. Its
+  build and tests. For Cloudflare it uses `npm run deploy:preview` and
+  `npm run deploy:live` (the site's `scripts/deploy.sh`, which builds the site and runs
+  `wrangler preview` or `wrangler deploy`) with a token you make, or `npx wrangler login`. A site still on Pages uses
+  `npx wrangler pages project create` and `npx wrangler pages deploy`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
   settings; it needs no token. With `--site` it also reads the Wrangler files in your site's folder. It also sends requests that carry the names of AI crawlers
   (GPTBot, ClaudeBot and others) to your own domain, to see whether Cloudflare lets them in.
   Its `scripts/cloudflare-setup.mjs` changes your Cloudflare account through Cloudflare's API,
-  with a short-lived token you make: it creates the Pages project or uses the one connected
-  to your repository, starts its first build, changes your domain's settings from the
-  Cloudflare checklist, and writes the verification records you give it. It changes nothing
-  until you have said yes to the list it prints, and it deletes nothing. It runs `git` to read
-  your repository's branches and `src/config.ts`, and asks your domain's nameservers whether
-  a record it wrote is there. It sends your domain no request. The `SETUP.md` it puts in
+  with a short-lived token you make: it reads the Worker connected to your repository,
+  changes your domain's settings from the Cloudflare checklist, and writes the verification
+  records you give it; on launch day it also attaches your domain to the Worker. It changes
+  nothing until you have said yes to the list it prints. The one thing it deletes is the old DNS
+  record of each host it attaches, after that yes (Cloudflare refuses to attach a domain over an
+  existing record); it saves the record first in `setup-run/`, a folder in your site, and puts
+  the record back if the attach fails. On launch day it also writes a commit on your branch
+  that adds the domain route to the Worker's config, and does not push it. It runs `git` to
+  read your repository's branches and `src/config.ts`, and asks your domain's nameservers
+  whether a record it wrote is there. Until launch day it sends your domain no request; on
+  launch day it runs the site check against the domain (a few requests, including the AI-crawler ones).
+  Its `scripts/move-to-workers.mjs` is for moving a live site's domain from its Pages project
+  to its Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
+  short-lived token you make, from `CLOUDFLARE_API_TOKEN` or from the site's `.dev.vars`, which
+  it reads only if git ignores that file. It reads your zone and its DNS records, the Pages
+  project and the Worker's domains through Cloudflare's API; the repository's branches and
+  checks on GitHub; and your site's own pages. Once a run has found that `origin` is on GitHub,
+  it writes a status page to `move-run/`, a folder in your site; it puts a `.gitignore` holding
+  `*` there if there is none, and stops if git tracks a file in it. Runs other than `check` also
+  keep the move's state (see "Writes outside your site's folder"). `record` builds the live
+  branch's newest commit with `npm ci` (or `npm install`) and `npm run build`, in a copy under
+  `move-run/`. When the Workers config's routes need changing, `move` and `undo` write a commit
+  on your branch that sets or takes them out, and do not push it. Only `move --confirm` and
+  `undo --confirm`, after your yes to the question they print, send Cloudflare changes: `move`
+  asks it to delete each host's Pages domain and its DNS record and to attach the host to the
+  Worker; `undo` asks for the reverse.
+  The `SETUP.md` it puts in
   your site also has `gh` commands that change your GitHub repository's settings:
   `gh repo edit --delete-branch-on-merge` (a merged pull request's branch is deleted), and two
   `gh api -X PUT` calls that switch on Dependabot alerts and Dependabot security updates
@@ -241,7 +264,9 @@ an "Email Tap" event there, as a click on an email address does.
   each launch report's Markdown in `docs/launch/` into an HTML page beside it. That script reads
   and writes only those files and makes no network call. For a site that replaces an older one,
   the assistant reads the old site's public `sitemap.xml`; at the live re-check it reads
-  the new site's live pages, only once its production build is Active. It measures speed the way
+  the new site's live pages, only once its production build is Active, and runs
+  `check_live_analytics.py`, which fetches the live home page once, with a throwaway query, and reads
+  `src/config.ts` (it writes nothing). It measures speed the way
   `website-qa` does (Lighthouse, see that skill). It also starts the site's local preview to read the
   console, and stops it again, and keeps the test output in a scratch file while it reads it.
 - **`facts-check`** runs `facts_check.py`, which reads your site's public pages and its
@@ -324,7 +349,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 
 | Who | Used by | Key or sign-in | Reads or sends |
 |---|---|---|---|
-| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix) | your git and `gh` sign-in | reads, and sends your site's code when pushing; changes the repository's settings when the `SETUP.md` or team-setup commands run (see "Skills that run scripts"); a fix proposal's pull request carries search figures if the repository is private, and in a public one only if you have said yes (the assistant asks once) |
+| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix), `move-to-workers.mjs` (`git ls-remote`, and `gh api`, or GitHub's API with no sign-in, for branches and checks) | your git and `gh` sign-in | reads, and sends your site's code when pushing; changes the repository's settings when the `SETUP.md` or team-setup commands run (see "Skills that run scripts"); a fix proposal's pull request carries search figures if the repository is private, and in a public one only if you have said yes (the assistant asks once) |
 | GitHub release downloads | `npm create croftweaver` | none | reads `croftweaver.zip` and its `SHA256SUMS` from the newest release |
 | npm registry | `npm install`, `npm ci`, `npx`, `npm create astro` | none | reads packages |
 | Playwright's download servers | `npx playwright install chromium` | none | reads the test browser |
@@ -332,22 +357,23 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | chatgpt.com, antigravity.google, ollama.com | the `curl … \| sh` install lines in `independent-review`'s setup guide, if you use them | none | reads the installers |
 | croftweaver.com | `new-website`'s footer credit step, only if you say yes | none | reads the badge code from `/partner-assets` and the badge files |
 | An image service you choose | `image`, if you use one | your own key | sends your image prompts |
-| Cloudflare | `wrangler` (deploy, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
-| Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Pages projects; after your yes, creates or changes the project, starts a build, and writes zone settings, Bot Management and DNS records |
+| Cloudflare | `wrangler` (`deploy`, `preview`; on a Pages site `pages deploy`, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
+| Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Worker; after your yes, attaches the domain to the Worker, deletes the host's old DNS record (saved first), and writes zone settings, Bot Management and DNS records |
+| Cloudflare's API | `move-to-workers.mjs` | an API token you make, ending within a week | reads your zone, its DNS records, the Pages project, its builds and the Worker's domains; after your yes, asks it to move each host between the Pages project and the Worker, deleting or writing its DNS record |
 | Your domain's nameservers | `cloudflare-setup.mjs` | none | asks whether a record it wrote is served |
 | Google Search Console | `search-console-insights` (`gsc_query.py`, `search_report.py`, `insights.py`) | your own Google sign-in, scope `webmasters.readonly` | reads only; asks for clicks, impressions and positions |
 | Bing Webmaster | `bing_query.py` | your `BING_API_KEY` | reads only |
 | Serper or SerpApi | `serp_check.py` | your `SERPER_API_KEY` or `SERPAPI_KEY` | sends a keyword, country and language; reads search results |
 | OpenRouter, or Gemini, OpenAI, Anthropic, Perplexity directly | the weekly AI check (`geo_check.py`) | your own key for each (`GEO_…_API_KEY`) | sends the questions you confirmed, one of which names your business; reads the answers |
 | SerpApi (Google's AI answers) | `geo_check.py`, only if you switch it on | your `SERPAPI_KEY` | sends the same questions |
-| Your own site's pages | `geo_check.py` (the home page), the weekly search report (pages a fix changed) | none | reads them; the report follows redirects only on your own domain |
+| Your own site's pages | `geo_check.py` (the home page), the weekly search report (pages a fix changed), `move-to-workers.mjs` (the built pages and `/build.txt`, on each host and on the Worker's version address) | none | reads them; the report follows redirects only on your own domain |
 | OpenAI (through the Codex app) | `independent-review` | your Codex sign-in | sends the plan or code change |
 | ollama.com | `independent-review` | your `OLLAMA_API_KEY` or `ollama signin` | sends the plan or code change |
 | melious.ai | `independent-review`, only when a model is named for it | your `MELIOUS_API_KEY` | sends the plan or code change |
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
 | Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs`, `website-launch-check` (the old site's sitemap and, to measure speed, its pages in a relaunch; the live site at the re-check) | none | reads only |
 | docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
-| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. In server mode the site's Cloudflare Function sends instead, from Cloudflare: per page view the page address, the referrer, the visitor's user agent and IP; per email tap the event name and the page (measured in a trial, 2026-10-15), plus the visitor's user agent and IP (read from the code). The contact form's button is not counted then |
+| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. |
 
 Some details:
 
@@ -367,8 +393,7 @@ Some details:
 - **The built site**, apart from the optional analytics script, loads no fonts, scripts
   or styles from other servers. Its security header (`public/_headers`) allows scripts only
   from the site itself, and from the analytics address you set once you switch analytics
-  on: the starter ships with it off. Analytics run only on the live site, not on previews. In analytics
-  server mode no analytics script loads at all.
+  on: the starter ships with it off. Analytics run only on the live site, not on previews.
 
 ## Telemetry
 
@@ -427,6 +452,7 @@ with its own terms.
 | `skills-before-croftweaver-…` next to the skills folder | `npm create croftweaver` | when the skills folder held folders it did not recognise | move them back |
 | `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/` with `ai-check.lock`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
 | `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour; a re-install at the same day and hour keeps the site's minute if no other site uses it, and with all twelve taken the site shares :00) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
+| `~/.config/croftweaver/moves/<zone>/<owner-repo>/` (`state.json`, and a `lock` while a run is going) | `move-to-workers.mjs` | runs other than `check` | delete the folder once the move is done and you will not undo |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
@@ -455,9 +481,9 @@ the new release no longer has.
 | melious.ai key | `MELIOUS_API_KEY`, or `~/.config/reviewers/melious.env` (the setup guide says to make it readable only by you) |
 | ollama.com key | `OLLAMA_API_KEY` |
 | Codex, Antigravity, GitHub, Cloudflare sign-ins | each tool's own login |
-| Cloudflare API token | an environment variable for the session (Wrangler 4.151.0 read a token from the shell and not from `.dev.vars`, tested 2026-10-14); the guide asks for a narrow token that expires in about a week |
+| Cloudflare API token | an environment variable for the session (Wrangler 4.151.0 read a token from the shell and not from `.dev.vars`, tested 2026-10-14); the guide asks for a narrow token that expires in about a week; `move-to-workers.mjs` reads `CLOUDFLARE_API_TOKEN` from the environment, else from the site's `.dev.vars`, and refuses a `.dev.vars` that git tracks or does not ignore |
 
-All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
+All of these live outside the site's folder, except a token you put in `.dev.vars`. The site's `.gitignore` also excludes `.env`,
 `.env.*` (but not `.env.example`), `.dev.vars`, `.wrangler/` and, at the site's top level,
 `client_secret*.json` and `token.json`, in case a copy lands there, and `analytics/`, where
 the reports are kept. The review tool passes

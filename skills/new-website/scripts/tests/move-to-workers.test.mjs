@@ -15,7 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMPTY_BODY, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
+import { EMPTY_BODY, ENABLED_LINE, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -59,7 +59,7 @@ function makeSite({ files = {}, prodBranch = 'production' } = {}) {
   git(work, 'init', '-q');
   git(work, 'checkout', '-q', '-b', prodBranch === 'main' ? 'main' : 'production');
   const all = {
-    'src/config.ts': `export const SITE = { name: 'Lenas Backstube' };\nexport const PROD_BRANCH = '${prodBranch}';\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n`,
+    'src/config.ts': `export const SITE = { name: 'Lenas Backstube' };\nexport const PROD_BRANCH = '${prodBranch}';\nexport const USE_ANALYTICS = false;\nexport const analytics = {\n  mode: 'script' as 'script' | 'server',\n};\n`,
     'workers.jsonc': `{\n  // The Worker that serves the built site\n  "name": "${WORKER}",\n  "compatibility_date": "2026-01-01",\n  "assets": { "directory": "./dist" },\n}\n`,
     'wrangler.toml': 'name = "lenas-backstube"\npages_build_output_dir = "dist"\n',
     'package.json': JSON.stringify({ name: 'lenas-backstube', private: true, scripts: { build: 'node build.mjs' } }),
@@ -427,6 +427,137 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     const r = await run('https://lenas-backstube.example', accountOnly());
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('Stopped: Cloudflare lists DNS Edit for this token in 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
+  });
+});
+
+// Stage 1's fifth gap: with analytics on, an enabled: line that reads CF_PAGES_BRANCH and no other
+// variable counts nothing on Workers Builds. A line that also reads another variable passes, by the
+// maintainer's decision: a site deployed by its own command reads its own variable there.
+describe('1b: the analytics enabled: line at stage 1', () => {
+  const OLD = 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH,';
+  const site = (on, line) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\nexport const USE_ANALYTICS = ${on};\nexport const ANALYTICS = {\n  mode: 'script',\n  ${line}\n};\n` } });
+  const config = (body) => makeSite({ files: { 'src/config.ts': `export const PROD_BRANCH = 'production';\n${body}` } });
+  const GAP = /^Stopped: Analytics is on, but the enabled: line in src\/config\.ts at [0-9a-f]{7} reads only CF_PAGES_BRANCH\. Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so the Worker's pages would count nothing\. Use the 0\.35 line: "enabled: USE_ANALYTICS && \(process\.env\.CF_PAGES_BRANCH \?\? process\.env\.WORKERS_CI_BRANCH\) === PROD_BRANCH,"/m;
+  test('the line the script advises is the starter\'s own', () => {
+    const starter = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'src', 'config.ts'), 'utf8');
+    assert.ok(starter.split('\n').some((l) => l.trim() === ENABLED_LINE), ENABLED_LINE);
+  });
+  test('analytics on with the 0.35 line: no gap', async () => {
+    const r = await scenario({ site: site(true, ENABLED_LINE) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  // A real site deployed by its own command: no USE_ANALYTICS (so on), and a line that reads a second variable.
+  test('a live site\'s own line that reads a variable of its own build: no gap', async () => {
+    const r = await scenario({ site: config("export const ANALYTICS = {\n  enabled: process.env.CF_PAGES_BRANCH === 'production' || process.env.WORKER_LIVE_BUILD === '1',\n  mode: 'script',\n} as const;\n") }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  for (const [what, line] of [['the old CF_PAGES_BRANCH-only line', OLD],
+    ['the old line with the other variable named in a // comment', `${OLD} // process.env.WORKERS_CI_BRANCH`],
+    ['the old line with the other variable in a // comment right after the comma', `${OLD}// process.env.WORKERS_CI_BRANCH`],
+    ['the old line, and another property that reads a variable', `${OLD}\n  scriptHost: process.env.ANALYTICS_HOST,`],
+    ['the old line, and a quoted property that reads a variable', `${OLD}\n  'scriptHost': process.env.ANALYTICS_HOST,`],
+    ['the old line over two lines', 'enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,']]) {
+    test(`analytics on with ${what}: check lists the gap`, async () => {
+      const r = await scenario({ site: site(true, line) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, GAP);
+    });
+  }
+  test('analytics off with the old line: no gap', async () => {
+    const r = await scenario({ site: site(false, OLD) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('a USE_ANALYTICS line the script cannot read is refused, not guessed', async () => {
+    const r = await scenario({ site: config('export const USE_ANALYTICS = !!process.env.X;\n') }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
+  });
+  // The script reads lines, so a block comment outside strings and // comments is refused: it could hide a line or the end of one.
+  for (const [what, body] of [
+    ['a declaration in a block comment beside a multi-line one', `/*\nexport const USE_ANALYTICS = false;\n*/\nexport const USE_ANALYTICS =\n  true;\nexport const ANALYTICS = {\n  ${OLD}\n};\n`],
+    ['the other variable named in a block comment', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  ${OLD} /* process.env.WORKERS_CI_BRANCH */\n};\n`],
+    ['a block comment right after a name', `export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH/* process.env.WORKERS_CI_BRANCH */,\n};\n`]]) {
+    test(`${what}: refused, not read`, async () => {
+      const r = await scenario({ site: config(body) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, /holds a block comment \(\/\* … \*\/\)\. The script reads the file line by line/);
+    });
+  }
+  test('a /* on a // line is part of that comment: read, not refused', async () => {
+    const r = await scenario({ site: config(`// Start with /*\nexport const USE_ANALYTICS = true;\n// End with */\nexport const ANALYTICS = {\n  ${OLD}\n};\n`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
+  for (const [what, line] of [['a second property on the enabled: line', `${OLD} scriptHost: process.env.ANALYTICS_HOST,`],
+    ['a template string in the enabled: line', 'enabled: USE_ANALYTICS && `${process.env.CF_PAGES_BRANCH}` === PROD_BRANCH,'],
+    ['process.env text inside a template part', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === `${"process.env.UNRELATED".slice(0, 0)}production`,'],
+    ['a variable read with brackets', "enabled: USE_ANALYTICS && process.env['CF_PAGES_BRANCH'] === PROD_BRANCH,"],
+    ['a variable read with ?.', 'enabled: USE_ANALYTICS && process.env?.CF_PAGES_BRANCH === PROD_BRANCH,'],
+    ['an escaped letter in the variable name', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BR\\u0041NCH === PROD_BRANCH,'],
+    ['a regex that names the other variable', 'enabled: USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH && !/process.env.WORKERS_CI_BRANCH/.test(PROD_BRANCH),']]) {
+    test(`${what}: refused, not read`, async () => {
+      const r = await scenario({ site: site(true, line) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, /that the script can read: alone on its line, with no template string, no slash, no backslash, and each variable read as process\.env\.NAME/);
+    });
+  }
+  test('a declaration inside a string continued with a backslash is no declaration', async () => {
+    const r = await scenario({ site: config("export const NOTE = 'x\\\nexport const USE_ANALYTICS = false; // \\\n';\nexport const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
+  test('a quote in a // comment opens no string that hides a block comment', async () => {
+    const r = await scenario({ site: config("// '\\\n/* \\\n// '\nexport const USE_ANALYTICS = false;\n*/\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a block comment/);
+  });
+  test('a template string continued with a backslash is over more than one line: refused', async () => {
+    const r = await scenario({ site: config("export const EXAMPLE = `\\\nexport const USE_ANALYTICS = false;\\\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line/);
+  });
+  test('a template string inside another template\'s ${…} is refused, not read', async () => {
+    const r = await scenario({ site: config("export const NOTE = `${`\nexport const USE_ANALYTICS = false;\n`}`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line, or one inside another's \$\{…\}/);
+  });
+  test('a ...spread in the ANALYTICS object is refused, not read', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n  ...legacy,`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /with no \.\.\.spread and one line that starts with "enabled:"/);
+  });
+  test('a template string over more than one line is refused, not read', async () => {
+    const r = await scenario({ site: config("export const EXAMPLE = `\nexport const USE_ANALYTICS = false;\n`;\nexport let USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /holds a template string \(`…`\) over more than one line/);
+  });
+  test('one-line template strings elsewhere, as real sites have them, are read', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const ORG_ID = \`\${SITE.url}/#organization\`;\nexport const X = {`) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('a /* inside a path string is no block comment', async () => {
+    const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const IMAGE_PATH = '/images/*';\nexport const X = {`) }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+  });
+  test('the 0.35 line in another object does not stand in for the ANALYTICS one', async () => {
+    const r = await scenario({ site: site(true, `${OLD}\n};\nexport const BANNER = {\n  ${ENABLED_LINE}`) }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+  });
+  test('a second ANALYTICS declaration is refused', async () => {
+    const r = await scenario({ site: config("export const USE_ANALYTICS = true;\nexport const ANALYTICS = {\n  " + ENABLED_LINE + "\n};\nexport const ANALYTICS = {\n  " + OLD + "\n};\n") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /has no single "export const ANALYTICS = \{" object/);
+  });
+  // A site made before the switch has no USE_ANALYTICS and counts as on; the advised line names it.
+  test('a site made before the switch is told to add USE_ANALYTICS too, and passes once it has both', async () => {
+    const before = (extra, line) => config(`${extra}export const ANALYTICS = {\n  mode: 'script',\n  ${line}\n};\n`);
+    const r = await scenario({ site: before('', 'enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,') }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, GAP);
+    assert.match(r.text, /so also add the line "export const USE_ANALYTICS = true;" above it\./);
+    const fixed = await scenario({ site: before('export const USE_ANALYTICS = true;\n', ENABLED_LINE) }).go(['check']);
+    assert.equal(fixed.code, 0, fixed.text);
   });
 });
 
@@ -1626,6 +1757,11 @@ describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\
     const worker = redirect({ t: null, h: EMPTY_BODY, hd: { nel: 'present', 'report-to': 'present' } });
     const known = compare({ '/r': redirect() }, { '/r': worker }, OPT);
     assert.deepEqual(known.map((d) => `${d.field} ${d.known ? 'known' : 'UNKNOWN'}`).sort(), ['body known', 'header nel known', 'header report-to known', 'media type known']);
+    // Each header gets its own reason: a report-to alone is not called a nel header, and a nel is not called a report-to.
+    const reason = (hd, field) => compare({ '/r': redirect() }, { '/r': redirect({ hd }) }, OPT).find((d) => d.field === field).known;
+    assert.match(reason({ nel: '{"max_age":0}', 'report-to': null }, 'header nel'), /carries a nel header .*public\/_headers/);
+    assert.match(reason({ nel: null, 'report-to': 'present' }, 'header report-to'), /adds a report-to header/);
+    assert.doesNotMatch(reason({ nel: null, 'report-to': 'present' }, 'header report-to'), /nel header/);
     // The platform did not change (after an undo): a redirect body is not excused.
     assert.ok(compare({ '/r': redirect() }, { '/r': worker }, { ...OPT, change: false, onVersion: false }).every((d) => !d.known));
     // On the domain NEL is a failure: after a move the zone's setting must still be what it was.
@@ -3020,5 +3156,105 @@ describe('the time-limit stop names its call and, while reading addresses, how m
     assert.equal(r.code, 4, r.text);
     assert.ok(r.text.includes('and stopped while waiting on GitHub (gh api).'), r.text);
     assert.ok(!r.text.includes(process.execPath), 'the stand-in program was named');
+  });
+});
+
+describe('content-type in _headers: the Worker may drop charset=utf-8, nothing else', () => {
+  const CAP = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'move-content-type', 'capture-record-2026-11-11-move-to-workers-7ef2f232.json'), 'utf8'));
+  const ON_VERSION = { change: true, onVersion: true, expect: 'c' };
+  const ctype = (diffs) => diffs.filter((d) => d.field === 'header content-type');
+
+  test('the real record: six content-type differences, each known with its reason, no other unknown', () => {
+    const diffs = compare(CAP['lenas-backstube.example'], CAP.version, ON_VERSION);
+    // By hand: the redirect, both HTML pages, llms.txt, the CSS and the JS file differ; the
+    // app-site-association file is application/json on both sides.
+    const rows = ctype(diffs).map((d) => [d.path, d.known]).sort();
+    assert.deepEqual(rows.map(([p]) => p), ['/about', '/about/', '/croftweaver-move-check-no-such-page', '/css/style.css', '/js/cta.js', '/llms.txt']);
+    const why = Object.fromEntries(rows);
+    assert.equal(why['/about/'], 'Pages sends a short text with a redirect; the Worker sends none');
+    assert.equal(why['/js/cta.js'], 'text/javascript where Pages sends application/javascript');
+    for (const p of ['/about', '/llms.txt', '/css/style.css', '/croftweaver-move-check-no-such-page']) assert.equal(why[p], 'the Worker sends the same media type without charset=utf-8', p);
+    assert.deepEqual(diffs.filter((d) => !d.known), [], 'the whole record is accepted');
+  });
+
+  test('a redirect whose Pages type carries a quote or a second charset is not excused', () => {
+    const redirect = (type) => ({ s: 301, t: 'text/plain', l: '/b', h: pagesRedirectBody('/b'), hd: { 'content-type': type } });
+    const worker = { s: 301, t: null, l: '/b', h: EMPTY_BODY, hd: { 'content-type': null } };
+    const known = (type) => ctype(compare({ '/a': redirect(type) }, { '/a': worker }, ON_VERSION)).map((d) => !!d.known);
+    assert.deepEqual(known('text/plain;charset=UTF-8'), [true], 'the captured shape');
+    assert.deepEqual(known('text/plain'), [true]);
+    assert.deepEqual(known('text/plain; charset=iso-8859-1'), [false], 'only the captured charset is dropped');
+    assert.deepEqual(known('text/plain; foo=bar'), [false]);
+    assert.deepEqual(known('text/plain; note="a; b"'), [false]);
+    assert.deepEqual(known('text/plain; charset="utf-8'), [false]);
+    assert.deepEqual(known('text/plain; charset=utf-8; charset=iso-8859-1'), [false]);
+  });
+
+  test('the same record with the platform unchanged: every content-type difference is unknown', () => {
+    const diffs = compare(CAP['lenas-backstube.example'], CAP.version, { ...ON_VERSION, change: false });
+    assert.equal(ctype(diffs).length, 6);
+    assert.ok(ctype(diffs).every((d) => !d.known), 'without a platform change nothing is excused');
+  });
+
+  test('a charset the Worker drops is known only when it is utf-8 and the rest of the header is the same', () => {
+    const one = (x, y) => ctype(compare({ '/p': { s: 200, t: 'x', l: null, h: 'aa', hd: { 'content-type': x } } }, { '/p': { s: 200, t: 'x', l: null, h: 'aa', hd: { 'content-type': y } } }, ON_VERSION)).map((d) => !!d.known);
+    assert.deepEqual(one('text/html; charset=utf-8', 'text/html'), [true]);
+    assert.deepEqual(one('Text/HTML;Charset = UTF-8', 'text/html'), [true], 'any case and spacing');
+    assert.deepEqual(one('text/html; charset="utf-8"', 'text/html'), [false], 'a quoted value is refused, not parsed');
+    assert.deepEqual(one('text/html; note="a; b"; charset=utf-8', 'text/html; note="a;b"'), [false]);
+    assert.deepEqual(one('text/html; foo="a; charset=utf-8"', 'text/html; foo="a'), [false]);
+    assert.deepEqual(one('text/html; charset=utf-8; charset=iso-8859-1', 'text/html; charset=iso-8859-1'), [false], 'a second charset is refused');
+    assert.deepEqual(one('text/plain;charset=UTF-8', null), [false], 'a lost header is known only for a redirect: see the capture');
+    assert.deepEqual(one(null, 'text/html; foo="a"'), [false]);
+    assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript; charset=utf-8'), [true], 'the JS rule keeps the parameters');
+    assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript'), [true]);
+    assert.deepEqual(one('application/javascript; charset=utf-8', 'text/javascript; charset=iso-8859-1'), [false]);
+    assert.deepEqual(one('multipart/form-data; boundary=abc', 'multipart/form-data'), [false], 'another parameter is not excused');
+    assert.deepEqual(one('multipart/form-data; boundary=abc; charset=utf-8', 'multipart/form-data'), [false], 'the boundary goes with the charset');
+    assert.deepEqual(one('multipart/form-data; boundary=abc; charset=utf-8', 'multipart/form-data; boundary=abc'), [true]);
+    assert.deepEqual(one('text/html; charset=iso-8859-1', 'text/html'), [false], 'only utf-8');
+    assert.deepEqual(one('text/html; charset=utf-8', 'text/html; charset=iso-8859-1'), [false], 'a changed charset');
+    assert.deepEqual(one('text/html', 'text/html; charset=utf-8'), [false], 'a charset the Worker adds');
+    assert.deepEqual(one('text/html; charset=utf-8', 'application/json'), [false], 'another media type');
+    assert.deepEqual(one('text/html; charset=utf-8', 'application/json; charset=utf-8'), [false]);
+    assert.deepEqual(one('text/html', null), [false], 'a lost header, which is not a redirect');
+    assert.deepEqual(one('application/javascript', 'text/javascript'), [true]);
+    assert.deepEqual(one('application/javascript', 'text/css'), [false]);
+    assert.deepEqual(one('text/html', 'text/javascript'), [false], 'the JS rule is for application/javascript only');
+    assert.deepEqual(one(null, 'text/html'), [false], 'a type the Worker adds');
+    assert.deepEqual(one('multipart/form-data; boundary=abc', 'multipart/form-data;boundary=abc'), [false], 'spacing alone is not a dropped charset');
+    assert.deepEqual(one('text/javascript', 'application/javascript'), [false], 'the JS rule runs one way');
+  });
+
+  // The entry point: record and after run compare() on a site whose _headers names Content-Type.
+  const named = { 'site/_headers': '/*\n  X-Frame-Options: DENY\n  Content-Type: text/html\n' };
+  const page = (type) => ({ status: 200, headers: { 'content-type': type, 'x-frame-options': 'DENY', 'access-control-allow-origin': '*' }, body: '<h1>Lena\'s Backstube</h1>' });
+  const noCors = (r) => { delete r.headers['access-control-allow-origin']; return r; };
+  const kit = (over = {}) => scenario({ site: makeSite({ files: named }), world: { domainNoNel: true, captured: { pages: { '/': page('text/html; charset=utf-8') }, ...over } } });
+
+  test('record: Pages and the Worker differ only in charset, redirect text and JS type: nothing is unknown', async () => {
+    const s = kit({ version: { '/': noCors(page('text/html')) } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, /, 0 unknown\./);
+  });
+
+  test('after: the Worker on the domain drops the charset, and the move is accepted', async () => {
+    const s = kit({ version: { '/': noCors(page('text/html')) }, worker: { '/': noCors(page('text/html')) } });
+    assert.equal((await recordDone(s)).code, 0, s.text());
+    const q = await s.go(['move']);
+    assert.equal((await s.go(['move', '--confirm', codeOf(q)])).code, 0, s.text());
+    s.push();
+    s.w.pagesCommit = s.w.workerCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    const r = await s.go(['after']);
+    assert.equal(r.code, 0, r.text);
+    assert.doesNotMatch(r.text, /unknown:/);
+  });
+
+  test('record: a real content-type change stays unknown', async () => {
+    const s = kit({ version: { '/': noCors(page('application/json')) } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /unknown: \S+\/ header content-type: text\/html; charset=utf-8 ≠ application\/json/);
   });
 });

@@ -1,0 +1,48 @@
+{
+ "capture": "R04-002",
+ "request": {
+  "method": "GET",
+  "path": "/accounts/c0ffee00000000000000000000000001/workers/scripts/lenas-backstube/deployments",
+  "body": null
+ },
+ "status": 200,
+ "response": {
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+   "deployments": [
+    {
+     "id": "d0000001-0000-4000-8000-000000000000",
+     "source": "wrangler",
+     "strategy": "percentage",
+     "annotations": {
+      "workers/triggered_by": "deployment"
+     },
+     "versions": [
+      {
+       "version_id": "d0000002-0000-4000-8000-000000000000",
+       "percentage": 100
+      }
+     ],
+     "created_on": "2026-11-11T06:44:25.840628Z"
+    },
+    {
+     "id": "d0000003-0000-4000-8000-000000000000",
+     "source": "wrangler",
+     "strategy": "percentage",
+     "annotations": {
+      "workers/triggered_by": "deployment"
+     },
+     "versions": [
+      {
+       "version_id": "d0000004-0000-4000-8000-000000000000",
+       "percentage": 100
+      }
+     ],
+     "created_on": "2026-11-10T16:36:11.385028Z"
+    }
+   ]
+  }
+ }
+}

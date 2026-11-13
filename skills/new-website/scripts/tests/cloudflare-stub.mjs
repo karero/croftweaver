@@ -29,18 +29,41 @@ export const allFixtures = () => files.map((f) => ({ file: f, data: JSON.parse(r
 const copy = (o) => JSON.parse(JSON.stringify(o));
 const answer = (capture) => copy(fixture(capture).response);
 
+// The Workers answers: the cleaned captures of row 0.4 (fixtures/workers-api/, with its README), named
+// by capture number as the others are. The DNS export is MADE (no capture kept its text), as is
+// everything else the code below marks MADE.
+export const WORKERS_FIXTURES = path.join(HERE, 'fixtures', 'workers-api');
+const workersFiles = readdirSync(WORKERS_FIXTURES).filter((f) => f.endsWith('.json') && f !== 'allowed-values.json');
+export function workersFixture(capture) {
+  const f = workersFiles.find((x) => x.startsWith(`${capture}-`));
+  if (!f) throw new Error(`no workers fixture ${capture}`);
+  return JSON.parse(readFileSync(path.join(WORKERS_FIXTURES, f), 'utf8'));
+}
+export const allWorkersFixtures = () => workersFiles.map((f) => ({ file: f, data: JSON.parse(readFileSync(path.join(WORKERS_FIXTURES, f), 'utf8')) }));
+const wanswer = (capture) => copy(workersFixture(capture).response);
+
 // The made-up values of the scenarios: the bakery's account, zone and repository.
 export const TOKEN = 'lena-made-up-test-token-not-a-real-one-0000';
 export const ACCOUNT = { id: 'c0ffee00000000000000000000000001', name: "Lena's Account" };
 export const ZONE = { id: 'c0ffee00000000000000000000000002', name: 'lenas-backstube.example' };
 export const OWNER = 'lena-example';
 export const REPO = 'lenas-backstube';
+// The Worker's own name (wrangler.jsonc), the account's workers.dev name, and a version of the Worker.
+export const WORKER = 'lenas-backstube';
+export const WORKERS_DEV = 'lenas-backstube';
+export const VERSION = 'd0000099-0000-4000-8000-000000000000';
+export const versionHost = (id = VERSION, worker = WORKER) => `${id.slice(0, 8)}-${worker}.${WORKERS_DEV}.workers.dev`;
 
 let serial = 0;
 const newUuid = () => `e${String(++serial).padStart(7, '0')}-0000-4000-8000-000000000000`;
 const newId = () => `e0ffee${String(++serial).padStart(26, '0')}`;
 
 // ---------------------------------------------------------------- the things the stub holds
+
+// A Worker as the stub holds it: `sources`, newest first, are the sources of its deployments (R04-002:
+// wrangler; R04-004: dash_template); the newest is one version at 100%; `serves` is the first line of
+// the build.txt its version link answers, or null (404).
+export const worker = (over = {}) => ({ sources: ['wrangler'], versionId: VERSION, serves: null, ...over });
 
 export function zone(over = {}) {
   const z = copy(fixture('T1-002').response.result[0]);
@@ -136,11 +159,14 @@ export function freshState(over = {}) {
     dns: [],
     projects: [],
     deployments: {},
+    workers: {}, // Worker name → worker(): none is "missing" (404, code 10007)
+    workerDomains: [], // the domains attached to Workers, as Cloudflare lists them (R04-005)
+    workersDev: WORKERS_DEV, // the account's workers.dev name
     heads: {}, // branch → commit: what the deployment call builds
     domains: {}, // project → the custom domains attached to it, with their status
     ruleset: null, // the zone's ruleset for the response header phase, or none
     refuse: {}, // "<METHOD> <route>" → status
-    drop: {}, // "<METHOD> <route>" → 'reset' (MADE: the connection is dropped) or 'silent' (MADE: never answered)
+    drop: {}, // "<METHOD> <route>" → 'reset' (MADE: the connection is dropped) 'silent' (MADE: never answered) or 'lost' (MADE: applied, then never answered)
     delayMs: 0,
     perPage: { zones: 50, projects: 10, deployments: 25 },
     ...over,
@@ -156,13 +182,20 @@ const ROUTES = [
   ['PATCH', /^\/zones\/([^/]+)\/settings\/([a-z_]+)$/, 'setting'],
   ['GET', /^\/zones\/([^/]+)\/bot_management$/, 'bot'],
   ['PUT', /^\/zones\/([^/]+)\/bot_management$/, 'bot'],
+  ['GET', /^\/zones\/([^/]+)\/dns_records\/export$/, 'dnsexport'],
   ['GET', /^\/zones\/([^/]+)\/dns_records$/, 'dns'],
   ['POST', /^\/zones\/([^/]+)\/dns_records$/, 'dns'],
   ['GET', /^\/zones\/([^/]+)\/dns_records\/([^/]+)$/, 'record'],
   ['PATCH', /^\/zones\/([^/]+)\/dns_records\/([^/]+)$/, 'record'],
+  ['DELETE', /^\/zones\/([^/]+)\/dns_records\/([^/]+)$/, 'record'],
   ['GET', /^\/zones\/([^/]+)\/rulesets\/phases\/http_response_headers_transform\/entrypoint$/, 'phase'],
   ['PUT', /^\/zones\/([^/]+)\/rulesets\/phases\/http_response_headers_transform\/entrypoint$/, 'phase'],
   ['POST', /^\/zones\/([^/]+)\/rulesets\/([^/]+)\/rules$/, 'rules'],
+  ['GET', /^\/accounts\/([^/]+)\/workers\/scripts\/([^/]+)\/deployments$/, 'wdeployments'],
+  ['GET', /^\/accounts\/([^/]+)\/workers\/subdomain$/, 'wsubdomain'],
+  ['GET', /^\/accounts\/([^/]+)\/workers\/domains$/, 'wdomains'],
+  ['PUT', /^\/accounts\/([^/]+)\/workers\/domains$/, 'wdomains'],
+  ['DELETE', /^\/accounts\/([^/]+)\/workers\/domains\/([^/]+)$/, 'wdomain'],
   ['GET', /^\/accounts\/([^/]+)\/pages\/projects\/([^/]+)\/domains\/([^/]+)$/, 'domain'],
   ['POST', /^\/accounts\/([^/]+)\/pages\/projects\/([^/]+)\/domains$/, 'domains'],
   ['GET', /^\/accounts\/([^/]+)\/pages\/projects$/, 'projects'],
@@ -269,6 +302,71 @@ export function handle(state, method, p, query, body, contentType) {
       b.result = { ...b.result, ...copy(r) };
       return { status: 200, body: b };
     }
+    case 'DELETE record': { // the record is gone; the answer holds its id (R04-008)
+      const i = state.dns.findIndex((x) => x.id === args[1]);
+      if (i < 0) return notFound('record');
+      state.dns.splice(i, 1);
+      const b = wanswer('R04-008');
+      b.result = { id: args[1] };
+      return { status: 200, body: b };
+    }
+    case 'GET dnsexport': {
+      // MADE: BIND text with an SOA line, as the export has one (R04-007's trial saw a 38-line file with
+      // one); `state.exportNoSoa` leaves it out.
+      const z = state.zones[0].name;
+      const lines = [`;; Domain:     ${z}.`, `$ORIGIN ${z}.`];
+      if (!state.exportNoSoa) lines.push(`@\t3600\tIN\tSOA\t${z}. root.${z}. 2050000001 7200 3600 86400 3600`);
+      for (const r of state.dns) lines.push(`${r.name}.\t${r.ttl === 1 ? 300 : r.ttl}\tIN\t${r.type}\t${r.content}`);
+      return { status: 200, text: `${lines.join('\n')}\n` };
+    }
+    case 'GET wsubdomain': {
+      const b = wanswer('R04-001');
+      b.result = { subdomain: state.workersDev };
+      return { status: 200, body: b };
+    }
+    case 'GET wdeployments': {
+      // The Worker's deployments, newest first (R04-002, R04-004); none: 404, code 10007 (R04-003).
+      const w = state.workers[args[1]];
+      if (!w) return { status: 404, body: wanswer('R04-003') };
+      const b = wanswer('R04-002');
+      const one = b.result.deployments[0];
+      b.result.deployments = w.sources.map((source, i) => ({ ...copy(one), id: `d00000${String(10 + i).padStart(2, '0')}-0000-4000-8000-000000000000`, source,
+        versions: w.versions && i === 0 ? copy(w.versions) : [{ version_id: i === 0 ? w.versionId : `d00001${String(10 + i).padStart(2, '0')}-0000-4000-8000-000000000000`, percentage: 100 }] }));
+      return { status: 200, body: b };
+    }
+    case 'GET wdomains': {
+      const b = wanswer('R04-005');
+      const service = query.get('service');
+      b.result = state.workerDomains.filter((d) => !service || d.service === service).map(copy);
+      return { status: 200, body: b };
+    }
+    case 'PUT wdomains': {
+      // An address record at the host (A, AAAA or CNAME) is refused: 409, code 100117 (R04-007). The
+      // attach then makes the Worker's own read-only AAAA record (R04-009, R04-010). MADE: a body with
+      // other keys is refused with 400.
+      const keys = Object.keys(body ?? {}).sort().join();
+      if (keys !== 'environment,hostname,service,zone_id') return { status: 400, body: { success: false, errors: [{ code: 8000000, message: 'MADE: the stub takes the four fields' }], messages: [], result: null } };
+      if (state.attachRefused || state.dns.some((r) => r.name === body.hostname && ['A', 'AAAA', 'CNAME'].includes(r.type))) { // attachRefused: MADE, a record the owner added just before
+        const b = wanswer('R04-007');
+        b.errors[0].message = b.errors[0].message.replace(/'[^']*'/, `'${body.hostname}'`);
+        return { status: 409, body: b };
+      }
+      const b = wanswer('R04-009');
+      const id = `ba5e${'0'.repeat(26)}${String(++serial).padStart(10, '0')}`;
+      b.result = { ...b.result, id, hostname: body.hostname, service: body.service, zone_id: body.zone_id, zone_name: state.zones[0].name, environment: body.environment };
+      state.workerDomains = state.workerDomains.filter((d) => d.hostname !== body.hostname);
+      state.workerDomains.push(copy(b.result));
+      const rec = wanswer('R04-010').result[0];
+      state.dns.push({ ...rec, id: newId(), name: body.hostname, meta: { origin_worker_id: id, read_only: true } });
+      return { status: 200, body: b };
+    }
+    case 'DELETE wdomain': { // 204, and Cloudflare's own record goes with it (R04-011)
+      const d = state.workerDomains.find((x) => x.id === args[1]);
+      if (!d) return notFound('domain');
+      state.workerDomains = state.workerDomains.filter((x) => x !== d);
+      state.dns = state.dns.filter((r) => r.meta?.origin_worker_id !== d.id);
+      return { status: 204, text: '' };
+    }
     case 'GET phase': // none: 404, code 10003 (T2-018); else the ruleset (T2-025)
       if (!state.ruleset) return { status: 404, body: answer('T2-018') };
       return { status: 200, body: Object.assign(answer('T2-025'), { result: copy(state.ruleset) }) };
@@ -280,7 +378,7 @@ export function handle(state, method, p, query, body, contentType) {
     }
     case 'POST rules': { // one rule appended; the rules there keep their ids and versions (T2-024)
       if (!state.ruleset || state.ruleset.id !== args[1]) return notFound('ruleset');
-      state.ruleset.rules.push({ ...copy(body), id: newId(), version: '1' });
+      (state.ruleset.rules ??= []).push({ ...copy(body), id: newId(), version: '1' }); // an empty ruleset has no `rules` key
       state.ruleset.version = String(Number(state.ruleset.version) + 1);
       return { status: 200, body: Object.assign(answer('T2-024'), { result: copy(state.ruleset) }) };
     }
@@ -424,9 +522,18 @@ export async function startApi(state) {
       if (drop === 'silent') return;
       let out;
       if (req.headers.authorization !== `Bearer ${TOKEN}`) out = { status: 401, body: answer('T1-014') };
-      else out = handle(state, req.method, p, url.searchParams, body, req.headers['content-type']);
+      else {
+        state.before?.(entry); // a test looks at the world just before the call is handled
+        out = handle(state, req.method, p, url.searchParams, body, req.headers['content-type']);
+      }
       entry.status = out.status;
       if (state.after) state.after(entry);
+      if (drop === 'lost') return;
+      if (out.text !== undefined) { // plain text: the DNS export; a 204 has no body
+        res.writeHead(out.status, out.status === 204 ? {} : { 'content-type': 'text/plain' });
+        res.end(out.text);
+        return;
+      }
       res.writeHead(out.status, { 'content-type': 'application/json' });
       res.end(JSON.stringify(out.body));
     });
@@ -477,9 +584,10 @@ export async function startSites(state, project = REPO) {
       if (state.settings.always_use_https === 'on') { res.writeHead(301, { ...headers, location: `https://${siteHost}/` }); res.end(); return; }
     }
     if (url.pathname === '/build.txt') {
+      if (state.siteBuildStatus) { res.writeHead(state.siteBuildStatus, headers); res.end(); return; } // MADE: the edge's own error, as a status
       if (state.siteServes === null) { res.writeHead(404, headers); res.end(); return; }
       res.writeHead(200, { ...headers, 'content-type': 'text/plain' });
-      res.end(`${state.siteServes ?? liveBuild()?.deployment_trigger?.metadata?.commit_hash ?? 'dev'}
+      res.end(`${state.siteServes ?? state.workers?.[WORKER]?.serves ?? liveBuild()?.deployment_trigger?.metadata?.commit_hash ?? 'dev'}
 `);
       return;
     }
@@ -511,6 +619,30 @@ Sitemap: https://${siteHost}/sitemap-index.xml
     site: `http://${siteHost}`, pages: `http://127.0.0.1:${pages.address().port}`, asked,
     close: () => Promise.all([site, pages].map((x) => { x.closeAllConnections?.(); return new Promise((r) => x.close(r)); })),
   };
+}
+
+// The Worker's workers.dev side on 127.0.0.1, one server for both names, told apart by the Host
+// header as Cloudflare does: the address <worker>.<account>.workers.dev is off (404, error code 1042,
+// as the kit's capture of 2026-11-06 shows), and a version link serves the site with noindex, and
+// /build.txt as `state.workers[name].serves` says (404 when null). `state.previewDown` drops every
+// connection. Each request is recorded.
+export async function startPreview(state, name = WORKER) {
+  const asked = [];
+  const server = http.createServer((req, res) => {
+    const host = (req.headers.host ?? '').split(':')[0];
+    asked.push({ host, url: req.url });
+    if (state.previewDown) { req.socket.destroy(); return; }
+    if (host.split('.')[0] === name) { res.writeHead(404, { 'content-type': 'text/plain; charset=UTF-8' }); res.end('error code: 1042\n'); return; }
+    const serves = state.workers[name]?.serves ?? null;
+    if (req.url === '/build.txt') {
+      if (serves) { res.writeHead(200, { 'content-type': 'text/plain', 'x-robots-tag': 'noindex' }); res.end(`${serves}\n`); } else { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('not found'); }
+      return;
+    }
+    res.writeHead(200, { 'content-type': 'text/html', 'x-robots-tag': 'noindex' });
+    res.end('<!doctype html><title>Lenas Backstube</title><p>Brot</p>');
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return { origin: `http://127.0.0.1:${server.address().port}`, asked, close: () => { server.closeAllConnections?.(); return new Promise((r) => server.close(r)); } };
 }
 
 // ---------------------------------------------------------------- the nameservers

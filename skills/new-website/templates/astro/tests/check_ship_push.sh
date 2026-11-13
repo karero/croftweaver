@@ -30,6 +30,9 @@
 # the last line for a *.pages.dev address and for a real domain, in both modes. Its L cases check
 # what the run says about the commits that go live: the list, and the lines after the push.
 #
+# Its W cases check what ship.sh does with a Workers config: before launch (no custom_domain route)
+# it says the change was sent and is checked at launch; a route, a Pages site and a site mid-move keep the live check.
+#
 # Its T cases drive ship.sh under `script`, a fake terminal, to check the question that asks for a y
 # before anything is published; they run only where SHIP_TEST_TTY=1 is set (the toolkit's CI).
 #
@@ -37,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.26   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.31   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -922,6 +925,52 @@ printf "// site: 'https://old.example'\nexport default { site: 'https://new.exam
 want_line1="$two_sites"; expect twosite1 1 0 "not for a network reason"
 printf "/* site: 'https://old.example' */ export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
 want_line1="$two_sites"; expect twosite2 1 0 "not for a network reason"
+# The only address, in a comment at the end of a line: named as commented, not as the site.
+mark onecomment noorigin
+printf "export default { site: process.env.SITE_URL }; // site: 'https://old.example'\n" > "$work/cwd/astro.config.mjs"
+one_comment="→ Site: (the only site: address in astro.config.mjs is in a comment, or ship can't tell — check which one is live) · GitHub repo: $repo_fallback"
+want_line1="$one_comment"; expect onecomment 1 0 "not for a network reason"
+# A line inside a /* */ block that does not start with `*` is in a comment too.
+mark blockbody noorigin
+printf "/*\nsite: 'https://old.example',\n*/\nexport default { site: process.env.SITE_URL };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect blockbody 1 0 "not for a network reason"
+# A comment closed before the key, and a URL in a string before it, leave the key live.
+mark closedcomment noorigin; mark urlbefore noorigin
+printf "export default { /* production */ site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect closedcomment 1 0 "not for a network reason"
+printf "export default { integrations: [x({ endpoint: 'https://api.example' })], site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect urlbefore 1 0 "not for a network reason"
+# A comment straight after a key's colon is still a comment; a key split over two lines is not
+# counted, so the only counted address, the commented one, is named as commented.
+mark colonslash noorigin; mark splitkey noorigin; mark splitlive noorigin
+printf "const live = 'https://live.example';\nexport default { trailingSlash:// site: 'https://old.example'\n'always', site: live };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect colonslash 1 0 "not for a network reason"
+printf "// site: 'https://old.example'\nexport default {\n  site:\n    'https://new.example'\n};\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect splitkey 1 0 "not for a network reason"
+printf "export default { site: 'https://new.example' };\n/*\n  site:\n    'https://old.example'\n*/\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect splitlive 1 0 "not for a network reason"
+# A key named http before a comment; a scheme or a /* inside a string; a comment line just above.
+mark httpkey noorigin; mark instring noorigin; mark commentabove noorigin
+printf "export default { http:// site: 'https://old.example'\ntrue, site: live };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect httpkey 1 0 "not for a network reason"
+printf "const c = ['https://*.cdn.example', 'ws://a']; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect instring 1 0 "not for a network reason"
+printf "// the live address\nsite: 'https://new.example'\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect commentabove 1 0 "not for a network reason"
+# A / that opens no comment (here a regex holding a quote, which could hide a real /*) stops the
+# scan: nothing is checked. A string continued past a line's end with \ stays a string.
+mark regexquote noorigin; mark continued noorigin
+printf "const re = /'/; /* ' site: 'https://old.example' */\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect regexquote 1 0 "not for a network reason"
+printf "const c = 'prefix\\\\\n/*'; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect continued 1 0 "not for a network reason"
+# The same in double quotes, and over a CRLF line end, where a string the scan wrongly closed
+# would hide the /* and name the commented address.
+mark dqcontinued noorigin; mark crlfcontinued noorigin
+printf "const c = \"prefix\\\\\n/*\"; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect dqcontinued 1 0 "not for a network reason"
+printf "const c = 'x\\\\\r\n'; /* ' site: 'https://old.example' */\r\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect crlfcontinued 1 0 "not for a network reason"
 rm -f "$work/cwd/astro.config.mjs"
 
 # --- no line in ship.sh may replace its shell --------------------------------------
@@ -996,13 +1045,44 @@ fi
 exit 0
 NPM
   # Stub curl: the live site serves whatever GitHub's production is, as if Cloudflare built it
-  # at once; or an old build, for the case stopped during the live check.
+  # at once; or an old build (the stall cases, and the case stopped during the live check); or a
+  # 404 page or another status, for a site address that serves no build.txt; or no reply at all.
   cat > "$G/bin/curl" <<'CURL'
 #!/bin/sh
 : > "$SHIP_T_MARKS/curl"
-if [ -n "${SHIP_T_STALE:-}" ]; then echo 0000000000000000000000000000000000000000; exit 0; fi
-git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production
+# Both the probe of a Workers site's address and the live check ask for the status (-w): the
+# answer is the body, a newline and the code. SHIP_T_NOSITE: a 404 page; SHIP_T_CODE: that status
+# with no body; SHIP_T_STALE: a 200 with another commit; SHIP_T_CURL_RC: curl itself fails with
+# that exit status, after printing code 000 as curl does when nothing answered, or SHIP_T_CODE
+# when an answer came and curl failed on it; SHIP_T_BODY (may be empty): a 200 with that body.
+if [ -n "${SHIP_T_CURL_RC:-}" ]; then printf '\n%s' "${SHIP_T_CODE:-000}"; exit "$SHIP_T_CURL_RC"; fi
+case " $* " in *" -w "*) ;; *) echo "STUB: curl without -w: $*" >&2; exit 2 ;; esac
+if [ -n "${SHIP_T_NOSITE:-}" ]; then printf '<html>not found</html>\n404'; exit 0; fi
+if [ -n "${SHIP_T_CODE:-}" ]; then printf '\n%s' "$SHIP_T_CODE"; exit 0; fi
+if [ -n "${SHIP_T_STALE:-}" ]; then printf '0000000000000000000000000000000000000000\n200'; exit 0; fi
+if [ -n "${SHIP_T_BODY+set}" ]; then printf '%s\n200' "$SHIP_T_BODY"; exit 0; fi
+printf '%s\n200' "$(git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production)"
 CURL
+  # Preloaded into node (NODE_OPTIONS) by the cases that need DNS to answer: the lookup fails with
+  # the code in SHIP_T_DNS (ENOTFOUND is "no such host"; EAI_AGAIN a resolver that did not answer).
+  # The DNS server's own answers: SHIP_T_RESOLVE fails the A and AAAA queries with that code, or
+  # ADDR gives an address (SHIP_T_RESOLVE6, if set, for AAAA alone); github.com gets an address
+  # unless SHIP_T_GITHUB names a failure. SHIP_T_DNS_SERVER instead sends the real queries to that
+  # server (a closed port: offline).
+  cat > "$G/dns-stub.cjs" <<'DNS'
+const P = require("dns").promises, R = P.Resolver;
+const fail = (code) => { const e = new Error("stub"); e.code = code; return e; };
+P.lookup = async () => { throw fail(process.env.SHIP_T_DNS); };
+P.Resolver = class extends R {
+  constructor(o) { super(o); if (process.env.SHIP_T_DNS_SERVER) this.setServers([process.env.SHIP_T_DNS_SERVER]); }
+  answer(c, real) { if (c === "ADDR") return Promise.resolve(["192.0.2.7"]); return c ? Promise.reject(fail(c)) : real(); }
+  resolve4(h) {
+    const c = h === "github.com" && !process.env.SHIP_T_DNS_SERVER ? process.env.SHIP_T_GITHUB || "ADDR" : process.env.SHIP_T_RESOLVE;
+    return this.answer(c, () => super.resolve4(h));
+  }
+  resolve6(h) { return this.answer(process.env.SHIP_T_RESOLVE6 || process.env.SHIP_T_RESOLVE, () => super.resolve6(h)); }
+};
+DNS
   # Stub sleep: no waiting, unless a case needs the live check to be waiting when it signals.
   cat > "$G/bin/sleep" <<'SLEEP'
 #!/bin/sh
@@ -1739,6 +1819,69 @@ GATE
   want "the stall message does not say a push happened" lacks "Pushed OK"
   want "... it says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), and after 6 minutes the"
 
+  # --- L3c–L3f: the stall message says what the live check got (GenAI-Wednesday.de#87) ---------
+  # L3c: a 200 with another commit is another build, and the Cloudflare steps follow. L3d: no look
+  # got a reply (curl's code 000: a sandbox with no way to the site): no OLD build, no Cloudflare,
+  # the owner is sent to build.txt. L3e: a refused connection, the same. L3f: an HTTP error.
+  after_verify() { LC_ALL=C awk '/^→ Verifying the live site/ { f = 1 } f' "$L"; }
+  verdict_lacks() { ! grep -qF -- "$1" <<<"$(after_verify)"; }
+  fixture l3c; advance 1; m="$(gh main)"
+  run_ship l3c SHIP_T_STALE=1; exits 1
+  want "a 200 with another commit is another build, named by its id" has "⚠ Pushed OK, but after 6 minutes the live site still serves another build (000000000000), most likely the OLD build."
+  want "... and the Cloudflare steps follow" has "Cloudflare dashboard → Workers & Pages"
+  fixture l3d; advance 1; m="$(gh main)"
+  run_ship l3d SHIP_T_CURL_RC=6; exits 1
+  want "production is GitHub's main: the push landed" eq "$(gh production)" "$m"
+  want "no reply: says the push went out" has "⚠ Pushed OK (GitHub's production is now ${m:0:12}), but https://ship-test.example.invalid could not be"
+  want "... that this machine could not reach the site" has "reached from this machine: no reply in 6 minutes"
+  want "... so the deploy could not be checked" has "So this could not check the deploy; it does not mean the build failed."
+  want "... and sends the owner to build.txt with the commit id" has "open https://ship-test.example.invalid/build.txt in your browser. It should show"
+  want "... the full commit id on its own line" has "    $m"
+  want "... never claims an OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  fixture l3e
+  run_ship l3e SHIP_T_CURL_RC=7; exits 1
+  want "nothing new and no reply: says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), but https://ship-test.example.invalid could not be"
+  want "... never claims an OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  fixture l3f; advance 1; m="$(gh main)"
+  run_ship l3f SHIP_T_CODE=503; exits 1
+  want "production is GitHub's main: the push landed" eq "$(gh production)" "$m"
+  want "an HTTP error is named, not called an OLD build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its last answer was HTTP 503)."
+  want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare: no look showed another build" verdict_lacks "Cloudflare"
+  want "... it sends the owner to build.txt with the commit id" has "    $m"
+  want "... and asks about a domain not connected yet" has "(Brand-new site whose domain isn't connected yet?"
+
+  # --- L3g–L3j: an answer is an answer, and only a commit id is a build ----------------------
+  # L3g, L3h: a status came back and curl failed on it (a reply cut off, a timeout after the
+  # status line). The site answered, so it is not "could not be reached". L3i, L3j: a 200 whose
+  # body is a page or empty is no build at all, so not an OLD one.
+  fixture l3g; advance 1
+  run_ship l3g SHIP_T_CODE=503 SHIP_T_CURL_RC=18; exits 1
+  want "an answer curl failed on is named with both numbers" has "⚠ Pushed OK, but after 6 minutes the live site still did not show this build (its last answer was HTTP 503, and the request failed: curl exit 18)."
+  want "... the site answered: never 'could not be reached'" lacks "could not be"
+  want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  want "... the deploy is unconfirmed, not failed" has "So this could not confirm the deploy; it does not mean the build failed."
+  fixture l3h; advance 1
+  run_ship l3h SHIP_T_CODE=200 SHIP_T_CURL_RC=28; exits 1
+  want "a 200 that timed out is an answer, and its body is not read" has "the live site still did not show this build (its last answer was HTTP 200, and the request failed: curl exit 28)."
+  want "... never 'could not be reached'" lacks "could not be"
+  want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  fixture l3i; advance 1
+  run_ship l3i 'SHIP_T_BODY=<html>welcome</html>'; exits 1
+  want "a 200 with a page is not a build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its build.txt answered, but not with a commit id)."
+  want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+  want "... and asks about a domain not connected yet" has "(Brand-new site whose domain isn't connected yet?"
+  fixture l3j; advance 1
+  run_ship l3j SHIP_T_BODY=; exits 1
+  want "a 200 with an empty body is not a build" has "the live site still does not serve this build (its build.txt answered, but not with a commit id)."
+  want "... and never says OLD build" lacks "OLD build"
+  want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
+
   # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
   # The clone asks for colour, decorations, the long format and signature lines; one subject holds
   # an escape sequence, one commit is ssh-signed, one subject holds a byte that is not UTF-8. The
@@ -1850,6 +1993,121 @@ export default { site: 'https://ship-test.example.invalid' };"
   want "says why it checks none" has "$many"
   want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show the change."
   want "checks no address" test ! -e "$M/curl"
+  # P8, P9: the only address is in a comment (the real key gone, or set from a variable), so the
+  # build may use another address: checking that one could print LIVE for the wrong site.
+  one_commented="⚠ The only site: address in astro.config.mjs is in a comment, or ship can't tell, so the build may use another one — can't verify the deploy."
+  site_case p8 github https://ship-test.example.invalid "// site: 'https://ship-test.example.invalid'
+export default { site: process.env.SITE_URL };"
+  want "the first line says the only address is in a comment" eq "$(first_line)" "→ Site: (the only site: address in astro.config.mjs is in a comment, or ship can't tell — check which one is live) · GitHub repo: p8/origin"
+  want "says why it checks none" has "$one_commented"
+  want "asks the owner to check it" last_has "Check it yourself in a few minutes: your live URL should show GitHub's main as of the fetch (${m:0:12})."
+  want "checks no address" test ! -e "$M/curl"
+  want "never says LIVE" lacks "✓ LIVE"
+  site_case p9 folder https://ship-test.example.invalid "/**
+ * site: 'https://ship-test.example.invalid'
+ */
+export default {};"
+  want "a line starting with * inside a block comment counts as a comment" has "$one_commented"
+  want "checks no address" test ! -e "$M/curl"
+  want "never says LIVE" lacks "✓ LIVE"
+
+  # --- W1–W19: a Workers config (D17: a .json or .jsonc with `assets` and no pages_build_output_dir) ---
+  # Before launch a Worker has no custom domain, so its site: address serves no build.txt: ship
+  # says the change was sent and is checked at launch, and exits 0 (D31). Anything else keeps the
+  # live check: a route, a Pages site, a Pages wrangler.jsonc, and (W9) a Pages site in a move's
+  # stage 1, which holds a route-less Workers config while its domain still serves a build.
+  # The comment and string cases check the reader: a custom_domain named only in a comment is no route.
+  workers_case() { # <case> <github|folder> <wrangler.jsonc text, or - for none> [VAR=value…]
+    local c="$1" how="$2" text="$3"; shift 3
+    fixture "$c"
+    if [ "$text" != - ]; then printf '%s\n' "$text" > "$S/wrangler.jsonc"; fi
+    git -C "$S" add -A; git -C "$S" commit -q --allow-empty -am "workers config"; git -C "$S" push -q origin main
+    git -C "$C" pull -q --ff-only
+    if [ "$how" = folder ]; then
+      git -C "$C" config --unset ship.fromGitHub
+      find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+      git -C "$C" update-index -q --refresh
+    fi
+    m="$(gh main)"
+    run_ship "$c" ${1+"$@"}
+  }
+  sent="✓ Sent. This Worker has no domain yet (wrangler.jsonc has no custom_domain route), so there is no live address to check; the change is checked at launch."
+  noroute='{ "name": "w", "assets": { "directory": "./dist" } }'
+  workers_case w1 github "$noroute" SHIP_T_NOSITE=1; exits 0
+  want "production is GitHub's main" eq "$(gh production)" "$m"
+  want "the last line says sent, checked at launch" last_starts "$sent"
+  want "never says LIVE" lacks "✓ LIVE"
+  want "the site address was probed once" test -e "$M/curl"
+  workers_case w2 github '{
+  // "custom_domain": true is for launch day
+  /* "routes": [{ "pattern": "x.com", "custom_domain": true }] */
+  "name": "https://a//b", "assets": { "directory": "./dist" }
+}' SHIP_T_NOSITE=1; exits 0
+  want "a custom_domain in a comment or a string with // is no route" last_starts "$sent"
+  workers_case w3 folder "$noroute" SHIP_T_NOSITE=1; exits 0
+  want "a folder's own copy is read too" last_starts "$sent"
+  bad_cfg="✗ The publish went out (GitHub's production is now"
+  workers_case w4 github '{ "name": "w", "assets": { ' SHIP_T_NOSITE=1; exits 1
+  want "production is GitHub's main: the publish went out" eq "$(gh production)" "$m"
+  want "a Wrangler file that does not parse is named, and the live check is not made" has "$bad_cfg ${m:0:12}), but wrangler.jsonc: not JSON with comments"
+  want "... and the run says what it could not tell" has "cannot tell whether the site has its domain yet"
+  workers_case w5 github '{ "name": "w", "assets": { "directory": "./dist" }, }' SHIP_T_NOSITE=1; exits 1
+  want "a trailing comma ends the check with its own message" has "wrangler.jsonc: not JSON with comments (a trailing comma is not allowed)"
+  live="✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch (${m:0:12})"
+  workers_case w6 github '{ "name": "w", "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "ship-test.example.invalid", "custom_domain": true }] }'; exits 0
+  want "after launch the live check runs: a route on one line is a route" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch ($(gh main | cut -c1-12))"
+  workers_case w7 github - ; exits 0
+  want "a Pages site (no Wrangler config) keeps the live check" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
+  workers_case w8 github '{ "name": "p", "pages_build_output_dir": "./dist" }'; exits 0
+  want "a Pages wrangler.jsonc keeps the live check" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
+  workers_case w9 github "$noroute"; exits 0
+  want "a route-less Workers config on a site whose address serves a build is a Pages site mid-move: the live check runs" last_starts "✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main"
+  want "... and not the sent-at-launch line" lacks "$sent"
+  # W10–W19: the probe tells "not served" (sent, checked at launch) from "cannot tell" (stop, exit
+  # 1, run it again), so a network fault on a Pages site mid-move never reads as launch-day quiet.
+  unclear="but ship could not tell whether"
+  workers_case w10 github "$noroute" SHIP_T_CODE=404; exits 0
+  want "an HTTP 404 with no commit in it is not served" last_starts "$sent"
+  workers_case w11 github "$noroute" SHIP_T_CURL_RC=28; exits 1
+  want "production is GitHub's main: the publish went out" eq "$(gh production)" "$m"
+  want "a timeout: ship says it could not tell, and why" has "$unclear"
+  want "... naming curl's exit status" has "curl exit 28"
+  want "... and says to run it again" has "Run npm run ship again"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w12 github "$noroute" SHIP_T_CURL_RC=7; exits 1
+  want "a refused connection is unclear" has "curl exit 7"
+  workers_case w13 github "$noroute" SHIP_T_CURL_RC=35; exits 1
+  want "a TLS fault is unclear" has "curl exit 35"
+  workers_case w14 github "$noroute" SHIP_T_CODE=503; exits 1
+  want "a 5xx is unclear" has "HTTP 503"
+  workers_case w15 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENOTFOUND "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
+  want "the lookup and the DNS server both say no such host: not served" last_starts "$sent"
+  workers_case w15b github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENODATA "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
+  want "a DNS server with no address for the name (ENODATA, as Cloudflare answers) is not served too" last_starts "$sent"
+  # W15c: offline, the system lookup can say "no such host" too; the second query then reaches no
+  # server (a real query to a closed port), and a Pages site mid-move must not read as not served.
+  workers_case w15c github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_DNS_SERVER=127.0.0.1:9 "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "no such host from the lookup alone, with no DNS server answering, is unclear" has "$unclear"
+  want "... naming the second query's failure" has "ENOTFOUND, then the DNS server:"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w15f github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENOTFOUND SHIP_T_GITHUB=ETIMEOUT "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "no such host, but github.com gets no answer either (no server proven to answer): unclear" has "no DNS server answered for github.com: ETIMEOUT"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w15d github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ADDR "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "the DNS server has an address the lookup did not find: unclear" has "the DNS server has an address"
+  workers_case w15e github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENODATA SHIP_T_RESOLVE6=ADDR "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "no A record but an AAAA one is an address: unclear" has "the DNS server has an address"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w16 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=EAI_AGAIN "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
+  want "a resolver that did not answer is unclear" has "EAI_AGAIN"
+  workers_case w17 github "$noroute" SHIP_T_CODE=403; exits 1
+  want "a 403 (a firewall may give it) is unclear, not 'not served'" has "HTTP 403"
+  want "... and is not the sent-at-launch line" lacks "$sent"
+  workers_case w18 github "$noroute" SHIP_T_CODE=429; exits 1
+  want "a 429 is unclear" has "HTTP 429"
+  workers_case w19 github "$noroute" SHIP_T_CODE=410; exits 0
+  want "a 410 is not served" last_starts "$sent"
 
   # --- T1–T8: the question, on a fake terminal (`script`); only where SHIP_TEST_TTY=1 ---------
   # The question needs no `script`, only these cases do: so an owner's push or a site's CI, where
@@ -1953,7 +2211,7 @@ STAND
 real_git_cases
 
 # The ✓ line names only the real-git checks that ran; the reasons for any skipped follow it.
-rg_list="the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, the list of commits that go live,"
+rg_list="the mode that publishes GitHub's main, the last line for a pages.dev address in both modes, what a Workers config says about the domain, the list of commits that go live,"
 if [ -n "$t_ran" ]; then
   rg_list="$rg_list the first line naming the site and repo, and the question on a fake terminal"
 else

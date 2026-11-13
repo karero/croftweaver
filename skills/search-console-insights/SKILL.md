@@ -325,10 +325,10 @@ defaults to `de` (Munich). No key set → it exits cleanly; GSC/Bing are unaffec
 **Provider-agnostic — Serper is today's default, not a hard dependency.** A SERP API is a
 commodity; the script targets the *capability*, not one vendor, and free tiers shift over
 time — so pick whatever's free/cheap when you set up:
-- **Serper** — current default; ~2,500 free searches, then ~$0.30/1K.
+- **Serper** — current default; ~2,500 free searches, then about 0.30 US dollars per 1,000.
 - **SerpApi** — ~250 free/month; very clean parsing (already supported: `--provider serpapi`).
 - **Others** (Scrape.do, Decodo, HasData) — similar free credits; **DataForSEO** is the paid
-  backbone (no free tier, ~$0.0006/SERP) once you outgrow the free ones.
+  backbone (no free tier, about 0.0006 US dollars per SERP) once you outgrow the free ones.
 
 To add a provider: drop a `--provider <name>` branch into `serp_check.py` (its own API call →
 the same `{position, title, link, snippet}` shape) and read its key from the `.env`. If your

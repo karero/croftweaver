@@ -8,7 +8,10 @@ file into a handed-off repo so the receiving party can get running too.
 ## 1. Accounts to create (human action — Claude can't do these)
 
 1. **GitHub — a PRIVATE account/repo.** https://github.com/signup. Client work stays in
-   **private** repos. Run `gh auth login` (see tools) so pushes need no password.
+   **private** repos. Run `gh auth login` (see tools) so pushes need no password. Not needed
+   if you publish from your own computer with no GitHub connection (path A in
+   `CLOUDFLARE_FIRST_DEPLOY.md`): that path then has no push-to-deploy, and `deploy:live` needs
+   only a saved commit in the site's folder.
    **Recommended: protect the account.** The account and the website in it are yours, and
    whoever gets into the account can change or delete the site. At
    https://github.com/settings/security, turn on **two-factor authentication** and add a
@@ -16,9 +19,11 @@ file into a handed-off repo so the receiving party can get running too.
    both steps at once). Optional unless GitHub asks for it: GitHub requires two-factor only
    for some accounts, and tells those by email and on the site.
 2. **Cloudflare account.** https://dash.cloudflare.com/sign-up. Hosts the site
-   (Pages) and, if you move the domain's DNS there, the DNS. The free plan covers a small
-   site. Cloudflare serves plain files free and without limit only while no Function runs,
-   and this site's `functions/_middleware.ts` runs on every request: each page view, image
+   (as a Worker) and, if you move the domain's DNS there, the DNS. The free plan covers a small
+   site. A Worker with no script of its own runs no code for a page or a file, so there is
+   no daily limit to set. **If your site is still on Pages** (made before 0.35):
+   Cloudflare serves plain files free and without limit only while no Function runs, and
+   that site's `functions/_middleware.ts` runs on every request: each page view, image
    and crawler visit counts against the free plan's 100,000 Functions requests a day, shared
    by every Pages Function and Worker in the account and reset at midnight UTC. After the
    first deploy, set the project's **Settings → Runtime → Fail open / closed** to **Fail
@@ -41,7 +46,7 @@ file into a handed-off repo so the receiving party can get running too.
 brew install node          # JS runtime + npm — runs Astro, the build, the tests
 brew install git           # version control (the deploy = "push to GitHub")
 brew install gh            # GitHub CLI — create repos & push from the terminal
-npm  install -g wrangler   # Cloudflare CLI — local Functions preview & manual deploys
+npm  install -g wrangler   # Cloudflare CLI — only for a site still on Pages (a Worker site has its own copy)
 
 # image optimisation (see website-design-system)
 brew install webp          # cwebp/dwebp — PNG/JPG → WebP
@@ -65,7 +70,7 @@ npx playwright install chromium   # the headless browser the tests drive
 winget install OpenJS.NodeJS.LTS      # Node + npm
 winget install Git.Git                # git
 winget install GitHub.cli             # gh
-npm  install -g wrangler              # Cloudflare CLI
+npm  install -g wrangler              # Cloudflare CLI — only for a site still on Pages
 winget install ImageMagick.ImageMagick # `magick` — convert/resize, incl. WebP & AVIF
 winget install Python.Python.3.13      # Python — runtime for the OG share-card generator
 py -m pip install Pillow               # OG share-card generator (`npm run og`); see og-images skill
@@ -87,13 +92,13 @@ npx playwright install chromium        # per machine, once
 > site's `package.json` makes npm warn when its Node is older than that. After installing, and
 > if Node is already on your computer, run `node --version` and update it the way you
 > installed it when it is older. The repo's
-> `.nvmrc` pins 24 for local + Cloudflare Pages. On **npm ≥11.16**, `npm install` warns
+> `.nvmrc` pins 24 for local + Cloudflare's builds. On **npm ≥11.16**, `npm install` warns
 > "packages have install scripts not yet covered" for scripts it hasn't been told to trust
 > — per npm's own docs this is currently advisory only (the scripts still run; a future
-> npm release will start blocking them). The starter's `package.json` already approves the
-> one package that still has an install script, `fsevents` (macOS only), so there is
-> nothing to approve. (Until 7.3.8, Astro installed `esbuild`, which needed approving; since
-> 0.35, sharp ships prebuilt binaries and needs nothing.)
+> npm release will start blocking them). The starter's `package.json` already decides the
+> three packages that have an install script: `fsevents` (macOS only) is approved, `esbuild`
+> and `workerd` (both pulled in by Wrangler) are denied, and Wrangler's deploy works without
+> their scripts, so there is nothing to approve.
 > Approvals are pinned to the exact version reviewed (npm's own default, by design) — if a
 > later update brings a package with an install script, the warning names it: approve it
 > with `npm approve-scripts <name>`.
@@ -104,7 +109,7 @@ npx playwright install chromium        # per machine, once
 | node / npm | Runs Astro, builds the site, runs the test suite. |
 | git | Version control; the deploy is "push to GitHub". |
 | gh | Create the GitHub repo + push without a browser. |
-| wrangler | Cloudflare CLI — `wrangler pages dev` local Functions, manual deploys. |
+| wrangler | Cloudflare CLI — `npm run deploy:preview` and `npm run deploy:live` call it to deploy a Worker by command; on a site still on Pages, `wrangler pages dev` (local Functions) and `wrangler pages deploy`. |
 | @playwright/test | Drives a real browser for the tests (per-project dev dep). |
 | @axe-core/playwright | WCAG accessibility scanner inside Playwright (per-project dev dep). |
 | cwebp / avifenc | Convert raster images to WebP / AVIF. |

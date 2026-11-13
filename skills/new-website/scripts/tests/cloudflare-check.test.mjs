@@ -104,7 +104,7 @@ test('a clean site: everything an outside request can judge is ok, the rest says
       assert.equal(r.by[id].state, 'ok', `${id}: ${r.by[id].detail}`);
     }
     for (const id of ['build-settings', 'fail-open', 'tls', 'hints', 'ai']) assert.equal(r.by[id].state, 'hand', id);
-    assert.match(r.by.ai.detail, /none of 6 AI crawler names was refused/);
+    assert.match(r.by.ai.detail, /none of 7 AI crawler names was refused/);
     assert.equal(r.by.hsts.state, 'look', 'HSTS is not on yet, which is not a failure');
     assert.equal(r.by.pages.state, 'skip');
     assert.equal(r.by.canonical.state, 'skip');
@@ -613,8 +613,25 @@ test('an AI crawler name that is refused is a "look" that names it and its statu
     const r = await check(s.origin);
     assert.equal(r.by.ai.state, 'look');
     assert.match(r.by.ai.detail, /ClaudeBot \(403\)/);
+    assert.doesNotMatch(r.by.ai.detail, /Claude-SearchBot/);
     assert.equal(r.by.domain.state, 'ok', 'a browser-like request is not refused');
   }));
+
+test('Claude-SearchBot, Anthropic\'s search crawler, is tried on its own: a refusal names it and not ClaudeBot', () => {
+  const seen = [];
+  return withSite((req, res, url) => {
+    const ua = req.headers['user-agent'] || '';
+    if (isHome(url)) seen.push(ua);
+    if (isHome(url) && ua.includes('Claude-SearchBot/')) { send(res, 403, 'text/html', '<p>Blocked</p>'); return true; }
+    return false;
+  }, async (s) => {
+    const r = await check(s.origin);
+    assert.equal(r.by.ai.state, 'look');
+    assert.match(r.by.ai.detail, /Claude-SearchBot \(403\)/);
+    assert.doesNotMatch(r.by.ai.detail, /ClaudeBot/);
+    assert.ok(seen.includes('Mozilla/5.0 (compatible; Claude-SearchBot/1.0)'), `user agents seen: ${seen.join(' | ')}`);
+  });
+});
 
 test('a refused GPTBot, or a server error for OAI-SearchBot: one line that names Training as one possible cause, and Block\'s cost', async () => {
   for (const [name, status] of [['GPTBot', 403], ['OAI-SearchBot', 503]]) {
@@ -636,7 +653,7 @@ test('crawler requests that got no answer are not "none refused": a look, and ex
   }, async (s) => {
     const r = await check(s.origin);
     assert.equal(r.by.ai.state, 'look');
-    assert.match(r.by.ai.detail, /2 of 6 crawler requests got no answer \(PerplexityBot, CCBot\)/);
+    assert.match(r.by.ai.detail, /2 of 7 crawler requests got no answer \(PerplexityBot, CCBot\)/);
     assert.equal(r.parsed.unanswered.length, 2);
     assert.equal(r.code, 1);
   }));

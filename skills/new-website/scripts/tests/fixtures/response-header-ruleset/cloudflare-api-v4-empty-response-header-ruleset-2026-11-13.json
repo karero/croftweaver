@@ -1,0 +1,14 @@
+{
+ "result": {
+  "description": "",
+  "id": "0123456789abcdef0123456789abcdef",
+  "kind": "zone",
+  "last_updated": "2026-11-13T12:32:35.345397Z",
+  "name": "default",
+  "phase": "http_response_headers_transform",
+  "version": "4"
+ },
+ "success": true,
+ "errors": [],
+ "messages": []
+}

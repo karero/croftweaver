@@ -1,0 +1,30 @@
+{
+ "capture": "R04-009",
+ "request": {
+  "method": "PUT",
+  "path": "/accounts/c0ffee00000000000000000000000001/workers/domains",
+  "body": {
+   "hostname": "lenas-backstube.example",
+   "service": "lenas-backstube",
+   "zone_id": "c0ffee00000000000000000000000002",
+   "environment": "production"
+  }
+ },
+ "status": 200,
+ "response": {
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+   "id": "ba5e000000000000000000000000000000000004",
+   "zone_id": "c0ffee00000000000000000000000002",
+   "zone_name": "lenas-backstube.example",
+   "hostname": "lenas-backstube.example",
+   "service": "lenas-backstube",
+   "environment": "production",
+   "cert_id": "d0000012-0000-4000-8000-000000000000",
+   "previews_enabled": false,
+   "enabled": true
+  }
+ }
+}

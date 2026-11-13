@@ -158,51 +158,40 @@ jobs:
           host="$host" perl -pi -e 'if (/^\s*Content-Security-Policy:/) { s/(\bscript-src [^;]*)/$1 $ENV{host}/; s/(\bconnect-src [^;]*)/$1 $ENV{host}/ }' public/_headers
           npm run check
           bash tests/check_analytics_gate.sh
+          bash tests/check_deploy.sh
           git checkout -- src/config.ts public/_headers
-      # The same builds in server mode (USE_ANALYTICS = true, ANALYTICS.mode = 'server'):
-      # no script in any, email links to /go/email on the live Pages build only, and the
-      # Workers build refused; _headers needs no analytics host. config.ts is put back
-      # afterwards, so the suite below runs on the default.
-      - name: Analytics in server mode (src/config.ts switched for this step only)
-        run: |
-          sed -i "s/^export const USE_ANALYTICS = false;/export const USE_ANALYTICS = true;/" src/config.ts
-          grep -q "^export const USE_ANALYTICS = true;" src/config.ts
-          sed -i "s/^  mode: 'script' as/  mode: 'server' as/" src/config.ts
-          grep -q "^  mode: 'server' as" src/config.ts
-          npm run check
-          bash tests/check_analytics_gate.sh
-          git checkout -- src/config.ts
-      # functions/go/email.ts answers 400 to a subject over 200 characters, so EmailLink.astro
-      # fails the build instead: the owner learns it from the build, not from a visitor's
-      # broken click on the live site. A preview build (no CF_PAGES_BRANCH) must fail too, and
-      # script mode, where the link is a plain mailto:, must still build. A throwaway page
+      # Analytics server mode left the starter with Pages Functions (a Worker runs none). A site
+      # that still sets it fails the build, with EmailLink's message, instead of shipping an email
+      # link that goes nowhere; the gate says it does not check that mode. A throwaway page
       # carries the link; it and config.ts are put back afterwards.
-      - name: Server mode refuses an email subject over 200 characters at build time
+      - name: Server mode is refused at build time (src/config.ts switched for this step only)
         run: |
+          page=src/pages/server-mode-check.astro
+          out="$RUNNER_TEMP/server-mode-check"
+          printf -- "---\nimport EmailLink from '../components/EmailLink.astro';\n---\n<EmailLink address=\"hello@example.com\" />\n" > "$page"
           sed -i "s/^export const USE_ANALYTICS = false;/export const USE_ANALYTICS = true;/" src/config.ts
-          grep -q "^export const USE_ANALYTICS = true;" src/config.ts
-          page=src/pages/subject-length-check.astro
-          out="$RUNNER_TEMP/subject-check"
-          # subject_page <length>: the page, with one email link whose subject is that long.
-          subject_page() {
-            printf -- "---\nimport EmailLink from '../components/EmailLink.astro';\n---\n<EmailLink address=\"hello@example.com\" subject=\"%s\" />\n" "$(head -c "$1" /dev/zero | tr '\0' a)" > "$page"
-          }
-          build() { env -u CF_PAGES_BRANCH ./node_modules/.bin/astro build --outDir "$out" > "$out.log" 2>&1; }
-          # Script mode: 201 characters build.
-          subject_page 201
-          build || { tail -n 20 "$out.log"; echo "script mode must build with a 201-character subject"; exit 1; }
-          sed -i "s/^  mode: 'script' as/  mode: 'server' as/" src/config.ts
-          grep -q "^  mode: 'server' as" src/config.ts
-          # Server mode: 200 characters build; 201 fail, with EmailLink's message.
-          subject_page 200
-          build || { tail -n 20 "$out.log"; echo "server mode must build with a 200-character subject"; exit 1; }
-          subject_page 201
-          if build; then
-            echo "server mode built with a 201-character subject; EmailLink.astro must fail the build"; exit 1
+          sed -i "s/^  scriptHost:/  mode: 'server',\n  scriptHost:/" src/config.ts
+          grep -q "^  mode: 'server'," src/config.ts || { echo "the mode line did not go in"; exit 1; }
+          if ./node_modules/.bin/astro build --outDir "$out" > "$out.log" 2>&1; then
+            echo "a site in server mode built; EmailLink.astro must refuse it"; exit 1
           fi
-          grep -q "is 201 characters; server mode allows 200" "$out.log" || { tail -n 20 "$out.log"; echo "the build failed, but not with EmailLink's message"; exit 1; }
+          grep -Fq "analytics server mode left the starter in 0.35" "$out.log" || { tail -n 20 "$out.log"; echo "the build failed, but not with EmailLink's message"; exit 1; }
           rm "$page"
+          gate="$(bash tests/check_analytics_gate.sh)" || { printf '%s\n' "$gate"; echo "the gate must exit 0 in server mode"; exit 1; }
+          printf '%s\n' "$gate" | grep -Fq "server mode is Pages-only and left the starter in 0.35" || { printf '%s\n' "$gate"; echo "the gate did not say it skips server mode"; exit 1; }
           git checkout -- src/config.ts
+      # The deploy command and the Worker's config, in a throwaway copy of the starter with its
+      # own git (--dry-run: no Wrangler, no login). Analytics off as shipped here; the step with
+      # analytics on runs it again. With wrangler.jsonc moved aside the starter is a Pages site:
+      # the new spec and the command check skip, say why, and pass.
+      - name: Deploy command, analytics off (tests/check_deploy.sh)
+        run: bash tests/check_deploy.sh
+      - name: A site with no Workers config skips the Worker checks
+        run: |
+          mv wrangler.jsonc "$RUNNER_TEMP/wrangler.jsonc.aside"
+          out="$(bash tests/check_deploy.sh)" || { printf '%s\n' "$out"; echo "check_deploy.sh must pass with no Workers config"; exit 1; }
+          printf '%s\n' "$out" | grep -Fq "this site is on Cloudflare Pages, so there is no deploy command to check. Skipped." || { printf '%s\n' "$out"; echo "check_deploy.sh did not say it skipped"; exit 1; }
+          mv "$RUNNER_TEMP/wrangler.jsonc.aside" wrangler.jsonc
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
       # Email links on the live build as shipped: no tracker there, and a click still asks
@@ -325,6 +314,16 @@ jobs:
       # case skips, so without this step it would first run in a site's pre-push gate.
       # SHIP_TEST_REQUIRE_BASH32 makes a skip of it fail here. /bin first on PATH, so every
       # case runs ship.sh on that bash, as a Mac's `npm run ship` does without Homebrew's.
+      # The same for scripts/deploy.sh and its check: they run on the Mac's bash 3.2 as an
+      # owner's `npm run deploy:live` does. The check needs the starter's own install.
+      - name: Deploy command on the Mac's bash 3.2 (tests/check_deploy.sh)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          npm ci --no-audit --no-fund
+          PATH="/bin:$PATH"
+          echo "bash for every case: $(command -v bash), $(bash -c 'echo "$BASH_VERSION"')"
+          /bin/bash tests/check_deploy.sh
       - name: Publish script on the Mac's bash 3.2 (tests/check_ship_push.sh)
         if: runner.os == 'macOS'
         shell: bash

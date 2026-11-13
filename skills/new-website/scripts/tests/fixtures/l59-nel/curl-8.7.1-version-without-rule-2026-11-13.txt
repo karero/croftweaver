@@ -1,0 +1,28 @@
+# curl 8.7.1, 2026-11-13: the first spike version, its _headers rule only on /b/*, so / has none. NEL report URL signature, cf-ray and the workers.dev subdomain replaced.
+## https://ec36be9c-cw-l59-spike.example-sub.workers.dev/
+HTTP/2 200 
+date: Fri, 13 Nov 2026 08:26:35 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+x-robots-tag: noindex
+x-spike: base
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=REDACTED"}]}
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+## https://ec36be9c-cw-l59-spike.example-sub.workers.dev/b/
+HTTP/2 200 
+date: Fri, 13 Nov 2026 08:26:35 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+x-spike: base
+x-robots-tag: noindex
+nel: {"max_age":0}
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+

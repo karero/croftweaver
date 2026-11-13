@@ -7,7 +7,7 @@
 Croftweaver is a free, open-source suite of website skills: instructions your AI coding
 assistant follows to build and test a site you own. From a short brief it makes a complete
 website — content, mobile-first responsive design, SEO, accessibility checks, schema markup,
-tests, and launch support — on Astro → GitHub → Cloudflare Pages, and its test suites check
+tests, and launch support — on Astro → GitHub → Cloudflare (a Worker; Pages for sites made before 0.35), and its test suites check
 every change by default. After launch, your Search Console data and a weekly check of which AI
 assistants name your site point to the next edit for SEO and GEO (how your site shows up in AI
 answers).
@@ -195,7 +195,7 @@ below is also what the AI assistant runs on your behalf.*
 This repository is the **single source of truth** for the Croftweaver skill suite — an
 orchestrated set of agent skills that build a new website end-to-end (insights →
 positioning → content → SEO/GEO → design → QA → review → launch), on the house stack
-**Astro → GitHub → Cloudflare Pages**.
+**Astro → GitHub → Cloudflare** (a Worker serving static assets; sites made before 0.35 may still be on Pages).
 
 Developed and used with **Claude Code**. The skills are plain `SKILL.md` files, and the
 install guides also cover **Google Antigravity** and **OpenAI Codex**; the suite has been
@@ -311,7 +311,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > to undo an update, `git revert` is equally live. From a zip, re-run
 > `./scripts/install.sh` in a newer unzipped copy. After `npm create croftweaver` the
 > installed skills are copies, not symlinks: run the command again, and it replaces them
-> with the latest release. A site scaffolded from those copies is stamped
+> with the latest release. A skill that is still a working symlink from an earlier
+> `./scripts/install.sh` is left alone and keeps updating from the folder it points to;
+> `npm create croftweaver -- --force` replaces it with a copy. A site scaffolded from those copies is stamped
 > `suite_commit: unknown`, as one scaffolded from a zip is, so `make whats-new` has no
 > baseline for it.
 >
@@ -333,7 +335,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 >
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
 > `AGENTS.md`, `PUBLISHING.md`, `SETUP.md`, `playwright.config.ts`,
-> `functions/_middleware.ts`, `functions/go/email.ts`, `.github/workflows/ci.yml`,
+> `.github/workflows/ci.yml`,
 > `.github/dependabot.yml`, `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
@@ -565,7 +567,7 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   CODEX-TEST.md    testing the suite itself with Codex
   DECISIONS_PENDING.md  repo only, maintainer-internal: open questions on the toolkit itself
   BUGLOG.md             repo only, maintainer-internal: small bugs and follow-ups kept for a later sweep (a few shipped comments name it; read it in the repo)
-  PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
+  PAGES-OR-WORKERS.md   for the kit's maintainer: why new sites are on Workers from 0.35, and what moving the kit from Pages to Workers changes (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 .claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
@@ -618,7 +620,7 @@ team forms:
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
   workflow really starts on its own, blocks direct pushes to `main` (ruleset, or the
-  shipped pre-push hook on a private free-plan repo), connects Cloudflare Pages to GitHub
+  shipped pre-push hook on a private free-plan repo), connects Cloudflare (a Worker, or Pages for an older site) to GitHub
   without the known traps, and sets the collaborators' rights level and who may publish
   live in `AGENTS.md`. Every scaffold already ships the `AGENTS.md` working rules (fetch
   first, pull request instead of a push, never invent facts, the new-page checklist) — this

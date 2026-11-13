@@ -1,12 +1,14 @@
 # AGENTS.md — rules for AI assistants (Codex, Claude Code) working on this site
 
-Website of [SITE_NAME]. Astro, static, GitHub → Cloudflare Pages.
+Website of [SITE_NAME]. Astro, static, GitHub → Cloudflare (a Worker; a site made before 0.35 may still be on Pages, and `PUBLISHING.md` says where the two differ).
 Live: [LIVE_URL] · Preview: [PREVIEW_URL]
 
 <!-- Scaffold note (delete after filling): new-website fills the [BRACKET] slots at
-     scaffold time — SITE_NAME, LIVE_URL, PREVIEW_URL (two-stage: main.<project>.pages.dev;
-     single-stage: "pull-request previews only, <branch>.<project>.pages.dev"; where
-     Cloudflare gave the project another address than its name, the address on its page),
+     scaffold time — SITE_NAME, LIVE_URL, PREVIEW_URL (a Worker: the Preview link of the form
+     https://<prefix>-<worker>.<account>.workers.dev, or "pull-request previews only" on a
+     single-stage site; a site on Pages: two-stage main.<project>.pages.dev, single-stage
+     "pull-request previews only, <branch>.<project>.pages.dev"; where Cloudflare gave the
+     Pages project another address than its name, the address on its page),
      TITLE_SUFFIX + SUFFIX_LENGTH + TITLE_MAX in §6, and keeps ONE publish-model block
      in §2. §5 ships with single-owner defaults; website-team-setup rewrites it
      (collaborators, rights level, merge rule, who publishes). This file stays English
@@ -140,10 +142,10 @@ applies there; instead of steps 2 to 4, only this:
   - No signed-in GitHub CLI, or `gh` cannot reach GitHub: say so and ask the person to
     press the button.
 - **Preview before merging:** once the repo is connected to Cloudflare by git
-  integration (the `new-website` skill's setup script does that, or `website-team-setup`
-  §6 by hand), every pull request gets its own preview address from Cloudflare, listed
+  integration (in the Cloudflare dashboard, as the `new-website` setup script says when it
+  finds no Worker, or by `website-team-setup` §6), every pull request gets its own preview address from Cloudflare, listed
   under the pull request's checks. Look at the change there before merging. Until then
-  (a site uploaded by `wrangler pages deploy`, see `PUBLISHING.md`, "Deploy by command")
+  (a site uploaded by command, with `npm run deploy:live` or, on Pages, `wrangler pages deploy`; see `PUBLISHING.md`, "Deploy by command")
   there is no pull-request preview: check locally with `npm run dev`.
 - **What a merge means** depends on the publish model of this site. Both blocks
   assume the git integration above; on a site deployed by command a merge publishes

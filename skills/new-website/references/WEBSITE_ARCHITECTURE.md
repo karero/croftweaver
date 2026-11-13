@@ -8,9 +8,10 @@ spanning the full static-to-SSR spectrum.
 
 ## TL;DR
 
-> **For a content site up to ~50 pages: Astro (static output) → GitHub → Cloudflare Pages.
+> **For a content site up to ~50 pages: Astro (static output) → GitHub → Cloudflare (a Worker
+> serving static assets; Pages for sites made before 0.35).
 > Clone the static-Astro reference architecture. Stay static until a *specific feature* forces you up
-> a tier — and even then, add only that feature (Pages Functions / server islands), don't
+> a tier — and even then, add only that feature (a Worker script / server islands), don't
 > change frameworks.**
 
 GitHub + Cloudflare is the right backbone — nothing is meaningfully *better* for this class
@@ -52,21 +53,18 @@ case for switching is heavy Next.js SSR → Vercel (no OpenNext friction). The o
 living proof of that tax (`@opennextjs/cloudflare`, `.open-next/worker.js`, dual output modes).
 Astro avoids the tax entirely (first-class CF adapter). **Stay on Cloudflare for content sites.**
 
-**Pages or Workers?** Cloudflare's Pages docs now open with "Start new projects with Workers";
-[Pages](https://developers.cloudflare.com/pages/) is still listed as available on all plans,
-and the docs name no end date (read 2026-10-07). The kit stays on Pages for now. It is written
-for Pages: the middleware's `*.pages.dev` host rules, the `CF_PAGES_*` build variables that
-gate analytics and stamp `build.txt`, and the deploy and preview steps in these docs. And when
-the free plan's daily Functions requests run out, a Pages project can still serve the static
-site ("Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`), whereas a Worker set to run before its static
-files answers 429 instead ([Workers static
-assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)).
-That last reason holds only for a move that keeps code in front of every request, as the
-middleware does. A move without it was tried on one throwaway site on 2026-10-27 and 28 and
-worked, with gaps a plan must settle; the kit itself has not moved. Moving the kit to Workers
-is one decision for the whole kit, not one to make per site. `docs/PAGES-OR-WORKERS.md` in the
-Croftweaver folder weighs it, records the decision of 2026-10-11 to stay on Pages for now, and
-has the trial's results.
+**Pages or Workers?** Decided on 2026-10-28: new sites are Workers from kit 0.35. Cloudflare's
+Pages docs open with "Start new projects with Workers"; [Pages](https://developers.cloudflare.com/pages/)
+is still listed as available on all plans, and the docs name no end date (read 2026-10-07). A
+Worker serving static assets has no daily request limit on static files, so the old reason to
+stay on Pages (a Pages project can still serve the static site after the free plan's daily
+Functions requests run out, "Fail open", `CLOUDFLARE_FIRST_DEPLOY.md`) falls away for a site with
+no script in front of its files ([Workers static
+assets](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)). The
+starter has no middleware: previews carry `noindex` from Cloudflare, and the analytics gate reads the
+Worker build's branch variable (`WORKERS_CI_BRANCH`), and `build.txt` takes its commit from Git. A site made before 0.35 stays on Pages until
+its owner moves it (`CLOUDFLARE_MOVE.md`). `docs/PAGES-OR-WORKERS.md` in the Croftweaver folder
+weighs the choice and has the trial's results.
 
 ---
 
@@ -103,7 +101,7 @@ has the trial's results.
 Walk down the tiers; stop at the first that covers your features. **Going higher than you
 need is the actual mistake.**
 
-### Tier 1 — Static Astro on Cloudflare Pages  ← default, ~90% of sites
+### Tier 1 — Static Astro on a Cloudflare Worker (static assets)  ← default, ~90% of sites
 **Use for:** marketing, info, blog/news, events, docs, portfolio. Content that changes when
 *you* change it, not per-request.
 **Dynamic via:** an email link / a contact form that opens the visitor's own mail program (the
@@ -112,17 +110,19 @@ service (Formspree/Web3Forms; a third party then handles the messages and is nam
 privacy page) / client-side `fetch()` for the odd live number.
 **This is the static-Astro tier.** 50 pages is trivial — Astro builds ~23 pages in ~0.5s; static scales to thousands.
 
-**Cloudflare Pages limits (where it breaks):** 20,000 files/deploy, 25 MiB/file, 500 builds/mo
-(free). → You will *never* hit these at 50 pages. Requests for static files are free and
-unlimited, but only while no Function runs: the kit's `functions/_middleware.ts` runs on
-every request, so a kit site's requests count against Tier 2's Functions limit below (100K a
-day on the free plan; `CLOUDFLARE_FIRST_DEPLOY.md` says what to set for when it runs out).
+**Cloudflare limits (where it breaks):** 20,000 files/deploy, 25 MiB/file (free; from the Workers static
+assets docs, [not re-checked](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)),
+and the free plan's build minutes. → You will *never* hit these at 50 pages. Requests for static
+files are free and unlimited while no script runs in front of them, as in the starter. A site
+still on Pages: its `functions/_middleware.ts` runs on every request, so those requests count
+against Tier 2's Functions limit below (100K a day on the free plan;
+`CLOUDFLARE_FIRST_DEPLOY.md` says what to set for when it runs out).
 
-### Tier 2 — Static Astro + Cloudflare Pages Functions / Server Islands  ← light dynamic
+### Tier 2 — Static Astro + a Worker script (Pages Functions on an older site) / Server Islands  ← light dynamic
 **Use for:** a few server endpoints or per-request fragments — a form that must send through a
 server (no skill builds one; a contact form is Tier 1 above),
 site search, live-stats widget, gated content, webhook receiver, proxy to hide an API key, light A/B.
-**How:** keep the site static; add `functions/*.ts` (Pages Functions) or Astro **server islands**
+**How:** keep the site static; add a Worker script (`main` in `wrangler.jsonc`; `functions/*.ts` on a Pages site) or Astro **server islands**
 for just the dynamic fragment. Add **Workers KV** for tiny state (flags, counters, cached responses).
 
 **Cloudflare Workers/Functions limits (where it breaks):**
@@ -188,23 +188,22 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
 - **`src/config.ts`**: single source of truth — facts, nav, schema metadata, analytics gating
   (`USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH`;
   ships off).
-- **`src/layouts/Base.astro`**: canonical, OG/Twitter, JSON-LD, analytics script (none in
-  analytics server mode, where the Function counts).
+- **`src/layouts/Base.astro`**: canonical, OG/Twitter, JSON-LD, analytics script.
 - **`src/components/`**: `Header`, `Footer`, `PageHero`, `Subnav`, `EmailLink` (build-time obfuscated).
 - **`src/content/`** (if blog/events/team): Content Collections + Zod schema.
 - **`public/_headers`**: CSP, `X-Content-Type-Options` and the other security headers. HSTS is a Cloudflare dashboard setting, not in this file (`docs/CLOUDFLARE-CHECKLIST.md`, section 2).
 - **`public/_redirects`**: legacy → clean-URL 301s.
-- **`functions/_middleware.ts`**: `noindex` the `*.pages.dev` preview deploys; after go-live,
-  301 the project alias `<project>.pages.dev` to the live domain (Production variable
-  `CANONICAL_URL`, see `CLOUDFLARE_FIRST_DEPLOY.md`). In analytics server mode it also
-  sends each live page view to Plausible, and `functions/go/email.ts` counts email taps.
+- **`wrangler.jsonc`**: the Worker: static assets from `dist/`, no script, `workers_dev: false`
+  (no live address until launch), `preview_urls: true`. A site still on Pages has
+  `functions/_middleware.ts` instead: `noindex` for the `*.pages.dev` preview deploys; after
+  go-live, a 301 from the project alias `<project>.pages.dev` to the live domain (Production
+  variable `CANONICAL_URL`, see `CLOUDFLARE_FIRST_DEPLOY.md`).
 - **2-branch deploy:** `main` → Preview (noindex), `production` → live.
 - **Analytics (optional):** Plausible — cookieless; running it without a consent banner is a
   position to have reviewed (see the header of the privacy page) — needs a paid license (from
   €9/mo, https://plausible.io/#pricing). For many small sites, **Google Search Console** alone
   (free) covers search & referral traffic. Add it only if you'll act on the numbers; gate the
-  script to production. Server mode (`ANALYTICS.mode: 'server'`) counts from the Function
-  instead, with no script on the device; what it loses is in new-website's SKILL.md, Q5.
+  script to production.
 - **Test gate (Playwright + axe):** per-page a11y light *and* dark, route 200s, button contrast,
   tone-of-voice spec. Run in GitHub Actions on every push.
 
@@ -243,13 +242,13 @@ DB → Workers + D1. Heavy compute / big SQL / full server → a VPS/dedicated b
    real, avoidable tax.)
 5. **Analytics? (optional)** Plausible (cookieless, paid license from €9/mo —
    https://plausible.io/#pricing) or, for many small sites, just Google Search Console (free).
-6. **Domain + DNS** on Cloudflare; **2-branch** Pages deploy (preview noindex / production live).
+6. **Domain + DNS** on Cloudflare; **2-branch** deploy (preview noindex / production live).
 
 ---
 
 ## Verification (does a new site meet the standard?)
 
-1. `npm run build` → static `dist/`; git push (or `npx wrangler pages deploy`) serves a `*.pages.dev` preview.
+1. `npm run build` → static `dist/`; git push (or `npm run deploy:preview`) serves a Preview link on `*.workers.dev` (a Pages site: a `*.pages.dev` preview).
 2. **Lighthouse** (mobile, prod build): Perf ≥95, A11y 100, Best Practices 100, SEO 100.
 3. **Playwright + axe** green: 0 a11y violations all routes light *and* dark; all routes 200;
    button contrast ≥4.5:1; tone-of-voice spec passes.

@@ -49,9 +49,11 @@ git commit -m "describe what you changed, e.g. update opening hours"
 # 2. Upload them — this builds your NOINDEXED PREVIEW (not on the live domain yet)
 git push
 
-# 3. Look at the preview. Open the preview link from Cloudflare
-#    (stable address: main.<your-project>.pages.dev; if Cloudflare gave the project an
-#    address other than its name, use the one on the project's page) and check it's right.
+# 3. Look at the preview. Open the preview link from Cloudflare (a Worker's looks like
+#    https://<prefix>-<worker>.<account>.workers.dev; your assistant can read it off the
+#    build in Cloudflare) and check it's right.
+#    If your site is still on Pages: main.<your-project>.pages.dev; if Cloudflare gave the
+#    project an address other than its name, use the one on the project's page.
 
 # 4. Happy? Publish it to the live site — ONE command:
 npm run ship
@@ -67,6 +69,9 @@ new version (every build stamps its id into `/build.txt`; ship polls for it, abo
 "✓ LIVE — verified" means it's truly online; a warning means the new build isn't live yet:
 it may still be running, or Cloudflare didn't build — the message tells you what to check.
 Never assume a push went live without that check.
+
+Before your site has its own domain, `npm run ship` has nothing live to check: it says the
+change was sent, and that it is checked when the site launches. Look at the Preview link instead.
 
 > **Each upload may run a quick self-check** (it builds the site and runs the tests before
 > uploading — so does `npm run ship`, which uploads too). It can take a minute, and **if
@@ -111,21 +116,26 @@ the one in this folder, so it names it a moment later, once it has read GitHub.
 
 ## Single-stage (simplest) — "push = live"
 
-One branch, `main`, and it **is** the live site. There's no preview — every upload goes
-straight online. Simple, but there's no safety net, so check locally first (`npm run dev`).
+One branch, `main`, and it **is** the live site. There's no preview step — every upload goes
+straight online (before the site has its own domain, "online" means only its Preview link;
+see the box "You need a custom domain" below). Simple, but there's no safety net, so check locally first (`npm run dev`).
 
 > **"Push = live" is a promise, not a fact.** Cloudflare can silently stop building (it
 > happened in production: green pushes, no deploy). After an important upload, confirm the
 > change is really online — `curl https://your-site/build.txt` shows which build is serving
-> (compare with `git rev-parse HEAD`). If it's stale: Cloudflare dashboard → your project →
-> Deployments (retry the failed build, or re-connect GitHub under Settings → Builds).
+> (compare with `git rev-parse HEAD`). If it's stale: Cloudflare dashboard → your Worker →
+> Builds (retry the failed build). If your site is still on Pages: your project → Deployments
+> (retry the failed build, or re-connect GitHub under Settings → Builds).
 
-> **You need a custom domain for Google to see the site.** A bare Cloudflare
-> `*.pages.dev` URL is **noindexed by design** (so stray preview URLs never get indexed).
-> Until you attach your real domain in Cloudflare, the live site works but search engines
-> ignore it. Once your real domain shows the new site, your assistant switches the
-> `pages.dev` address to forward visitors there, so a link to it in an AI answer still
-> brings people to your real domain.
+> **You need a custom domain for Google to see the site.** A new site has no public address
+> of its own: the site's live `workers.dev` address is switched off (Preview links also end in
+> `workers.dev`, and they do work), and Preview links are
+> **noindexed by design** (so stray preview URLs never get indexed). Until your real domain
+> is attached at launch, only Preview links show the site, and search engines ignore them.
+> If your site is still on Pages: a bare Cloudflare `*.pages.dev` URL is noindexed by design,
+> and once your real domain shows the new site, your assistant switches the `pages.dev` address
+> to forward visitors there, so a link to it in an AI answer still brings people to your real
+> domain.
 
 **Every time you change the site:**
 
@@ -147,12 +157,55 @@ git push
 
 Some sites are uploaded to Cloudflare by command and have no GitHub connection there
 (your README's "Deploy" section says if yours is one; if you're not sure, ask your
-assistant).
-Such a site has no preview step, and `git push` only updates GitHub. **Nothing goes online
-until someone runs the commands below.** They publish `main`, so first check your change
-locally (`npm run dev`), then save and upload it on `main` with `git add -A`, `git commit`
-and `git push` as above. Skip `npm run ship` here: it waits for Cloudflare to build, and on
-such a site Cloudflare never does.
+assistant). On such a site `git push` only updates GitHub. **Nothing goes online until
+someone runs a command below.** (If there is no GitHub repository at all, leave out the
+`git push` and `git pull` lines below: save with `git add -A` and `git commit`, then run the
+command.)
+
+A new site is a Worker, and has two commands. First look at your change on a **Preview**
+link, which only people who have the link can open and which search engines are told to
+ignore:
+
+```bash
+npm run deploy:preview
+```
+
+It builds the site as it is and prints the Preview link (of the form
+`https://<prefix>-<worker>.<account>.workers.dev`). Check your change there. When it's right,
+save it with `git add -A`, `git commit` and `git push` as above, then put it **live**:
+
+```bash
+# Get the newest version from GitHub, then put the site LIVE. On a two-stage site,
+# your assistant first brings your change from `main` into `production`: `deploy:live`
+# publishes the commit that `production` is at, nothing else.
+git switch <production-branch> &&
+  git pull &&
+  npm run deploy:live
+```
+
+`<production-branch>` is `PROD_BRANCH` in `src/config.ts`: `main` on a single-stage site,
+`production` on a two-stage one. `npm run deploy:live` stops, and changes nothing, if you're on
+another branch or any file is unsaved, so that what goes live is exactly a saved commit. It
+builds the site for the live address (that is what switches your visitor statistics on, once
+they are switched on: `USE_ANALYTICS = true` in `src/config.ts`; a new site has them off) and
+then checks that the live address serves this version (before your site has its own
+domain there is no live address, and it says so).
+
+The `&&` means each line runs only if the one before it worked. If `git` or the build stops
+with an error, nothing was uploaded: ask for help rather than running the upload on its own.
+If the upload itself shows an error, part of it may have gone live anyway: ask for help
+before running it again. The first time, `npx` may ask "Ok to proceed?": type `y`. If the
+command says you aren't logged in, run `npx wrangler login` once (it opens your browser so you
+can log in to Cloudflare), then run it again. If it says "Failed to automatically retrieve
+account IDs" (this happened with a Cloudflare token that could not look up the account), ask
+your assistant to give it your account id (`CLOUDFLARE_ACCOUNT_ID`), then run it again.
+On Windows, run it in Git Bash or WSL.
+
+**If your site is still on Pages and is uploaded by command** (no GitHub connection in
+Cloudflare) it has no preview step, and `npm run ship` is not for it either: it waits for
+Cloudflare to build, and on such a site Cloudflare never does. Run the
+commands below instead. They publish `main`, so first check your change locally (`npm run dev`),
+then save and upload it on `main` with `git add -A`, `git commit` and `git push` as above.
 
 ```bash
 # Get the newest main from GitHub, build the site, then upload it to Cloudflare.
@@ -190,9 +243,10 @@ On Windows, run it in Git Bash or WSL.
 
 ## If something goes wrong
 
-- **Mistake already live?** Don't panic — in the **Cloudflare dashboard → your Pages
-  project → Deployments**, every past version is listed; click an older one →
-  **Rollback** to restore it instantly.
+- **Mistake already live?** Don't panic — in the **Cloudflare dashboard → your Worker →
+  Deployments**, every past version is listed; click an older one → **Rollback** to restore
+  it instantly (labels not checked). If your site is still on Pages: **your Pages
+  project → Deployments**, the same way.
 - **Made a typo in the last save (not pushed yet)?** Re-edit, then
   `git add -A && git commit -m "fix typo"` again.
 - **`git push` says "rejected"?** (on `main`) Someone/something updated the cloud copy — run
@@ -318,8 +372,11 @@ per `AGENTS.md` §2.*
 A non-technical owner cannot tell a preview URL from the live site. So **every time** you
 push to `main` (or they do), state it explicitly — never let a preview read as live:
 
-> ✅ Your changes are on the **preview**: `https://main.<project>.pages.dev` — **this is NOT
-> live yet.** When it looks right, run `npm run ship` to publish to `<live-domain>`.
+> ✅ Your changes are on the **preview**: `<preview link>` — **this is NOT live yet.** When it
+> looks right, run `npm run ship` to publish to `<live-domain>`.
+
+(For a Worker the preview link has the form `https://<prefix>-<worker>.<account>.workers.dev`.
+For a site still on Pages it is `https://main.<project>.pages.dev`.)
 
 Only after `npm run ship` (or the merge into `production`) **and** the Cloudflare production
 build finishes is it actually live at `<live-domain>`. After `npm run ship` prints
@@ -332,20 +389,26 @@ rule wins over both models: a push builds nothing, not even a preview. Say the c
 saved on GitHub only, and goes live when the deploy command runs. Deliver these
 announcements in the owner's language, like everything else you say to them.
 
-**Which URL to quote.** Where Cloudflare gave the project an address other than its name
-(it does when the name is taken), use that address, from the project's page, in place of
-`<project>.pages.dev` below. Prefer the
-**memorable `pages.dev` alias** — the branch alias
+**Which URL to quote.** On a Worker, quote the **preview link** of the build (the form
+`https://<prefix>-<worker>.<account>.workers.dev`; read it off the build in Cloudflare), or,
+for one exact version, that version's own link. A version's link is ugly but **immutable**, so
+keep it as a **backup**: when the preview link looks **stale** (cache/propagation lag, or it's
+still serving an older build), the version link pins the exact fresh build and confirms the new
+build is up. For a **brand-new page**, though, the next section wins: until the production
+build is Active, the page exists only on such a link. Whichever URL you quote, **open it and
+confirm it loads** rather than reporting it blind — and note it for the project. (A deploy that
+prints a `*.pages.dev` address means the site is on Pages, not a Worker; a deploy of a new site
+that prints a live `*.workers.dev` address is wrong: its `workers_dev` is `false`, so stop and ask.)
+
+*If your site is still on Pages:* where Cloudflare gave the project an address other than its
+name (it does when the name is taken), use that address, from the project's page, in place of
+`<project>.pages.dev` below. Prefer the **memorable `pages.dev` alias** — the branch alias
 `main.<project>.pages.dev` (or, before go-live, the project alias `<project>.pages.dev` —
 after go-live it redirects to the live domain) — over the random
 per-deploy hash URL `<hash>.<project>.pages.dev`. The hash URL is ugly but **immutable**, so
-keep it as a **backup**: when an alias looks **stale** (cache/propagation lag, or it's still
-serving an older build), the hash URL pins the exact fresh deployment and confirms the new
-build is up. For a **brand-new page**, though, the next section wins: until the production
-build is Active, the page exists only on the hash URL. Whichever URL you quote, **open it
-and confirm it loads** rather than reporting it blind — and note it for the project.
+keep it as a **backup**, in the same way.
 (A `pages.dev` URL is also the signal you deployed to **Pages**, not a Worker — if a deploy
-ever prints a `*.workers.dev` URL, stop: you published the wrong project type.)
+of a Pages site ever prints a `*.workers.dev` URL, stop: you published the wrong project type.)
 
 ### Never request a page on the live domain before its build is Active
 
@@ -357,13 +420,15 @@ minutes past a 30-minute `max-age`, immune to plain re-requests. Only a **manual
 purge** clears it (Cloudflare dashboard → the zone → Caching → Purge Cache → custom purge by
 URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatically). So:
 
-- Until the production deployment shows **Active**, verify new pages ONLY on the hash
-  deployment URL (`<hash>.<project>.pages.dev`) — pre-Active the live domain still serves
-  the *previous* deployment, so a brand-new path 404s there no matter how you request it.
-  Check Active status without touching the live domain: `wrangler pages deployment list`,
-  the `<project>.pages.dev` alias (Cloudflare's own domain, outside the zone cache — but
-  only before go-live; once `CANONICAL_URL` is set it redirects to the live domain, so
-  don't follow it), or ask the owner — NEVER poll the live custom domain to see whether the build is done.
+- Until the production deployment shows **Active**, verify new pages ONLY on the version's own
+  link (on Pages: the hash deployment URL `<hash>.<project>.pages.dev`) — pre-Active the live
+  domain still serves the *previous* deployment, so a brand-new path 404s there no matter how
+  you request it. Check Active status without touching the live domain: on a Worker, the
+  build's page in Cloudflare (Workers & Pages → your Worker → Builds) or the Worker's version
+  link, or ask the owner (on Pages: `wrangler pages deployment list`, or the
+  `<project>.pages.dev` alias, Cloudflare's own domain, outside the zone cache — but only
+  before go-live; once `CANONICAL_URL` is set it redirects to the live domain, so don't
+  follow it) — NEVER poll the live custom domain to see whether the build is done.
   (`npm run ship`'s built-in check is the one exception: it polls `/build.txt` — a path
   that exists in every build — with a cache-bust.) Once Active, check the live domain with a
   `?cb=<anything>` cache-bust first (under default cache settings that is a distinct cache
