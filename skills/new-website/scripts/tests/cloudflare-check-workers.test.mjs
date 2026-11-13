@@ -29,6 +29,7 @@ const KIT_301 = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'pages-vs-wo
 function answerOf(file, pathname) {
   const text = readFileSync(path.join(HERE, 'fixtures', 'l59-nel', file), 'utf8');
   const block = text.split(/^## /m).slice(1).find((b) => b.split('\n')[0].replace(/^https:\/\/[^/]+/, '') === pathname);
+  assert.ok(block, `${file} has no answer for ${pathname}`);
   const [, ...rest] = block.trimEnd().split('\n');
   const headers = {};
   for (const line of rest.slice(1)) headers[line.slice(0, line.indexOf(':'))] = line.slice(line.indexOf(':') + 2);
@@ -411,7 +412,7 @@ test('noindex with a nel policy of max_age 604800 and no report-to is FAIL, for 
 test('noindex with nel max_age 0 but a report-to header is FAIL, for the report-to alone', async (t) => {
   const r = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', nel: '{"max_age":0}', 'report-to': '{"group":"g","max_age":10,"endpoints":[{"url":"https://reports.example.invalid/r"}]}' }, body: 'x' });
   assert.equal(r.by.previews.state, 'fail');
-  assert.match(r.by.previews.detail, /answers 200 with a report-to header, which sets up network error reporting\.$/);
+  assert.match(r.by.previews.detail, /answers 200 with a report-to header, which can set up network error reporting\.$/);
   assert.doesNotMatch(r.by.previews.detail, /nel header/);
   assert.ok(r.by.previews.fix.includes('public/_headers'));
   assert.equal(r.code, 1);
@@ -426,6 +427,15 @@ test('a nel header that is not JSON is FAIL; so is one with no max_age of 0 (a s
   }
 });
 
+test('an empty nel or report-to header is present, so FAIL: a header that is there is judged, not read as absent', async (t) => {
+  const nel = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', nel: '' }, body: 'x' });
+  assert.equal(nel.by.previews.state, 'fail');
+  assert.match(nel.by.previews.detail, /with a nel header that is not JSON \(\)/);
+  const reportTo = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', 'report-to': '' }, body: 'x' });
+  assert.equal(reportTo.by.previews.state, 'fail');
+  assert.match(reportTo.by.previews.detail, /with a report-to header/);
+});
+
 test('noindex with no nel and no report-to header is ok: nothing sets a policy', async (t) => {
   const r = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex' }, body: 'x' });
   assert.equal(r.by.previews.state, 'ok', r.by.previews.detail);
@@ -435,6 +445,7 @@ test('noindex with no nel and no report-to header is ok: nothing sets a policy',
 test('a link with no noindex and a NEL policy gets both problems named, and a missing noindex alone keeps the old fix', async (t) => {
   const both = await previewsFor(t, { status: 200, headers: { nel: '{"max_age":604800}' }, body: 'x' });
   assert.match(both.by.previews.detail, /without noindex in x-robots-tag .*; and with a nel header/);
+  assert.ok(both.by.previews.fix.includes('NEL: {"max_age":0}') && both.by.previews.fix.endsWith('See section 1 of the Cloudflare checklist.'), 'the fix names the rule and keeps the noindex pointer');
   const plain = await previewsFor(t, { status: 200, headers: {}, body: 'x' });
   assert.equal(plain.by.previews.state, 'fail');
   assert.doesNotMatch(plain.by.previews.detail, /nel/);

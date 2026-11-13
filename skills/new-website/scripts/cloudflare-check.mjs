@@ -300,12 +300,12 @@ const isFile = (p) => { try { return statSync(p).isFile(); } catch { return fals
 const isFolder = (p) => { try { return statSync(p).isDirectory(); } catch { return false; } };
 // x-robots-tag holds noindex as a bare directive: a list of words, not a value for one named crawler.
 const isPlainNoindex = (v) => /^\s*[a-z-]+(?:\s*,\s*[a-z-]+)*\s*$/i.test(v) && /(?:^|,)\s*noindex\s*(?:,|$)/i.test(v);
-// A version or Preview link's answer may carry a NEL header only to withdraw a policy: JSON with max_age 0.
+// A version or Preview link's answer may carry a nel header only to withdraw a policy: JSON with max_age 0. An empty value counts as present.
 function nelProblem(value) {
-  if (!value) return null;
+  if (value === undefined) return null;
   let policy;
   try { policy = JSON.parse(value); } catch { return `with a nel header that is not JSON (${value})`; }
-  return policy && policy.max_age === 0 ? null : `with a nel header that sets a policy (${value}), so browsers report network errors to Cloudflare`;
+  return policy && policy.max_age === 0 ? null : `with a nel header that sets a policy (${value}), which asks browsers to report network errors`;
 }
 const NEL_RULE_FIX = 'Add this rule to the site\'s own public/_headers, after its /* block (the starter\'s file has it), and deploy again: the line https://:version.:sub.workers.dev/* and, indented below it, the line NEL: {"max_age":0}. See section 3 of the Cloudflare checklist.';
 // A Worker's name is a host label; it ends up in the addresses the check asks.
@@ -1154,12 +1154,14 @@ export function evaluate(obs, target, opts) {
         if (!r || r.error) return { state: 'fail', text: r ? `no answer from ${l.origin}: ${whyNoAnswer(r.error, opts.timeoutMs)}.` : `${l.origin} was not asked.` };
         if (r.status < 400) {
           const problems = [];
-          if (!isPlainNoindex(header(r, 'x-robots-tag'))) problems.push(`without noindex in x-robots-tag (only a plain list of directives counts; a noindex for one named crawler does not), so search engines may index it`);
-          const nel = nelProblem(header(r, 'nel'));
+          const noindex = !isPlainNoindex(header(r, 'x-robots-tag'));
+          if (noindex) problems.push(`without noindex in x-robots-tag (only a plain list of directives counts; a noindex for one named crawler does not), so search engines may index it`);
+          const nel = nelProblem(r.headers?.nel);
           if (nel) problems.push(nel);
-          if (header(r, 'report-to')) problems.push('with a report-to header, which sets up network error reporting');
+          const reportTo = r.headers?.['report-to'] !== undefined;
+          if (reportTo) problems.push('with a report-to header, which can set up network error reporting');
           return problems.length
-            ? { state: 'fail', text: `${l.origin} answers ${r.status} ${problems.join('; and ')}.`, nel: Boolean(nel) || Boolean(header(r, 'report-to')) }
+            ? { state: 'fail', text: `${l.origin} answers ${r.status} ${problems.join('; and ')}.`, nel: Boolean(nel) || reportTo, noindex }
             : { state: 'ok', text: `${l.origin} answers ${r.status} with noindex and no active NEL policy.` };
         }
         return r.status === 404 && header(r, 'x-preview-user-error') === 'true'
@@ -1168,7 +1170,7 @@ export function evaluate(obs, target, opts) {
       });
       const worst = ['fail', 'look'].find((st) => judged.some((j) => j.state === st)) ?? 'ok';
       const detail = worst === 'ok' ? judged.map((j) => j.text).join(' ') : judged.filter((j) => j.state !== 'ok').map((j) => j.text).join(' ');
-      put('previews', worst, detail, judged.some((j) => j.nel) ? NEL_RULE_FIX : section(1));
+      put('previews', worst, detail, judged.some((j) => j.nel) ? (judged.some((j) => j.noindex) ? `${NEL_RULE_FIX} ${section(1)}` : NEL_RULE_FIX) : section(1));
     }
 
     const addr = obs.workersAddress;
