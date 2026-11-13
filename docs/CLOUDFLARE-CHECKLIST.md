@@ -462,7 +462,7 @@ look but not change anything):
 | Zone → Bot Management → Edit | Bot Fight Mode, the AI crawler policies and the three switches after them (`bot_preference_sync_enabled`, `crawler_protection`, `content_bots_protection`), all on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
 | Zone → DNS → Edit | the verification records of Google and Bing, and, when your domain is attached, the record that points it at the project |
 | Zone → Zone → Read | finding your domain by name |
-| Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
+| Account → Workers Scripts → Edit | reading your Worker's versions and domains, and on launch day attaching your domain to it. It reaches every Worker in the account |
 
 **What it writes.** For the settings above, these are the fields and values the assistant
 sends, and reads back afterwards. Each zone setting is its own call. The Bot Management fields
@@ -504,7 +504,7 @@ to off, the site's own file came back within seconds. A similar field,
 `docs/reviews/SKILL-PLAN-cloudflare-setup.md` ("Seen in the second trial").
 
 Then set **Zone Resources** to your one domain and **Account Resources** to your account
-only (Pages Edit covers the whole account). Set **TTL** to an end date of tomorrow, a week
+only (Workers Scripts Edit covers every Worker in the account, so give a site that shares its account with other Workers a separate account). Set **TTL** to an end date of tomorrow, a week
 at most, with no start date: a start date in the future makes every call fail with
 "Authentication error". Create the token and copy it. Cloudflare shows it once.
 

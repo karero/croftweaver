@@ -1,0 +1,34 @@
+{
+ "capture": "R04-010",
+ "request": {
+  "method": "GET",
+  "path": "/zones/c0ffee00000000000000000000000002/dns_records?name=lenas-backstube.example",
+  "body": null
+ },
+ "status": 200,
+ "response": {
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+   {
+    "id": "c0ffee00000000000000000000000006",
+    "name": "lenas-backstube.example",
+    "type": "AAAA",
+    "content": "100::",
+    "proxiable": true,
+    "proxied": true,
+    "ttl": 1,
+    "settings": {},
+    "meta": {
+     "origin_worker_id": "ba5e000000000000000000000000000000000004",
+     "read_only": true
+    },
+    "comment": null,
+    "tags": [],
+    "created_on": "2026-11-12T09:44:12.873143Z",
+    "modified_on": "2026-11-12T09:44:12.873143Z"
+   }
+  ]
+ }
+}

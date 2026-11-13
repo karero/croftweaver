@@ -1,0 +1,28 @@
+[
+ {
+  "source": "wrangler",
+  "created_on": "2026-11-12T10:06:44.062406Z",
+  "annotations": {
+   "workers/triggered_by": "deployment"
+  },
+  "author_email": "owner@example.com"
+ },
+ {
+  "source": "dash_template",
+  "created_on": "2026-11-12T10:06:13.529157Z",
+  "annotations": {
+   "workers/message": "Automatic deployment on upload.",
+   "workers/triggered_by": "upload"
+  },
+  "author_email": "owner@example.com"
+ },
+ {
+  "source": "dash_template",
+  "created_on": "2026-11-12T10:06:12.137937Z",
+  "annotations": {
+   "workers/message": "Automatic deployment on upload.",
+   "workers/triggered_by": "upload"
+  },
+  "author_email": "owner@example.com"
+ }
+]

@@ -564,7 +564,7 @@ async function readSiteConfig(git, sha) {
 
 // The one Workers config at a commit: a .json or .jsonc file in the root with `assets` and no
 // `pages_build_output_dir` (D17).
-async function readWorkersConfig(git, sha) {
+export async function readWorkersConfig(git, sha) {
   const tree = await git('ls-tree', '--name-only', sha);
   if (tree.code !== 0) throw new Stop(1, `git could not list ${short(sha)}.`);
   const found = [];
@@ -1032,7 +1032,7 @@ async function lightDeployments(ctx) {
 
 // ---------------------------------------------------------------- the Worker's version
 
-async function workerVersion(ctx) {
+export async function workerVersion(ctx) {
   const A = `/accounts/${ctx.account.id}`;
   const [dep, sub] = await Promise.all([ctx.api('GET', `${A}/workers/scripts/${ctx.worker}/deployments`), ctx.api('GET', `${A}/workers/subdomain`)]);
   if (!ok(dep)) throw new Stop(1, `Cloudflare did not return the Worker's deployments: ${cfWords(dep)}. Is the Worker ${ctx.worker} deployed?`);
@@ -1295,7 +1295,7 @@ async function headConfig(ctx) {
 }
 
 // Writes the commit that sets the config's routes to `want`, on top of HEAD, unless HEAD's already do.
-async function ensureRouteCommit(ctx, want, kind) {
+export async function ensureRouteCommit(ctx, want, kind) {
   await cleanTreeOrStop(ctx);
   const head = await headConfig(ctx);
   if (JSON.stringify(head.routes) === JSON.stringify([...want].sort())) return { commit: await ctx.gitOut('rev-parse', 'HEAD'), wrote: false };
