@@ -85,16 +85,28 @@ def _resolve_fonts():
     for reg, ri, bold, bi in _FONT_CANDIDATES:
         if Path(reg).exists() and Path(bold).exists():
             return (reg, ri), (bold, bi)
-    return None, None  # → PIL bitmap default (ugly but never crashes)
+    return None, None  # no pair on this machine: _no_font() stops the run
 
 
 _REG, _BOLD = _resolve_fonts()
 
 
+def _no_font():
+    # Pillow's own default font is no fallback: Pillow 12.2.0 draws ä, ö, ü, ß and — with it as
+    # empty boxes, on cards that still pass --check.
+    tried = "\n".join(f"  {reg}" + (f"  and  {bold}" if bold != reg else "")
+                      for reg, _, bold, _ in _FONT_CANDIDATES)
+    sys.exit("generate_og_cards: none of the fonts this script knows is installed, so it "
+             f"stopped. It needs one of these lines installed (both files, where a line has two):\n{tried}\n"
+             # The last line stands alone: the brand-kit installer reports only that one.
+             "No font for the share cards: install DejaVu Sans or Liberation Sans (Linux) "
+             "or Arial (Mac, Windows), then run it again.")
+
+
 def font(bold: bool, size: int):
     spec = _BOLD if bold else _REG
     if spec is None:
-        return ImageFont.load_default()
+        _no_font()
     path, idx = spec
     return ImageFont.truetype(path, size, index=idx)
 
@@ -218,6 +230,9 @@ def _encode(card, out: Path) -> Path:
 
 def main():
     check = "--check" in sys.argv
+    if _REG is None:
+        _no_font()
+    print(f"  font: {_REG[0]}")
     over = []
     jobs = [("default (home + fallback)", lambda: build_page("default", DEFAULT_TITLE, DEFAULT_SUBTITLES))]
     jobs += [(slug, lambda s=slug, t=title, sub=subs: build_page(s, t, sub)) for slug, title, subs in PAGES]
