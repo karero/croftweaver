@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.29
+# template-version: 0.30
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
