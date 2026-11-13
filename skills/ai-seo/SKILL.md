@@ -273,7 +273,7 @@ Add these machine-readable files to your site root:
 # Pricing — [Your Product Name]
 
 ## Free
-- Price: $0/month
+- Price: free
 - Limits: 100 emails/month, 1 user
 - Features: Basic templates, API access
 
@@ -402,7 +402,7 @@ Automated alternative: `search-console-insights` has a weekly "does AI name you?
 engines (Google's AI Mode and AI Overview get one answer each),
 counts mentions and citations in code, and trends them next to your Google rankings.
 It runs weekly, also for an owner who would check by hand only every 2 or 4 weeks: through
-OpenRouter a week's run cost about $0.72 per site (the Costs section of that `geo-check.md`, measured 2026-09-26; prices change).
+OpenRouter a week's run cost about 0.72 US dollars per site (the Costs section of that `geo-check.md`, measured 2026-09-26; prices change).
 
 ---
 
