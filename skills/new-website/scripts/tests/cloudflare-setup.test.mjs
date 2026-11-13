@@ -1538,7 +1538,7 @@ describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
     }, site);
     await refused((w) => writeFileSync(path.join(w.site, 'notes.txt'), 'x\n'), /The working tree has changes \(\?\? notes\.txt\)/);
     await refused((w) => git(w.site, 'commit', '-q', '--allow-empty', '-m', 'one ahead'), /HEAD \([0-9a-f]{7}\) is not the head of main on GitHub \([0-9a-f]{7}\)/);
-    await refused((w) => { mkdirSync(RUN_DIR_OF(w), { recursive: true }); writeFileSync(path.join(RUN_DIR_OF(w), 'lock'), `${process.pid}\nabc\n`); }, /Another run \(process \d+\) holds .*setup-run\/lock/);
+    await refused((w) => { mkdirSync(RUN_DIR_OF(w), { recursive: true }); writeFileSync(path.join(RUN_DIR_OF(w), 'lock'), `${process.pid}\nabc\n`); }, /Another run \(process \d+\) holds .*setup-run[\\/]lock/);
   });
 
   test('TL1b: a site whose Workers config has another name (workers.jsonc): the check is told which file, and the route commit is made in it', () =>
