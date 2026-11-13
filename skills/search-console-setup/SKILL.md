@@ -20,11 +20,12 @@ Run this **after the site is live on its production domain** (DNS on Cloudflare,
 `production` branch deployed). It makes Google and Bing aware of the site and keeps
 Bing's index fresh automatically.
 
-> **Only register the live domain.** `main` and every `*.pages.dev` preview are
-> noindexed by the kit's `functions/_middleware.ts`, and after go-live the project
-> alias `<project>.pages.dev` 301s to the live domain (once `CANONICAL_URL` is set —
-> `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live"). Do not add
-> any `pages.dev` host as a property; they can't be indexed.
+> **Only register the live domain.** A Worker's Preview links (`*.workers.dev`) carry
+> `noindex`, and so do a Pages site's `main` and `*.pages.dev` previews (the kit's
+> `functions/_middleware.ts`); on Pages, after go-live, the project alias
+> `<project>.pages.dev` also 301s to the live domain (once `CANONICAL_URL` is set —
+> `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live"). Do not add any
+> `workers.dev` or `pages.dev` host as a property; they can't be indexed.
 >
 > **Human-in-the-loop:** creating the Google/Microsoft accounts and adding the DNS
 > record are actions only the owner can do (like the GitHub/Cloudflare accounts in
@@ -95,8 +96,8 @@ Cloudflare generates and hosts the IndexNow key and sends the notifications for 
 
 That's it. Cloudflare now notifies the IndexNow network (Bing, Yandex, Naver,
 Seznam) whenever your content is created/updated/deleted. Requires the records to be
-**proxied through Cloudflare** (orange cloud) — true for a Cloudflare Pages site on a
-Cloudflare-managed domain.
+**proxied through Cloudflare** (orange cloud) — true for a Cloudflare site (a Worker or
+Pages) on a Cloudflare-managed domain.
 
 - **Google does NOT use IndexNow** — it relies on its own crawl signals, so the GSC
   sitemap (step 1) is how Google stays current. IndexNow speeds up *Bing & friends*.

@@ -559,6 +559,31 @@ test('CW4: a Pages site gets the results it had, with or without --site; the Wor
   });
 });
 
+// A 522 on the home page names what the site is: its Worker, its Pages project, or either.
+test('CW6: a 522 names your Worker for a Workers site, your Pages project for a Pages site, and either when the kind is both or not given', async (t) => {
+  const tweak = (req, res, url) => {
+    if (url.pathname !== '/') return false;
+    send(res, 522, 'text/html', '<p>Connection timed out</p>');
+    return true;
+  };
+  const workers = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG });
+  const pages = folder(t, { 'wrangler.toml': PAGES_TOML });
+  const both = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG, 'functions/_middleware.ts': 'export {};\n' });
+  const want = {
+    workers: 'answered 522: Cloudflare cannot reach your Worker: the domain is probably not attached to it.',
+    pages: 'answered 522: Cloudflare cannot reach your Pages project: the domain is probably not attached to it.',
+    either: 'answered 522: Cloudflare cannot reach your Worker or Pages project: the domain is probably not attached to it.',
+  };
+  await withBoth({ domain: { tweak } }, async (live) => {
+    for (const [extra, kind] of [[['--site', workers], 'workers'], [['--site', pages], 'pages'], [['--site', both], 'either'], [[], 'either']]) {
+      const r = await check(live.origin, ...extra);
+      assert.equal(r.by.domain.state, 'fail', extra.join(' '));
+      assert.ok(r.by.domain.detail.includes(want[kind]), `${extra.join(' ') || 'no --site'}: ${r.by.domain.detail}`);
+      assert.equal(r.code, 1, extra.join(' '));
+    }
+  });
+});
+
 // ---- build.txt
 
 test('CW5: line 1 of build.txt is the commit; a platform line is named, not judged; CRLF is the same', async () => {

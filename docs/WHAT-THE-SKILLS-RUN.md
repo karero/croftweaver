@@ -207,18 +207,25 @@ an "Email Tap" event there, as a click on an email address does.
 
 - **`new-website`** creates the site folder (in the folder you confirm), runs `git init`,
   `npm create astro@latest`, copies the templates and 29 skills into the site, and runs the
-  build and tests. For Cloudflare it uses `npx wrangler pages project create` and
-  `npx wrangler pages deploy` with a token you make, or `npx wrangler login`. Its
+  build and tests. For Cloudflare it uses `npm run deploy:preview` and
+  `npm run deploy:live` (the site's `scripts/deploy.sh`, which builds the site and runs
+  `wrangler preview` or `wrangler deploy`) with a token you make, or `npx wrangler login`. A site still on Pages uses
+  `npx wrangler pages project create` and `npx wrangler pages deploy`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
   settings; it needs no token. With `--site` it also reads the Wrangler files in your site's folder. It also sends requests that carry the names of AI crawlers
   (GPTBot, ClaudeBot and others) to your own domain, to see whether Cloudflare lets them in.
   Its `scripts/cloudflare-setup.mjs` changes your Cloudflare account through Cloudflare's API,
-  with a short-lived token you make: it creates the Pages project or uses the one connected
-  to your repository, starts its first build, changes your domain's settings from the
-  Cloudflare checklist, and writes the verification records you give it. It changes nothing
-  until you have said yes to the list it prints, and it deletes nothing. It runs `git` to read
-  your repository's branches and `src/config.ts`, and asks your domain's nameservers whether
-  a record it wrote is there. It sends your domain no request.
+  with a short-lived token you make: it reads the Worker connected to your repository,
+  changes your domain's settings from the Cloudflare checklist, and writes the verification
+  records you give it; on launch day it also attaches your domain to the Worker. It changes
+  nothing until you have said yes to the list it prints. The one thing it deletes is the old DNS
+  record of each host it attaches, after that yes (Cloudflare refuses to attach a domain over an
+  existing record); it saves the record first in `setup-run/`, a folder in your site, and puts
+  the record back if the attach fails. On launch day it also writes a commit on your branch
+  that adds the domain route to the Worker's config, and does not push it. It runs `git` to
+  read your repository's branches and `src/config.ts`, and asks your domain's nameservers
+  whether a record it wrote is there. Until launch day it sends your domain no request; on
+  launch day it runs the site check against the domain (a few requests, including the AI-crawler ones).
   Its `scripts/move-to-workers.mjs` is for moving a live site's domain from its Pages project
   to its Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
   short-lived token you make, from `CLOUDFLARE_API_TOKEN` or from the site's `.dev.vars`, which
@@ -350,8 +357,8 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | chatgpt.com, antigravity.google, ollama.com | the `curl … \| sh` install lines in `independent-review`'s setup guide, if you use them | none | reads the installers |
 | croftweaver.com | `new-website`'s footer credit step, only if you say yes | none | reads the badge code from `/partner-assets` and the badge files |
 | An image service you choose | `image`, if you use one | your own key | sends your image prompts |
-| Cloudflare | `wrangler` (deploy, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
-| Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Pages projects; after your yes, creates or changes the project, starts a build, and writes zone settings, Bot Management and DNS records |
+| Cloudflare | `wrangler` (`deploy`, `preview`; on a Pages site `pages deploy`, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
+| Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Worker; after your yes, attaches the domain to the Worker, deletes the host's old DNS record (saved first), and writes zone settings, Bot Management and DNS records |
 | Cloudflare's API | `move-to-workers.mjs` | an API token you make, ending within a week | reads your zone, its DNS records, the Pages project, its builds and the Worker's domains; after your yes, asks it to move each host between the Pages project and the Worker, deleting or writing its DNS record |
 | Your domain's nameservers | `cloudflare-setup.mjs` | none | asks whether a record it wrote is served |
 | Google Search Console | `search-console-insights` (`gsc_query.py`, `search_report.py`, `insights.py`) | your own Google sign-in, scope `webmasters.readonly` | reads only; asks for clicks, impressions and positions |
@@ -366,7 +373,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
 | Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs`, `website-launch-check` (the old site's sitemap and, to measure speed, its pages in a relaunch; the live site at the re-check) | none | reads only |
 | docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
-| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. In server mode the site's Cloudflare Function sends instead, from Cloudflare: per page view the page address, the referrer, the visitor's user agent and IP; per email tap the event name and the page (measured in a trial, 2026-10-15), plus the visitor's user agent and IP (read from the code). The contact form's button is not counted then |
+| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. |
 
 Some details:
 
@@ -386,8 +393,7 @@ Some details:
 - **The built site**, apart from the optional analytics script, loads no fonts, scripts
   or styles from other servers. Its security header (`public/_headers`) allows scripts only
   from the site itself, and from the analytics address you set once you switch analytics
-  on: the starter ships with it off. Analytics run only on the live site, not on previews. In analytics
-  server mode no analytics script loads at all.
+  on: the starter ships with it off. Analytics run only on the live site, not on previews.
 
 ## Telemetry
 

@@ -2,7 +2,7 @@
 
 A complete, opinionated overlay you drop on top of a fresh Astro project: the SEO +
 theme spine, the test suite, security headers, the preview-noindex function, and CI.
-Copy-and-go for an Astro → GitHub → Cloudflare Pages site. The `new-website` skill
+Copy-and-go for an Astro → GitHub → Cloudflare (a Worker) site. The `new-website` skill
 drives assembly; this README is the manual reference.
 
 ## What's here
@@ -62,7 +62,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    npm 11.20.0 and create-astro 5.3.1), then copy `templates/.gitignore` in again: the scaffold
    replaces step 1's `.gitignore` with its own. Requires **Node ≥22.23.4**
    (this starter's floor, never below Astro's own); keep Node current: SETUP.md lists the fixed version of
-   each line. The committed `.nvmrc` pins 24 for local + Cloudflare Pages builds.
+   each line. The committed `.nvmrc` pins 24 for local + Cloudflare builds.
 3. Copy this overlay over the scaffold (the files above, `package.json` included: it carries `engines`,
    which makes npm warn when Node is older than the fixed version of its line) + `tests/`, but not this
    `README.md` (the site's own holds the owner's answers), then:
@@ -87,7 +87,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    `scriptHost` and the per-site `scriptId` from the site's installation page in Plausible
    (`<scriptHost>/<your domain>/installation`), the
    same host in `script-src` and `connect-src` of `public/_headers`, and a `PROD_BRANCH`
-   that matches the branch Cloudflare Pages will call "Production", or analytics never
+   that matches the branch Cloudflare builds as the production one, or analytics never
    loads. No analytics: leave it off and delete the privacy page's analytics paragraphs.
    Run `node scripts/make-icons.mjs --setup`: it draws the site's first letter on its `--brand` colour
    (`src/styles/global.css`) into the seven icon files the starter links, and the first `npm test` fails
@@ -191,19 +191,16 @@ rewording the heading changes its id and breaks the old link. For any anchor you
 hand out externally, **set an explicit `id`** (on the heading or its section) — it
 wins over the auto-slug and never drifts.
 
-Deploy: Cloudflare Pages, build `npm run build`, output `dist/`. In the Pages
-project settings set the **production branch to `production`** (must equal
-`PROD_BRANCH` in `src/config.ts`). On a site connected to GitHub in Cloudflare, `main`
-stays the preview. A site deployed by command has no automatic preview: a deploy to any
-branch other than the production branch is a preview, and `PUBLISHING.md`, "Deploy by
-command", has the steps for the live site. Every preview `*.pages.dev` host is noindexed
-by the function. Once the live domain serves the
-site, set the Production variable `CANONICAL_URL` (e.g. `https://example.com`) and
-redeploy: the project alias `<project>.pages.dev` then 301s to the live domain, so
-people following an AI answer that cites the alias land on the real domain. Until then the alias is noindexed
-like a preview. Steps, and how a site built before this change picks it up (new
-middleware + redeploy): `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After
-go-live". AI assistant deploying or announcing a
+Deploy: a Cloudflare Worker serving `dist/` as static assets (`wrangler.jsonc`), build
+`npm run build`. On a site connected to GitHub (Workers Builds), set the **production branch to
+`production`** (must equal `PROD_BRANCH` in `src/config.ts`); `main` stays the preview. A site
+deployed by command has no automatic preview: `npm run deploy:preview` gives a Preview link,
+`npm run deploy:live` puts the live Worker up, and `PUBLISHING.md`, "Deploy by command", has the
+steps. A Worker's Preview links carry `noindex` from Cloudflare; until launch the live
+`workers.dev` address is off. Steps for going live: `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`,
+"S" and "A", Launch day (the same guide's "Going live" is for a domain's DNS move). A site made before 0.35 may still be on Pages (`*.pages.dev`, the
+`functions/_middleware.ts` noindex and the `CANONICAL_URL` redirect): the same guide's "Sites
+already on Pages" has its steps. AI assistant deploying or announcing a
 deploy: read `PUBLISHING.md` § "For AI assistants — deploy-time guardrails"
 first (preview-vs-live announcements + the cached-404 rule) — every time, not
 just the first.

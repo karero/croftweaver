@@ -5,7 +5,7 @@ description: >
   (Codex, Claude Code) can work on at once without overwriting each other: invite
   collaborators, set the repo settings, prove the CI workflow starts on its own
   (the fix for a silent one is bundled), block direct pushes to `main`, connect
-  Cloudflare Pages to GitHub without the known traps, write rights, merge rule and
+  Cloudflare (a Worker, or Pages for an older site) to GitHub without the known traps, write rights, merge rule and
   who publishes live into `AGENTS.md`, hand the team a one-page guide. Run once,
   when a second person joins. Use it whenever the user mentions a colleague, client
   or second assistant joining a site repo, inviting someone to GitHub, "Update
@@ -363,41 +363,52 @@ git switch - && git branch -D setup/push-check
 
 `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md` has the bootstrap paths; a team
 wants a project connected to GitHub (push-to-deploy, one preview address per pull
-request). The setup script there ("S") makes one through Cloudflare's API, with the
-build command and output folder of item 4 (no framework preset, which the build does not
-need) and the production branch of item 5; from the owner's browser it needs a short-lived
-token and the GitHub app's access to the repository; it does not create the `production`
-branch (item 5) or touch the checks of items 2 and 8. By hand it is **B, git
-integration**: walk the owner through it with these warnings ahead of each click:
+request). A site made with kit 0.35 or later is a **Worker**; a site made before may
+still be on **Pages** (`AGENTS.md` and `PUBLISHING.md` say which; a `wrangler.jsonc` at
+the repo root with `assets` in it is a Worker). The setup script there ("S") does not make the Worker or
+connect the repository: with no Worker yet it says how to connect it in the dashboard (the
+steps below, with the build command of item 4 and the production branch of item 5), and once a
+build has made the Worker it reads it, changes the domain's settings and attaches the domain on
+launch day. It does not create the `production` branch (item 5) or touch the checks of
+items 2 and 8. The connection is **B, Workers Builds** (a site still on Pages: "Sites already on
+Pages" in the same guide, and the Pages form of each item below): walk the owner through it
+with these warnings ahead of each click:
 
-1. **Pages, not Workers.** In the Cloudflare dashboard, **Workers & Pages → Create**
-   opens on the **Workers** tab, and its "Import a repository" creates a **Worker**
-   with *Workers Builds* — the wrong project type for this kit. Switch to the **Pages**
-   tab first, then **Connect to Git**. (Same failure class as the `wrangler deploy` vs
-   `wrangler pages deploy` mix-up in the deploy reference: if the result has a
-   `*.workers.dev` address, it is the wrong type.)
-2. **A Worker made by mistake leaves a check behind.** If step 1 went wrong once,
-   deleting the Worker is not enough: its build connection keeps posting a **"Workers
-   Builds"** check on every pull request (pending or failing forever). Remove the
-   connection on the Worker (**Settings → Builds → disconnect**, or delete the Worker
-   after disconnecting), then prove it is gone: open a throwaway pull request **after**
-   connecting (the §4 recipe: empty commit, close and delete afterwards) — it must
-   show only the **CI** check and the **Cloudflare Pages** preview check. If the
-   Workers check is still there, the GitHub App installation still carries the
+1. **The right project type.** In the Cloudflare dashboard, **Workers & Pages → Create**
+   opens on the **Workers** tab, and its "Import a repository" creates a **Worker** with
+   *Workers Builds*: the right type for a new site. For a site that is on Pages, use the
+   **Pages** tab and **Connect to Git** instead; Cloudflare cannot turn one into the other
+   (item 9). If the owner already runs other Workers in the account, the build token
+   (item 4) reaches all of them: a separate Cloudflare account for the site is the safe
+   way, and it is the owner's call.
+2. **The wrong type leaves a check behind.** A Worker made for a site that is on Pages (or a
+   Pages project made for a Worker site) keeps posting its build check on every pull request,
+   pending or failing forever, even after the project is deleted. Disconnect it first (a
+   Worker: **Settings → Builds → disconnect**; a Pages project: delete it), then prove the
+   pull request shows only the **CI** check and the one Cloudflare build check of this
+   site's type: open a throwaway pull request **after** connecting (the §4 recipe: empty
+   commit, close and delete afterwards). The check's exact name on a Worker is not checked.
+   If the other type's check is still there, the GitHub App installation still carries the
    trigger: GitHub → **Settings → Applications → Cloudflare Workers and Pages →
    Configure** → check which repos it may access, and remove and re-add the repo if
    needed.
-3. **The project name is global.** `<name>.pages.dev` is one namespace across all
-   Cloudflare accounts, so the obvious name may be taken with no explanation beyond a
-   validation error. Pick a short alternative; it only changes the preview address.
-   That address is the one Cloudflare gives the project, which is not always the name
-   followed by `.pages.dev`: read it on the project's page (or in the setup script's
-   report). Whatever it ends up being, write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
-   and the README's deploy section, and search the repo for the old one
-   (`git grep -n '<old-name>.pages.dev'`, a site may have it in `src/config.ts`), so
-   nobody quotes a preview address that does not exist.
-4. **Build settings.** Framework preset **Astro**, build command `npm run build`,
-   output directory `dist`. Node version comes from the repo's `.nvmrc`.
+3. **The name and the preview address.** A Worker's name comes from `name` in
+   `wrangler.jsonc`; it must be unique only inside the account. Its Preview links look like
+   `https://<prefix>-<worker>.<account>.workers.dev`: read one on the Worker's page (or in
+   the setup script's report), and write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
+   and the README's deploy section. A **Pages** project's name is global instead:
+   `<name>.pages.dev` is one namespace across all Cloudflare accounts, so the obvious name
+   may be taken with no explanation beyond a validation error. Pick a short alternative; it
+   only changes the preview address, which is not always the name followed by `.pages.dev`:
+   read it on the project's page. Either way, search the repo for the old address
+   (`git grep -n '<old-name>.pages.dev'`, a site may have it in `src/config.ts`), so nobody
+   quotes a preview address that does not exist.
+4. **Build settings.** A Worker: build command `npm run build`; what to deploy comes from
+   `wrangler.jsonc`. **The build token:** pick **Create new token** in the build's token field,
+   not an existing one, and cut it down in place (the guide's B section names the rows). Node
+   version comes from the repo's `.nvmrc` (Workers Builds reading it is from the docs, not seen
+   on a build). A Pages project: framework preset **Astro**, build command `npm run build`,
+   output directory `dist`, Node from `.nvmrc`.
 5. **Production branch = the publish model.** Two-stage: **`production`** (create the
    branch first if it does not exist yet, see `new-website` §4), so `main` stays the
    noindexed preview. Single-stage: `main` — and then set `PROD_BRANCH = 'main'` in
@@ -406,10 +417,12 @@ integration**: walk the owner through it with these warnings ahead of each click
    otherwise. `AGENTS.md` §2 must keep the block that matches (the other one is
    deleted at scaffold time — check it was).
 6. **Pull request previews.** Once connected, every pull request gets its own preview
-   address in its checks ("Cloudflare Pages" → *View deployment*), plus the stable
-   alias `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look
-   there before merging. Previews are noindexed by the kit's `functions/_middleware.ts`
-   but public-by-URL (see `PUBLISHING.md`).
+   address from its build: a Worker's Preview link (where Cloudflare posts it is not
+   checked), or on Pages "Cloudflare Pages" → *View deployment*, plus the stable alias
+   `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look there before
+   merging. A Worker's previews carry `noindex` from Cloudflare, a Pages site's from the
+   kit's `functions/_middleware.ts` (a site made before 0.35); both are public-by-URL (see
+   `PUBLISHING.md`).
 7. **Single-stage sites: a merge publishes.** Anything that runs only in
    `npm run ship` on this site must now run in CI, or it never runs. The kit's own
    `ship.sh` runs no tests (the pre-push hook and CI do), so a stock site has nothing
@@ -438,16 +451,16 @@ integration**: walk the owner through it with these warnings ahead of each click
    grep step is missing or greps for another word. A push the hook refuses means the
    site's token is not the one in that spec's `DRAFT_TOKEN`; set it there too. A gate that has never fired is a hypothesis, and a gate
    probed with the wrong token proves the wrong thing.
-9. **Direct-upload project already exists (deploy path A).** A git-connected Pages
-   project is a *different project type*; Cloudflare cannot convert one into the
-   other. Create the git-connected project under a new name, let it build once,
-   then move the custom domain: remove it from the old project first (a domain can
-   be attached to one Pages project at a time), attach it to the new one (Custom
-   domains → Set up a domain), wait for it to show Active, and only then delete the
-   old project. Do it in a quiet moment and check the live domain right after, with
-   a cache-bust (`PUBLISHING.md` § "For AI assistants"). This sequence follows
-   Cloudflare's documented behaviour and was not exercised on the reference site,
-   which was git-connected from the start.
+9. **A project of the other kind, or a direct-upload one, already exists.** Cloudflare cannot
+   turn a direct-upload project into a git-connected one, nor a Pages project into a Worker.
+   A Worker first deployed by command: whether it can be connected to the repository later is not
+   checked; the safe route is a new Worker connected to the repository, then move
+   the custom domain. A Pages site: create the git-connected project under a new name, let it
+   build once, remove the domain from the old project (one Pages project at a time), attach it
+   to the new one (Custom domains → Set up a domain), wait for Active, and only then delete the
+   old project. Do it in a quiet moment and check the live domain with a cache-bust
+   (`PUBLISHING.md` § "For AI assistants"). The Pages sequence follows Cloudflare's
+   documentation and was not exercised on the reference site.
 
 Verify: after the first merge, `<live-or-preview-url>/build.txt` shows the merge
 commit id (the kit's build marker). Say which address is the **preview** and which is
