@@ -16,7 +16,7 @@ alone, with fresh-eyes beside it in round 1.
 | Round | Head | Artifact | Reviewers | seconds, tokens per seat | BUG/RISK/NIT |
 |---|---|---|---|---|---|
 | 1 | `15c1f457` | full, `--base 51309e60` | Codex (gpt-6.1-sol, config effort, read-only); fresh-eyes (Claude Sonnet sub-agent, read-only); melious FAILED | codex 182 s, 47,734; fresh-eyes 39 s, 92,712; melious 567 s, no figure | 2 / 0 / 2 |
-| 2 | `c1b4b2c` | the round's change, `--base 15c1f457`, `--verify` | Codex (medium effort); melious FAILED twice | codex 97 s, 33,555; melious 929 s and 733 s, no figure | 1 / 0 / 0 |
+| 2 | `6be34630` | the round's change, `--base 15c1f457`, `--verify` | Codex (medium effort); melious FAILED twice | codex 97 s, 33,555; melious 929 s and 733 s, no figure | 1 / 0 / 0 |
 
 | id | Sev | Source | Round | Finding | Status | Evidence |
 |---|---|---|---|---|---|---|
@@ -28,7 +28,7 @@ alone, with fresh-eyes beside it in round 1.
 
 Notes:
 - No round 3: round 2 called for no fix that changes what runs (P5 is one comment).
-- The tests: `/bin/bash tests/check_ship_push.sh` at `c1b4b2c` passed (82 publish outcomes, 521
+- The tests: `/bin/bash tests/check_ship_push.sh` at `6be34630` passed (82 publish outcomes, 521
   checks on real git; T1 to T8 skipped, `SHIP_TEST_TTY` not set). Run against `ship.sh` from
   before the fix, round 1's new cases fail (8 checks, L3g to L3j).
 - UNVERIFIABLE: 6 asked (Codex, both rounds), 0 confirmed. Not tested: a real Cloudflare site, and
