@@ -102,7 +102,7 @@ a `.dev.vars` file that git ignores). It never goes in a file git tracks. Delete
    Say yes only if it is what you want. Your yes and the move's prompt must come within 15
    minutes of the question, or it is asked again.
 4. **Prompts.** Your assistant's own permission prompts come before the move, the push and any
-   deploy. They are about DNS and domain changes: read them.
+   deploy. They may describe DNS and domain changes: read them before you approve.
 5. **The move.** About a minute at most, then the push, then the check, `after`.
 
 `move-run/status.html` in the site's folder shows where the move stands. Open it in a browser.
