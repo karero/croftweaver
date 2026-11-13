@@ -58,6 +58,9 @@ class NoFont(unittest.TestCase):
                                capture_output=True, text=True, timeout=60)
             self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
             self.assertIn("none of the fonts this script knows is installed", r.stderr)
+            # The brand-kit installer reports only the last line, so it must say what to do on its own.
+            last = r.stderr.strip().splitlines()[-1]
+            self.assertTrue(last.startswith("No font for the share cards: install "), last)
             for reg, _, bold, _ in load(script)._FONT_CANDIDATES:
                 self.assertIn(reg, r.stderr)
                 self.assertIn(bold, r.stderr)

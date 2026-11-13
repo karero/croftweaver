@@ -98,7 +98,9 @@ def _no_font():
                       for reg, _, bold, _ in _FONT_CANDIDATES)
     sys.exit("generate_og_cards: none of the fonts this script knows is installed, so it "
              f"stopped. It needs one of these lines installed (both files, where a line has two):\n{tried}\n"
-             "Install one of them (on Linux: DejaVu Sans or Liberation Sans), then run it again.")
+             # The last line stands alone: the brand-kit installer reports only that one.
+             "No font for the share cards: install DejaVu Sans or Liberation Sans (Linux) "
+             "or Arial (Mac, Windows), then run it again.")
 
 
 def font(bold: bool, size: int):

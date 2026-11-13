@@ -779,8 +779,9 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           python -m pip install Pillow
-      # The share-card generator runs on the owner's machine only, so nothing else here runs it.
+      # The installer test below runs the generator only with a font installed; this checks the no-font stop.
       - name: Share-card fonts (skills/new-website/scripts/tests/test_og_fonts.py)
+        working-directory: .
         env:
           OG_FONTS_REQUIRE_FONT: "1"
         run: python skills/new-website/scripts/tests/test_og_fonts.py
