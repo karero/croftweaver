@@ -31,6 +31,9 @@ Notes:
 - The tests: `/bin/bash tests/check_ship_push.sh` at `6be34630` passed (82 publish outcomes, 521
   checks on real git; T1 to T8 skipped, `SHIP_TEST_TTY` not set). Run against `ship.sh` from
   before the fix, round 1's new cases fail (8 checks, L3g to L3j).
+- Wording pass (Codex, medium effort, 135 s, 54,405 tokens; `--base 6be34630`): one finding, a
+  new BUGLOG row said "five font families" where the generator lists five font pairs of four
+  families. Fixed. UNVERIFIABLE there: 3 asked, 0 confirmed.
 - UNVERIFIABLE: 6 asked (Codex, both rounds), 0 confirmed. Not tested: a real Cloudflare site, and
   a site that answers early looks and gives no reply on the last (the stub answers every look
   alike). "Most likely the OLD build" is a judgment, not a measurement.
