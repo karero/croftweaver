@@ -784,7 +784,10 @@ jobs:
         working-directory: .
         env:
           OG_FONTS_REQUIRE_FONT: "1"
-        run: python skills/new-website/scripts/tests/test_og_fonts.py
+        # A listed font, installed here rather than assumed from the runner image.
+        run: |
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+          python skills/new-website/scripts/tests/test_og_fonts.py
       - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
         working-directory: ${{ runner.temp }}/site
         run: |
