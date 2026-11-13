@@ -1,0 +1,114 @@
+# curl 8.7.1, 2026-11-13T08:26:32Z: GET, headers as received (CR removed). NEL report URL signature, cf-ray and the workers.dev subdomain replaced; nothing else edited.
+# _headers in the version:
+#   /*
+#     X-Spike: base
+#   https://:version.:sub.workers.dev/*
+#     NEL: {"max_age":0}
+
+## https://06df7e8c-cw-l59-spike.example-sub.workers.dev/
+HTTP/2 200 
+date: Fri, 13 Nov 2026 08:26:32 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+x-spike: base
+x-robots-tag: noindex
+nel: {"max_age":0}
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+
+## https://06df7e8c-cw-l59-spike.example-sub.workers.dev/a
+HTTP/2 307 
+date: Fri, 13 Nov 2026 08:26:32 GMT
+content-length: 0
+location: /a/
+x-robots-tag: noindex
+nel: {"max_age":0}
+x-spike: base
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+
+## https://06df7e8c-cw-l59-spike.example-sub.workers.dev/old-page
+HTTP/2 301 
+date: Fri, 13 Nov 2026 08:26:33 GMT
+content-length: 0
+location: /a/
+x-robots-tag: noindex
+nel: {"max_age":0}
+x-spike: base
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+
+## https://06df7e8c-cw-l59-spike.example-sub.workers.dev/nothing-here
+HTTP/2 404 
+date: Fri, 13 Nov 2026 08:26:33 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+x-spike: base
+x-robots-tag: noindex
+nel: {"max_age":0}
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+
+## https://spike-cw-l59-spike.example-sub.workers.dev/
+HTTP/2 200 
+date: Fri, 13 Nov 2026 08:26:33 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+x-spike: base
+x-robots-tag: noindex
+nel: {"max_age":0}
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+
+## https://spike-cw-l59-spike.example-sub.workers.dev/a
+HTTP/2 307 
+date: Fri, 13 Nov 2026 08:26:34 GMT
+content-length: 0
+location: /a/
+x-robots-tag: noindex
+nel: {"max_age":0}
+x-spike: base
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+
+## https://spike-cw-l59-spike.example-sub.workers.dev/old-page
+HTTP/2 301 
+date: Fri, 13 Nov 2026 08:26:34 GMT
+content-length: 0
+location: /a/
+x-robots-tag: noindex
+nel: {"max_age":0}
+x-spike: base
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+
+
+## https://spike-cw-l59-spike.example-sub.workers.dev/nothing-here
+HTTP/2 404 
+date: Fri, 13 Nov 2026 08:26:34 GMT
+content-type: text/html
+cf-cache-status: HIT
+cache-control: public, max-age=0, must-revalidate
+x-spike: base
+x-robots-tag: noindex
+nel: {"max_age":0}
+server: cloudflare
+cf-ray: 0123456789abcdef-FRA
+alt-svc: h3=":443"; ma=86400
+

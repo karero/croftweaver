@@ -24,6 +24,24 @@ const SHA = '85ca07f1bb53b7078587bce136ef95288fe5115a';
 const CAP = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'workers-dev-answers', 'answers-2026-11-06.json'), 'utf8'));
 const KIT_301 = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'pages-vs-worker-headers', 'redirect-old-page-2026-11-05.json'), 'utf8')).version_url_of_the_worker;
 
+// Captures of a version link and a Preview alias (2026-11-13, curl 8.7.1): with the starter's NEL rule in
+// _headers, and without it. `answerOf` takes the answer to one path from the first host that has it.
+function answerOf(file, pathname) {
+  const text = readFileSync(path.join(HERE, 'fixtures', 'l59-nel', file), 'utf8');
+  const block = text.split(/^## /m).slice(1).find((b) => b.split('\n')[0].replace(/^https:\/\/[^/]+/, '') === pathname);
+  assert.ok(block, `${file} has no answer for ${pathname}`);
+  const [, ...rest] = block.trimEnd().split('\n');
+  const headers = {};
+  for (const line of rest.slice(1)) headers[line.slice(0, line.indexOf(':'))] = line.slice(line.indexOf(':') + 2);
+  return { status: Number(rest[0].split(' ')[1]), headers, body: '<!doctype html><title>Site</title>' };
+}
+const WITH_RULE = 'curl-8.7.1-version-and-alias-with-nel-rule-2026-11-13.txt';
+const WITHOUT_RULE = 'curl-8.7.1-version-without-rule-2026-11-13.txt';
+const RULE_HOME = answerOf(WITH_RULE, '/');
+const RULE_REDIRECT = answerOf(WITH_RULE, '/a');
+const NO_RULE_HOME = answerOf(WITHOUT_RULE, '/');
+const STARTER_HEADERS = readFileSync(path.join(HERE, '..', '..', 'templates', 'astro', 'public', '_headers'), 'utf8');
+
 const WORKER = 'lenas-site';
 const ACCOUNT = 'example-sub.workers.dev.test';
 const VERSION = '0a1b2c3d';
@@ -63,8 +81,9 @@ function answerWith(res, cap, extra = {}) {
 
 // Cloudflare's workers.dev as the captures show it: `rules(host, req, res)` may answer first (return true).
 // Asked without accept-encoding, the Worker's address answers as an address that is off does; asked
-// with one it answers a 404 page instead; a version link serves the site, with noindex; an alias that is
-// not there answers 404 with x-preview-user-error.
+// with one it answers a 404 page instead; a version link or an alias serves the site as it does with the
+// starter's NEL rule (noindex, nel with max_age 0, no report-to); an alias that is not there answers 404
+// with x-preview-user-error.
 async function workersDev(rules = () => false) {
   const asked = [];
   const server = http.createServer((req, res) => {
@@ -72,8 +91,7 @@ async function workersDev(rules = () => false) {
     asked.push({ host, url: req.url, acceptEncoding: req.headers['accept-encoding'] });
     if (rules(host, req, res)) return;
     if (host === ADDRESS_HOST) answerWith(res, req.headers['accept-encoding'] === undefined ? CAP.address_off_no_accept_encoding : CAP.address_off_accept_encoding_identity);
-    else if (host === VERSION_HOST) answerWith(res, CAP.version_link_live);
-    else if (host === ALIAS_HOST) answerWith(res, CAP.preview_alias_live);
+    else if (host === VERSION_HOST || host === ALIAS_HOST) answerWith(res, RULE_HOME);
     else answerWith(res, CAP.preview_alias_dead);
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -315,13 +333,14 @@ test('a link without noindex is FAIL, named; a version link whose home page redi
     assert.doesNotMatch(r.by.previews.detail, /0a1b2c3d/, 'the link that is fine is not in the failure');
     assert.equal(r.code, 1);
   });
-  // The kit's earlier capture of a version link's 301 with noindex, replayed on the home page here (the real
-  // redirect led from /old-page); where it leads answers 200 without noindex.
+  // A version link whose home page redirects (the 307 of the with-rule capture, replayed on the home page; the
+  // real redirect led from /a) is judged on the redirect itself, which is not followed; where it leads answers
+  // 200 without noindex.
   const seen = [];
   await withBoth({ rules: (host, req, res) => {
     if (host !== VERSION_HOST) return false;
     seen.push(req.url);
-    if (req.url === '/') { res.writeHead(KIT_301.status, KIT_301.headers); res.end(); } else send(res, 200, 'text/html', '<p>Privacy</p>');
+    if (req.url === '/') { res.writeHead(RULE_REDIRECT.status, RULE_REDIRECT.headers); res.end(); } else send(res, 200, 'text/html', '<p>Privacy</p>');
     return true;
   } }, async (live, wd) => {
     const r = await check(live.origin, '--site', dir, '--preview', wd.link(VERSION_HOST));
@@ -332,11 +351,121 @@ test('a link without noindex is FAIL, named; a version link whose home page redi
   });
 });
 
+// The links as Cloudflare answered them before the starter's rule: they carry Cloudflare's own NEL and Report-To,
+// so each is a FAIL now, though the same answers were ok before 2026-11-13. The fixtures are as captured.
+test('the version link, the Preview alias and a version link\'s 301, as captured without the rule, are FAIL for the NEL policy', async (t) => {
+  const dir = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG });
+  const cases = [
+    ['version link, 200 (2026-11-06)', VERSION_HOST, CAP.version_link_live],
+    ['Preview alias, 200 (2026-11-06)', ALIAS_HOST, CAP.preview_alias_live],
+    ['version link, 301 with noindex (2026-11-05)', VERSION_HOST, KIT_301],
+  ];
+  for (const [label, host, cap] of cases) {
+    const rules = (h, req, res) => h === host && (cap.status === 200 ? answerWith(res, cap) : (res.writeHead(cap.status, cap.headers), res.end()), true);
+    await withBoth({ rules }, async (live, wd) => {
+      const r = await check(live.origin, '--site', dir, '--preview', wd.link(host));
+      assert.equal(r.by.previews.state, 'fail', label);
+      assert.match(r.by.previews.detail, /with a nel header that sets a policy \(\{"report_to":"cf-nel","success_fraction":0\.0,"max_age":604800\}\)/, label);
+      assert.match(r.by.previews.detail, /with a report-to header/, label);
+      assert.doesNotMatch(r.by.previews.detail, /without noindex/, `${label}: the noindex is there`);
+      assert.equal(r.code, 1, label);
+    });
+  }
+});
+
+// The NEL half of the previews item: each way to fail has a test of its own.
+const RULE_LINES = ['https://:version.:sub.workers.dev/*', '  NEL: {"max_age":0}'];
+async function previewsFor(t, answer) {
+  const dir = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG });
+  let r;
+  await withBoth({ rules: (host, req, res) => host === VERSION_HOST && (answerWith(res, answer), true) }, async (live, wd) => {
+    r = await check(live.origin, '--site', dir, '--preview', wd.link(VERSION_HOST));
+  });
+  return r;
+}
+
+test('a link answered as with the starter\'s rule (capture: noindex, nel max_age 0, no report-to) is ok', async (t) => {
+  const r = await previewsFor(t, RULE_HOME);
+  assert.equal(r.by.previews.state, 'ok', r.by.previews.detail);
+  assert.match(r.by.previews.detail, /answers 200 with noindex and no active NEL policy\.$/);
+  assert.equal(r.code, 0, r.stdout);
+});
+
+test('a link answered without the rule (capture: Cloudflare\'s nel and report-to) is FAIL, and the fix names the rule', async (t) => {
+  const r = await previewsFor(t, NO_RULE_HOME);
+  assert.equal(r.by.previews.state, 'fail');
+  assert.match(r.by.previews.detail, /with a nel header that sets a policy .*"max_age":604800.*; and with a report-to header/);
+  for (const line of RULE_LINES) assert.ok(r.by.previews.fix.includes(line.trim()), `the fix does not carry "${line.trim()}"`);
+  assert.match(r.by.previews.fix, /site's own public\/_headers/);
+  assert.equal(r.code, 1);
+});
+
+test('noindex with a nel policy of max_age 604800 and no report-to is FAIL, for the nel alone', async (t) => {
+  const r = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', nel: '{"max_age":604800}' }, body: 'x' });
+  assert.equal(r.by.previews.state, 'fail');
+  assert.match(r.by.previews.detail, /answers 200 with a nel header that sets a policy \(\{"max_age":604800\}\)/);
+  assert.doesNotMatch(r.by.previews.detail, /report-to/);
+  assert.ok(r.by.previews.fix.includes('NEL: {"max_age":0}'));
+  assert.equal(r.code, 1);
+});
+
+test('noindex with nel max_age 0 but a report-to header is FAIL, for the report-to alone', async (t) => {
+  const r = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', nel: '{"max_age":0}', 'report-to': '{"group":"g","max_age":10,"endpoints":[{"url":"https://reports.example.invalid/r"}]}' }, body: 'x' });
+  assert.equal(r.by.previews.state, 'fail');
+  assert.match(r.by.previews.detail, /answers 200 with a report-to header, which can set up network error reporting\.$/);
+  assert.doesNotMatch(r.by.previews.detail, /nel header/);
+  assert.ok(r.by.previews.fix.includes('public/_headers'));
+  assert.equal(r.code, 1);
+});
+
+test('a nel header that is not JSON is FAIL; so is one with no max_age of 0 (a string, or none)', async (t) => {
+  for (const nel of ['max_age=0', '{"max_age":"0"}', '{"report_to":"cf-nel"}', 'null']) {
+    const r = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', nel }, body: 'x' });
+    assert.equal(r.by.previews.state, 'fail', nel);
+    assert.match(r.by.previews.detail, nel === 'max_age=0' ? /with a nel header that is not JSON \(max_age=0\)/ : /with a nel header that sets a policy/, nel);
+    assert.equal(r.code, 1, nel);
+  }
+});
+
+test('an empty nel or report-to header is present, so FAIL: a header that is there is judged, not read as absent', async (t) => {
+  const nel = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', nel: '' }, body: 'x' });
+  assert.equal(nel.by.previews.state, 'fail');
+  assert.match(nel.by.previews.detail, /with a nel header that is not JSON \(\)/);
+  const reportTo = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex', 'report-to': '' }, body: 'x' });
+  assert.equal(reportTo.by.previews.state, 'fail');
+  assert.match(reportTo.by.previews.detail, /with a report-to header/);
+});
+
+test('noindex with no nel and no report-to header is ok: nothing sets a policy', async (t) => {
+  const r = await previewsFor(t, { status: 200, headers: { 'x-robots-tag': 'noindex' }, body: 'x' });
+  assert.equal(r.by.previews.state, 'ok', r.by.previews.detail);
+  assert.equal(r.code, 0, r.stdout);
+});
+
+test('a link with no noindex and a NEL policy gets both problems named, and a missing noindex alone keeps the old fix', async (t) => {
+  const both = await previewsFor(t, { status: 200, headers: { nel: '{"max_age":604800}' }, body: 'x' });
+  assert.match(both.by.previews.detail, /without noindex in x-robots-tag .*; and with a nel header/);
+  assert.ok(both.by.previews.fix.includes('NEL: {"max_age":0}') && both.by.previews.fix.endsWith('See section 1 of the Cloudflare checklist.'), 'the fix names the rule and keeps the noindex pointer');
+  const plain = await previewsFor(t, { status: 200, headers: {}, body: 'x' });
+  assert.equal(plain.by.previews.state, 'fail');
+  assert.doesNotMatch(plain.by.previews.detail, /nel/);
+  assert.equal(plain.by.previews.fix, 'See section 1 of the Cloudflare checklist.');
+});
+
+// The checker reads "/" only, so this test is what keeps the rule in the starter.
+test('the starter\'s public/_headers holds the NEL rule for version and Preview links, the two lines as the spike ran them', () => {
+  const lines = STARTER_HEADERS.split('\n');
+  const at = lines.indexOf(RULE_LINES[0]);
+  assert.ok(at >= 0, 'the rule\'s host line is missing');
+  assert.equal(lines[at + 1], RULE_LINES[1], 'the line under it is not NEL: {"max_age":0}');
+  assert.ok(lines.indexOf('/*') < at, 'the rule comes after the /* block');
+});
+
 test('noindex counts as a bare directive of x-robots-tag, not as a piece of another word or a value for one crawler', async (t) => {
   const dir = folder(t, { 'wrangler.jsonc': WORKERS_CONFIG });
   const want = { 'noindex, nofollow': 'ok', 'NOINDEX': 'ok', 'nofollow,noindex': 'ok', noindexing: 'fail', 'notnoindex': 'fail', 'nofollow': 'fail', 'googlebot: noindex': 'fail', 'googlebot: nofollow, noindex': 'fail' };
   for (const [value, state] of Object.entries(want)) {
-    const rules = (host, req, res) => host === VERSION_HOST && (answerWith(res, CAP.version_link_live, { 'x-robots-tag': value }), true);
+    const rules = (host, req, res) => host === VERSION_HOST && (answerWith(res, RULE_HOME, { 'x-robots-tag': value }), true);
     await withBoth({ rules }, async (live, wd) => {
       const r = await check(live.origin, '--site', dir, '--preview', wd.link(VERSION_HOST));
       assert.equal(r.by.previews.state, state, `x-robots-tag: ${value}`);

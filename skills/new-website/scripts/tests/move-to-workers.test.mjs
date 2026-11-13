@@ -1757,6 +1757,11 @@ describe('test 5: what the throwaway showed (the version URL\'s NEL, a redirect\
     const worker = redirect({ t: null, h: EMPTY_BODY, hd: { nel: 'present', 'report-to': 'present' } });
     const known = compare({ '/r': redirect() }, { '/r': worker }, OPT);
     assert.deepEqual(known.map((d) => `${d.field} ${d.known ? 'known' : 'UNKNOWN'}`).sort(), ['body known', 'header nel known', 'header report-to known', 'media type known']);
+    // Each header gets its own reason: a report-to alone is not called a nel header, and a nel is not called a report-to.
+    const reason = (hd, field) => compare({ '/r': redirect() }, { '/r': redirect({ hd }) }, OPT).find((d) => d.field === field).known;
+    assert.match(reason({ nel: '{"max_age":0}', 'report-to': null }, 'header nel'), /carries a nel header .*public\/_headers/);
+    assert.match(reason({ nel: null, 'report-to': 'present' }, 'header report-to'), /adds a report-to header/);
+    assert.doesNotMatch(reason({ nel: null, 'report-to': 'present' }, 'header report-to'), /nel header/);
     // The platform did not change (after an undo): a redirect body is not excused.
     assert.ok(compare({ '/r': redirect() }, { '/r': worker }, { ...OPT, change: false, onVersion: false }).every((d) => !d.known));
     // On the domain NEL is a failure: after a move the zone's setting must still be what it was.

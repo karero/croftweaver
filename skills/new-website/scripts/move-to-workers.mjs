@@ -1187,7 +1187,8 @@ export function compare(was, now, { change, onVersion, expect }) {
       if (x === y) continue;
       let known = null;
       if (onVersion && ZONE_HEADERS.includes(n) && y === null) known = 'the version URL has no zone headers';
-      if (onVersion && (n === 'nel' || n === 'report-to') && x === null && y !== null) known = "Cloudflare's workers.dev zone adds NEL to the version URL; the domain's zone setting is checked by after";
+      if (onVersion && n === 'nel' && x === null && y !== null) known = "the version URL carries a nel header (Cloudflare's workers.dev zone adds one there, or the site's own public/_headers withdraws the policy with max_age 0); the domain's zone setting is checked by after";
+      if (onVersion && n === 'report-to' && x === null && y !== null) known = "Cloudflare's workers.dev zone adds a report-to header to the version URL; the domain's zone setting is checked by after";
       if (onVersion && n === 'x-robots-tag' && /noindex/i.test(y ?? '')) known = 'the version URL is noindex';
       if (change && n === 'access-control-allow-origin' && x !== null && y === null) known = 'Pages sends access-control-allow-origin; the Worker does not';
       if (change && n === 'content-type') known = contentTypeKnown(x, y, sameRedirect);
