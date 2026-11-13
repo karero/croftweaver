@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.30
+# template-version: 0.31
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -1118,8 +1118,9 @@ echo "â†’ Verifying the live site serves this exact build (about $wait_min min)â
 # What the last look got, and whether any look got an answer at all. Read as probe_site reads
 # build.txt (no -f, the status asked for), so "no reply" (curl's code 000: DNS, a blocked network,
 # a timeout), "an HTTP error" and "this build is not served yet" stay three different things.
-# Only the last is Cloudflare's to fix.
-last_look="" last_code="" ever_reached=0
+# Only the last is Cloudflare's to fix. The status decides whether the site answered, not curl's
+# exit: a reply that broke off or timed out after its status line is still an answer.
+last_look="" last_code="" last_crc=0 ever_reached=0
 for i in $(seq 1 $((wait_min * 6))); do
   # A Ctrl-C ends the wait (or the request), not the script, so the note is read.
   sleep 10 || true
@@ -1129,18 +1130,23 @@ for i in $(seq 1 $((wait_min * 6))); do
     # body and a false "old build" verdict; the exact-SHA match keeps the check honest.
     live="" crc=0
     out="$(curl -sL -m 8 -w '\n%{http_code}' "$site/build.txt?cb=$RANDOM$i" 2>/dev/null)" || crc=$?
-    last_code="${out##*$'\n'}"
-    if [ "$crc" != 0 ] || [ "$last_code" = 000 ] || [ -z "$last_code" ]; then
-      last_look=noreply
-    else
-      ever_reached=1
-      if [ "$last_code" = 200 ]; then
-        live="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
-        last_look=other
-      else
-        last_look=http
-      fi
-    fi
+    last_code="${out##*$'\n'}" last_crc="$crc"
+    case "$last_code" in
+      [1-5][0-9][0-9])
+        ever_reached=1
+        if [ "$crc" != 0 ]; then
+          last_look=cut # an answer, but curl failed on it: its body is not read
+        elif [ "$last_code" = 200 ]; then
+          live="$(tr -d '[:space:]' <<<"${out%$'\n'*}")"
+          # Another commit id is an old build; an empty body or a page is neither build.
+          last_look=other
+          [ "${#live}" = "${#id}" ] || last_look=notid
+          case "$live" in *[!0-9a-f]*) last_look=notid ;; esac
+        else
+          last_look=http
+        fi ;;
+      *) last_look=noreply ;;
+    esac
     [ "$stop_asked" = 1 ] && stop_live=1
   fi
   if [ "$stop_live" = 1 ]; then
@@ -1188,9 +1194,12 @@ if [ "$ever_reached" = 0 ]; then
   exit 1
 fi
 # The site answered at least once. What its last look got says how to word it: only a 200 with
-# another commit is an OLD build; an HTTP error or a late lapse in replies is named as such.
+# another commit id is an OLD build; an HTTP error, an answer curl failed on, a build.txt that
+# holds no commit id and a late lapse in replies are each named as such.
 case "$last_look" in
   http) stale="does not serve this build (its last answer was HTTP $last_code)." ;;
+  cut) stale="did not show this build (its last answer was HTTP $last_code, and the request failed: curl exit $last_crc)." ;;
+  notid) stale="does not serve this build (its build.txt answered, but not with a commit id)." ;;
   noreply) stale="did not show this build (it answered earlier; the last look got no reply)." ;;
   *) stale="serves an OLD build." ;;
 esac

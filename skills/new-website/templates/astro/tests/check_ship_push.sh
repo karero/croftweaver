@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.30   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.31   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -1053,12 +1053,14 @@ NPM
 # Both the probe of a Workers site's address and the live check ask for the status (-w): the
 # answer is the body, a newline and the code. SHIP_T_NOSITE: a 404 page; SHIP_T_CODE: that status
 # with no body; SHIP_T_STALE: a 200 with another commit; SHIP_T_CURL_RC: curl itself fails with
-# that exit status, after printing code 000 as curl does when nothing answered.
-if [ -n "${SHIP_T_CURL_RC:-}" ]; then printf '\n000'; exit "$SHIP_T_CURL_RC"; fi
+# that exit status, after printing code 000 as curl does when nothing answered, or SHIP_T_CODE
+# when an answer came and curl failed on it; SHIP_T_BODY (may be empty): a 200 with that body.
+if [ -n "${SHIP_T_CURL_RC:-}" ]; then printf '\n%s' "${SHIP_T_CODE:-000}"; exit "$SHIP_T_CURL_RC"; fi
 case " $* " in *" -w "*) ;; *) echo "STUB: curl without -w: $*" >&2; exit 2 ;; esac
 if [ -n "${SHIP_T_NOSITE:-}" ]; then printf '<html>not found</html>\n404'; exit 0; fi
 if [ -n "${SHIP_T_CODE:-}" ]; then printf '\n%s' "$SHIP_T_CODE"; exit 0; fi
 if [ -n "${SHIP_T_STALE:-}" ]; then printf '0000000000000000000000000000000000000000\n200'; exit 0; fi
+if [ -n "${SHIP_T_BODY+set}" ]; then printf '%s\n200' "$SHIP_T_BODY"; exit 0; fi
 printf '%s\n200' "$(git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production)"
 CURL
   # Preloaded into node (NODE_OPTIONS) by the cases that need DNS to answer: the lookup fails with
@@ -1842,9 +1844,33 @@ GATE
   want "nothing new and no reply: says nothing was pushed" has "⚠ Nothing was pushed ('production' already had this commit), but https://ship-test.example.invalid could not be"
   want "... never claims an OLD build" lacks "OLD build"
   want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
-  fixture l3f; advance 1
+  fixture l3f; advance 1; m="$(gh main)"
   run_ship l3f SHIP_T_CODE=503; exits 1
+  want "production is GitHub's main: the push landed" eq "$(gh production)" "$m"
   want "an HTTP error is named, not called an OLD build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its last answer was HTTP 503)."
+  want "... and never says OLD build" lacks "OLD build"
+
+  # --- L3g–L3j: an answer is an answer, and only a commit id is a build ----------------------
+  # L3g, L3h: a status came back and curl failed on it (a reply cut off, a timeout after the
+  # status line). The site answered, so it is not "could not be reached". L3i, L3j: a 200 whose
+  # body is a page or empty is no build at all, so not an OLD one.
+  fixture l3g; advance 1
+  run_ship l3g SHIP_T_CODE=503 SHIP_T_CURL_RC=18; exits 1
+  want "an answer curl failed on is named with both numbers" has "⚠ Pushed OK, but after 6 minutes the live site still did not show this build (its last answer was HTTP 503, and the request failed: curl exit 18)."
+  want "... the site answered: never 'could not be reached'" lacks "could not be"
+  want "... and never says OLD build" lacks "OLD build"
+  fixture l3h; advance 1
+  run_ship l3h SHIP_T_CODE=200 SHIP_T_CURL_RC=28; exits 1
+  want "a 200 that timed out is an answer, and its body is not read" has "the live site still did not show this build (its last answer was HTTP 200, and the request failed: curl exit 28)."
+  want "... never 'could not be reached'" lacks "could not be"
+  want "... and never says OLD build" lacks "OLD build"
+  fixture l3i; advance 1
+  run_ship l3i 'SHIP_T_BODY=<html>welcome</html>'; exits 1
+  want "a 200 with a page is not a build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its build.txt answered, but not with a commit id)."
+  want "... and never says OLD build" lacks "OLD build"
+  fixture l3j; advance 1
+  run_ship l3j SHIP_T_BODY=; exits 1
+  want "a 200 with an empty body is not a build" has "the live site still does not serve this build (its build.txt answered, but not with a commit id)."
   want "... and never says OLD build" lacks "OLD build"
 
   # --- L4: the owner's git settings and odd bytes in a subject do not reach the list --------
