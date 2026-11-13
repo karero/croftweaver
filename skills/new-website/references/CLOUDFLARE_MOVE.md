@@ -6,7 +6,9 @@ Pages if you ask. It needs Node 18 or newer and nothing from npm. It never pushe
 you push the one commit it writes.
 
 A site whose domain is not yet on its Pages project has nothing to move: it launches first, as
-`CLOUDFLARE_FIRST_DEPLOY.md` says.
+`CLOUDFLARE_FIRST_DEPLOY.md` says. Before the User makes a token, read the address in
+`SITE.url` in `src/config.ts` and look up its name servers (`dig NS <domain> +short`): if they are not
+Cloudflare's, the domain's DNS is elsewhere and the site launches first.
 
 This page tells an assistant when to run each command. It is not the User guide: that is
 `docs/MOVE-TO-WORKERS.md` in the Croftweaver folder.
@@ -242,4 +244,4 @@ network, and `move-run/` is ignored by git. Tell the User where it is.
   token, made the same way. After an `undo` that `after` has closed, delete the token.
 - Look at the live site once in a browser.
 - Wait 14 days before retiring the Pages project; that is a step of its own, not this script,
-  and **not tested yet** (kit row 4.3): until a later kit release gives the steps, keep it.
+  and **not tested yet**: until a later kit release gives the steps, keep it.
