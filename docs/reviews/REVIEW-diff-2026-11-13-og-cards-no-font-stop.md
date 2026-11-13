@@ -24,4 +24,5 @@ gate id 20261113T223737Z-28176.
 | F10 | NIT | melious | 3 | `apt-get install` without `apt-get update`. | refuted | The step before it runs `npx playwright install --with-deps`, which updates the apt index. |
 
 Notes:
-- `make check` on this change ran through the 0.35 manager's queue (result reported to it separately).
+- `make check` on the tree of `ac53540c`: exit 0, "all checks passed"; brand-kit `test_install.py` 239 OK
+  (98 skipped), `test_site_edits.py` 130 OK (1 skipped). Not rerun after the later commits (the stop's last line, the CI step, docs); CI covers them.
