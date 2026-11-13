@@ -1748,8 +1748,8 @@ describe('TL: step 7 of a launch, as the live NEL test found it', { concurrency:
     launchScenario((h) => Object.assign(attachHost(launchState(h)), { siteBuildStatus: 522 }), async ({ api, state, launch }) => {
       const r = await launch();
       assert.equal(r.code, 4, r.out);
-      assert.match(r.out, /is attached but the edge is not ready yet: no build\.txt \(522\)\./);
-      assert.match(r.out, /again in a few minutes\. Status 4\./);
+      assert.match(r.out, /is attached but its build did not answer yet: no build\.txt \(522\)\./);
+      assert.match(r.out, /again in a few minutes\. If it still answers like this after about ten minutes, look at the Worker's logs and its latest deployment\. Status 4\./);
       assert.equal(writesOf(api).length, 0, 'nothing is written while waiting');
       state.siteBuildStatus = 404;
       const gone = await launch();
