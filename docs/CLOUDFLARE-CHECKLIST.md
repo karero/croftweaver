@@ -264,9 +264,7 @@ cookies, scripts or tracking you didn't choose.
 - [ ] **Cloudflare Web Analytics: Off.** This is Cloudflare's own measurement, separate
   from any tool you chose for the site. Two places, check both:
   - Workers & Pages → your project → Metrics → Web Analytics. This is where you would
-    switch it on, so it should offer **Enable**, not show data. (Seen on a Pages project only.
-    On a Worker this place is not checked: use the next one, and the page-source check in
-    section 5, which looks at the home page only.)
+    switch it on, so it should offer **Enable**, not show data.
   - Web Analytics → Manage site → Disable. If your domain isn't listed there, there is
     nothing to disable.
 
