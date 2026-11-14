@@ -7,8 +7,8 @@
 # seven at once pushed this Mac's load past what the browser tests survive. The lock is only
 # worth having if the real `make check` goes through it, so every case enters the way production
 # does: it runs `make check` (or `make package`) in a copy of the real Makefile and check_lock.sh.
-# The exceptions are the unit-level cases (T6's exit status, T8's signal forwarding), which run the
-# script directly beside the case that goes through make.
+# The exceptions are the unit-level cases: T6's exit status, T8's signal forwarding and T9's output
+# checks run the script directly. T6 and T8 sit beside a case that goes through make; T9 does not.
 # In the copy the first guard, scripts/check_clean.sh, is a stub that writes a marker file and
 # fails, so no case runs the real guards or recurses into this test.
 #

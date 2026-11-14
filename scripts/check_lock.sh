@@ -38,7 +38,8 @@ $| = 1;
 sysopen(my $fh, $lock, O_RDWR | O_CREAT, 0600)
   or do { print STDERR "make check cannot open its lock file $lock: $!\n"; exit 1 };
 chmod(0600, $fh) or do { print STDERR "make check cannot secure its lock file $lock: $!\n"; exit 1 };
-fcntl($fh, F_SETFD, FD_CLOEXEC);
+fcntl($fh, F_SETFD, FD_CLOEXEC)
+  or do { print STDERR "make check cannot secure its lock descriptor on $lock: $!\n"; exit 1 };
 if (!flock($fh, LOCK_EX | LOCK_NB)) {
   my $err = $!;
   if (!$!{EWOULDBLOCK}) { print STDERR "make check cannot lock $lock: $err\n"; exit 1 }
@@ -65,16 +66,17 @@ sysseek($fh, 0, 0);
 syswrite($fh, $info);
 truncate($fh, length $info);
 # TERM and HUP (a plain kill of make reaches only this process) go on to the command, and the lock
-# stays held until it ends. They are blocked across the fork, so the pid of the command is known when one
-# is delivered and the child never runs with the parent handlers. INT and QUIT also reach the
-# command from the terminal, so they are ignored here.
+# stays held until it ends. They are blocked before the handlers are installed and until after the
+# fork, so a handler only ever runs once the pid of the command is known, and the child never runs
+# with the parent handlers. INT and QUIT also reach the command from the terminal, so they are
+# ignored here.
 my $kid;
-$SIG{INT} = $SIG{QUIT} = "IGNORE";
-$SIG{TERM} = sub { kill "TERM", $kid };
-$SIG{HUP}  = sub { kill "HUP",  $kid };
 my $both = POSIX::SigSet->new(POSIX::SIGTERM(), POSIX::SIGHUP());
 my $old  = POSIX::SigSet->new;
 POSIX::sigprocmask(POSIX::SIG_BLOCK(), $both, $old);
+$SIG{INT} = $SIG{QUIT} = "IGNORE";
+$SIG{TERM} = sub { kill "TERM", $kid };
+$SIG{HUP}  = sub { kill "HUP",  $kid };
 $kid = fork;
 if (!defined $kid) { print STDERR "make check cannot start $cmd[0]: $!\n"; exit 1 }
 if (!$kid) {
