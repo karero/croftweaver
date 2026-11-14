@@ -49,6 +49,7 @@ SCRIPTS=(
   scripts/test_whats_new_removed_skill.sh
   scripts/test_buglog_rows.sh
   scripts/test_check_package_scripts.sh
+  scripts/test_check_lock.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/test_base_check.sh
   skills/independent-review/scripts/test_failed_tier_report.sh

@@ -40,6 +40,7 @@ zip -r -X "$OUT/croftweaver.zip" \
   scripts/check_buglog_rows.sh scripts/test_buglog_rows.sh scripts/test_served_build.sh \
   scripts/check_package_scripts.sh scripts/test_check_package_scripts.sh \
   scripts/build_directory_tree.sh scripts/publish_directory.sh \
+  scripts/check_lock.sh scripts/test_check_lock.sh \
   -x '*.DS_Store' '*/dist/*' 'docs/reviews/*' 'docs/local/*' '*/node_modules/*' \
      'docs/BUGLOG.md' 'docs/DECISIONS_PENDING.md' \
      '*/.astro/*' '*/__pycache__/*' '*/test-results/*' >/dev/null
@@ -88,6 +89,8 @@ REQUIRED=(
   scripts/check_package_scripts.sh
   scripts/test_check_package_scripts.sh
   scripts/build_directory_tree.sh
+  scripts/check_lock.sh
+  scripts/test_check_lock.sh
   scripts/publish_directory.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
   skills/independent-review/scripts/test_base_check.sh

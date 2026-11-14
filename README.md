@@ -544,6 +544,8 @@ scripts/
   check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree, .nvmrc and ci.yml on one major (make check)
   test_node_floor.sh        the Node-floor check goes red for each way the floor can drift (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
+  check_lock.sh             `make check` takes this lock: a second one on the same Mac is refused, never queued
+  test_check_lock.sh        the lock refuses a second make check, runs when free, frees itself on kill -9, passes TERM and HUP on to its command, fails a killed run (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
   list_shell_scripts.sh     every shell script in the suite, found by shebang (the two guards above use it)
