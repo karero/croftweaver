@@ -22,12 +22,16 @@ _NUM = r"[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]{1,2})?"
 _NUMBER = re.compile(r"^\s*(%s)(%%?)\s*$" % _NUM)
 
 
-def _is_one(value):
+def _is(value, wanted):
     m = _NUMBER.match(value)
     if not m:
         return False
     x = float(m.group(1))
-    return (x / 100.0 if m.group(2) else x) == 1.0
+    return (x / 100.0 if m.group(2) else x) == wanted
+
+
+def _is_one(value):
+    return _is(value, 1.0)
 
 
 def _positive(width):
@@ -59,7 +63,9 @@ def resolve_paints(root, drawing, current=None):
         props = node.props
         for k in ("opacity", "fill-opacity", "stroke-opacity"):
             if k in props:
-                if not _is_one(props[k]):
+                if k == "fill-opacity" and node.tag in drawing and _is(props[k], 0.0):
+                    props["fill"] = "none"   # a fill with no opacity paints nothing: written as none, its colour is not counted
+                elif not _is_one(props[k]):
                     raise _alpha()
                 del props[k]
         eff = dict(inherited)

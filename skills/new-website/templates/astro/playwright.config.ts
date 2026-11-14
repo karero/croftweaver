@@ -1,6 +1,7 @@
-import { defineConfig, devices } from '@playwright/test';
-import { realpathSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { chromium, defineConfig, devices } from '@playwright/test';
+import { randomUUID } from 'node:crypto';
+import { existsSync, readdirSync, realpathSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // One stable preview port per site folder, so each checkout, worktree or clone of a site tests
@@ -19,6 +20,29 @@ function portFor(key: string): number {
 const PORT = portFor(realpathSync(dirname(fileURLToPath(import.meta.url))));
 const BASE = `http://localhost:${PORT}`;
 
+// Claude Code cloud sessions ship one Chromium build under /opt/pw-browsers, and it is not always
+// the build this Playwright version expects; then every browser test failed there with "Executable
+// doesn't exist". Only when the expected build is missing, launch the cloud's own build: its
+// headless shell first, which is what Playwright runs headless (the full browser also fetches the
+// favicon on its own). CI and anyone who ran `npx playwright install chromium` keep the pinned one.
+const CLOUD_BROWSERS = '/opt/pw-browsers';
+function cloudChromium(): string | undefined {
+  if (existsSync(chromium.executablePath()) || !existsSync(CLOUD_BROWSERS)) return undefined;
+  const shell = readdirSync(CLOUD_BROWSERS).filter((name) => name.startsWith('chromium_headless_shell-')).sort().pop();
+  return [
+    ...(shell ? [join(CLOUD_BROWSERS, shell, 'chrome-headless-shell-linux64', 'chrome-headless-shell')] : []),
+    join(CLOUD_BROWSERS, 'chromium'),
+  ].find((path) => existsSync(path));
+}
+const cloudExecutable = cloudChromium();
+const launchOptions = cloudExecutable ? { executablePath: cloudExecutable } : {};
+
+// One random id per test run, made here in the main process before the build. The web server
+// (whose build writes it into dist/test-build-id.txt) and every worker inherit it; workers load
+// this file again, so they keep the inherited value. tests/served-build.spec.ts checks the server
+// sends this id, which catches another checkout's server and another build in this folder.
+if (!process.env.TEST_WORKER_INDEX) process.env.SITE_TEST_BUILD = randomUUID();
+
 // Tests run against a PRODUCTION build served by `astro preview` — the same static
 // output Cloudflare serves. Never test a dev mock of the thing you ship.
 export default defineConfig({
@@ -27,7 +51,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: 'list',
-  use: { baseURL: BASE, trace: 'on-first-retry' },
+  use: { baseURL: BASE, trace: 'on-first-retry', launchOptions },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT}`,
@@ -52,8 +76,7 @@ export default defineConfig({
     // short-circuits the check — use '1', not 'false': the string 'false' is
     // truthy too and "works", but reads as an off-switch and invites a future
     // edit that silently reintroduces this bug.
-    // SITE_TEST_BUILD makes scripts/build-marker.mjs write dist/test-build-id.txt, which
-    // tests/served-build.spec.ts compares with what the server answers.
-    env: { ASTRO_PREVIEW_BACKGROUND: '1', SITE_TEST_BUILD: '1' },
+    // SITE_TEST_BUILD, set above, reaches the build through the inherited environment.
+    env: { ASTRO_PREVIEW_BACKGROUND: '1' },
   },
 });

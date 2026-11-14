@@ -5,7 +5,7 @@ description: >
   (Codex, Claude Code) can work on at once without overwriting each other: invite
   collaborators, set the repo settings, prove the CI workflow starts on its own
   (the fix for a silent one is bundled), block direct pushes to `main`, connect
-  Cloudflare Pages to GitHub without the known traps, write rights, merge rule and
+  Cloudflare (a Worker, or Pages for an older site) to GitHub without the known traps, write rights, merge rule and
   who publishes live into `AGENTS.md`, hand the team a one-page guide. Run once,
   when a second person joins. Use it whenever the user mentions a colleague, client
   or second assistant joining a site repo, inviting someone to GitHub, "Update
@@ -41,6 +41,11 @@ copy `new-website/templates/AGENTS.md` + `templates/CLAUDE.md` in first and fill
 need the sync hook that `AGENTS.md` §1 relies on: if `.claude/hooks/git-stand.mjs` is
 missing, copy it from `new-website/templates/claude/hooks/` and merge the `hooks` block of
 `new-website/templates/claude/settings.json` into the site's `.claude/settings.json`.
+
+An owner who works alone but runs several assistant sessions at once, or lets the assistant
+merge, may run §4 and §5 on their own, without the rest of this skill: set `OWNER` and `REPO`
+as §2 does first, and run §3's first command (it turns on the **Update branch** button) if
+the ruleset keeps the "up to date" requirement, which it does by default.
 
 Work on a branch and finish with a pull request — the rule the setup installs applies
 to the setup itself. Say in the pull request that it touches `scripts/` (the hook) and
@@ -122,12 +127,12 @@ the current value first, change only what differs, and say what you changed.
 | **Collaborator permission** | **write**, never maintain or admin | Write can push branches, open and merge pull requests; admin could change the settings this skill sets, or delete the repo. | §2 |
 | **Visibility** | **private** (client work) | A public repo exposes drafts, `"[MISSING: …]"` placeholders and client photos before they are meant to be seen. Note: this is also what decides whether §5-A's ruleset is available for free. | `gh repo view --json visibility` |
 | **Actions permissions** | **Allow all**, or narrow to **GitHub-owned and verified** | The kit's `ci.yml` uses only `actions/checkout` and `actions/setup-node`, so the narrow setting costs nothing and stops a collaborator's future workflow pulling an unvetted action. | Settings → Actions → General |
-| **Actions minutes** (private repos) | know the budget: 2 000 free minutes/month on GitHub Free; the repo's **Actions** tab shows what each run takes. With **no payment method** on the account, GitHub blocks Actions once they are used up and charges nothing. **A $0 Actions budget with Stop usage already on the account blocks private-repo jobs the same way, payment method or not**, with a message that reads like a failed payment ("recent account payments have failed or your spending limit needs to be increased") and jobs that start zero steps. Check **Budgets and alerts** for an existing **Actions** budget. If the owner wants CI to keep running past the free minutes, edit it to a small cap they choose (say $10) with **Stop usage when budget limit is reached** kept on; create one only if none is there. Do not pick the "Copilot AI Credits" budget, a different product that the list may show first. Whether CI starts again after the change is confirmed only by the next push ([GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [budgets](https://docs.github.com/en/billing/how-tos/set-up-budgets)) | Every push to a pull request or to `main` starts a run, and the minutes add up; at the limit CI either starts costing money or silently stops, and then "green before merge" stops meaning anything. The `concurrency` block in the kit's `ci.yml` cancels a superseded run on the same branch, so a quick second push stops the first run instead of letting it finish. | https://github.com/settings/billing → **Budgets and alerts**; usage on the same billing pages |
+| **Actions minutes** (private repos) | know the budget: 2 000 free minutes/month on GitHub Free; the repo's **Actions** tab shows what each run takes. With **no payment method** on the account, GitHub blocks Actions once they are used up and charges nothing. **An Actions budget of 0 US dollars with Stop usage already on the account blocks private-repo jobs the same way, payment method or not**, with a message that reads like a failed payment ("recent account payments have failed or your spending limit needs to be increased") and jobs that start zero steps. Check **Budgets and alerts** for an existing **Actions** budget. If the owner wants CI to keep running past the free minutes, edit it to a small cap they choose (say $10) with **Stop usage when budget limit is reached** kept on; create one only if none is there. Do not pick the "Copilot AI Credits" budget, a different product that the list may show first. Whether CI starts again after the change is confirmed only by the next push ([GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions), [budgets](https://docs.github.com/en/billing/how-tos/set-up-budgets)) | Every push to a pull request or to `main` starts a run, and the minutes add up; at the limit CI either starts costing money or silently stops, and then "green before merge" stops meaning anything. The `concurrency` block in the kit's `ci.yml` cancels a superseded run on the same branch, so a quick second push stops the first run instead of letting it finish. | https://github.com/settings/billing → **Budgets and alerts**; usage on the same billing pages |
 | **Fork workflows** | leave the default (require approval for first-time contributors) | Collaborators push branches, not forks, so this never triggers for them; it only guards against a stranger's fork running CI on your minutes. | Settings → Actions → General |
 | **Workflow token** | leave **read-only** (default) | The kit's CI writes nothing to the repo. | Settings → Actions → General |
 | **Dependabot** | **security updates on**; version updates: the starter ships a monthly grouped `.github/dependabot.yml`; keep it if someone merges the pull request, delete it if not (ask the owner who that is); a new major of any package but the two held back comes as its own pull request and may stay open | Security updates arrive as ordinary pull requests that CI checks; the monthly pull request is only worth having if someone reads it, and without the file security updates stay on. | Settings → Code security; `.github/dependabot.yml` |
 | **Secret scanning + push protection** | **on** where the plan offers it (free on public repos; paid on private) | Catches a token pasted into a commit before it lands; the kit's `.gitignore` is the backstop either way. | Settings → Code security |
-| **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. Rulesets need a public repo or a paid plan: on a free private repo this one is refused like §5-A's, and `production` has no server-side protection at all. Where rulesets are available, GitHub documents a **Restrict updates** rule (only bypass actors may push) and lists the repository admin role as a bypass actor, which would make "who may ship" (§1 Q4) enforced; this is not yet tested on a real site, so until it is, "who may ship" stays a written rule in `AGENTS.md`. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
+| **`production` branch** (two-stage) | protect against **deletion and force-push only** — no pull-request rule | `npm run ship` pushes `main:production` directly (a fast-forward push); a pull-request rule on `production` would break it. No ship has been seen through these two rules on a real site yet, so after the first one, check that it went through. By GitHub's documentation a fast-forward push is not a force push, "Block force pushes" stops force pushes only, and creating a branch is a separate rule ("Restrict creations") that this set does not use, so a normal ship should pass. Rulesets need a public repo or a paid plan: on a free private repo this one is refused like §5-A's, and `production` has no server-side protection at all. Where rulesets are available, GitHub documents a **Restrict updates** rule (only bypass actors may push) and lists the repository admin role as a bypass actor, which would make "who may ship" (§1 Q4) enforced; this is not yet tested on a real site, so until it is, "who may ship" stays a written rule in `AGENTS.md`. | second ruleset, §5-A shape with only the `deletion` and `non_fast_forward` rules, `include: ["refs/heads/production"]` |
 | **Cloudflare GitHub App** | access to **this repo only** | The app gets read access to every repo it is granted; least privilege. | GitHub → Settings → Applications → Cloudflare Workers and Pages → Configure (see §6.2) |
 | **2FA** | recommended, not required: each collaborator turns on two-factor sign-in and adds a passkey | The website is the owner's, and anyone who gets into a collaborator's account can change it, so recommend it to each collaborator in those words. Never make it a condition: a personal-account repo cannot require it (only organizations can), and GitHub itself requires it only for some accounts (it tells those by email and on the site). Do not count on GitHub prompting a collaborator who only edits content; `TEAM-GUIDE.md` gives them the link. There is nothing to check from your side: `gh api users/<login>` shows nothing about 2FA, and GitHub documents no 2FA marker on Settings → Collaborators for a personal-account repo, so if the owner wants to know, ask. | the collaborator, at https://github.com/settings/security |
 | **Watching** | each collaborator watches the repo (at least "Participating and @mentions", the default) | Otherwise nobody sees a review comment or a failed check on their pull request. | the "Watch" button on the repo |
@@ -240,11 +245,37 @@ for id in $(gh api "repos/$OWNER/$REPO/rulesets" --jq '.[] | select(.name=="prot
      --jq '{enforcement, bypass_actors, conditions, rules: [.rules[] | {type, parameters}]}'
 done
 ```
+GitHub's answer also carries keys the recipe never sent. Those defaults are not
+differences: in the `pull_request` rule `allowed_merge_methods` (all three),
+`required_reviewers` (empty) and `require_extra_approval_for_unattributed_changes` (true),
+in the `required_status_checks` rule `do_not_enforce_on_create` (false). GitHub's
+[REST reference](https://docs.github.com/en/rest/repos/rules) lists all four. The
+extra-approval key makes a pull request that Copilot opened for no person need one more
+approval than the count; GitHub's rules page says it has no effect while the count is 0,
+as here, and it starts to apply once the owner raises it. A value other than those defaults is a difference: ask the
+owner if it is on purpose. Put all four keys in the PUT body, so the PUT does not decide
+them: with the values the read-back showed, or the default for a key the owner says was
+not on purpose. What a PUT that leaves them out does to them has not been checked.
 Anything that differs — `enforcement` not `active`, a non-empty `bypass_actors`, a
-missing rule, `strict_required_status_checks_policy` false, a `context` that is not the
-CI job's name — is fixed with `gh api -X PUT "repos/$OWNER/$REPO/rulesets/$id" --input -`
-and the same JSON body (it carries `"bypass_actors": []` explicitly, so a bypass list
+missing rule, a `strict_required_status_checks_policy` that is not the owner's choice
+(`true` unless the next paragraph applies), a `context` that is not the CI job's name — is fixed with
+`gh api -X PUT "repos/$OWNER/$REPO/rulesets/$id" --input -`
+and the same JSON body plus the four keys (it carries `"bypass_actors": []` explicitly, so a bypass list
 is cleared rather than left as GitHub found it). Read it back once more after the PUT.
+
+**"Up to date" may be switched off, as the owner's choice.** With it on, every merge
+leaves each other open pull request behind `main`: it needs **Update branch** and a new
+CI run before it can merge. An owner who works alone but runs several assistant
+sessions, each with its own pull request, pays that after every merge. With it off
+(`"strict_required_status_checks_policy": false`) a pull request merges once its own CI
+passed, and GitHub warns that checks may fail after the merge if two changes do not fit
+([Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets), "Loose");
+the kit's `ci.yml` also runs on pushes to `main`, which usually shows such a failure (a
+newer push can cancel a run, and a change to docs only skips the tests). Ask
+the owner, don't decide. If they choose off, send `false` in the body, write the choice
+in `AGENTS.md` §2 beside the merge rule, and let the read-back accept `false` where that
+line is. We have not measured how much the requirement costs with several pull requests
+open.
 Two rulesets of that name: bring one in line, then delete the other with the owner's
 go-ahead (`gh api -X DELETE "repos/$OWNER/$REPO/rulesets/<other id>"`) — two rulesets
 on the same branch both apply, and the looser one still blocks nothing. Confirm the
@@ -332,41 +363,52 @@ git switch - && git branch -D setup/push-check
 
 `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md` has the bootstrap paths; a team
 wants a project connected to GitHub (push-to-deploy, one preview address per pull
-request). The setup script there ("S") makes one through Cloudflare's API, with the
-build command and output folder of item 4 (no framework preset, which the build does not
-need) and the production branch of item 5; from the owner's browser it needs a short-lived
-token and the GitHub app's access to the repository; it does not create the `production`
-branch (item 5) or touch the checks of items 2 and 8. By hand it is **B, git
-integration**: walk the owner through it with these warnings ahead of each click:
+request). A site made with kit 0.35 or later is a **Worker**; a site made before may
+still be on **Pages** (`AGENTS.md` and `PUBLISHING.md` say which; a `wrangler.jsonc` at
+the repo root with `assets` in it is a Worker). The setup script there ("S") does not make the Worker or
+connect the repository: with no Worker yet it says how to connect it in the dashboard (the
+steps below, with the build command of item 4 and the production branch of item 5), and once a
+build has made the Worker it reads it, changes the domain's settings and attaches the domain on
+launch day. It does not create the `production` branch (item 5) or touch the checks of
+items 2 and 8. The connection is **B, Workers Builds** (a site still on Pages: "Sites already on
+Pages" in the same guide, and the Pages form of each item below): walk the owner through it
+with these warnings ahead of each click:
 
-1. **Pages, not Workers.** In the Cloudflare dashboard, **Workers & Pages → Create**
-   opens on the **Workers** tab, and its "Import a repository" creates a **Worker**
-   with *Workers Builds* — the wrong project type for this kit. Switch to the **Pages**
-   tab first, then **Connect to Git**. (Same failure class as the `wrangler deploy` vs
-   `wrangler pages deploy` mix-up in the deploy reference: if the result has a
-   `*.workers.dev` address, it is the wrong type.)
-2. **A Worker made by mistake leaves a check behind.** If step 1 went wrong once,
-   deleting the Worker is not enough: its build connection keeps posting a **"Workers
-   Builds"** check on every pull request (pending or failing forever). Remove the
-   connection on the Worker (**Settings → Builds → disconnect**, or delete the Worker
-   after disconnecting), then prove it is gone: open a throwaway pull request **after**
-   connecting (the §4 recipe: empty commit, close and delete afterwards) — it must
-   show only the **CI** check and the **Cloudflare Pages** preview check. If the
-   Workers check is still there, the GitHub App installation still carries the
+1. **The right project type.** In the Cloudflare dashboard, **Workers & Pages → Create**
+   opens on the **Workers** tab, and its "Import a repository" creates a **Worker** with
+   *Workers Builds*: the right type for a new site. For a site that is on Pages, use the
+   **Pages** tab and **Connect to Git** instead; Cloudflare cannot turn one into the other
+   (item 9). If the owner already runs other Workers in the account, the build token
+   (item 4) reaches all of them: a separate Cloudflare account for the site is the safe
+   way, and it is the owner's call.
+2. **The wrong type leaves a check behind.** A Worker made for a site that is on Pages (or a
+   Pages project made for a Worker site) keeps posting its build check on every pull request,
+   pending or failing forever, even after the project is deleted. Disconnect it first (a
+   Worker: **Settings → Builds → disconnect**; a Pages project: delete it), then prove the
+   pull request shows only the **CI** check and the one Cloudflare build check of this
+   site's type: open a throwaway pull request **after** connecting (the §4 recipe: empty
+   commit, close and delete afterwards). The check's exact name on a Worker is not checked.
+   If the other type's check is still there, the GitHub App installation still carries the
    trigger: GitHub → **Settings → Applications → Cloudflare Workers and Pages →
    Configure** → check which repos it may access, and remove and re-add the repo if
    needed.
-3. **The project name is global.** `<name>.pages.dev` is one namespace across all
-   Cloudflare accounts, so the obvious name may be taken with no explanation beyond a
-   validation error. Pick a short alternative; it only changes the preview address.
-   That address is the one Cloudflare gives the project, which is not always the name
-   followed by `.pages.dev`: read it on the project's page (or in the setup script's
-   report). Whatever it ends up being, write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
-   and the README's deploy section, and search the repo for the old one
-   (`git grep -n '<old-name>.pages.dev'`, a site may have it in `src/config.ts`), so
-   nobody quotes a preview address that does not exist.
-4. **Build settings.** Framework preset **Astro**, build command `npm run build`,
-   output directory `dist`. Node version comes from the repo's `.nvmrc`.
+3. **The name and the preview address.** A Worker's name comes from `name` in
+   `wrangler.jsonc`; it must be unique only inside the account. Its Preview links look like
+   `https://<prefix>-<worker>.<account>.workers.dev`: read one on the Worker's page (or in
+   the setup script's report), and write it into `AGENTS.md` (header + §2), `PUBLISHING.md`
+   and the README's deploy section. A **Pages** project's name is global instead:
+   `<name>.pages.dev` is one namespace across all Cloudflare accounts, so the obvious name
+   may be taken with no explanation beyond a validation error. Pick a short alternative; it
+   only changes the preview address, which is not always the name followed by `.pages.dev`:
+   read it on the project's page. Either way, search the repo for the old address
+   (`git grep -n '<old-name>.pages.dev'`, a site may have it in `src/config.ts`), so nobody
+   quotes a preview address that does not exist.
+4. **Build settings.** A Worker: build command `npm run build`; what to deploy comes from
+   `wrangler.jsonc`. **The build token:** pick **Create new token** in the build's token field,
+   not an existing one, and cut it down in place (the guide's B section names the rows). Node
+   version comes from the repo's `.nvmrc` (Workers Builds reading it is from the docs, not seen
+   on a build). A Pages project: framework preset **Astro**, build command `npm run build`,
+   output directory `dist`, Node from `.nvmrc`.
 5. **Production branch = the publish model.** Two-stage: **`production`** (create the
    branch first if it does not exist yet, see `new-website` §4), so `main` stays the
    noindexed preview. Single-stage: `main` — and then set `PROD_BRANCH = 'main'` in
@@ -375,10 +417,12 @@ integration**: walk the owner through it with these warnings ahead of each click
    otherwise. `AGENTS.md` §2 must keep the block that matches (the other one is
    deleted at scaffold time — check it was).
 6. **Pull request previews.** Once connected, every pull request gets its own preview
-   address in its checks ("Cloudflare Pages" → *View deployment*), plus the stable
-   alias `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look
-   there before merging. Previews are noindexed by the kit's `functions/_middleware.ts`
-   but public-by-URL (see `PUBLISHING.md`).
+   address from its build: a Worker's Preview link (where Cloudflare posts it is not
+   checked), or on Pages "Cloudflare Pages" → *View deployment*, plus the stable alias
+   `<branch>.<project>.pages.dev`. `AGENTS.md` §2 tells collaborators to look there before
+   merging. A Worker's previews carry `noindex` from Cloudflare, a Pages site's from the
+   kit's `functions/_middleware.ts` (a site made before 0.35); both are public-by-URL (see
+   `PUBLISHING.md`).
 7. **Single-stage sites: a merge publishes.** Anything that runs only in
    `npm run ship` on this site must now run in CI, or it never runs. The kit's own
    `ship.sh` runs no tests (the pre-push hook and CI do), so a stock site has nothing
@@ -407,16 +451,16 @@ integration**: walk the owner through it with these warnings ahead of each click
    grep step is missing or greps for another word. A push the hook refuses means the
    site's token is not the one in that spec's `DRAFT_TOKEN`; set it there too. A gate that has never fired is a hypothesis, and a gate
    probed with the wrong token proves the wrong thing.
-9. **Direct-upload project already exists (deploy path A).** A git-connected Pages
-   project is a *different project type*; Cloudflare cannot convert one into the
-   other. Create the git-connected project under a new name, let it build once,
-   then move the custom domain: remove it from the old project first (a domain can
-   be attached to one Pages project at a time), attach it to the new one (Custom
-   domains → Set up a domain), wait for it to show Active, and only then delete the
-   old project. Do it in a quiet moment and check the live domain right after, with
-   a cache-bust (`PUBLISHING.md` § "For AI assistants"). This sequence follows
-   Cloudflare's documented behaviour and was not exercised on the reference site,
-   which was git-connected from the start.
+9. **A project of the other kind, or a direct-upload one, already exists.** Cloudflare cannot
+   turn a direct-upload project into a git-connected one, nor a Pages project into a Worker.
+   A Worker first deployed by command: whether it can be connected to the repository later is not
+   checked; the safe route is a new Worker connected to the repository, then move
+   the custom domain. A Pages site: create the git-connected project under a new name, let it
+   build once, remove the domain from the old project (one Pages project at a time), attach it
+   to the new one (Custom domains → Set up a domain), wait for Active, and only then delete the
+   old project. Do it in a quiet moment and check the live domain with a cache-bust
+   (`PUBLISHING.md` § "For AI assistants"). The Pages sequence follows Cloudflare's
+   documentation and was not exercised on the reference site.
 
 Verify: after the first merge, `<live-or-preview-url>/build.txt` shows the merge
 commit id (the kit's build marker). Say which address is the **preview** and which is

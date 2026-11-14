@@ -1,15 +1,17 @@
 # Pages or Workers? What moving the kit would change
 
-For the kit's maintainer. An assessment, not a plan: nothing in the kit has changed. Route B
-was tried on one throwaway site on 2026-10-27 and 28 ("Trial results", at the end). Vendor
-pages read 2026-10-11 and checked again 2026-10-25; kit code
-read at `35e9b42` (not read again on 2026-10-25). The short version lives in
+For the kit's maintainer. An assessment, written before the decision and kept as the record
+of why. **Decided 2026-10-28: new sites are on Workers from kit 0.35**; a site made before stays
+on Pages until its owner moves it. Route B was tried on one throwaway site on 2026-10-27 and 28
+("Trial results", at the end). Vendor pages read 2026-10-11 and checked again 2026-10-25; kit
+code read at `35e9b42` (not read again on 2026-10-25), so the sections below describe the kit as
+it was before 0.35. The short version lives in
 `skills/new-website/references/WEBSITE_ARCHITECTURE.md`, Part 1.
 
-**Owner decision, 2026-10-11: stay on Pages for now.** "When to look again", below, lists
-what would reopen it. On 2026-10-26 the owner asked to look again for new sites, before a
-batch of new sites is scaffolded as the kit is offered more widely (the last item on that
-list). The trial was run for that; no new decision has been made.
+**Owner decision, 2026-10-11: stay on Pages for now** (replaced on 2026-10-28, above). "When to
+look again", below, lists what would have reopened it. On 2026-10-26 the owner asked to look
+again for new sites, before a batch of new sites is scaffolded as the kit is offered more
+widely; the trial was run for that.
 
 ## The question
 

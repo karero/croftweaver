@@ -4,7 +4,7 @@ description: >
   Post-launch: register the LIVE site with Google Search Console and Bing Webmaster
   Tools, verify ownership, submit the sitemap, and turn on IndexNow so Bing/Yandex
   get pinged the moment content changes. For a Cloudflare-hosted Astro site: GSC
-  Domain property verified by a Cloudflare DNS TXT record + submit `sitemap-index.xml`;
+  Domain property verified by a Cloudflare DNS TXT record + submit `sitemap-0.xml`;
   Bing the easy way via "Import from Google Search Console" (auto-verifies + pulls the
   sitemap); IndexNow by flipping ONE toggle — Cloudflare Crawler Hints — no key file
   to host. Account creation + the DNS record are human actions the agent drafts but
@@ -20,11 +20,12 @@ Run this **after the site is live on its production domain** (DNS on Cloudflare,
 `production` branch deployed). It makes Google and Bing aware of the site and keeps
 Bing's index fresh automatically.
 
-> **Only register the live domain.** `main` and every `*.pages.dev` preview are
-> noindexed by the kit's `functions/_middleware.ts`, and after go-live the project
-> alias `<project>.pages.dev` 301s to the live domain (once `CANONICAL_URL` is set —
-> `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live"). Do not add
-> any `pages.dev` host as a property; they can't be indexed.
+> **Only register the live domain.** A Worker's Preview links (`*.workers.dev`) carry
+> `noindex`, and so do a Pages site's `main` and `*.pages.dev` previews (the kit's
+> `functions/_middleware.ts`); on Pages, after go-live, the project alias
+> `<project>.pages.dev` also 301s to the live domain (once `CANONICAL_URL` is set —
+> `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After go-live"). Do not add any
+> `workers.dev` or `pages.dev` host as a property; they can't be indexed.
 >
 > **Human-in-the-loop:** creating the Google/Microsoft accounts and adding the DNS
 > record are actions only the owner can do (like the GitHub/Cloudflare accounts in
@@ -55,9 +56,17 @@ Bing's index fresh automatically.
    - *Alternative:* a **URL-prefix** property verified by the HTML `<meta>` tag (drop
      it in `Base.astro`'s `<head>`) or an HTML file in `public/`. Domain+TXT is
      preferred — broader coverage, survives scheme/subdomain changes.
-4. **Submit the sitemap:** GSC → **Sitemaps** → enter `sitemap-index.xml` → Submit.
-   The kit's `@astrojs/sitemap` emits `/sitemap-index.xml` at the site root; confirm it
-   loads in a browser first. Google discovers pages from it over the next days.
+4. **Submit the sitemap:** GSC → **Sitemaps** → enter `sitemap-0.xml` → Submit.
+   The kit's `@astrojs/sitemap` emits `/sitemap-0.xml` at the site root; confirm it
+   loads in a browser first. Google discovers pages from it over the next days. Not
+   `sitemap-index.xml`: one file holds every page, and the index is an extra fetch that
+   Bing once reported as "not accessible" on one site.
+5. **Look at "Search generative AI"** in the property's settings, and opt out only if
+   the owner wants out of Google's AI answers. A property can inherit it from a parent
+   property, so check what yours shows. Opting out keeps your content out of AI
+   Overviews, AI Mode and Discover's AI features, usually within a few days. Google
+   says the control "isn't used as a ranking or inclusion signal affecting other parts
+   of Search" and "doesn't affect AI training"; that is Google-Extended ([Google](https://support.google.com/webmasters/answer/16908024)).
 
 ## 2. Bing Webmaster Tools (Bing + the IndexNow consumers)
 
@@ -69,7 +78,7 @@ sitemap, so no second verification dance):
    account that owns the GSC property, grant access, **select the site → Import**.
 3. Within minutes the site is added, **auto-verified**, and existing sitemaps are
    imported. Confirm under **Sitemaps**; if it didn't carry over, **Submit sitemap →**
-   `https://<domain>/sitemap-index.xml`.
+   `https://<domain>/sitemap-0.xml`.
 
 *Manual alternative (no Google account):* **Add a site**, verify by the XML file
 (place in `public/`), the `<meta>` tag (in `Base.astro`), or a CNAME DNS record, then
@@ -87,8 +96,8 @@ Cloudflare generates and hosts the IndexNow key and sends the notifications for 
 
 That's it. Cloudflare now notifies the IndexNow network (Bing, Yandex, Naver,
 Seznam) whenever your content is created/updated/deleted. Requires the records to be
-**proxied through Cloudflare** (orange cloud) — true for a Cloudflare Pages site on a
-Cloudflare-managed domain.
+**proxied through Cloudflare** (orange cloud) — true for a Cloudflare site (a Worker or
+Pages) on a Cloudflare-managed domain.
 
 - **Google does NOT use IndexNow** — it relies on its own crawl signals, so the GSC
   sitemap (step 1) is how Google stays current. IndexNow speeds up *Bing & friends*.
@@ -97,30 +106,32 @@ Cloudflare-managed domain.
 
 ### Also in the Cloudflare dashboard — keep crawlers *allowed*
 
-Newer Cloudflare zones add a **Security → Bots → Control AI crawlers** panel. For the
-open, maximally-indexable posture this kit wants, confirm BOTH (the defaults can block).
-For the first bullet, `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder (section 4)
-has newer names, read from Cloudflare's own pages on 2026-10-12:
+The AI crawler settings are under your domain → Security → Settings → filter by **Bot
+traffic** → **AI Crawler and Agent access policies** (the place as a dashboard showed it on
+2026-10-30; Cloudflare renamed the setting from Configure AI bot policies on 2026-11-04). For the open, indexable posture this kit wants, confirm these (the defaults can
+block). `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section 4, has the details:
 
-- **Block AI training bots → "Do not block (allow crawlers)"** — Cloudflare's page calls
-  the setting **Block AI bots**; the name in your dashboard may differ, and this section's
-  names were not re-checked there. The page (last updated 1 July 2026, read 2026-10-11)
-  says the setting blocks bots that crawl for AI training, and that from 15 September
-  2026 a training block would also cover crawlers that combine search and training
-  ([Cloudflare](https://developers.cloudflare.com/bots/additional-configurations/block-ai-bots/)).
-  So a block here can be more than the training choice `ai-seo` describes (Step 4): it
-  can shut out a crawler that is also used for search. This kit leaves them allowed. The
-  same page marks the setting as being retired. Where the dashboard shows **Configure AI
-  bot policies** instead, with one setting each for Search, Agent and Training, this kit
-  leaves all three on "Allow (do not block)". The page says new domains would start with
-  Training and Agent blocked on pages that show ads, so look at what yours shows.
-- **Manage your robots.txt → "Disable robots.txt configuration"** — leaves the repo's
-  own open `public/robots.txt` authoritative, instead of a Cloudflare-managed file that
-  can inject AI-bot `Disallow` rules behind your back.
+- **Search, Agent and Training → "Allow (do not block)".** Since 15 September 2026,
+  Cloudflare says, **Block** and **Block on pages with ads** on Training also keep out
+  Googlebot, Bingbot and Applebot, "so either setting impacts search as well as training"
+  ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)). Its way to
+  refuse AI training and stay in Google, Bing and Apple search is **Disallow** for Training,
+  with Bot Preference Sync on (next bullet); the kit has not tested how crawlers are treated,
+  and the file Sync writes also shuts out Baiduspider and PetalBot, the crawlers of Baidu's
+  and Huawei's Petal search. That is the training choice `ai-seo` describes (Step 4).
+  Bing does not read the no-training preference yet; Microsoft's AI Preferences FAQ says
+  Microsoft starts honoring its new AI Training preference on 1 February 2027 (`ai-seo`, Step 4, has
+  the dates).
+- **Enable Bot Preference Sync → off**, unless you chose Disallow for Training. With it on,
+  Cloudflare puts its own lines in front of the repo's own `public/robots.txt`; with
+  Disallow, those lines are what publish the no-training preference. Choosing Disallow does
+  not turn it on by itself.
+- If your dashboard still shows the older **Block AI bots** setting, make sure it is off. A
+  dashboard on 2026-10-30 no longer showed it.
 
 > **Assistant: offer to do these Cloudflare dashboard clicks for the user** if your
-> runtime can drive a browser. The Crawler Hints toggle and the Control AI crawlers
-> panel above are dashboard actions, not repo edits — so offering to perform them beats
+> runtime can drive a browser. The Crawler Hints toggle and the AI bot policies
+> above are dashboard actions, not repo edits — so offering to perform them beats
 > just listing steps. Pick the path that matches your runtime:
 > - **Claude Code with Claude in Chrome** — offer that extension: ask the user to
 >   install it (it's what gives real click/navigate access; plain screen control can
@@ -132,8 +143,10 @@ has newer names, read from Cloudflare's own pages on 2026-10-12:
 > 1. The user **opens the browser and logs in to Cloudflare themselves** — never handle
 >    their credentials or 2FA.
 > 2. With their explicit go-ahead and the target zone, navigate to **Caching →
->    Configuration** (Crawler Hints) and **Security → Bots → Control AI crawlers**, read
->    the current values back, and only then set any that don't match the posture above.
+>    Configuration** (Crawler Hints) and **Security → Settings → Bot traffic → AI Crawler
+>    and Agent access policies** (**Configure AI bot policies** on a dashboard not yet renamed),
+>    read the current values back, and only then set any that don't
+>    match the posture above.
 >
 > If no browser automation is available or the user declines, fall back to walking them
 > through the clicks. Never attempt these dashboard changes through blind screen control.
@@ -145,6 +158,29 @@ has newer names, read from Cloudflare's own pages on 2026-10-12:
 - **Bing:** **Site Explorer** lists your URLs; **Sitemaps** shows the submitted file.
 - **IndexNow:** Bing Webmaster Tools → **IndexNow** (or URL submission) shows
   notifications arriving once Crawler Hints has fired on a content change.
+- **AI crawlers (free, on Cloudflare):** your domain → **AI Crawl Control** → **Overview** shows
+  how many requests from each AI company's crawlers Cloudflare let through, and offers
+  Hostname and Path filters. Look in the first days after launch, and again every few days,
+  and pick a date range that reaches back to your last look. Cloudflare's page says that on
+  free plans the **Metrics** tab shows only the past 24 hours; on a free-plan domain we looked
+  at in November 2026, its Metrics tab offered longer ranges too and showed several days of
+  data. On the free plan Cloudflare knows a crawler by the name the request gives
+  ([Cloudflare](https://developers.cloudflare.com/ai-crawl-control/get-started/)), so a crawler
+  that doesn't name itself isn't counted as an AI crawler. Croftweaver's Cloudflare check
+  (`new-website/scripts/cloudflare-check.mjs`) is counted too: each time it checks the AI
+  crawlers (a full run does, and so does `--only ai`), it sends your home page one request per
+  AI crawler name, and on that domain every one showed up within a few minutes. Note when you
+  run it. For each run inside the range you picked, take off the home-page requests it sent
+  that Cloudflare let through: seven when the check reports no name refused (two each from
+  Anthropic and OpenAI, one each from Perplexity, Common Crawl and Amazon). A visit is not a
+  mention: it can't tell you whether any AI answer names you.
+- **How long AI assistants take:** when we last checked, in November 2026, we found no
+  published measurement, with a stated method, of how long AI assistants take to first cite a
+  brand-new website. The ranges Google gives, and what companies measured for new pages on
+  sites that already exist, are in
+  [How long until Google and AI assistants find a new website?](https://guide.croftweaver.com/how-long)
+  Check that the crawlers come (above), and later Google's and Bing's AI reports
+  (`search-console-insights`).
 
 ## Scope notes
 

@@ -42,7 +42,7 @@ Gather this context (ask if not provided):
 
 ### The AI Search Landscape
 
-Each row with a link is what that company's page lets you act on; the Copilot row is unchecked. Step 4 of the audit has the bots in full.
+Each row with a link is what that company's page lets you act on; in the Copilot row, no Microsoft page we read says which crawler feeds a Copilot answer. Step 4 of the audit has the bots in full.
 
 | Platform | What you can act on | The company's page |
 |----------|---------------------|--------------------|
@@ -50,7 +50,7 @@ Each row with a link is what that company's page lets you act on; the Copilot ro
 | **ChatGPT (with search)** | Allow OAI-SearchBot | [OpenAI](https://developers.openai.com/api/docs/bots) |
 | **Perplexity** | Allow PerplexityBot | [Perplexity](https://docs.perplexity.ai/guides/bots) |
 | **Gemini** | Decide Google-Extended on its own: it covers Gemini training and grounding (content from the Google Search index given to the model at prompt time), and Google says it does not affect Search (Step 4) | [Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) |
-| **Copilot** | Allow Bingbot (not checked against Microsoft's pages) | — |
+| **Copilot** | Allow Bingbot and use IndexNow. Microsoft Advertising says Copilot is powered by Bing's search index; Bing's post says Bing respects robots.txt and that IndexNow keeps AI answers current. No page we read says which crawler feeds a Copilot answer | [Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview), [Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers) |
 | **Claude** | Allow Claude-SearchBot | [Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler) |
 
 For what each company's page says and what to do for each platform, see [references/platform-ranking-factors.md](references/platform-ranking-factors.md).
@@ -65,13 +65,22 @@ The worked content-pattern examples in [references/content-patterns.md](referenc
 
 Traditional SEO gets you ranked. AI SEO gets you **cited**.
 
-Google says a page must be indexed and eligible to be shown in Google Search with a snippet to appear as a supporting link in AI Overviews or AI Mode, and lists no other technical requirement ([Google](https://developers.google.com/search/docs/appearance/ai-features)). Google adds that specific optimization isn't required for AI Overviews and AI Mode and that its existing SEO fundamentals stay worthwhile. So ordinary SEO is the base, and the structure, authority and presence work below is what the studies and company pages point to for being cited.
+Google says a page must be indexed and eligible to be shown in Google Search with a snippet to appear as a supporting link in AI Overviews or AI Mode, and lists no other technical requirement ([Google](https://developers.google.com/search/docs/appearance/ai-features)). Google adds that specific optimization isn't required for AI Overviews and AI Mode and that its existing SEO fundamentals stay worthwhile.
 
 **Critical stats:**
 - AI Overviews appear on about 45% of the queries BrightEdge tracks ([BrightEdge](https://www.brightedge.com/resources/weekly-ai-search-insights/ai-overviews-one-year-presence-size-citing), late 2025)
 - When an AI Overview appears, the top-ranked page gets about 58% fewer clicks ([Ahrefs](https://ahrefs.com/blog/ai-overviews-reduce-clicks-update/), desktop, 300,000 keywords, December 2025 against December 2023)
-- On "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site ([AirOps](https://airops.com/report/the-influence-of-offsite-signals-in-ai-search), 2025)
-- In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 27-41% on the paper's word-count measure and 13-28% on its subjective-impression measure (its text rounds these to 30-40% and 15-30%; [GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google)
+- In one vendor's study of over 500 queries about finding and comparing brands before buying (the categories and examples it names are business software, such as "best HR software"), tested with GPT-5, Claude Sonnet 4.5 and Perplexity Sonar, 85% of brand mentions cited third-party sites and about 13% the brand's own site ([AirOps](https://airops.com/report/the-influence-of-offsite-signals-in-ai-search), October 2025)
+- In the Princeton GEO study, adding citations, quotations or statistics raised a source's visibility in AI answers by 27-41% on the paper's word-count measure and 13-28% on its subjective-impression measure (its text rounds these to 30-40% and 15-30%; [GEO paper](https://arxiv.org/abs/2311.09735), tested on the authors' own simulated engine, not on Google). The gains were measured on pages already given to the engine (see [What the 2026 studies found](#what-the-2026-studies-found))
+
+#### What the 2026 studies found
+
+Two 2026 studies put being found ahead of what is on the page. Both are preprints on arXiv with no venue listed.
+
+- [Chen & Koudas](https://arxiv.org/abs/2610.15033) (October 2026; read in full on 2026-11-10) followed 158,099 answers that ChatGPT, Gemini and Perplexity gave through their APIs (not the apps people use) over 90 days, to English commercial questions about the US market: one set written for an internet provider, one for a small B2B software vendor. Comparing pages of the same website, a paragraph that answers the question went with more citations from each engine, and a title that does went with more from Gemini and Perplexity but not from ChatGPT, which rewrites a question into its own searches. FAQ blocks, structured data, summary boxes and page speed went with more citations only when different websites were compared, not between pages of one site. When the authors replayed the questions through ChatGPT's API, every page it cited was one its own search had retrieved, and which pages that search found explained 32% of the differences in citations between pages of a website, all page features together 2.8%. In that replay, at equal search rank, author boxes, FAQ blocks and schema markup went with slightly fewer citations. Little-known vendors were named mainly when a page on another site that the engine cited named them. These citation and retrieval findings are associations, not experiments, and an engine's API need not behave like its app.
+- [Martinez](https://arxiv.org/abs/2607.14035) (July 2026; its summary and two passages read on 2026-11-10) reviewed 45 studies published from November 2023 to July 2026. The 2023 GEO paper's gains (the table in Pillar 2) were measured with the page already in front of the engine, and no technique reviewed showed a stable, long-term, cross-platform causal effect on being found or on what readers do next. Relevance to the question was among the most reproducible levers.
+
+So ordinary SEO is still the base, and the first job is a page the engine's search finds: for each question that matters, a page whose title and a paragraph answer it in the words a customer would use. Engines match by meaning, so you don't need a page for every phrasing ([Google's guide](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide) says the same). For a little-known business, being named on other sites (Pillar 3) is part of being found. Pillars 1 and 2 are about a page once it is found.
 
 ---
 
@@ -98,6 +107,7 @@ Test 10-20 of your most important queries across platforms:
 ### Step 2: Analyze Citation Patterns
 
 When your competitors get cited and you don't, examine:
+- **Retrieval** — Do you have a page whose title and a paragraph answer this question? Is theirs a closer answer?
 - **Content structure** — Is their content more extractable?
 - **Authority signals** — Do they have more citations, stats, expert quotes?
 - **Freshness** — Is their content more recently updated?
@@ -110,6 +120,7 @@ For each priority page, verify:
 
 | Check | Pass/Fail |
 |-------|-----------|
+| Title and one paragraph (anywhere on the page) answer the question this page is for? | |
 | Clear definition in first paragraph? | |
 | Self-contained answer blocks (work without surrounding context)? | |
 | Statistics with sources cited? | |
@@ -123,15 +134,17 @@ For each priority page, verify:
 
 ### Step 4: AI Bot Access Check
 
-Each AI company runs more than one bot, and each bot has a main job. Look at the job before you allow or block a bot. This is what the companies' own pages say (read on 2026-10-11, except the Bingbot line):
+Each AI company runs more than one bot, and each bot has a main job. Look at the job before you allow or block a bot. This is what the companies' own pages say (read on 2026-10-11; the Search Console line on 2026-10-29, the Bingbot line on 2026-11-09):
 
 - **OpenAI** — **OAI-SearchBot** is the bot for ChatGPT's search answers (a site opted out of it is not shown there, though it can still appear as a link), **GPTBot** gathers content for training, and **ChatGPT-User** fetches a page when a user asks (OpenAI says robots.txt rules may not apply to it) ([OpenAI](https://developers.openai.com/api/docs/bots))
 - **Anthropic** — **Claude-SearchBot** indexes pages for Claude's search results, **Claude-User** fetches a page when a user asks, and **ClaudeBot** gathers content for training. Anthropic's page names these three and no `anthropic-ai` ([Anthropic](https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler))
 - **Perplexity** — **PerplexityBot** shows your pages in its search results and is not used for training, and **Perplexity-User** fetches a page when a user asks (Perplexity says Perplexity-User generally ignores robots.txt) ([Perplexity](https://docs.perplexity.ai/guides/bots))
-- **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers))
-- **Bingbot** — Microsoft Copilot (via Bing); not checked against Microsoft's pages for this guide
+- **Google** — Search, including its AI features, is managed through your robots.txt rules for Googlebot and the preview controls (`nosnippet`, `data-nosnippet`, `max-snippet`, `noindex`) ([Google](https://developers.google.com/search/docs/appearance/ai-features)). **Google-Extended** covers training of Gemini models and grounding (providing content from the Google Search index to the model at prompt time) in Gemini Apps and in Grounding with Google Search on Vertex AI, and Google says it does not affect a site's inclusion in Google Search ([Google](https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)). Search Console also has a **Search generative AI** control in each property's settings, rolled out to all sites by 31 August 2026. Opting out there keeps your content out of AI Overviews, AI Mode and the generative AI features in Google Discover. Google says it "isn't used as a ranking or inclusion signal affecting other parts of Search" and "doesn't affect AI training", which is Google-Extended's job ([Google](https://support.google.com/webmasters/answer/16908024)). Look at what it shows for your property (a property can inherit it from a parent one), and opt out only if you want out of Google's AI answers.
+- **Bingbot** — Bing's standard crawler, which Microsoft says "handles most of our crawling needs" ([Bing](https://www.bing.com/webmasters/help/which-crawlers-does-bing-use-8c184ec0)). Microsoft says Copilot is powered by Bing's search index ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025). Bing's post on its AI Performance report says Bing respects robots.txt and counts citations in Copilot, Bing's AI summaries and some partner services ([Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)). No Microsoft page we read says which crawler fetches a page for a Copilot answer, so keeping Bingbot allowed is our advice, not a stated requirement
 
 Check your robots.txt for `Disallow` rules aimed at any of these. Blocking a search bot can keep your pages out of that company's search answers: OpenAI says a site opted out of OAI-SearchBot is not shown in ChatGPT search answers, Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search, and Perplexity recommends allowing PerplexityBot so your site appears. Training is a separate choice. OpenAI says its OAI-SearchBot and GPTBot settings are independent, and Anthropic lists its three bots apart, so you can block GPTBot and ClaudeBot and still allow the search bots. Google-Extended covers grounding in Gemini apps as well as training, so decide it on its own. CCBot is Common Crawl's crawler, and Common Crawl publishes an open archive of what it crawls; its page shows how to block CCBot to keep future crawls out, and mentions an Opt-out Registry ([Common Crawl](https://commoncrawl.org/ccbot)). OpenAI and Perplexity also recommend allowing their published IP ranges, so check that a firewall or CDN is not blocking a bot that robots.txt allows.
+
+If the site runs behind Cloudflare, make the training choice with **Disallow**, not **Block**. Since 15 September 2026, Cloudflare says, Block and Block on pages with ads on Training also keep out Googlebot, Bingbot and Applebot, "so either setting impacts search as well as training". Disallow for Training, with Bot Preference Sync on, keeps those crawlers in and, Cloudflare says, publishes a no-training preference in robots.txt (the kit has not tested how crawlers are treated). The file Cloudflare writes then also shuts out Google-Extended, so that choice is made too, and Baiduspider and PetalBot, the crawlers of Baidu's and Huawei's Petal search; Bing does not read the preference yet ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)). Microsoft's AI Preferences FAQ (announced 30 October 2026; [Bing](https://www.bing.com/webmasters/help/new-ai-preferences-2t1cc16d), read 2026-11-09) says nothing changes today. From 1 February 2027 Microsoft starts honoring a shared AI Training preference in robots.txt, the same preference on single pages, and a separate page-level AI Grounding preference; after 1 March 2027 `NOARCHIVE` and `NOCACHE` are no longer honored for training; from 1 February 2027 a new preference replaces them for the use it covers (Q20). Microsoft says those two tags treated training and grounding as one decision. A site that uses either tag on 15 December 2026 can record a temporary grounding preference in Bing Webmaster Tools; every other site needs no transition step, and Allow is the default. A site that followed this skill's old `NOARCHIVE` advice and wants grounding withheld must, before 1 March 2027, publish its page-level AI Grounding preference and record the temporary preference in Bing Webmaster Tools: without the temporary one its pages count as Allow for grounding until Microsoft recrawls them, and the page tag alone does not count before that recrawl (Q9, Q18). The temporary preference ends on 30 September 2027 at the latest (Q17). To refuse training at Bing from 1 February, publish Microsoft's AI Training preference; the FAQ (Q10) gives the syntax. A capture on a spare domain (9 November 2026) shows Cloudflare writes 31 `Disallow: /` groups for training crawlers plus `Content-Signal: search=yes,ai-train=no,use=reference` under `User-agent: *`, put in front of the site's own file, which followed unchanged; that is not the form the FAQ gives (Q10), has no `__usage_ai-training` group, and the FAQ does not mention Content-Signal. So add the FAQ's two lines to the site's own robots.txt; Microsoft honors them from 1 February 2027 (Q4). The Cloudflare checklist's section 4 has the steps.
 
 See [references/platform-ranking-factors.md](references/platform-ranking-factors.md) for the full robots.txt configuration.
 
@@ -140,6 +153,8 @@ See [references/platform-ranking-factors.md](references/platform-ranking-factors
 ## Optimization Strategy
 
 ### The Three Pillars
+
+Start with being found (above). For a little-known business, presence (Pillar 3) is part of being found; structure and authority (Pillars 1 and 2) are about a page once it is found.
 
 ```
 1. Structure (make it extractable)
@@ -173,7 +188,7 @@ For detailed templates for each block type, see [references/content-patterns.md]
 
 Give a reader, human or machine, reasons to trust the page. Build citation-worthiness.
 
-**The Princeton GEO research** ([KDD 2024](https://arxiv.org/abs/2311.09735)) tested 9 ways of rewriting a page, mostly on the authors' own simulated AI engine. The results below are on its main measure, the Position-Adjusted Word Count (Overall column of Table 1): the share of the answer's words in sentences that cite the page (split equally when a sentence cites several pages), weighted by where the citation appears. In a smaller test on Perplexity, quotations again did best on that measure (+22%); on the paper's second, subjective measure, statistics gained up to 37% there.
+**The Princeton GEO research**, the 2023 GEO lab study ([KDD 2024](https://arxiv.org/abs/2311.09735)), tested 9 ways of rewriting a page, mostly on the authors' own simulated AI engine. Both its tests handed the engine the pages to cite (its own engine got the top five Google results, Perplexity got the pages as uploaded files), so its gains apply to a page already retrieved: ways to improve a page once it is found. Whether they help a page get found was not tested (see [What the 2026 studies found](#what-the-2026-studies-found)). The results below are on its main measure, the Position-Adjusted Word Count (Overall column of Table 1): the share of the answer's words in sentences that cite the page (split equally when a sentence cites several pages), weighted by where the citation appears. In a smaller test on Perplexity, quotations again did best on that measure (+22%); on the paper's second, subjective measure, statistics gained up to 37% there.
 
 | Method | Visibility Boost | How to Apply |
 |--------|:---------------:|--------------|
@@ -189,13 +204,13 @@ Give a reader, human or machine, reasons to trust the page. Build citation-worth
 
 **Best combination:** Fluency + Statistics = maximum boost. Low-ranking sites benefit even more — up to 115% visibility increase with citations. Sources already ranked first lost visibility from the same edits (citations −30%, quotations −23%, statistics −21%; Table 2 of the paper).
 
-**Statistics and data** (+31% in the GEO study)
+**Statistics and data**
 - Include specific numbers with sources
 - Cite original research, not summaries of research
 - Add dates to all statistics
 - Prefer original data to aggregated data
 
-**Expert attribution** (+41% for quotations in the GEO study)
+**Expert attribution**
 - Named authors with credentials
 - Expert quotes with titles and organizations
 - "According to [Source]" framing for claims
@@ -208,22 +223,26 @@ Give a reader, human or machine, reasons to trust the page. Build citation-worth
 - Remove or update outdated information
 
 **E-E-A-T alignment**
-- First-hand experience demonstrated
-- Specific, detailed information (not generic)
-- Transparent sourcing and methodology
-- Clear author expertise for the topic
+
+E-E-A-T is a Google Search idea: Google says its systems look for signs of experience, expertise, authoritativeness and trust, and that E-E-A-T "isn't a specific ranking factor" ([Google](https://developers.google.com/search/docs/fundamentals/creating-helpful-content), read 2026-11-09). We found no study that tests it on ChatGPT, Perplexity or Claude. Google's questions are a good checklist for any page:
+- Does the page show first-hand experience (having used the product or visited the place)?
+- Is the information specific, not generic?
+- Is the sourcing clear, with evidence of the expertise involved?
+- Does a byline lead to background on the author?
 
 ### Pillar 3: Presence — Be Where AI Looks
 
-AI answers cite more than your own website, so be present where they look. One measurement is the AirOps figure under "Critical stats" above: on "best tools"-style discovery queries in ChatGPT, Claude and Perplexity, 85% of brand mentions cited third-party sites and about 13% the brand's own site.
+AI answers cite more than your own website, so be present where they look. One measurement is the AirOps figure under "Critical stats" above: in one vendor's study of over 500 queries about finding and comparing brands before buying, 85% of brand mentions cited third-party sites and about 13% the brand's own site. The categories it names are business software, so for other trades read it as a direction, not a share to expect.
 
 **Places worth being present:**
 - Wikipedia (7.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
 - Reddit (1.8% of the ChatGPT citations Profound counted; [Profound](https://www.tryprofound.com/blog/ai-platform-citation-patterns), 680 million citations across ChatGPT, Google AI Overviews and Perplexity, August 2024 to June 2025)
-- Industry publications and guest posts
-- Review sites (G2, Capterra, TrustRadius for B2B SaaS)
+- Industry publications
+- Review sites
 - YouTube
 - Quora answers
+
+Profound's later study of ChatGPT.com ([Profound](https://www.tryprofound.com/blog/chatgpt-citation-sources), US-based, English-language users, October to December 2025, about 730,000 conversations with a web citation; read 2026-11-09) puts Wikipedia at 5% and Reddit at 3% of all citations. The two samples differ, so don't line the figures up; each is one company's count of what ChatGPT cited at the time. The same Profound page counts Quora at 1.5% and YouTube at 1.9% of Google AI Overviews citations and G2 at 1.1% of ChatGPT citations. These show where answers have cited, not that being there gets you cited, and Google advises against seeking inauthentic "mentions" across the web ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide), read 2026-11-09).
 
 **Actions:**
 - If your business has a Wikipedia article, keep it accurate and current (Profound's [glossary](https://www.tryprofound.com/blog/ai-search-glossary) says Wikipedia judges a subject by independent coverage and that you can't write your own article)
@@ -244,7 +263,7 @@ list for the research-workflow view):
 
 ### Machine-Readable Files for AI Agents
 
-Software that reads your site for someone, such as an AI agent comparing tools, can only use what it can read. If your pricing is locked in a JavaScript-rendered page or a "contact sales" wall, put it in a plain file as well.
+Software that reads your site for someone, such as an AI agent comparing tools, can only use what it can read. If your pricing is behind a "contact sales" wall, put it in a plain file as well. This is advice: no company page we read says its agents or crawlers prefer such a file, and Google says it processes JavaScript content unless it is blocked ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide), read 2026-11-09).
 
 Add these machine-readable files to your site root:
 
@@ -254,7 +273,7 @@ Add these machine-readable files to your site root:
 # Pricing — [Your Product Name]
 
 ## Free
-- Price: $0/month
+- Price: free
 - Limits: 100 emails/month, 1 user
 - Features: Basic templates, API access
 
@@ -282,7 +301,7 @@ Add these machine-readable files to your site root:
 
 **`/llms.txt`** — Context file for AI systems (see [llmstxt.org](https://llmstxt.org))
 
-If you don't have one yet, add an `llms.txt` that gives AI systems a quick overview of what your product does, who it's for, and links to key pages (including your pricing). None of the company pages linked in Step 4 says its assistant reads llms.txt, and Google says you don't need to create AI text files to appear in AI Overviews or AI Mode ([Google](https://developers.google.com/search/docs/appearance/ai-features)).
+If you don't have one yet, add an `llms.txt` that gives AI systems a quick overview of what your product does, who it's for, and links to key pages (including your pricing). Add it because it is cheap, not because an engine has said it rewards it. None of the crawler pages linked in Step 4 says its crawler reads llms.txt on your site (OpenAI's and Perplexity's docs sites publish an llms.txt of their own, as an index of their docs; that says nothing about their crawlers). Google says Google Search itself doesn't use llms.txt, and that keeping one "for other services or systems that use these files" is fine and neither helps nor harms your Google rankings ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)).
 
 ### Schema Markup for AI
 
@@ -298,7 +317,7 @@ Structured data describes your content to machines. Google says there is no spec
 | Reviews | `Review`, `AggregateRating` | Trust signals |
 | Organization | `Organization` | Entity recognition |
 
-`FAQPage` describes your Q&A to machines, but since August 2023 Google shows FAQ rich results only for well-known, authoritative government and health sites, and since September 2023 it shows no HowTo rich results at all ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)). For most sites both kinds of markup are valid and harmless and give no rich result in Google.
+`FAQPage` describes your Q&A to machines, but Google has shown no FAQ rich results since 7 May 2026 ([Google](https://developers.google.com/search/updates#faq-deprecation)) and no HowTo rich results since September 2023 ([Google](https://developers.google.com/search/blog/2023/08/howto-faq-changes)). Both kinds of markup are valid and harmless and give no rich result in Google for any site.
 
 For implementation, use the **schema-markup** skill.
 
@@ -329,44 +348,61 @@ Profound's April table and Peec's table have no row for definitive guides or ori
 - Thin product pages with marketing fluff
 - Gated content (behind a login or a form)
 - Content without dates or author attribution
-- PDF-only content (publish the text as a web page too)
+- PDF-only content (publish the text as a web page too; Microsoft says PDFs often lack the headings and metadata that HTML gives, [Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025)
 
 ---
 
 ## Monitoring AI Visibility
 
+### Start with the free reports
+
+Google and Bing count how often your site appears in their AI answers, for free: Search Console's generative AI report counts impressions in AI Overviews and AI Mode, and Bing Webmaster Tools' AI Performance report counts citations in Copilot and Bing's AI summaries ([Bing](https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview)). These are answers real people saw. `search-console-insights` reads both (`references/ai-reports.md`). We found no such free report from OpenAI, Perplexity or Anthropic; for those, ask the engines yourself (below).
+
 ### What to Track
 
 | Metric | What It Measures | How to Check |
 |--------|-----------------|-------------|
-| AI Overview presence | Do AI Overviews appear for your queries? | Manual check or Semrush/Ahrefs |
+| AI Overview presence | Do AI Overviews appear for your queries? | Manual check or Semrush/Ahrefs; Search Console's generative AI report gives your site's impressions in AI Overviews and AI Mode, not which queries showed one |
 | Brand citation rate | How often you're cited in AI answers | AI visibility tools (see below) |
 | Share of AI voice | Your citations vs. competitors | Peec AI, Otterly, ZipTie |
 | Citation sentiment | How AI describes your brand | Manual review + monitoring tools |
-| Source attribution | Which of your pages get cited | Track referral traffic from AI sources |
+| Source attribution | Which of your pages get cited | Bing's AI Performance report (Copilot); referral traffic from AI sources |
 
 ### AI Visibility Monitoring Tools
 
-This is a starting list; check each tool's own page for what it covers today.
+This is a starting list, not a recommendation or a test: each tool's page names the engines it tracks, and those lists change, so read the page for the engine you need. Google says "No third-party tool has access to our internal ranking or AI systems" ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)), so weigh a tool's advice against Google's own guidance.
 
-| Tool | Coverage | Best For |
-|------|----------|----------|
-| **Otterly AI** | ChatGPT, Perplexity, Google AI Overviews | Share of AI voice tracking |
-| **Peec AI** | ChatGPT, Gemini, Perplexity, Claude, Copilot+ | Multi-platform monitoring at scale |
-| **ZipTie** | Google AI Overviews, ChatGPT, Perplexity | Brand mention + sentiment tracking |
-| **LLMrefs** | ChatGPT, Perplexity, AI Overviews, Gemini | SEO keyword → AI visibility mapping |
+| Tool | Its page |
+|------|----------|
+| **Otterly AI** | [otterly.ai](https://otterly.ai) |
+| **Peec AI** | [peec.ai](https://peec.ai) |
+| **ZipTie** | [ziptie.dev](https://ziptie.dev) |
+| **LLMrefs** | [llmrefs.com](https://llmrefs.com) |
 
 ### DIY Monitoring (No Tools)
 
-Monthly manual check:
-1. Pick your top 20 queries
-2. Run each through ChatGPT, Perplexity, and Google
-3. Record: Are you cited? Who is? What page?
-4. Log in a spreadsheet, track month-over-month
+AI answers change from one run to the next, so one ask proves little. A 2026 study argues that
+visibility in AI search should be measured as a spread over repeated runs, not one result
+([Schulte, Bleeker & Kaufmann](https://arxiv.org/abs/2604.07585)).
+
+How often:
+- **Weekly** if you are actively working on your AI visibility.
+- **Every 2 or 4 weeks** otherwise.
+
+Judge a trend over several runs, never from one.
+
+Each time:
+1. Pick your top 20 questions, asked the way a customer would, without your business name
+2. Ask each one in ChatGPT, Perplexity and Google several times (3 is a good start), and note the date
+3. Record: in how many answers are you named or cited? Who else is? Which page?
+4. Log it in a spreadsheet as "named in N of M answers", so a trend shows over time
 
 Automated alternative: `search-console-insights` has a weekly "does AI name you?" check
-(`references/geo-check.md`) that asks the AI engines your buyer questions, counts mentions and
-citations in code, and trends them next to your Google rankings.
+(`references/geo-check.md`) that asks each of your buyer questions 3 times per run in the chat
+engines (Google's AI Mode and AI Overview get one answer each),
+counts mentions and citations in code, and trends them next to your Google rankings.
+It runs weekly, also for an owner who would check by hand only every 2 or 4 weeks: through
+OpenRouter a week's run cost about 0.72 US dollars per site (the Costs section of that `geo-check.md`, measured 2026-09-26; prices change).
 
 ---
 
@@ -405,7 +441,7 @@ citations in code, and trends them next to your Google rankings.
 - Fair and balanced (say where a competitor is the better choice)
 - Specific criteria with ratings or scores
 - Updated pricing and feature data
-- Cite the competitor-alternatives skill for building these pages
+- Use `website-new-page` to build these pages
 
 ### Documentation / Help Content
 
@@ -423,6 +459,7 @@ citations in code, and trends them next to your Google rankings.
 ## Common Mistakes
 
 - **Ignoring AI search entirely** — AI Overviews showed on about 45% of the queries BrightEdge tracked in late 2025
+- **Tuning a page no engine finds** — The GEO gains were measured on pages the engine already had, and in a 2026 study (a preprint) FAQ blocks and schema went with more citations only across websites, not within one, and with slightly fewer at equal search rank. Start with a page whose title and a paragraph answer the question (see [What the 2026 studies found](#what-the-2026-studies-found))
 - **Treating AI SEO as separate from SEO** — Good traditional SEO is the foundation; AI SEO adds structure and authority on top
 - **Writing for AI, not humans** — Write for the reader first: content that reads like it was written to game an algorithm is hard to trust
 - **No freshness signals** — Show when content was last updated, and update it (see the freshness note in Pillar 2)
@@ -430,8 +467,8 @@ citations in code, and trends them next to your Google rankings.
 - **Ignoring third-party presence** — Run your key queries (Step 1 of the audit), note which sites the answers cite, and be present on the ones you can reach instead of relying on your own blog alone
 - **No structured data** — Schema markup describes your content to machines; Google says no special schema is needed to appear in AI Overviews, so treat it as good hygiene
 - **Keyword stuffing** — It lowered visibility by about 8% on the Princeton GEO study's main measure, the only method that did
-- **Hiding pricing behind "contact sales" or JS-rendered pages** — Software reading your site for a buyer can only use what it can read. Add a `/pricing.md` file
-- **Blocking the search bots** — OpenAI says a site that blocks OAI-SearchBot is not shown in ChatGPT's search answers, though it can still appear as a link; Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search; Perplexity recommends allowing PerplexityBot so your site appears. Blocking the training bots (GPTBot, ClaudeBot) is a separate choice
+- **Hiding pricing behind "contact sales"** — Software reading your site for a buyer can only use what it can read. Add a `/pricing.md` file
+- **Blocking the search bots** — OpenAI says a site that blocks OAI-SearchBot is not shown in ChatGPT's search answers, though it can still appear as a link; Anthropic says blocking Claude-SearchBot may reduce your visibility in Claude's search; Perplexity recommends allowing PerplexityBot so your site appears. Blocking the training bots (GPTBot, ClaudeBot) is a separate choice; on Cloudflare, make it with Disallow for Training, not Block, which also keeps Googlebot, Bingbot and Applebot out (Step 4)
 - **Generic content without data** — "We're the best" gives a reader nothing to check. A specific claim with a source does (for example "Our customers see 3x improvement in [metric]", if you can show it)
 - **Forgetting to monitor** — You can't improve what you don't measure. Check AI visibility monthly at minimum
 
@@ -464,8 +501,6 @@ For implementation, see the tools registry in the marketing-skills repo (`Devel/
 ## Related Skills
 
 - **seo-audit**: For traditional technical and on-page SEO audits
-- **schema-markup**: For implementing structured data that helps AI understand your content
-- **content-strategy**: For planning what content to create
-- **competitor-alternatives**: For building comparison pages that get cited
-- **programmatic-seo**: For building SEO pages at scale
+- **schema-markup**: For implementing structured data
+- **website-new-page**: For writing a new page, a comparison page included
 - **copywriting**: For writing content that's both human-readable and AI-extractable

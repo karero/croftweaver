@@ -1,16 +1,17 @@
 ---
 name: website-launch-check
 description: >-
-  Launch readiness check for a site built with this toolkit: runs the site's own build and
-  tests first, then checks only what they cannot (legal pages, E-E-A-T and local signals,
-  content the site's settings call for, testimonial consent, what only a deployed site shows),
-  asks only where the owner's intent decides, and writes a dated report with a verdict to
-  docs/launch/ as Markdown plus a self-contained HTML page. When the site replaces an older
-  one, also a current-vs-new comparison with a redirect map for every old address. Runs three
-  times in new-website (baseline after the scaffold, the verdict before launch, an optional
-  live re-check) and on its own. Trigger phrases: "launch check", "ready to launch", "what's
-  missing before launch", "pre-launch", "go live", "launch audit", "relaunch", "compare the old
-  and the new site", "post-launch gap analysis".
+  Launch readiness check for a site built with this toolkit: runs the site's own build and tests
+  first, then checks only what they cannot (legal pages, E-E-A-T and local signals, content the
+  site's settings call for, testimonial consent, what only a deployed site shows, the Cloudflare
+  zone settings the owner reads in the dashboard), asks only where the owner's intent decides,
+  and writes a dated report with a verdict to docs/launch/ as Markdown plus a self-contained
+  HTML page. When the site replaces an older one, also a current-vs-new comparison with a
+  redirect map for every old address. Runs three times in new-website (baseline after the
+  scaffold, the verdict before launch, the live re-check once launch day's work is done) and on
+  its own. Trigger phrases: "launch check", "ready to launch", "what's missing before launch",
+  "pre-launch", "go live", "launch audit", "relaunch", "compare the old and the new site",
+  "post-launch gap analysis".
 ---
 
 # Website launch check
@@ -26,7 +27,7 @@ When it runs:
 |---|---|---|
 | **baseline** | `new-website` step 5a: after the scaffold is green (and after the brand-kit intake, where there is one) | `launch-check-<date>-baseline.md`, verdict "Baseline, not a launch verdict" |
 | **pre-launch** | `new-website` step 10c: after steps 7 to 10b, before §4's deploy | `launch-check-<date>-prelaunch.md`, verdict 🟢 / 🟡 / 🔴; §4 starts after 🟢, or a 🟡 the owner accepts |
-| **live** | `new-website` step 12a, optional: once the production build is Active on the live domain | `launch-check-<date>-live.md` |
+| **live** | `new-website` step 12a: once launch day's work is done (the production build Active on the live domain, the domain attached); not optional, since the zone read (§3) runs only here for a new domain | `launch-check-<date>-live.md` |
 
 It also runs on its own, on any site built with this toolkit, whenever the owner asks.
 
@@ -111,9 +112,45 @@ settings".
   the `_headers` rules, HTTPS and the 404 status show only on a deployed site: at the
   baseline and pre-launch runs they read "not checked yet: not deployed", and the live run
   checks them.
+- The legal pages' answer (`README.md` in the folder that holds `package.json`): quote, in the
+  report's Imprint / privacy row, every line in one of the three forms `AGENTS.md` §5 gives
+  (`legal pages: reviewed by a lawyer (<date>)`, `legal pages: own texts (<date>)`, `legal pages:
+  published as drafted (owner's decision, <date>)`), and ask the owner about them at every
+  pre-launch run, as below.
+  - No such line: a blocker (🔴): the owner's answer is not recorded; `AGENTS.md` §5 asks for it.
+    Do not ask here. Claim no test failure: the site's tests pass a legal page still listed in
+    `UNFILLED_UNTIL_LAUNCH` whose draft notice shows.
+  - Which pages each line covers: the README names none. With one line, it covers every legal
+    page. With more than one, ask the owner at each pre-launch run which legal pages each line
+    was recorded for. A page's answer is the newest line that covers it (of two with one date,
+    the one further down the README); quote older lines as history, with no question.
+  - A page whose answer is `reviewed by a lawyer` or `own texts`: at each pre-launch run, quote
+    that line and ask the owner whether it is still true for the pages it is the answer for, one
+    question per line. "Yes" goes in the report as "owner confirmed, <date>". "No" or "don't
+    know" is a blocker that points at `AGENTS.md` §5: record a true answer, then launch.
+  - A page whose answer is `published as drafted`: no question. Report it as 🟡, one per such
+    line, naming the pages it is the answer for and leaving out any the date check below
+    blocks, and none for a line left with no pages: "<pages>: the kit's drafts, published on
+    your decision of <date>; a lawyer's review is still open to you."
+  - A legal page no line covers, or added after its line: at every pre-launch run, for each
+    legal page in `tests/_helpers.ts` `PAGES` (last path segment `privacy`, `datenschutz`,
+    `legal-notice` or `impressum`), run
+    `git log --diff-filter=A --format=%cs -- <its file under src/pages/>`, one file per call,
+    and take the first line: the date it last entered git under that name. Not `--follow`,
+    which dates a renamed file (the `/datenschutz` or `/impressum` swap) by the file it came
+    from. A page rewritten under the same file name keeps its first date, so this check cannot
+    see the rewrite. A page that no line covers, or whose date is after its answer's date, is a blocker
+    naming that page: `AGENTS.md` §5 asks again for it and adds a dated line. The answer's own
+    day counts as covered. No date (no output: the file is not committed; or an error: not a
+    git repo) is a blocker of its own: commit the page, then run the check again. This holds
+    whatever the answer, `published as drafted` included. Claim no test failure: the tests
+    compare no dates.
 
 **Business in Germany:**
-- **Impressum** per § 5 DDG (the Digitale-Dienste-Gesetz replaced the TMG in May 2024): name,
+- **Legal Notice or Impressum** per § 5 DDG (the Digitale-Dienste-Gesetz replaced the TMG in May 2024).
+  The kit ships the English page at `/legal-notice`; the German one at `/impressum` replaces it on a
+  German-language site, and an owner based in Germany may route both. Either address counts as the
+  imprint. It carries: name,
   address, a fast electronic contact, register entry, VAT ID if any; for a regulated
   profession (architects, lawyers, doctors, and a trade that must register with a chamber such
   as the Handwerkskammer) also the chamber, the professional title and the state that granted it.
@@ -156,6 +193,39 @@ section and say what changed. Local: Google Business Profile, the same name, add
 everywhere, `LocalBusiness` markup, the city or region in titles and headings, `hreflang`
 where `site_languages` has several, a map or directions link. `website-seo-geo`'s "GEO" is
 generative engine optimization, not local SEO.
+
+**Cloudflare zone settings** (the pre-launch run when the domain is already on Cloudflare; the
+live run always; never the baseline): the owner reads five places in the Cloudflare dashboard,
+or shows a screenshot. The assistant never signs in and never asks for a token. The places, and
+what each should show, are in `docs/CLOUDFLARE-CHECKLIST.md` in the Croftweaver folder, section
+5, "Read in the dashboard": point the owner there rather than copy the paths, which Cloudflare
+moves. The report records each place as seen, dated.
+- Pre-launch, domain not on Cloudflare yet: under "Not checked yet", "Cloudflare zone settings:
+  deferred to the live re-check: the domain is not on Cloudflare yet". It does not count in the
+  verdict.
+- A setting that differs from the checklist (Bot Fight Mode, AI Labyrinth, the AI policies with
+  Personal Agents, Bot Preference Sync, a Block Crawler switch): ask whether it was the owner's
+  choice (§4). Yes: "owner's choice, <date>", with the checklist's trade-off in one line, quoted
+  and credited to the checklist. No or don't know: 🔴, with the checklist item that sets it right.
+- Security rules: every rule on the page, in any section, listed with its name, its action, what
+  it matches and "this domain" or "all websites in account", and what it does in plain words,
+  from what the owner reads out.
+  - It blocks or challenges, and nobody can say what it does or whose it is, or it could stop
+    visitors or crawlers the owner wants: 🔴 until the owner keeps, changes or removes it.
+  - Its action is Allow or Skip and nobody can say whose it is: 🟡, until the owner finds out
+    (an account-wide rule may be another site's).
+  - The owner knows it and keeps it: "owner's choice, <date>".
+  - Cloudflare's own notes (Response rules' "Cloudflare default protection applied", a banner
+    about rules Cloudflare deployed): quoted, no finding.
+- The setup tokens, live run only (never ask at pre-launch: launch day may still need one): the
+  owner reads both token lists and names every token made for this site's setup and launch day.
+  Active or Expires soon: 🔴, delete it now. Expired: 🟡, delete it. In neither list: fine. The
+  owner cannot tell which they were: 🟡, find out what each token they cannot place is for, and
+  delete it only once it proves to be this site's setup token. Name no other token
+  in the report. If launch day still needs the token, read the rest and list "the setup tokens:
+  deferred: launch day still needs it; read again when it is done" under "Not checked yet", with
+  no finding.
+- Not read (no dashboard access, or the owner stops): "not checked: <reason>", 🟡, never ✅.
 
 ## 4. Questions and findings
 
@@ -221,9 +291,33 @@ live domain before its build is Active": a first request caches a 404). Reading 
 existing addresses before the switch is fine. Then check HTTPS, the 404 status, console errors
 on the live pages and the consent question, measure the live domain's speed as `website-qa` §2
 does (the assistant runs Lighthouse; its fallbacks are PageSpeed Insights, then the owner), and
-fill the comparison's new-site row. For a WordPress move,
+fill the comparison's new-site row. Then read the Cloudflare zone settings (§3). The speed and
+comparison parts may be skipped; the zone read may not, since for a new domain nothing else
+reads it. For a WordPress move,
 point at `wordpress-inspector`'s `scripts/check_move.py --moves` where that skill is installed;
 a site's bundled skills do not include it, so otherwise say it comes from Croftweaver.
+
+**The analytics tag on the live page.** Run, in the site's folder, with the live address:
+
+```
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_live_analytics.py" https://<live address>
+```
+
+It fetches the home page and compares its analytics tag with `src/config.ts`. A ✗ (exit 1) is a
+🔴; quote its lines. Tag missing: the page carries no analytics script tag. Tag present with analytics off:
+visits may be counted without the privacy page saying so. Only the script's path or id seen: 🔴
+until someone looks. Exit 2 is 🟡 "not checked: <its reason>". It reads this folder's
+`src/config.ts`, so that file must be the live one: after `git fetch`, run `git diff --quiet
+origin/<PROD_BRANCH> -- src/config.ts` in the site's folder (`<PROD_BRANCH>` is the value of
+`PROD_BRANCH` in that file). If it fails, the row is 🟡 "not checked:
+`src/config.ts` here differs from the live branch". Baseline and pre-launch runs: "not checked
+yet: not deployed".
+
+**Right after a publish, the live page may still come from a cache, so its answer can be about the
+build before. Run it again a minute later before acting on a ✗.** Measured 2026-11-09 with
+`curl -I`: croftweaver.com (Pages) answers `cf-cache-status: DYNAMIC` for `/` and `/?cb=<random>`;
+guide.croftweaver.com (Workers static assets) answers `HIT` for both, so on Workers a fresh query
+is no proof of a fresh page.
 
 ## 9. Committing
 

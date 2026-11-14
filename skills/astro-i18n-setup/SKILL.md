@@ -65,7 +65,9 @@ The starter's `src/pages/404.astro` serves every unmatched URL, whatever its
 locale prefix. Translate its strings to the DEFAULT locale's language; a
 per-locale 404 (`src/pages/de/404.astro`) is optional and needs no routing
 changes — Cloudflare Pages serves `/de/404` for unmatched `/de/*` paths when
-it exists. Keep any 404 noindex and out of PAGES (@astrojs/sitemap already
+it exists (on a Worker the starter's `not_found_handling: "404-page"` serves the
+nearest `404.html` up the folder tree, from Cloudflare's docs: not checked on a
+build; a Preview link on a Worker with no 404 file serves a bare "Not found"). Keep any 404 noindex and out of PAGES (@astrojs/sitemap already
 excludes status-code pages from the sitemap by itself).
 
 ## Partial translation (some routes are not translated)
@@ -163,10 +165,14 @@ registry (duplicate path, unknown or repeated locale) and the `pathLocale()` /
 `neutralPath()` / `routeLocales()` helpers everything else imports — apply it
 whole. Verbatim code: `references/heavy-path-code.md` §2.
 
-Remove `SITE.locale` — and the matching `lang = SITE.locale` default prop in
-`Base.astro` (the `lang = SITE.locale` default in the Props destructure): the layout derives the locale from `Astro.currentLocale` now
-(step 3), so leaving that default referencing the deleted export breaks the build.
-Everything reads `DEFAULT_LOCALE` / `Astro.currentLocale`.
+Remove `SITE.locale`. In `Base.astro`'s Props destructure, `lang = SITE.locale,` becomes
+`lang: langProp,`: the layout derives the page's language from `Astro.currentLocale`
+(step 3), and an explicit `lang` prop still wins. Keeping the old default breaks the build;
+deleting the line leaves `lang` undefined for `inLanguage` and `og:locale`.
+`src/components/EmailLink.astro` reads `SITE.locale` too: its import of `SITE` becomes
+`DEFAULT_LOCALE`, and its default `lang = SITE.locale` becomes
+`lang = Astro.currentLocale ?? DEFAULT_LOCALE`, so a `/de` page's email hint reads "[punkt]".
+Everything else reads `DEFAULT_LOCALE` / `Astro.currentLocale`.
 
 ### 3. `src/layouts/Base.astro` — locale-aware (VERIFIED build output)
 Add the imports + derive locale/alternates, set `<html lang>` from the current
@@ -178,6 +184,13 @@ hreflang, and clean trailing slashes under `trailingSlash: 'never'`).
 The starter's CHROME chrome-strings lookup keys on `SITE.locale`, which §2
 removed — rekey it on `Astro.currentLocale ?? DEFAULT_LOCALE` (per-page chrome
 language IS correct on a locale-routed site, unlike the single-locale starter).
+Then point each entry at the pages that exist. The default language keeps its unprefixed
+paths; every other language's entry gets its prefix, because its pages live under
+`src/pages/<locale>/`. On the usual site, English first and German added, that is the `de`
+entry: `privacyHref: '/de/privacy'` and `imprintHref: '/de/impressum'` (its single-locale
+values, `/datenschutz` and `/impressum`, are 404s there). With German as the default (§5),
+`de` gets `/privacy` and `/impressum` (ROUTES has no `/datenschutz`), and `en` gets
+`/en/privacy` and `/en/legal-notice`.
 The template's LIGHT-path pieces are superseded on a heavy site: **delete the
 `{alternates.map(…)}` render line** (the hreflang cluster from
 `references/heavy-path-code.md` §3 replaces it) — the
@@ -187,11 +200,13 @@ The starter's `Astro.locals.lang = lang;` line becomes `Astro.locals.lang = curr
 (in the §3 code), so a contact form on the page speaks the page's language.
 Keep the `ogLocale` line (config.ts's shared `ogLocaleFor` maps `lang → og:locale`);
 optionally add `og:locale:alternate` for the non-current locales. `inLanguage` in the
-WebPage/WebSite schema should use `currentLocale`.
+WebPage/WebSite schema read `lang`, which §3's code sets to the current locale.
 
 ### 4. `src/components/LanguageSwitcher.astro` (new)
 Copy the ready component from `references/LanguageSwitcher.astro` into
-`src/components/` and render it in the site's nav/header on every page. It links
+`src/components/` and render it on every page: the starter has no header or nav, so put
+`<LanguageSwitcher />` inside the `<footer class="site-footer">` in `Base.astro` (import
+it there). It links
 the **current page** in each locale the route exists in — `routeLocales(neutral)`
 (§2), NOT `LOCALES`, so a sparse route's switcher never links a never-built
 variant — labelled from `LOCALE_LABELS`, active locale `aria-current="true"`.
@@ -204,6 +219,18 @@ landmark-unique rule).
 ### 5. Page/content structure
 - Default-locale pages stay at `src/pages/*` (e.g. `src/pages/about.astro` → `/about`).
 - Each other locale lives under `src/pages/<locale>/*` (e.g. `src/pages/de/about.astro` → `/de/about`).
+- The German legal pages are copies of the kit's drafts: `src/pages/_datenschutz.astro` →
+  `src/pages/de/privacy.astro` and `src/pages/_impressum.astro` → `src/pages/de/impressum.astro`.
+  The English Legal Notice (`legal-notice.astro`) stays where it is. A copy sits one folder
+  deeper, so change every `'../` import in it to `'../../`, or the build cannot find
+  `Base.astro`. §2's ROUTES lists the two Impressum routes (`/legal-notice` English only,
+  `/impressum` German only).
+- With German as the default, the two languages swap places. The German pages sit in
+  `src/pages/` (`_datenschutz.astro` → `privacy.astro`, `_impressum.astro` →
+  `impressum.astro`), and the English ones move to `src/pages/en/` (`privacy.astro`,
+  `legal-notice.astro`, with `'../../` imports). Every `/de/…` legal path in this skill
+  then reads as the unprefixed one, and every English one as `/en/…`: for example,
+  `UNFILLED_UNTIL_LAUNCH` holds `/privacy`, `/impressum`, `/en/privacy` and `/en/legal-notice`.
 - With Content Collections, add a `locale` field (or per-locale entry dirs) and render
   locale routes from it. **Translate the whole page**, not just the chrome — partial
   translation reads as thin/duplicate (international-seo.md).
@@ -244,10 +271,12 @@ Do NOT just exempt content routes: an exempted `/de` page shares the ENGLISH
 default card into German chats, the same silent-wrong-language failure the
 German gates exist to stop. Utility twins are the exception — make the
 exemption locale-neutral with one line in seo.spec.ts (both places that
-consult it), so `/de/privacy` inherits `/privacy`'s exemption. The HOME route
+consult it), so `/de/privacy` inherits `/privacy`'s exemption. `/de/impressum` inherits
+the exemption of its neutral path `/impressum`, which the starter does not list: add
+`'/impressum'` to `OWN_CARD_EXEMPT`. The HOME route
 must NOT inherit: `/` is exempt only because the default card IS the home
-card — a rationale that does not transfer to `/de`, which needs its own
-translated card in `generate_og_cards.py` like any content page:
+card — a rationale that does not transfer to the other language's home (`/de`, or `/en`
+with German as the default), which needs its own translated card in `generate_og_cards.py` like any content page:
 ```ts
 const isCardExempt = (p: string) =>
   OWN_CARD_EXEMPT.has(p) || (neutralPath(p) !== '/' && OWN_CARD_EXEMPT.has(neutralPath(p)));
@@ -300,10 +329,14 @@ specific rules layer on top for `lang` starting `de` — other languages get onl
 universal rules. No change needed.
 
 `tests/placeholders.spec.ts` iterates `PAGES`, so it covers each locale's pages with no
-change. One edit, before launch only: a second locale's legal page built from one of the kit's drafts
-(`/de/privacy` from `_datenschutz.astro`) carries `[BRACKET]` slots until the owner
-fills them, so add its route to `UNFILLED_UNTIL_LAUNCH` next to `/privacy`. That is
+change. One edit, before launch only: a second locale's legal pages built from the kit's drafts
+(`/de/privacy` from `_datenschutz.astro`, `/de/impressum` from `_impressum.astro`) carry
+`[BRACKET]` slots until the owner fills them, so add their routes to `UNFILLED_UNTIL_LAUNCH`
+next to `/privacy`. That is
 the one case in which the list may grow; on a launched site, fill the slots instead.
+That page also carries the draft notice, cleared as `AGENTS.md` §5 says. A notice you
+translate for a page in another language must be added to the list of notice texts in
+`tests/placeholders.spec.ts`, or the test does not see it.
 
 ## Regional German (DACH)
 

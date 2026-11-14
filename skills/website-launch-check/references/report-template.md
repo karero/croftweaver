@@ -39,11 +39,12 @@ test skipped, filtered out or missing].
 
 | Area | Result | Finding |
 |---|---|---|
-| Imprint / privacy / consent | [✅ / ⚠️ / ❌ / not checked] | [one line] |
+| Imprint / privacy / consent | [✅ / ⚠️ / ❌ / not checked] | [each `legal pages:` line quoted, with its state: "owner confirmed, <date>", a blocker, or 🟡 published as drafted; then one line] |
 | Titles and descriptions unique across pages | | |
 | The starter's example values, `llms.txt` slots, the 404 page's text | | |
 | [Story layer / blog / testimonials / contact form, as the settings say] | | |
 | Console errors on the local preview | | |
+| Cloudflare zone settings, read in the dashboard on [YYYY-MM-DD] | | [each of the five places as seen; each security rule with its action, what it matches and its scope; the setup tokens at the live run] |
 
 ## E-E-A-T and local signals (an assessment, not a measurement)
 
@@ -60,6 +61,9 @@ test skipped, filtered out or missing].
 
 - [What only a deployed site shows: HTTPS, the 404 status, errors from the `_headers`
   rules. Checked at the live re-check (step 12a).]
+- [Cloudflare zone settings: deferred to the live re-check: the domain is not on Cloudflare
+  yet. The live re-check (step 12a) reads them, and the setup tokens, once launch day's work is
+  done.]
 
 ## Skipped by the settings
 

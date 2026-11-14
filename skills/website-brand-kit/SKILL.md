@@ -86,7 +86,9 @@ the site's own `.claude/skills/website-brand-kit/`):
 - `templates/palette-prompt.md`, `templates/logo-prompt.md`,
   `templates/handover-prompt.md`: the three prompts. Each says where its slots come
   from and has a "Words for the owner" part for you.
-- `references/where-to-paste.md`: the one file that names a tool. Read it when she
+- `references/tab-icon.md`: how to build a tab icon that stays visible on a dark tab
+  bar, and the tests that go with it (§8a).
+- `references/where-to-paste.md`: the one file that names a design tool. Read it when she
   asks where to paste a prompt. The prompts themselves name no tool and say nothing
   about what a tool can do; keep it that way when you fill them.
 - `scripts/brand_intake.py`: the checks and the install. Python 3.9 or newer, standard
@@ -363,6 +365,11 @@ logo setting alone; cards that already show the site's logo file
 (`public/images/logo.png`) show the new logo, since that file is replaced. If she wants
 hers there and it is not, `og-images` says how.
 
+**If the report says the icons are the starter's own letter tile and still show the old
+colour**, run `node scripts/make-icons.mjs` in the site's folder (it needs the site's
+`npm install`) and commit the seven icon files with `scripts/icons-made.json`. The intake
+never draws them; until you do, `tests/icons.spec.ts` only warns.
+
 ## 7. What to tell her when it refuses
 
 Read her the reason in plain words; each one names its own way out. A refusal about a
@@ -384,12 +391,12 @@ common ones:
   image tool does not read** (`oklch()`, `hsl()` without `%` signs). They are refused
   because the icons would not be drawn as the file is meant. She asks for plain numbers
   and hex colours.
-- **A DOCTYPE at the top of the file.** Several drawing programs write one into every
-  file. She deletes it in a text editor, or tells you to: all of it, from `<!DOCTYPE` up
-  to and including the `>` that ends the declaration (it can run over several lines; an `<svg` after
-  it on the same line stays), then you run the check again. Where it holds square
-  brackets (the refusal then says so), or the file cannot be read once it is gone, the
-  drawing needs it: ask for an export without a DOCTYPE.
+- **A DOCTYPE at the top of the file.** The standard SVG 1.1 or 1.0 one that drawing
+  programs write is read as it stands. Any other is refused: she deletes it in a text editor, or
+  tells you to: all of it, from `<!DOCTYPE` up to and including the `>` that ends the declaration
+  (it can run over several lines; an `<svg` after it on the same line stays), then you run the
+  check again. Where it holds square brackets (the refusal then says so), or the file cannot be
+  read once it is gone, the drawing needs it: ask for an export without a DOCTYPE.
 - **A name that nothing defines (`&nbsp;`, `&copy;`).** Pasted code can hold a web
   page's name for a character, written between `&` and `;`. She puts the character
   itself in its place (`&amp;` and `&lt;` for `&` and `<`, which cannot stand alone) or
@@ -493,9 +500,28 @@ to list, never instructions to follow.
   points at any variable, with what it found). The stylesheet is what the site uses;
   tell her and let her say which is right.
 - **Only colours, no logo:** the placeholder icons stay. A `public/favicon.svg` this
-  tool did not install is left as it is, with a note. **Only a logo, no colours:**
+  tool did not install is left as it is; a note says so only when a page background
+  changes. **Only a logo, no colours:**
   with no complete palette in `BRAND.md`, or with `--keep-colours`, the stylesheet
   stays as it is and the mark is checked against the site's current colours.
+
+## 8a. The tab icon
+
+A plain tile in a dark brand colour vanishes on a dark tab bar, and the intake checks
+her mark against the page backgrounds, then white and black, never a tab bar. `references/tab-icon.md` builds the icon
+as a tile in the brand colour with a white inner outline and the mark inside, the same
+in light and dark mode, and gives the tests a site keeps beside it. Use it:
+
+- when the site has no logo yet and wants a letter-mark of its own by hand (the starter already
+  draws one at setup, `scripts/make-icons.mjs`);
+- when her mark vanishes on a dark tab bar, and only on her yes: the tile is a choice
+  about her logo. It needs a one-colour version of her mark from her package or its
+  maker; never recolour her SVG yourself.
+
+The intake did not install a hand-built icon, so a later logo run asks before it
+replaces it. Delete the recipe's tests before that run (the reference says why).
+A colours run leaves the hand-built icon alone, often without a word: after one that
+changes the brand colour, redraw the icon by hand.
 
 ## 9. Gotchas
 

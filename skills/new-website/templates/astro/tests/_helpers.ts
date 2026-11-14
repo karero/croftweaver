@@ -1,10 +1,11 @@
 // One source of truth for routes. Every suite iterates PAGES — add a route here
 // and the a11y / SEO / navigation / image checks all cover it automatically.
 // CONVENTION: NO trailing slash (matches `trailingSlash: 'never'`); home stays '/'.
+// A site that already routes /impressum keeps that path when it merges a newer copy of this file.
 export const PAGES = [
   '/',
   '/privacy',
-  '/impressum',  // German-market legal page; non-DE/AT/CH sites delete it (see new-website checklist)
+  '/legal-notice',  // legal page; sites with no German nexus delete it (see new-website checklist)
   // '/about',
   // '/contact',
 ] as const;
@@ -139,4 +140,22 @@ export function toneViolations(text: string, lang: string): string[] {
     }
   }
   return violations;
+}
+
+// What axe's `incomplete` list says about colour contrast, as one warning line, or null when
+// axe decided everything. Text over an image or a gradient lands there, not in `violations`
+// (measured: axe-core 4.14.0, tests/fixtures/axe-core-4.14.0-playwright-4.14.0-incomplete.json).
+export type AxeIncomplete = {
+  id: string;
+  nodes: { target: unknown[]; any: { message: string }[]; all: { message: string }[]; none: { message: string }[] }[];
+}[];
+export function contrastWarning(path: string, theme: string, incomplete: AxeIncomplete): string | null {
+  const nodes = incomplete.filter((r) => r.id === 'color-contrast').flatMap((r) => r.nodes);
+  if (nodes.length === 0) return null;
+  const lines = nodes.map((n) => {
+    const reasons = [...n.any, ...n.all, ...n.none].map((c) => c.message).join('; ');
+    return `${n.target.join(' ')} (${reasons})`;
+  });
+  return `${path} [${theme}]: axe could not decide the contrast of ${nodes.length} element(s); ` +
+    `look at them by eye: ${lines.join(' | ')}`;
 }

@@ -7,7 +7,7 @@
 Croftweaver is a free, open-source suite of website skills: instructions your AI coding
 assistant follows to build and test a site you own. From a short brief it makes a complete
 website — content, mobile-first responsive design, SEO, accessibility checks, schema markup,
-tests, and launch support — on Astro → GitHub → Cloudflare Pages, and its test suites check
+tests, and launch support — on Astro → GitHub → Cloudflare (a Worker; Pages for sites made before 0.35), and its test suites check
 every change by default. After launch, your Search Console data and a weekly check of which AI
 assistants name your site point to the next edit for SEO and GEO (how your site shows up in AI
 answers).
@@ -195,7 +195,7 @@ below is also what the AI assistant runs on your behalf.*
 This repository is the **single source of truth** for the Croftweaver skill suite — an
 orchestrated set of agent skills that build a new website end-to-end (insights →
 positioning → content → SEO/GEO → design → QA → review → launch), on the house stack
-**Astro → GitHub → Cloudflare Pages**.
+**Astro → GitHub → Cloudflare** (a Worker serving static assets; sites made before 0.35 may still be on Pages).
 
 Developed and used with **Claude Code**. The skills are plain `SKILL.md` files, and the
 install guides also cover **Google Antigravity** and **OpenAI Codex**; the suite has been
@@ -311,7 +311,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > to undo an update, `git revert` is equally live. From a zip, re-run
 > `./scripts/install.sh` in a newer unzipped copy. After `npm create croftweaver` the
 > installed skills are copies, not symlinks: run the command again, and it replaces them
-> with the latest release. A site scaffolded from those copies is stamped
+> with the latest release. A skill that is still a working symlink from an earlier
+> `./scripts/install.sh` is left alone and keeps updating from the folder it points to;
+> `npm create croftweaver -- --force` replaces it with a copy. A site scaffolded from those copies is stamped
 > `suite_commit: unknown`, as one scaffolded from a zip is, so `make whats-new` has no
 > baseline for it.
 >
@@ -333,12 +335,12 @@ allowlist), then sequences the sibling skills through **positioning → content 
 >
 > Frozen template files (`tests/*` incl. `_helpers.ts`, plus `CONTENT_GUIDE.md`,
 > `AGENTS.md`, `PUBLISHING.md`, `SETUP.md`, `playwright.config.ts`,
-> `functions/_middleware.ts`, `functions/go/email.ts`, `.github/workflows/ci.yml`,
+> `.github/workflows/ci.yml`,
 > `.github/dependabot.yml`, `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
 > `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
 > `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`,
-> `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `.claude/settings.json`, and
+> `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `CROFTWEAVER-LICENSE.md`, `.claude/settings.json`, and
 > `.claude/hooks/git-stand.mjs`) are **frozen one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
@@ -480,7 +482,7 @@ skills/            the suite skills (canonical)
                    sit outside the chain
   ai-seo, schema-markup, seo-audit, site-architecture, customer-research,
   copywriting, image, og-images, outgoing-link-audit, internal-link-audit,
-  search-console-setup, business-listings-setup   (bundled deps)
+  search-console-setup, search-console-insights, business-listings-setup   (bundled deps)
   facts-check      (read-only, any live site on any stack: one approved facts list
                    in, every page in the sitemap compared with it, each differing
                    figure and retired phrase out; plus the positioning check, each
@@ -520,6 +522,10 @@ skills/            the suite skills (canonical)
   website-team-setup   (on-demand: turns a one-owner repo into a team repo — invites,
                    settings, CI proof, push block, Cloudflare, rights in AGENTS.md;
                    copied to every site, runs only when a second person joins)
+  website-new-page (adding or rewriting a page: one page document with the brief and the full
+                   draft, a content review for the reader, search and originality, the
+                   owner's go on the exact sentences, then a check that the build kept the text;
+                   copied to every site, never runs unasked)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via
                    independent-review/scripts/independent_review.sh, two-pass
@@ -533,7 +539,9 @@ scripts/
   check_clean.sh   scan skills/ + root docs for names / contact info / credentials (make check)
   check_model_agnostic.sh   keep independent-review free of concrete model names (make check)
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
-  check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree (make check)
+  check_package_scripts.sh  every shell script under scripts/ ships in the handoff zip: in package.sh's zip -r line and REQUIRED (make check)
+  test_check_package_scripts.sh  the package-scripts check goes red for a script left out, dropped by -x, or gone (make check)
+  check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree, .nvmrc and ci.yml on one major (make check)
   test_node_floor.sh        the Node-floor check goes red for each way the floor can drift (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
@@ -553,13 +561,14 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
   CLOUDFLARE-CHECKLIST.md  the Cloudflare settings a site relies on (HTTPS, privacy, search and AI visibility), each with its dashboard path, and an outside check where one exists
+  MOVE-TO-WORKERS.md  moving a live Pages site to a Worker: what you do, what your assistant does, how to go back
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity
   CODEX-TEST.md    testing the suite itself with Codex
   DECISIONS_PENDING.md  repo only, maintainer-internal: open questions on the toolkit itself
   BUGLOG.md             repo only, maintainer-internal: small bugs and follow-ups kept for a later sweep (a few shipped comments name it; read it in the repo)
-  PAGES-OR-WORKERS.md   for the kit's maintainer: what moving the kit from Cloudflare Pages to Workers would change (no site has to act on it)
+  PAGES-OR-WORKERS.md   for the kit's maintainer: why new sites are on Workers from 0.35, and what moving the kit from Pages to Workers changes (no site has to act on it)
   PROCESS-DIAGRAM.html  how the suite builds a site (SEO / GEO / EEAT)
   PROGRESS-TRACKER.html progress-tracker mockup
 .claude-plugin/  (repo only) plugin.json and marketplace.json: the suite as a Claude Code plugin, installed
@@ -612,7 +621,7 @@ team forms:
   AI assistants (Codex in the browser or locally, Claude Code) can work on at once: invites
   collaborators, sets "Update branch" + auto-delete of merged branches, **proves** the CI
   workflow really starts on its own, blocks direct pushes to `main` (ruleset, or the
-  shipped pre-push hook on a private free-plan repo), connects Cloudflare Pages to GitHub
+  shipped pre-push hook on a private free-plan repo), connects Cloudflare (a Worker, or Pages for an older site) to GitHub
   without the known traps, and sets the collaborators' rights level and who may publish
   live in `AGENTS.md`. Every scaffold already ships the `AGENTS.md` working rules (fetch
   first, pull request instead of a push, never invent facts, the new-page checklist) — this
@@ -623,12 +632,13 @@ none of them.
 Every scaffold does get the `AGENTS.md` + `CLAUDE.md` working rules, so the day a team
 forms, `website-team-setup` only adds what a team needs.
 
-Six more skills are optional in a different way: `website-motion`, `website-story`,
-`website-brand-kit`, `website-scorecard`, `website-tagline` and `website-positioning-check`
+Seven more skills are optional in a different way: `website-motion`, `website-story`,
+`website-brand-kit`, `website-scorecard`, `website-tagline`, `website-new-page` and
+`website-positioning-check`
 are **copied into every site** so the recipient can use them later, but **never run unless
 asked** (`website-story` is offered once, after positioning, with a plain-language explanation;
 `website-brand-kit` is asked about once, right after it, with one plain question; the
-other four only on request).
+other five only on request).
 
 ### Use it locally
 
@@ -656,7 +666,7 @@ The suite is a handoff artifact, so it must carry **no personal names, contact i
 credentials**.
 
 ```bash
-make check       # PII/secrets + model-agnostic + template coverage + Node floor + per-skill size budgets
+make check       # runs the repo's checks, among them PII/secrets, model-agnostic, template coverage, Node floor, per-skill size budgets
 ```
 
 `scripts/check_clean.sh` runs a denylist (owner / sites / org / home paths) plus generic
@@ -684,6 +694,16 @@ script — never by loosening it. The same `make check` (and the same CI workflo
 `scripts/check_model_agnostic.sh` knows, outside its setup guide, its list of the models
 the Melious seat may run and its list of measured seat limits, and holds every skill to its size budgets
 (`scripts/check_skill_budgets.sh`).
+
+### Changing the starter
+
+Several jobs in `.github/workflows/template-tests.yml` (`scorecard-skill`, `brand-kit-skill`
+and others) copy the starter, install a skill into it and run the site's tests; `make check`
+runs none of them. So before the first push of a change to the starter's shared files
+(`global.css`, `Base.astro`, a spec that scans every page), run `make check`,
+`make test-brand-kit`, and, in a scratch copy of the starter, the steps of the job whose skill
+reads the file you changed. The steps are written for GNU `sed` (one uses its `0,/…/`
+address), so on macOS run them with GNU sed: Homebrew's `gnu-sed`, as `gsed`.
 
 ### Merging stacked PRs
 

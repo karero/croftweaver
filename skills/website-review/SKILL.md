@@ -102,7 +102,7 @@ recommendation, never to pick unasked.
   hand against this pass's checklist, or vendor the generic `double-knuth`
   skill from the Croftweaver suite.
 - `npm run build` is clean — no errors **or warnings**; TS strict passes.
-- `npm test` green (a11y/seo/navigation/anchors/orphans/images/tone/positioning/placeholders/email/links/llms-coverage/middleware) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it. `placeholders.spec.ts` goes in with its `UNFILLED_UNTIL_LAUNCH` as shipped, on a launched site too: the first run names each entry to delete, and its check for lower-case slots, which runs on listed pages only, finds the one older starters carried on the privacy page.)
+- `npm test` green (the starter's whole suite, `tests/*.spec.ts`) — nothing skipped or loosened. (A site scaffolded before a spec existed: copy it in from the starter rather than reviewing without it. `placeholders.spec.ts` goes in with its `UNFILLED_UNTIL_LAUNCH` as shipped, on a launched site too: the first run names each entry to delete, and its check for lower-case slots, which runs on listed pages only, finds the one older starters carried on the privacy page. `placeholders.spec.ts` also fails on a legal page with no recorded answer in the `README.md`, unless that page is still listed and shows its draft notice: ask the owner as `AGENTS.md` §5 says.)
 - `astro preview` the new/edited pages — **no console errors**; interactions work.
 - Nothing half-done: no TODO/placeholder/lorem and no leftover `[BRACKET]` slots in shipped
   pages OR `public/` assets. `placeholders.spec.ts` enforces this on the rendered pages and
@@ -140,10 +140,12 @@ recommendation, never to pick unasked.
 - **Images (`website-design-system`):** WebP/AVIF, explicit `width`/`height`, `alt`; the LCP
   image eager (`fetchpriority="high"`), below-fold lazy; no oversized files.
 - **Email:** every address rendered via `<EmailLink>`; `email.spec.ts` green.
-- **Headers/redirects:** `_headers` CSP present; legacy URLs 301 in `_redirects`; the
-  `*.pages.dev` middleware in place (previews noindexed); on a launched site,
-  the project's own `pages.dev` address (as Cloudflare shows it; not always the project's
-  name) answers 301 to the live domain — if it answers 200, see
+- **Headers/redirects:** `_headers` CSP present; legacy URLs 301 in `_redirects`. A Worker
+  site: `wrangler.jsonc` has `workers_dev: false` and no `main` (`workers-config.spec.ts`
+  checks it). A site still on Pages: the `*.pages.dev` middleware in place (previews
+  noindexed), and on a launched site the project's own `pages.dev` address (as Cloudflare
+  shows it; not always the project's name) answers 301 to the live domain — if it answers
+  200, see
   the causes listed in `new-website/references/CLOUDFLARE_FIRST_DEPLOY.md`, "After
   go-live", step 3 (variable not under Production or rejected, no redeploy since, or a
   middleware that predates the redirect).
@@ -155,7 +157,8 @@ recommendation, never to pick unasked.
 - **Language/i18n (non-English or multi-locale sites):** every page's CONTENT language
   matches its `<html lang>` (the tone gate's density check covers German; eyeball other
   languages); `og:locale` present and matching on every page; chrome (skip link, footer)
-  in the site's language; German-market sites carry the filled Impressum and the German
+  in the site's language; German-market sites carry the filled imprint (`/legal-notice`; `/impressum`
+  on a German-language site, `/de/impressum` multilingual) and the German
   privacy page at the right URL (`/datenschutz` single-locale, `/de/privacy` multilingual);
   multi-locale sites: hreflang sets complete + reciprocal (`tests/i18n.spec.ts` green, or
   the twin-page seo.spec test for the light path), every `/locale` route in PAGES, the

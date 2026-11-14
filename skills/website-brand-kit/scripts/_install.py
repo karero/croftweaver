@@ -64,12 +64,19 @@ PILLOW_MISSING = "Pillow, the image library the generator draws with, is not ins
 ONE_COLOUR_ICONS = ("this tool cannot tell what the installed app icons sit on, or which version of the logo they were drawn from (it keeps the colour version only), so "
                     "this run left them as they are. To draw them for the new colours, run this again with the package the logo came in: --input, with --pick and "
                     "--mono as before")
+STARTER_ICONS_OLD = ("the icons are the starter's own letter tile and still show the old colour (%s): this run does not draw them again. In the site's "
+                     "folder, run `node scripts/make-icons.mjs` and commit the seven icon files and scripts/icons-made.json")
 # A logo this tool installed keeps the colours it was drawn in when the palette changes. What can be done about it
 # depends on how the mark was given: one in `currentColor` is drawn in the new Primary from its package (in the light
 # theme's Accent where the palette gives no Primary); one with colours of its own is the same drawing whenever it is
 # installed, and this tool recolours nothing. A mark with both kinds of colour can get both notes.
 KEPT_CURRENT = ("the logo was given in `currentColor` and was drawn in %s. It keeps that colour: this tool draws it in %s only from the package it came in. For that, run "
                 "this again with the package: --input, with --pick and --mono as before")
+# For a mark with a part in `currentColor` that has the colour as its own as well (MARK_CURRENT_OWN): run with the package
+# under another Primary, it can be refused over `color` set inside a group painted with `currentColor`, and no file
+# of the same drawing, whatever is written out, is read in another colour. The note says so.
+KEPT_CURRENT_OWN = (". If that run is refused over `color` set inside a group painted with `currentColor`, this logo cannot be drawn in another "
+                    "colour from this file: ask the design tool for the mark in the new colour with every colour written out, or in `currentColor` alone")
 KEPT_FOR = ("the Primary the palette has now (%s)", "the light theme's Accent the palette has now (%s: it gives no Primary)",
             "the stylesheet's `--brand` (%s)")   # (the third: there is no palette in BRAND.md to ask, and the stylesheet's `--brand` is the Primary)
 # A run that leaves BRAND.md's palette out (--keep-colours, or a palette that is not complete) goes by the site's own
@@ -546,6 +553,7 @@ class Plan(object):
         self.files = {}       # relative path -> bytes (icons)
         self.asks = []
         self.placeholders = []
+        self.starter_icons = []   # icons the starter's scripts/make-icons.mjs drew: replaced like the placeholders
         self.copy = None      # (relative path in brand-handoff, bytes) of the package, or None
         self.preview = None   # bytes of the preview sheet, or None
         self.changed_icons = []
@@ -811,10 +819,11 @@ def _install(a, site, out, data):
 
     # --- the logo: whether there is one to work with at all -----------------------------------
     master_bytes = _read_bytes(site, MASTER)
-    if master_bytes is not None and _site.is_scaffold_default(MASTER, master_bytes):
+    starter_master = master_bytes is not None and _site.is_starter_icon(site, MASTER, master_bytes)
+    if master_bytes is not None and (starter_master or _site.is_scaffold_default(MASTER, master_bytes)):
         master_bytes = None
     if a.with_logo and not a.input and master_bytes is None:
-        raise Refusal("logo-missing", "There is no logo to apply: no file was given, and the site has no logo of its own installed yet (%s is the scaffold's placeholder or missing)." % MASTER)
+        raise Refusal("logo-missing", "There is no logo to apply: no file was given, and the site has no logo of its own installed yet (%s is the scaffold's placeholder, the starter's own letter icon, or missing)." % MASTER)
     asked_for_logo = bool(a.input) or a.with_logo   # she asked for the logo's files; a run about colours may still draw them again (below)
     if not want_colours and not asked_for_logo:
         why = ("--keep-colours leaves the palette in %s out" % os.path.basename(brand_path) if state == "complete" else
@@ -904,6 +913,13 @@ def _install(a, site, out, data):
                   "Run this again with --with-colours to apply the palette together with the logo, or with --keep-colours to leave the site's colours as "
                   "they are and have only the logo done." % os.path.basename(brand_path), list(changes))
 
+    # The starter's own letter icons are not drawn again by a run about colours; where they show the colour the
+    # site had (not one given with --colour), the report says they now show the old one.
+    made = (_site.icons_record(site) or {}) if starter_master and want_colours and not asked_for_logo else {}
+    drawn_in = made.get("colour") or {}
+    if primary and drawn_in.get("from") == "brand" and drawn_in.get("value") and str(drawn_in["value"]).lower() != primary.lower():
+        notes.append(STARTER_ICONS_OLD % drawn_in["value"])
+
     # --- without a file from her: are the icons drawn again from the installed master? --------------
     # When she asks for it (--with-logo), yes. On a run about colours, only when the background the app icons
     # sit on would change, and only from a master that is this tool's own: any other favicon.svg is a file she
@@ -917,8 +933,9 @@ def _install(a, site, out, data):
     renderer = None
     # A mark given in `currentColor` was drawn in that colour as it was on the day, and no run without its package draws it in another.
     # (Where neither a Primary nor an Accent is to be had, there is no colour to name, and the note is not given.)
-    if kept is not None and not a.input and primary and drawn not in (None, primary):
-        notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[2 if brand and state == "none" else not brand] % primary))
+    says_package = kept is not None and not a.input and primary and drawn not in (None, primary)
+    if says_package:
+        notes.append(KEPT_CURRENT % (drawn, KEPT_FOR[2 if brand and state == "none" else not brand] % primary) + (KEPT_CURRENT_OWN if own_too else ""))
     if master_bytes is not None and want_colours and not asked_for_logo:
         now = palette_from_css(css)
         moves = _icons.backgrounds(pal) != _icons.backgrounds(now)
@@ -997,7 +1014,7 @@ def _install(a, site, out, data):
             on_page = _palette.check_mark(clean.colours, pal)
             if report.outside and not a.accept_colours:
                 plan.asks.append(Ask("outside-palette", "These colours of the mark are not in the palette: %s. Nothing is recoloured without your say-so. Use the mark as it is "
-                                     "(--accept-colours), or ask the tool for the mark in the palette's colours." % ", ".join(report.outside)))
+                                     "(--accept-colours)%s" % (", ".join(report.outside), "." if says_package else ", or ask the tool for the mark in the palette's colours.")))
             mono_low = _palette.check_mark(mono_clean.colours, pal).low if mono_clean is not None else {}
             for theme, under in on_page.low.items():
                 if theme not in accepted:
@@ -1013,7 +1030,8 @@ def _install(a, site, out, data):
                 current = _read_bytes(site, rel)
                 if current is None or current == new:
                     continue
-                (plan.placeholders if _site.is_scaffold_default(rel, current) else plan.changed_icons).append(rel)
+                (plan.placeholders if _site.is_scaffold_default(rel, current) else
+                 plan.starter_icons if _site.is_starter_icon(site, rel, current) else plan.changed_icons).append(rel)
             if plan.changed_icons and not a.replace_icons:
                 plan.asks.append(Ask("replace-icons", "These icon files are already in the site, and are not the scaffold's placeholders: %s. Replace them (--replace-icons)?"
                                      % ", ".join(plan.changed_icons), plan.changed_icons))
@@ -1023,12 +1041,13 @@ def _install(a, site, out, data):
             if src_name:
                 plan.copy = (HANDOFF + "/" + _free_name(site, src_name, src_bytes), src_bytes)
             notes.append(NO_EMBLEM)
-        if plan.placeholders:
-            one = len(plan.placeholders) == 1
-            what = "%s %%s the scaffold's placeholder%s (the Astro logo)" % (" and ".join(plan.placeholders), "" if one else "s")
-            plan.pending.insert(0, (what % ("is" if one else "are") + ", which this run would replace", what % ("was" if one else "were") + ", now replaced",
-                                    what % ("is" if one else "are") + ": this run replaced %s and then put %s back" % (("it", "it") if one else ("them", "them")),
-                                    plan.placeholders))
+        for rels, kind in ((plan.placeholders, "the scaffold's placeholder%s (the Astro logo)"), (plan.starter_icons, "the starter's own letter icon%s (drawn by scripts/make-icons.mjs)")):
+            if rels:
+                one = len(rels) == 1
+                what = "%s %%s %s" % (" and ".join(rels), kind % ("" if one else "s"))
+                plan.pending.insert(0, (what % ("is" if one else "are") + ", which this run would replace", what % ("was" if one else "were") + ", now replaced",
+                                        what % ("is" if one else "are") + ": this run replaced %s and then put %s back" % (("it", "it") if one else ("them", "them")),
+                                        rels))
         notes.extend(would for would, _did, _back, _rels in plan.pending)
         # the question comes after every note of what the run would do, so its report says all of it
         if plan.asks:

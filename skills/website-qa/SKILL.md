@@ -1,8 +1,9 @@
 ---
 name: website-qa
 description: >
-  The pre-launch QA gate for a new site: run the basic tests (a11y light+dark +
-  seo + navigation + anchors + orphans + images + phone images + tone + positioning + placeholders + email + links), fix to green, then handle technical SEO /
+  The pre-launch QA gate for a new site: run the starter's basic tests (a11y light+dark,
+  seo, navigation, images, tone, positioning, placeholders, email, links and the rest of
+  tests/*.spec.ts), fix to green, then handle technical SEO /
   performance — run Lighthouse on the deployed site (PageSpeed Insights as the
   fallback) and act on First Contentful Paint (FCP)
   and Largest Contentful Paint (LCP). Use before launch (steps 7–8 of the
@@ -26,7 +27,9 @@ preview` — the static output Cloudflare serves). Test the contract, not the
 cosmetics; red → green → commit.
 
 - `a11y.spec.ts` — axe WCAG 2 A/AA + best-practice on every page, **light AND
-  dark**; zero violations.
+  dark**; zero violations. Text axe cannot measure (over an image or a gradient) is not a
+  violation: the spec prints each such element as a warning (selector and axe's reason); look at
+  it by eye in both themes.
 - `seo.spec.ts` — title ≤60 / description 120–160 (hard floor AND cap); og/twitter
   mirror title/description; canonical == og:url == absolute URL; one `<h1>`; JSON-LD
   parses; the sitemap matches `PAGES` exactly (drift alarm: a route missing from
@@ -45,14 +48,16 @@ cosmetics; red → green → commit.
   listing any unreachable page. Deliberately-unlinked pages opt out via `ORPHAN_EXEMPT`.
   Offline. The judgment-side report (inbound count, thin pages, where to add links) is
   the `internal-link-audit` skill.
-- `middleware.spec.ts` — `functions/_middleware.ts`, which `astro preview` never runs,
+- `llms-coverage.spec.ts` — `public/llms.txt` matches `PAGES`: a page missing from the file and
+  an entry for a page that is gone both fail. `LLMS_EXEMPT` opts a page out, with a reason.
+  Whether an entry's wording still fits its page is a `website-review` judgment. Offline.
+- `workers-config.spec.ts` — the Worker's config (the root `.json` or `.jsonc` file with `assets` in it) has
+  static assets only: no script of its own and no live `workers.dev` address (previews only,
+  until launch). Offline.
+- `middleware.spec.ts` — **a site still on Pages only** (a starter made before 0.35 has it;
+  a Worker starter does not): `functions/_middleware.ts`, which `astro preview` never runs,
   called directly: previews noindexed, live-domain responses unchanged, and the project alias
   `<project>.pages.dev` 301ing to the live domain only once `CANONICAL_URL` is set. Offline.
-- `analytics-server.spec.ts` — analytics server mode, the middleware and
-  `functions/go/email.ts` called directly with a stand-in for Plausible: one page view per
-  page a visitor opens and none for assets, prefetches, scripts or previews; an email tap
-  counted and answered with the mailto: link; crawlers and links from other sites given the
-  "[at]" hint, never the address. Offline.
 - `images.spec.ts` — every `<img>` has `alt` + `width`/`height` + an explicit
   `loading` (`lazy`, or `eager` for the LCP image); raster sources are WebP/AVIF
   in src, srcset and `<picture>` (the `website-design-system` rules).
@@ -62,7 +67,9 @@ cosmetics; red → green → commit.
   phone could use (1.1 × the width it is drawn at × 3) when a copy that wide saves an estimated
   4 KiB or more (estimated by pixel area, which can run high); a downloaded file nothing on the
   page shows (often a preload whose `media` drifted from the CSS breakpoint); one of 4 KiB or
-  more that is downloaded but hidden at phone width; and one whose drawn width it cannot work
+  more that is downloaded but hidden at phone width (by its size or `visibility`, by `opacity: 0`
+  on it or an ancestor, or clipped away by an ancestor's `overflow: hidden`, such as a carousel's
+  waiting slides); and one whose drawn width it cannot work
   out. A file used only as a border image, cursor or `shape-outside` is not judged by width, and
   the log names it. Prints how many files it judged by width and names the hidden ones under 4
   KiB. The fixes are in section 2.
@@ -84,8 +91,9 @@ cosmetics; red → green → commit.
   template expression or a dummy name. The CI grep for `[MISSING:` is the fast
   source-side half; this is the half that reads what a page serves. The starter's
   privacy page, imprint and manifest sit in `UNFILLED_UNTIL_LAUNCH` and are
-  **reported, not failed**, until filled; a filled target fails until its entry is
-  deleted, so the list empties itself and must be empty at launch (`new-website` §4).
+  **reported, not failed**, until filled and, for the two legal pages, until their
+  draft notice is cleared as `AGENTS.md` §5 says; a filled target fails until its
+  entry is deleted, so the list empties itself and must be empty at launch (`new-website` §4).
   A `"[MISSING: …]"` on a page only warns on your own machine, so a draft branch can
   be pushed, and fails in CI. Not read: the 404 page, `llms.txt`, and the starter's
   example values (the name `Example`, `hello@example.com`); those stay a
@@ -105,13 +113,12 @@ cosmetics; red → green → commit.
   *liveness* of the links you keep is the network-dependent `outgoing-link-audit`
   skill (pre-launch / monthly, **not** in CI).
 - `served-build.spec.ts` — the server answering on the test port serves this checkout's own
-  build (a random id per test build, from `scripts/build-marker.mjs`), not another checkout's
-  preview that took the port during the build.
+  build (a random id per test run, from `playwright.config.ts`), not another checkout's
+  preview that took the port during the build, nor another build in the same folder.
 
 First fill `tests/_helpers.ts` `PAGES` with the real routes. A failure is a real
 defect — fix the page, do not loosen the test (Rule 12: never silently skip). For
-diagnosing a specific failure, `test-failure-triage`; for intermittent ones,
-`flaky-test-debugger`.
+diagnosing one, start with the spec's own message: it names the page and the rule.
 
 ## 1b. TDD — what NEW tests to write for a feature
 
@@ -129,7 +136,7 @@ Feature → the high-value test to add:
 | Feature | Write a test that… |
 |---|---|
 | New page/route | add it to `PAGES`; baseline a11y+SEO+links now assert it (returns 200, one `<h1>`, title/desc in range). Then **link it from a related page** — `orphans.spec.ts` fails if it's reachable from no internal link. |
-| Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. The mail-app contact form: install `website-contact-form`, whose `tests/mail-form.spec.ts` covers exactly this (set its `PAGE` and `TO`). The skill is bundled with a site only when it was scaffolded with a form; otherwise it comes from the toolkit the site was built with. |
+| Contact / lead form | valid input → success state; invalid → error; the endpoint/`mailto` is invoked. The mail-app contact form: install `website-contact-form`, whose `tests/mail-form.spec.ts` covers exactly this (set its `PAGE`, `TO`, `SUBJECT` and `GREETING`: the spec fails while one is empty). The skill is bundled with a site only when it was scaffolded with a form; otherwise it comes from the toolkit the site was built with. |
 | Auto-rotating photos (hero carousel) | the rotation timing on a frozen clock, no page jump when the photo changes, the dots readable on a pale and a dark photo, a way to stop it, keyboard focus. Install `website-hero-carousel`, whose `tests/hero-carousel.spec.ts` covers exactly this (set its `PAGE`, `PAUSE` and `SWAP`). In `dots` pause mode a dot choice stops the rotation until reload (keyboard focus entering also stops it, and reduced motion starts it stopped), and the WCAG 2.2.2 trade-off is described in that skill's SKILL.md, section "Pause", which is where an audit looks. |
 | Theme toggle / dark mode | toggling persists across reload; run a11y in **both** themes (`THEMES=['light','dark']`). A toggle that stores the choice is storage the privacy page must disclose (section 3). |
 | Site search | a known query returns the expected result; empty query handled. |
@@ -153,16 +160,20 @@ The baseline only protects the site if it actually runs before a deploy. The sca
 a **`pre-push` git hook** (`scripts/hooks/pre-push`) that runs `scripts/verify.mjs` (the same
 as `npm run verify`: `npm ci` only on its first run or when `package.json` or `package-lock.json` changed, `npm run check`, then
 `npm test`, which builds once; short output) and `check_seo.py` (if present), and **refuses the
-push if anything is red** — so a broken build never reaches the deploy branch. A site without
+push if anything is red**. A site without
 `scripts/verify.mjs` gets the older `npm run build` + `npm test`. It's wired automatically: the `prepare` script in
 `package.json` (`node scripts/wire-hooks.mjs`, a line with no shell syntax) points
 `core.hooksPath` at `scripts/hooks` on `npm install` — when the site is the root of its git
 repo. In a subfolder of a bigger repo it leaves that repo's hooks alone, so the gate is not
 wired there; say so rather than assume it runs.
 
-This is the local complement to CI: Cloudflare Pages builds on push **independently of CI**,
-so without this hook a red test would still deploy. The hook is what makes "fails → does not
-ship" literally true on a direct-push-to-`main` workflow, without forcing a slower PR flow.
+This is the local complement to CI: Cloudflare builds on push **independently of CI**,
+so without this hook a red test would still deploy. The hook runs before each push from a
+clone where it is installed (unless skipped with `--no-verify`), including the owner's own
+direct push to `main` on a single-owner site (`PUBLISHING.md`). It tests the files on disk, not
+the commit being pushed, so a fix left uncommitted can hide a red commit: commit before you
+push. Apart from the site's first upload, assistants never push to `main` that way: they open
+pull requests (`AGENTS.md` §2), and CI checks those.
 
 **Offer it as a choice — never silently impose or remove it (Rule 1/Rule 12).** When setting
 up or handing off a site, surface both directions:
@@ -172,7 +183,7 @@ up or handing off a site, surface both directions:
 - **Tune what it runs:** edit `scripts/hooks/pre-push` (e.g. leave out a slow step; CI still
   runs everything).
 
-A team that wants the speed of direct pushes and the safety of the gate keeps it on; a solo
+An owner who pushes directly and wants the safety of the gate keeps it on; a solo
 builder mid-experiment may want it off. Make the call explicit with the user; don't decide for
 them. (Requires the per-machine `npx playwright install chromium` from SETUP.md, or the test
 step errors — a fail-loud, fixable by setup, not a reason to drop the hook.)
@@ -218,8 +229,7 @@ into the starters / `website-design-system`:
 - Render-blocking CSS: Astro inlines it (`inlineStylesheets: 'always'`).
 - Fonts: self-hosted woff2, `font-display: swap`, preload only above-the-fold.
 - Layout shift (CLS): explicit `width`/`height` on media.
-- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only; none
-  in analytics server mode).
+- Defer non-critical JS (analytics is `async` plus a short inline stub, production-only).
 
 Fixes that worked on a live site built with this toolkit (mobile 98–99 to 100, LCP about 2.0s
 to 1.5s):

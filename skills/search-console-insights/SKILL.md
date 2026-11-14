@@ -6,13 +6,13 @@ description: >
   queries (pos ~8-20), and high-impression/low-CTR pages flagged for snippet/SERP
   investigation (title/meta rewrite only if the live-SERP check shows a snippet
   problem you control). Optional add-ons: the live competitor Top-10 via a SERP
-  API, Bing Webmaster Tools as a Copilot/ChatGPT proxy, and a weekly check of
+  API, Bing Webmaster Tools query stats, and a weekly check of
   whether AI engines name the business (GEO). First use runs a guided onboarding
   for non-technical owners. Trigger phrases: "GSC insights", "Search Console
   data", "connect GSC", "where do I rank", "top queries", "striking distance
   keywords", "quick SEO wins", "why is my CTR low", "which pages to optimize",
   "competitor Top 10", "how do I rank on Bing", "Copilot
-  visibility", "ChatGPT search visibility", "track my rankings over time", "weekly
+  visibility", "track my rankings over time", "weekly
   SEO report", "does AI name my business", "weekly AI check", "show me my AI
   report".
 metadata:
@@ -30,9 +30,9 @@ GSC has collected and turns it into the 2–3 highest-leverage moves.
 | Source | Script | Auth | What you get |
 |---|---|---|---|
 | **Combined (the default)** | `insights.py` | — | **Google + Bing side by side** per keyword + a nudge to connect any missing free source |
-| **Google Search Console** | `gsc_query.py` | OAuth (one-time browser consent) | Real queries + exact avg position, impressions, clicks, CTR over a chosen window; striking-distance queries; high-impression/low-CTR pages; `--page <url>` / `--query "<q>"` drill-downs for query↔page attribution. German-market/bilingual sites: pass `--country deu` (ISO alpha-3; also on `insights.py`) — default numbers are blended across every country, which can mask or fake German positions. Keyword matching folds umlauts/ß ("München" matches rows typed "muenchen") |
+| **Google Search Console** | `gsc_query.py` | OAuth (one-time browser consent) | Real queries + exact avg position, impressions, clicks, CTR over a chosen window; striking-distance queries; high-impression/low-CTR pages; `--page <url>` / `--query "<q>"` drill-downs for query↔page attribution. `--start`/`--end` (YYYY-MM-DD, inclusive) pin a window to fixed days where `--days` ends two days ago, so a rerun reads the same days; with `--by-date` the report says whether the property's own rows reach the window's last day; `--pages-csv <file>` writes every page with its clicks and impressions. `--page` matches the address exactly, closing slash included. German-market/bilingual sites: pass `--country deu` (ISO alpha-3; also on `insights.py`) — default numbers are blended across every country, which can mask or fake German positions. Keyword matching folds umlauts/ß ("München" matches rows typed "muenchen") |
 | **Live Google SERP** | `serp_check.py` | Serper key (free, optional) | The actual Top-10 for any keyword + where you sit — incl. keywords you don't rank for yet |
-| **Bing Webmaster Tools** | `bing_query.py` | API key (free, optional) | Bing query **and page** stats — a Copilot/ChatGPT-visibility proxy; ~6-month aggregate |
+| **Bing Webmaster Tools** | `bing_query.py` | API key (free, optional) | Bing query **and page** stats; ~6-month aggregate |
 | **Trend over time** | `track.sh` + `_history.py` | — | Appends each run to a CSV and prints week-over-week position movement (▲/▼) |
 | **Weekly auto-tracking** | `schedule_tracking.sh` | — | Opt-in launchd job (per site) that runs the tracker weekly so history builds unattended |
 | **Google & Bing report page** | `search_report.py` | same GSC sign-in; never opens a browser | One page for the owner: visits and times shown per week (up to 16 months), each key search's position (3 months), searches just below page 1, pages shown often but rarely clicked, Bing from the history. Rebuilt by the weekly job; its counting rules are in the script's header |
@@ -85,7 +85,9 @@ Claude session, they just ask:
   - *"what are my quick SEO wins?"* / *"striking-distance keywords"*
   - *"which pages get seen but not clicked?"*
   - *"who's in the Top 10 for `<keyword>`?"* (uses the free Serper add-on)
-  - *"how do I rank on Bing?"* / *"my Copilot/ChatGPT visibility"* (uses the Bing add-on)
+  - *"how do I rank on Bing?"* (uses the Bing add-on)
+  - *"my Copilot visibility"* (reads Bing's AI Performance report, `references/ai-reports.md`)
+  - *"does ChatGPT name my business?"* (runs the weekly AI check, `geo_check.py`)
   - *"is my ranking improving?"* / *"track my rankings over time"* (runs the weekly tracker)
   - *"track my rankings automatically / every week"* (offers to schedule it, per site)
 
@@ -99,7 +101,7 @@ itself), then run the **combined** view:
 ```
 It auto-detects which sources are connected, shows **Google + Bing side by side** per
 keyword, and prints a nudge to connect any missing free source:
-- only Google connected → show it + offer the ~2-min Bing key (Copilot/ChatGPT proxy);
+- only Google connected → show it + offer the ~2-min Bing key;
 - a source connected but the call failed → shown as "⚠️ fetch failed" (do **not** tell them
   to re-set-up — it's a transient error);
 - no Serper key → suggest one (free 2,500/mo) for the competitor Top-10.
@@ -323,19 +325,18 @@ defaults to `de` (Munich). No key set → it exits cleanly; GSC/Bing are unaffec
 **Provider-agnostic — Serper is today's default, not a hard dependency.** A SERP API is a
 commodity; the script targets the *capability*, not one vendor, and free tiers shift over
 time — so pick whatever's free/cheap when you set up:
-- **Serper** — current default; ~2,500 free searches, then ~$0.30/1K.
+- **Serper** — current default; ~2,500 free searches, then about 0.30 US dollars per 1,000.
 - **SerpApi** — ~250 free/month; very clean parsing (already supported: `--provider serpapi`).
 - **Others** (Scrape.do, Decodo, HasData) — similar free credits; **DataForSEO** is the paid
-  backbone (no free tier, ~$0.0006/SERP) once you outgrow the free ones.
+  backbone (no free tier, about 0.0006 US dollars per SERP) once you outgrow the free ones.
 
 To add a provider: drop a `--provider <name>` branch into `serp_check.py` (its own API call →
 the same `{position, title, link, snippet}` shape) and read its key from the `.env`. If your
 provider ever kills its free tier, switch the flag — the rest of the skill is unchanged.
 
-## Bing Webmaster Tools — optional second source (Copilot/ChatGPT proxy)
+## Bing Webmaster Tools — optional second source
 
-Bing's index feeds **Microsoft Copilot and ChatGPT search**, so Bing rankings are a
-useful proxy for *AI-assistant* visibility — and connecting it is **far simpler than
+Microsoft says Copilot is powered by Bing's search index ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025, read 2026-11-09), but that does not make a Bing ranking a measure of Copilot visibility: we found no study that ties them, and the AI Performance report (`references/ai-reports.md`) counts Copilot citations itself. Nor is it a ChatGPT measure: OpenAI says ChatGPT search "sometimes partners with other search providers" and names no index ([OpenAI](https://help.openai.com/en/articles/9237897-chatgpt-search), read 2026-11-09). Connecting Bing is **far simpler than
 Google: one API key, no OAuth, no browser**. Volume is much smaller than Google for
 niche local queries, so treat it as a secondary signal.
 
@@ -508,7 +509,7 @@ from it that apply every time:
 - **Low-CTR titles/descriptions** → `copywriting` (title) + `website-seo-geo` (the
   50–60 / 140–160 char limits and the og/canonical contract).
 - **Striking-distance terms with no dedicated page** → a new page via the content
-  skills (`website-content-guide`, `programmatic-seo` for many similar pages); for
+  skills (`website-new-page`, `website-content-guide`); for
   an events site, a city events guide + `Event` JSON-LD is the natural home.
 - **Event rich results** → `schema-markup` (the `Event` type on event detail pages).
 - **Bigger technical issues surfaced by coverage** → `seo-audit`.

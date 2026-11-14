@@ -1,26 +1,28 @@
 # Cloudflare checklist: the settings your site relies on
 
-Your Croftweaver site runs on Cloudflare Pages. Most of it works out of the box. A handful
+Your Croftweaver site runs on Cloudflare as a Worker (a site made before kit 0.35 may still be
+on Cloudflare's older product, Pages; the steps for it are marked). Most of it works out of the box. A handful
 of settings decide whether your privacy page stays true, whether search engines and AI
 assistants can reach your pages, and whether visitors connect safely. Go through this list
-once after the first deploy, and again whenever Cloudflare redesigns its dashboard. Two
-items wait: HSTS waits a few days, and the `.pages.dev` forward waits until your own domain
-serves the site.
+once after the first deploy, and again whenever Cloudflare redesigns its dashboard. One
+item waits: HSTS waits a few days. On a Pages site a second waits: the `.pages.dev` forward,
+until your own domain serves the site.
 
 **Fastest way.** Your assistant can make most of these changes for you with one
 short-lived token. Section 6 shows how.
 
 **How to read the paths.** `→` means "click". The dashboard is dash.cloudflare.com. Some
 settings belong to your **domain** (click your domain's name in the list first), some to
-your **Pages project** (Workers & Pages → your project), and some to your **account**. Where
+your **Worker** (Workers & Pages → your Worker; on a Pages site, your project), and some
+to your **account**. Where
 a path says "Security → Settings → filter by …", you land on one long page of settings with
 a filter box: pick the filter, then find the setting by name.
 
 The paths come from Cloudflare's own documentation, read on 2026-10-12 (the AI switches in
 section 4 and the script monitor in section 3 on 2026-10-14), and from
 [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
-for three project steps in section 1 (attach the domain, Fail open, and the
-`CANONICAL_URL` variable under Production). None was re-checked in a dashboard for this
+for the project steps in section 1 (creating the Worker, attaching the domain, and, on a
+Pages site, Fail open and the `CANONICAL_URL` variable under Production). None was re-checked in a dashboard for this
 list, except the script monitor's switch, its Global tag and its panel, seen on
 14 October 2026. Cloudflare moves things around. If a name differs, search the dashboard for the
 setting's name.
@@ -29,17 +31,44 @@ setting's name.
 
 ## 1. Set up the site
 
-**While you create the project** (Workers & Pages → Create application):
+**While you create the Worker** (Workers & Pages → Create application):
+
+(The four steps for a new Worker below have no box: they are steps to take, not checks of their
+own. The boxes that follow are the checks.)
+
+- **Create a Worker from your repository.**
+  Workers & Pages → Create application → **Import a repository** → pick the repository. The
+  Worker's name comes from `name` in `wrangler.jsonc`. The address a build prints tells you what you have: a
+  Worker's ends in `.workers.dev`, a Pages site's in `.pages.dev`. If the
+  screen looks different, look for "Import a repository". (The setup script tells you when to
+  make this connection, and the other ways to deploy are in
+  [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).)
+- **Build settings:** build command `npm run build`; what the Worker serves comes from
+  `wrangler.jsonc`. A two-stage site: set the **production branch** to `production` on this
+  same form, or it publishes the preview first, and leave **Preview builds** on. Under
+  Advanced settings pick **Create new token** for the build, so this Worker has a token of its
+  own (the build token section of that guide says which rows to cut it down to).
+
+**After the first deploy:**
+
+- **Attach your domain to the Worker.**
+  Your assistant's setup script does it on launch day; by hand: Workers & Pages → your Worker →
+  Settings → Domains & Routes → Add → Custom domain (labels from the guide, not re-checked).
+  Cloudflare refuses the attach while an address record stands at that name, so the old record
+  is deleted first, and put back if the attach is refused: `CLOUDFLARE_FIRST_DEPLOY.md`
+  ("S" and "A") has the steps. A DNS record on its own is not enough: without the attach
+  visitors get an error 522.
+- **Nothing to set for a daily limit.** A Worker with no script of its own runs no code
+  for a page or a file, so there is no Fail open setting to change (the guide's "no daily
+  limit" section has the source).
+
+**If your site is still on Pages** (it answers on `<project>.pages.dev`):
 
 - [ ] **Create a Pages project, not a Worker.**
-  Workers & Pages → Create application → **Pages** → Connect to Git.
-  As of October 2026 the create screen shows **Workers** in the big box and **Pages** only
-  as a small line of text beneath it. That small line is the one you need. If you pick the
-  big box you get a Worker, and the steps in this kit won't fit. The address tells you
-  which you have: a Pages site answers on `<project>.pages.dev`, a Worker on a
-  `.workers.dev` address. If the screen looks different, look for the word Pages. (The
-  other ways to deploy are in
-  [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).)
+  Workers & Pages → Create application → **Pages** → Connect to Git. As of October 2026 the
+  create screen shows **Workers** in the big box and **Pages** only as a small line of text
+  beneath it. That small line is the one you need. If the screen looks different, look for
+  the word Pages.
 - [ ] **Build settings:** framework preset **Astro**, build command `npm run build`, output
   directory `dist`. A project the kit's setup script makes has no preset, which is fine: the
   build command does the work, and a project made that way built without one. A two-stage site: set **Production branch** to `production` on this
@@ -47,9 +76,6 @@ setting's name.
   Settings → Builds & deployments → Configure Production deployments, then **Save**. That
   path is for projects connected to Git. A Direct Upload project has no such option: ask
   your assistant.
-
-**After the first deploy:**
-
 - [ ] **Attach your domain to the project.**
   Workers & Pages → your project → Custom domains → Set up a domain.
   A DNS record on its own is not enough: without this step visitors get an error 522.
@@ -61,7 +87,7 @@ setting's name.
   [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md)
   has the history.
 
-**Once your own domain serves this site** (Active, and `https://yourdomain.com/build.txt`
+**Once your own domain serves this Pages site** (Active, and `https://yourdomain.com/build.txt`
 shows the current build):
 
 - [ ] **Send the `<project>.pages.dev` address to your live domain (301).**
@@ -81,6 +107,22 @@ shows the current build):
   file). Preview deployments keep answering 200 with `noindex`. That is meant.
   *Check:* the last command in section 5.
 
+**If your site is a Worker** (the addresses it prints end in `.workers.dev`, not `.pages.dev`; the two
+items below are the ones your assistant checks with `--site`):
+
+- [ ] **Keep the live `workers.dev` address off.**
+  In the Worker's `wrangler.jsonc`, `"workers_dev": false`. Then the address
+  `<worker>.<your-subdomain>.workers.dev` answers 404 and does not show the site, and the site has one home: your own
+  domain. Your assistant needs a live version link to check it, because Cloudflare gives the same
+  empty answer for a Worker that is off and for one that does not exist. `node move-to-workers.mjs check`
+  prints the link.
+  *Why:* a second address that serves the same site is how search engines and AI assistants end up
+  citing the wrong one.
+- [ ] **Preview links carry noindex and no active NEL policy.**
+  Version and Preview links of the Worker answer with `x-robots-tag: noindex`, which Cloudflare adds,
+  and with no NEL policy (section 3 says why). Your assistant opens each link you give it and tells
+  you the one that does not.
+
 Moving an existing domain, with its mail, to Cloudflare is a bigger job: see "Going live"
 in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md).
 
@@ -93,7 +135,7 @@ in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FI
   Your domain → SSL/TLS → Edge Certificates → Minimum TLS Version. Leave TLS 1.3 on.
   TLS 1.2 is the kit's choice; Cloudflare's page names no recommendation. Devices that
   speak only TLS 1.0 or 1.1 get no connection. Cloudflare's page also says this can't be
-  configured for Cloudflare Pages hostnames, so if the TLS check in section 5 still shows
+  configured for Cloudflare Pages hostnames (a Pages site's `pages.dev` address), so if the TLS check in section 5 still shows
   TLS 1.0 or 1.1 as "Yes", tell your assistant.
 - [ ] **HSTS: On, and last.** Do this one when the site has been live and working for a
   few days: browsers remember it, so it removes the easy way back to plain HTTP.
@@ -182,9 +224,9 @@ cookies, scripts or tracking you didn't choose.
      ID, is logged in clear text for anyone with access to the monitor's dashboard
      ([settings page](https://developers.cloudflare.com/client-side-security/reference/settings/));
      if you choose it, say that on your privacy page too. We found nothing that says what
-     the Global tag covers: if you change the setting, tell your assistant. We have not
-     checked whether the consent rule in the *Why off* at the top of this item (§ 25 TDDDG)
-     reaches the monitor. Log host only and a sentence on your privacy page do not answer
+     the Global tag covers, or what the browser sends under each choice: if you change the
+     setting, tell your assistant. We have not checked whether the consent rule in the
+     *Why off* at the top of this item (§ 25 TDDDG) reaches the monitor. Log host only and a sentence on your privacy page do not answer
      that: this is a risk, not a verdict, and this is not legal advice. Off avoids the
      question.
      *Check:* it comes on a sample, so one answer without it shows nothing. Switch it off,
@@ -200,7 +242,7 @@ cookies, scripts or tracking you didn't choose.
      *The trade-off:* you give up Cloudflare's view of the scripts your visitors load.
 
   Visitors who came in before can keep the old NEL note until that many seconds have
-  passed (the `max_age` from step 1; 604800 seconds is seven days). The
+  passed (the `max_age` from step 1; 604800 seconds is seven days). On a Pages site, the
   `<project>.pages.dev` address is outside your domain, so the rule can't reach it, and we
   have found no way to remove the headers there. Sending that address to your live domain
   (section 1) moves visitors on; it removes nothing. The last command in section 5 shows
@@ -208,14 +250,17 @@ cookies, scripts or tracking you didn't choose.
   names `cf-nel`, is still there on your own domain after the rule, tell your assistant or
   ask Cloudflare Support. Cloudflare's support article describes a flag, `nel___enable`,
   that stops NEL being enabled on a zone.
+  A Worker's version and Preview links (`workers.dev`) are outside your domain too, so this
+  setting and rule can't reach them; the starter's `public/_headers` has a rule that does, and an
+  older site needs it added (the check's Preview item tells you).
 - [ ] **Bot Fight Mode: Off.**
   Your domain → Security → Settings → filter by **Bot traffic** → Bot fight mode.
   *Why:* Cloudflare says JavaScript detections come with it and can't be switched off.
   They add a script (`/cdn-cgi/challenge-platform/…`) to your pages and set the cookie
   `cf_clearance`; the bot score uses `__cf_bm`. A static site has little to protect from
   bots. The trade-off: simple bots are no longer challenged, so more of them reach your
-  site, and each page view counts against the free daily Functions allowance (see Fail
-  open).
+  site, and on a Pages site each page view counts against the free daily Functions
+  allowance (see Fail open).
 - [ ] **Cloudflare Web Analytics: Off.** This is Cloudflare's own measurement, separate
   from any tool you chose for the site. Two places, check both:
   - Workers & Pages → your project → Metrics → Web Analytics. This is where you would
@@ -253,27 +298,60 @@ cookies, scripts or tracking you didn't choose.
   ([`search-console-setup`](../skills/search-console-setup/SKILL.md) walks you through it)
   you can watch the notifications arrive.
 - [ ] **AI crawlers: allow.**
-  Your domain → Security → Settings → filter by **Bot traffic** → **Configure AI bot
-  policies** → set **Search**, **Agent** and **Training** each to **Allow (do not block)**.
+  Your domain → Security → Settings → filter by **Bot traffic** → **AI Crawler and Agent
+  access policies** (called **Configure AI bot policies** until Cloudflare renamed it on 4
+  November 2026) → set **Search**, **Agent** and **Training** each to **Allow (do not block)**.
   Search and Agent let assistants find and read your pages. Training means crawlers that
   gather text to train AI models: Allow is the kit's default, and opting out is your
-  choice. Cloudflare's page says a block on Training also blocks crawlers that combine
-  Search and Training. Its defaults for new domains, from 15 September 2026, block
-  Training and Agent crawlers on pages that show ads. Look at what yours shows. If you
-  still see the older **Block AI bots** setting, make sure it is Off. Cloudflare is
-  retiring it. (`search-console-setup` still shows the older names, Security → Bots →
-  Control AI crawlers. This list is the newer one.)
+  choice. Choose how with care. Since 15 September 2026, Cloudflare says, **Block** and
+  **Block on pages with ads** on Training also apply to crawlers that serve both search and
+  training, Googlebot, Bingbot and Applebot among them, "so either setting impacts search
+  as well as training" ([Cloudflare](https://blog.cloudflare.com/accountable-mixed-use-ai-crawlers/)).
+  To refuse training and stay in Google, Bing and Apple search, choose **Disallow** for
+  Training (Cloudflare's blog calls it Disallow AI Training) and turn **Bot Preference Sync**
+  on (below). Cloudflare says Disallow keeps the other training crawlers out, and Sync
+  publishes a no-training preference in `robots.txt`; the kit has not tested how crawlers
+  are treated under either. That file also shuts out two smaller search engines, Baidu and
+  Petal (below). Bing does not read the preference yet. Microsoft's AI Preferences FAQ
+  (https://www.bing.com/webmasters/help/new-ai-preferences-2t1cc16d, read 2026-11-09) says
+  nothing changes today and that Microsoft starts honoring its new AI Training preference on
+  1 February 2027; `NOARCHIVE` and `NOCACHE` stop counting for training after 1 March 2027.
+  The `ai-seo` skill (Step 4) has the dates. A capture on a spare domain (9 November 2026)
+  shows Cloudflare writes a `Content-Signal` line, not the form the FAQ documents: the file
+  had no `__usage_ai-training` group and no Bing group, and the FAQ does not mention
+  Content-Signal. To ask Bing not to train, add the FAQ's two lines to your site's own
+  `robots.txt`; Microsoft honors them from 1 February 2027. Google's separate training switch,
+  Google-Extended, is among the crawlers that file shuts out. The setup script warns when it finds Training on Block
+  or Block on pages with ads, and says how to keep Disallow and when Sync is off.
+  For new domains, Cloudflare recommends Allow for all three with Bot Preference Sync on,
+  and, for a site with ads, Disallow for Training and Block on pages with ads for Agent.
+  On a spare domain on 30 October 2026 the dashboard marked Allow as Recommended for all
+  three and showed no older **Block AI bots** setting. Look at what yours shows; if it still
+  shows Block AI bots, make sure it is Off.
+  The same panel lists **Personal Agents**, assistants named one per line: set each to
+  **Allow**, as for Agent. Cloudflare also has one **Block Crawler** switch per crawler, at
+  Your domain → **AI Crawl Control** → **Security**, Googlebot and BingBot among them: tick
+  **Show inactive crawlers** and keep every switch off, unless you chose to block that
+  crawler. Its name says it blocks that crawler, a search engine's included.
+  The setup script sets each Personal Agent Cloudflare lists to the API's `disabled` as
+  well, through the API, because changing the Agent policy alone leaves them as they were (a
+  capture on 9 November 2026). The kit has not looked at them in the dashboard, so it says
+  only that the API reads `disabled`.
   Three more switches can keep AI crawlers out. Set each to off, with the one exception
   under Bot Preference Sync:
-  - **Bot Preference Sync: Off, unless you block Training.** Same place: Configure AI bot
-    policies → **Enable Bot Preference Sync**. This is Cloudflare's managed `robots.txt`:
-    when a policy is set to block or disallow, it puts Cloudflare's own lines for AI
-    crawlers, and a `Content-signal` line, in front of your file, or writes a file if you
-    have none. The file the kit made already says who may read your site. If you chose to
-    block or disallow Training, this switch is what writes that into `robots.txt`: then
-    leave it on. Cloudflare's settings page lists a setting called **Instruct AI bot
-    traffic with robots.txt** and links it to the documentation page for this switch.
-    Section 5 shows the file.
+  - **Bot Preference Sync: Off, unless you chose Disallow for Training.** Same place:
+    AI Crawler and Agent access policies → **Enable Bot Preference Sync**. This is Cloudflare's managed
+    `robots.txt`: it puts Cloudflare's own lines in front of your file, or writes a file if
+    you have none. The file the kit made already says who may read your site. Choosing
+    Disallow does not turn this switch on: on a spare domain (30 October 2026), Training on
+    Disallow with the switch off left `robots.txt` as it was. With it on, Cloudflare added
+    `Content-Signal: search=yes,ai-train=no,use=reference` under `User-agent: *` and
+    `Disallow: /` for about thirty training crawlers, among them GPTBot, ClaudeBot, CCBot,
+    Google-Extended and Applebot-Extended, and also Baiduspider and PetalBot, the crawlers
+    of Baidu's and Huawei's Petal search. Googlebot, Bingbot and Applebot were not named. So
+    if your customers search with Baidu or Petal, keep that in mind. Cloudflare's settings
+    page lists a setting called **Instruct AI bot traffic with robots.txt** and links it to
+    the documentation page for this switch. Section 5 shows the file.
   - **AI Labyrinth: Off.** Your domain → Security → Settings → filter by **Bot traffic** →
     **AI Labyrinth**. It adds invisible links to your pages that lead AI crawlers which
     ignore crawl rules and crawl without permission into an endless maze. Cloudflare says
@@ -290,12 +368,12 @@ cookies, scripts or tracking you didn't choose.
 ## 5. Check your work
 
 Run these once your own domain serves this site: the production deployment shows
-**Active** (your project → Deployments), the custom domain is Active, and
+**Active** (your Worker or project → Deployments), the custom domain is Active, and
 `https://yourdomain.com/build.txt` shows the current build. Earlier, the live domain
 serves the previous deployment or an error, and the kit's notes describe such a 404 being
 cached at Cloudflare's edge ("Never request a page on the live domain before its build is
 Active" in [`PUBLISHING.md`](../skills/new-website/templates/PUBLISHING.md)). Don't run
-them earlier. Replace `yourdomain.com` with your domain and `yourproject` with your Pages
+them earlier. Replace `yourdomain.com` with your domain. On a Pages site, also replace `yourproject` with your Pages
 project's own address, the first part of its `.pages.dev` address as Cloudflare shows it on the project's page (not always the project's name). Before you trust any answer,
 make sure the domain in the command is yours: a placeholder left in can reach a stranger's
 site and print a clean-looking 200, and the robots.txt below must be your own file. An
@@ -342,11 +420,13 @@ You want a redirect (301 or 308) and a `location:` line that starts
 `https://yourdomain.com/`. The slash matters: `https://yourdomain.com.au/` is a different
 site. A status line with no `location:` line means there is no redirect.
 
+On a Pages site only, the same check on its `pages.dev` address (a Worker has none to check):
+
 ```bash
 curl -sI "https://yourproject.pages.dev/?cb=$(date +%s)" | grep -iE '^(HTTP/|location:|nel:|report-to:)'
 ```
 
-Run this one only after you set `CANONICAL_URL` and published again (section 1). You want a
+Run this one on a Pages site only, after you set `CANONICAL_URL` and published again (section 1). You want a
 301 and a `location:` line that starts `https://yourdomain.com/`. A 200 means one of: the
 variable isn't under Production, it is misnamed, the deployment is older than the variable,
 the site predates the redirect, the value isn't one the redirect accepts (it must start
@@ -361,8 +441,32 @@ not to your domain. Tell your assistant; we have found no way to remove them the
   `cdn-cgi/challenge-platform` is Bot Fight Mode, `email-decode` is email obfuscation,
   `cloudflareinsights` is Web Analytics.
 - **TLS:** run your domain through ssllabs.com/ssltest. TLS 1.0 and 1.1 should say "No".
-- **No outside check exists** for Crawler Hints (Caching → Configuration) or Fail open
-  (your project → Settings → Runtime). Look at both in the dashboard.
+- **No outside check exists** for Crawler Hints (Caching → Configuration) or, on a Pages site,
+  Fail open (your project → Settings → Runtime). Look at both in the dashboard.
+
+**Read in the dashboard.** No outside check sees these five places either. Read them as soon as
+your domain is on Cloudflare; the launch check (`website-launch-check`) asks you for them. Seen
+on a free-plan domain on 9 November 2026: Cloudflare moves these pages, so if one has moved,
+look for its name.
+
+1. **Bot Fight Mode and AI Labyrinth:** Your domain → Security → Settings, the **Bot traffic**
+   group. Both off (section 3, "Bot Fight Mode: Off"; section 4, "AI Labyrinth: Off").
+2. **AI crawler policies:** same group → **AI Crawler and Agent access policies**: Search,
+   Agent, Training, each Personal Agent and **Enable Bot Preference Sync**, as section 4's
+   "AI crawlers: allow" says.
+3. **Per-crawler blocks:** Your domain → **AI Crawl Control** → **Security**, with **Show
+   inactive crawlers** ticked: every **Block Crawler** switch off (section 4).
+4. **Security rules:** Your domain → Security → **Security rules**. Every rule in every section
+   (Custom rules, Rate limiting rules, Managed rules, IP access rules), with its name, its
+   action, what it matches and what it applies to. The kit sets none of them: know each one and
+   whose it is. A rule whose **Applies to** reads "All websites in account" is, by that label,
+   for every site in your account, whichever site it was made for. Cloudflare's own notes on the page, such as "Cloudflare
+   default protection applied" under Response rules, stay as they are.
+5. **Tokens, once launch day's work is done:** My Profile → **API Tokens**
+   (`https://dash.cloudflare.com/profile/api-tokens`), and Manage account → **Account API
+   tokens**. Each token has a dot: green Active, orange Expires soon, red Expired. Every token
+   made for this site's setup or launch day should be gone; an expired one stays in the list
+   until you delete it (⋯ → Delete, section 6).
 
 Not covered here: DNS and email records (see "Going live" in
 [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md))
@@ -390,7 +494,7 @@ look but not change anything):
 | Zone → Bot Management → Edit | Bot Fight Mode, the AI crawler policies and the three switches after them (`bot_preference_sync_enabled`, `crawler_protection`, `content_bots_protection`), all on Cloudflare's [Bot Management update](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) call |
 | Zone → DNS → Edit | the verification records of Google and Bing, and, when your domain is attached, the record that points it at the project |
 | Zone → Zone → Read | finding your domain by name |
-| Account → Cloudflare Pages → Edit | only if it also creates the project, attaches the domain, deploys, or sets `CANONICAL_URL` (option A in [`CLOUDFLARE_FIRST_DEPLOY.md`](../skills/new-website/references/CLOUDFLARE_FIRST_DEPLOY.md) covers creating and deploying) |
+| Account → Workers Scripts → Edit | reading your Worker's versions and domains, and on launch day attaching your domain to it. It reaches every Worker in the account |
 
 **What it writes.** For the settings above, these are the fields and values the assistant
 sends, and reads back afterwards. Each zone setting is its own call. The Bot Management fields
@@ -410,13 +514,15 @@ with that line marked "by hand".
 | Email Address Obfuscation | zone setting `email_obfuscation` | `"off"` |
 | Network Error Logging, the switch | zone setting `nel` | `{"enabled": false}` |
 | Bot Fight Mode | Bot Management `fight_mode` | `false` |
+| AI crawlers: each personal AI agent Cloudflare lists | Bot Management `ai_agents`, one entry per agent | `"disabled"` |
 | AI crawlers: the AI bot policies, and the older Block AI bots | Bot Management `ai_search`, `ai_user`, `ai_training`, `ai_bots_protection` | `"disabled"` (no block) |
 | AI Labyrinth | Bot Management `crawler_protection` | `"disabled"` |
 | Content bots | Bot Management `content_bots_protection` | `"disabled"` |
 | Bot Preference Sync | Bot Management `bot_preference_sync_enabled` | `false` |
 
-If you block or disallow Training on purpose, tell your assistant: it then leaves the AI lines
-as they are.
+If you chose Block or Disallow for Training on purpose, tell your assistant: it then leaves the
+AI lines as they are (`--skip ai`). The setup script says what Block costs in search before
+it asks.
 
 Cloudflare documents these calls. We have run the Transform Rules call on live sites and
 the Bot Management call on one spare domain, and we have not run any of them often, so for every call the
@@ -430,7 +536,7 @@ to off, the site's own file came back within seconds. A similar field,
 `docs/reviews/SKILL-PLAN-cloudflare-setup.md` ("Seen in the second trial").
 
 Then set **Zone Resources** to your one domain and **Account Resources** to your account
-only (Pages Edit covers the whole account). Set **TTL** to an end date of tomorrow, a week
+only (Workers Scripts Edit covers every Worker in the account, so give a site that shares its account with other Workers a separate account). Set **TTL** to an end date of tomorrow, a week
 at most, with no start date: a start date in the future makes every call fail with
 "Authentication error". Create the token and copy it. Cloudflare shows it once.
 
@@ -442,7 +548,7 @@ in a file the repository tracks or in the README. Ask the assistant to look befo
 writes, to tell you each change before it makes it, and to read each setting back
 afterwards. A rule must be added to the Transform Rules, never the list sent back whole:
 the setup script adds one rule and sends the others nothing, and writes the whole list only
-where the zone has none yet. A change to one variable may replace the
+where the zone has none yet. On a Pages project, a change to one variable may replace the
 project's others: it must list the variables before and after, and stop and tell you if
 any is missing, because it may not be able to put them back. If the API refuses a setting
 (some are limited to certain plans), or it can't be sure the project's other variables are
@@ -455,7 +561,7 @@ as it did for NEL on the site we tried.
 **What stays by hand:** Crawler Hints (the kit's notes say Cloudflare has no API for it),
 the off switch for Cloudflare Web Analytics, the script monitor's switch (section 3, step
 5; Cloudflare documents an API call for it, `PUT /zones/{zone_id}/page_shield`, which we
-have not tried, so switch it by hand and count with the loop in step 5), and the Pages choice on the create screen if
+have not tried, so switch it by hand and count with the loop in step 5), and, on a Pages site, the Pages choice on the create screen if
 you connect through Git.
 
 **When it is done,** delete the token: My Profile → API Tokens → ⋯ → Delete. Then ask the

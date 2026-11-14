@@ -54,12 +54,13 @@ const DEFAULT_OG_CARD = '/images/og/default.jpg';
 // else MUST have a dedicated /images/og/<slug>.jpg card — a CONTENT page silently sharing
 // the generic default is the failure this guards. Opt-OUT model: as you add content pages
 // (uncomment them in _helpers PAGES), do NOT list them here, and the guard makes sure each
-// gets its own card. The starter ships only '/', '/privacy' + '/impressum', so it stays green from commit 1.
+// gets its own card. The starter ships only '/', '/privacy' + '/legal-notice', so it stays green from commit 1.
 //   - '/'          home: the default card IS the home card.
 //   - '/privacy'   legal/utility — nobody shares it with a custom preview.
-//   - '/impressum' legal/utility — same reasoning as /privacy.
+//   - '/legal-notice' legal/utility — same reasoning as /privacy. (A site that already routes
+//     /impressum keeps that path here when it merges a newer copy of this file.)
 // (A noindex 404 isn't here: it's excluded from PAGES entirely, so the guard never runs on it.)
-const OWN_CARD_EXEMPT = new Set<string>(['/', '/privacy', '/impressum']);
+const OWN_CARD_EXEMPT = new Set<string>(['/', '/privacy', '/legal-notice']);
 
 for (const path of PAGES) {
   test(`seo — head contract on ${path}`, async ({ page }) => {
@@ -184,6 +185,42 @@ test('sitemap matches PAGES (drift alarm)', async ({ request, baseURL }) => {
     built.sort(),
     'sitemap pages ≠ PAGES — add the new route to tests/_helpers.ts PAGES (or remove the stale entry)',
   ).toEqual([...PAGES].sort());
+});
+
+// robots.txt names the one sitemap file that lists the pages, not the index. @astrojs/sitemap
+// always writes sitemap-index.xml, but it lists a second file only past 45,000 URLs; until
+// then the index is an extra fetch, which Bing once reported as "not accessible" on one site.
+// Written for one file: if this fails because the site now has a second one, name the index
+// again and drop it.
+// The host is not checked here (the placeholder passes); cloudflare-check compares it live.
+test('robots.txt names the one sitemap file, sitemap-0.xml', async ({ request, baseURL }) => {
+  const robots = await request.get(`${baseURL}/robots.txt`);
+  expect(robots.status(), 'robots.txt should exist (public/robots.txt)').toBe(200);
+  // Comments end a line in robots.txt, so strip them before looking for directives.
+  const lines = (await robots.text()).split(/\r?\n/).map((l) => l.replace(/#.*$/, '').trim())
+    .map((l) => /^Sitemap:\s*(\S+)$/i.exec(l)?.[1]).filter((u): u is string => !!u);
+  expect(lines, 'robots.txt needs exactly one Sitemap line: https://<domain>/sitemap-0.xml').toHaveLength(1);
+
+  const path = new URL(lines[0]).pathname;
+  const res = await request.get(new URL(path, baseURL!).href);
+  expect(res.status(), `robots.txt names ${path}, which should exist`).toBe(200);
+  const xml = await res.text();
+  expect(
+    xml,
+    `robots.txt names ${path}, which is not a page list — change the Sitemap line to https://<domain>/sitemap-0.xml`,
+  ).toContain('<urlset');
+  expect(
+    [...xml.matchAll(/<loc>[^<]+<\/loc>/g)].length,
+    `${path} lists no pages`,
+  ).toBeGreaterThan(0);
+
+  const idx = await request.get(`${baseURL}/sitemap-index.xml`);
+  expect(idx.status(), 'sitemap-index.xml should exist (@astrojs/sitemap)').toBe(200);
+  const children = [...(await idx.text()).matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname);
+  expect(
+    children,
+    'sitemap-index.xml lists more than one file, so the site needs the index now: name sitemap-index.xml in robots.txt again, submit it in Search Console and Bing, and drop this test',
+  ).toEqual([path]);
 });
 
 // Twin-page hreflang reciprocity (the LIGHT i18n path — Base.astro's `alternates`

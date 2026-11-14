@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Regression guard for the analytics switch in src/config.ts:
-#   ANALYTICS.enabled = USE_ANALYTICS && process.env.CF_PAGES_BRANCH === PROD_BRANCH
+#   ANALYTICS.enabled = USE_ANALYTICS && (CF_PAGES_BRANCH ?? WORKERS_CI_BRANCH) === PROD_BRANCH
 #
 # Base.astro emits the Plausible <script> only when that is true, and the build decides it:
-# Cloudflare sets CF_PAGES_BRANCH when it builds, and a deploy-by-command owner sets it by
-# hand (`CF_PAGES_BRANCH=<production-branch> npm run build` for the live site, PUBLISHING.md;
+# Cloudflare Pages sets CF_PAGES_BRANCH when it builds (Workers Builds sets WORKERS_CI_BRANCH
+# instead; `npm run deploy:live` sets it for a Worker deployed by command, scripts/deploy.sh),
+# and a Pages owner deploying by command sets CF_PAGES_BRANCH by hand
+# (`CF_PAGES_BRANCH=<production-branch> npm run build` for the live site, PUBLISHING.md;
 # `CF_PAGES_BRANCH= npm run build` for a preview, new-website's CLOUDFLARE_FIRST_DEPLOY.md).
 # Both ways it fails silently: off on the live site, it counts no visitors and nothing says
 # so; on for a preview, every look at the preview is counted as a real visitor. The
 # Playwright suite cannot see either, since it builds once with whatever the shell had. So
-# this builds the site four ways, the way the docs tell the owner to, and reads the built
-# HTML. The toolkit's own CI runs it (template-tests.yml); a site's CI does not.
+# this builds the site the ways Cloudflare and the docs do, and reads the built HTML. The
+# toolkit's own CI runs it (template-tests.yml); a site's CI does not.
 #
 # What it checks, in order:
 #   1. Its own counter, its email-link reader and its CSP reader, on hand-made pages and
@@ -20,19 +22,19 @@
 #   2. That public/_headers lists the script's host as a whole token in script-src and
 #      connect-src (and in script-src-elem when that is written out). `astro preview` does
 #      not apply _headers, so no other test sees a script the browser would block.
-#   3. Four builds: on for the live build, with exactly one script tag and one init stub on
-#      every page, every stub running (a spy on plausible.init is called), and a CSP that
-#      lets THE INIT STUB run: 'unsafe-inline' alone in the directive, or the stub's own
-#      sha256 hash. Off for the other three, with no tag, no half of one and no mention of
-#      the script's path or id. No build links to /go/email: the browser counts the tap.
-#   4. In server mode (USE_ANALYTICS = true and ANALYTICS.mode = 'server' in src/config.ts),
-#      steps 2 and 3 are replaced: the same four builds, all with no analytics tag (no page
-#      loads the script, so _headers needs no analytics host); on the live build every email
-#      link goes to /go/email, the Function that counts the tap, and on the other three none
-#      does.
-# With USE_ANALYTICS = false in src/config.ts (as the starter ships), steps 2 to 4
-# turn around (the mode is then ignored): public/_headers must NOT list the host (with or without a path) in
-# script-src, script-src-elem, connect-src or default-src, and all four builds, the live one
+#   3. Four Pages builds and three Workers Builds builds: on for the two live builds, with
+#      exactly one script tag and one init stub on every page, every stub running (a spy on
+#      plausible.init is called), and (on the Pages live build) a CSP that lets THE INIT STUB
+#      run: 'unsafe-inline' alone in the directive, or the stub's own sha256 hash. Off for
+#      the rest, with no tag, no half of one and no mention of the script's path or id. No
+#      build links to /go/email: the browser counts the tap. The Workers branch variable is
+#      the one src/config.ts names, checked against a real Workers Builds capture.
+#   4. Server mode (ANALYTICS.mode = 'server' in src/config.ts) is Pages-only and left the
+#      starter in 0.35: the gate says so, skips, and exits 0 before any check. A site in
+#      server mode keeps its 0.34 copy of this file.
+# With USE_ANALYTICS = false in src/config.ts (as the starter ships), steps 2 and 3
+# turn around: public/_headers must NOT list the host (with or without a path) in
+# script-src, script-src-elem, connect-src or default-src, and every build, the live ones
 # included, must be off. A config.ts that never
 # names USE_ANALYTICS (a site made before the switch) counts as true; one that names it
 # but has no line in that form fails.
@@ -95,18 +97,49 @@ if [ -z "$host" ] || [ -z "$id" ]; then
 fi
 host="${host%/}"
 ANALYTICS_SRC="${host}/js/${id}.js"
-# The mode: 'script' (the default, and what a config.ts from before the key existed means)
-# or 'server', where the Pages Function counts and no page carries a tag.
+# The mode: 'script' (what a config.ts without the key means, as in 0.35) or 'server', which
+# a 0.34 site on Pages may still set.
 mode="$(sed -nE "s/^[[:space:]]*mode:[[:space:]]*['\"]([a-z]+)['\"].*/\1/p" src/config.ts)"
 mode="${mode:-script}"
 if [ "$mode" != script ] && [ "$mode" != server ]; then
   echo "✗ analytics gate: mode in src/config.ts is '$mode'; expected 'script' or 'server'."
   exit 1
 fi
+if [ "$mode" = server ]; then
+  echo "· analytics gate: server mode is Pages-only and left the starter in 0.35; a site in server mode keeps its 0.34 copy of this file. Skipped."
+  exit 0
+fi
 export ANALYTICS_SRC
 # A branch Cloudflare builds as a preview: main on a two-stage site.
 preview=main
 [ "$prod" != main ] || preview=preview
+
+# Workers Builds' branch variable. With analytics on, the enabled: line must read it beside
+# CF_PAGES_BRANCH, and every real Workers Builds capture (tests/fixtures/workers-builds-*.txt)
+# must list it, so the name the builds below set is one Cloudflare really sets.
+wvar=WORKERS_CI_BRANCH
+if [ "$use" != false ]; then
+  wvar_fail() {
+    echo "✗ analytics gate: $1"
+    echo "  A site on Workers Builds needs the enabled: line of the 0.35 release notes in src/config.ts."
+    exit 1
+  }
+  [ "$(grep -cE '^[[:space:]]*enabled:.*process\.env\.' src/config.ts)" = 1 ] || wvar_fail "src/config.ts needs exactly one enabled: line reading process.env."
+  names="$(grep -E '^[[:space:]]*enabled:.*process\.env\.' src/config.ts | grep -oE 'process\.env\.[A-Za-z_][A-Za-z0-9_]*' | sed 's/^process\.env\.//' | grep -vx CF_PAGES_BRANCH | sort -u || true)"
+  [ "$names" = "$wvar" ] || wvar_fail "the enabled: line in src/config.ts must read process.env.$wvar, and no variable but it and CF_PAGES_BRANCH; it reads: ${names:-none}."
+  captures=(tests/fixtures/workers-builds-*.txt)
+  [ -f "${captures[0]}" ] || wvar_fail "no Workers Builds capture tests/fixtures/workers-builds-*.txt to check the name against."
+  for capture in "${captures[@]}"; do
+    lines="$(grep -E '^ENV-NAMES \[build\]:' "$capture" || true)"
+    [ -n "$lines" ] || wvar_fail "$capture has no 'ENV-NAMES [build]:' line."
+    while IFS= read -r line; do
+      case " ${line#*:} " in
+        *" $wvar "*) ;;
+        *) wvar_fail "src/config.ts reads $wvar, which the Workers Builds capture $capture does not list." ;;
+      esac
+    done <<<"$lines"
+  done
+fi
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -114,21 +147,26 @@ trap 'rm -rf "$work"' EXIT
 fail=0
 checked=0
 
-# build <case> <unset|set> [value] — one `astro build` into $work/<case>, with
-# CF_PAGES_BRANCH unset or set to value (which may be empty). Every case sets or unsets
-# it explicitly, so a value in the calling shell cannot leak into a case.
+# build <case> <unset|set> [value] [workers-branch] — one `astro build` into $work/<case>,
+# with CF_PAGES_BRANCH unset or set to value (which may be empty). The Workers Builds pair
+# (WORKERS_CI and $wvar) is unset unless workers-branch is given. Every case sets or unsets
+# each explicitly, so a value in the calling shell cannot leak into a case.
 astro=./node_modules/.bin/astro
 if [ ! -x "$astro" ]; then
   echo "✗ analytics gate: $astro not found. Run npm ci first."
   exit 1
 fi
+run_build() {
+  local name="$1" how="$2" value="${3-}" wbranch="${4-}" rc=0
+  local cmd=(env -u CF_PAGES_BRANCH -u WORKERS_CI -u "$wvar")
+  [ "$how" = unset ] || cmd+=("CF_PAGES_BRANCH=$value")
+  [ -z "$wbranch" ] || cmd+=("WORKERS_CI=1" "$wvar=$wbranch")
+  "${cmd[@]}" "$astro" build --outDir "$work/$name" >"$work/$name.log" 2>&1 || rc=$?
+  return "$rc"
+}
 build() {
-  local name="$1" how="$2" value="${3-}" rc=0
-  if [ "$how" = unset ]; then
-    env -u CF_PAGES_BRANCH "$astro" build --outDir "$work/$name" >"$work/$name.log" 2>&1 || rc=$?
-  else
-    CF_PAGES_BRANCH="$value" "$astro" build --outDir "$work/$name" >"$work/$name.log" 2>&1 || rc=$?
-  fi
+  local name="$1" rc=0
+  run_build "$@" || rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "✗ analytics gate: the $name build failed (exit $rc). Its last lines:"
     tail -n 20 "$work/$name.log"
@@ -667,10 +705,9 @@ go_selftest() {
   echo "✓ analytics gate: the email-link reader reads its $k fixture pages as expected"
 }
 
-# expect_go <case> <what> <all|none>: all = every email link on every page goes to
-# /go/email (the live build in server mode, else taps go uncounted); none = no link goes
-# there (every other build: no Function answers /go/email under astro preview or dev, and
-# in script mode the browser counts the tap instead).
+# expect_go <case> <what> <all|none>: none = no email link goes to /go/email: no build here
+# writes one (the browser counts the tap), so a link a stale EmailLink writes fails. all, which
+# no build here needs any more, = every link on every page does.
 expect_go() {
   local name="$1" what="$2" want="$3" counts bad
   counts="$(go_links "$work/$name")" || { echo "✗ $what: could not read the built pages."; fail=1; return; }
@@ -704,30 +741,13 @@ report_problems() {
 selftest
 go_selftest
 
-if [ "$use" != false ] && [ "$mode" = server ]; then
-  echo "· analytics gate: server mode, so no page loads the script and public/_headers needs no analytics host"
-  build live set "$prod"
-  expect_off live "CF_PAGES_BRANCH=$prod (the live build, server mode)"
-  expect_go live "CF_PAGES_BRANCH=$prod (the live build, server mode)" all
-  for c in "unset:unset::CF_PAGES_BRANCH unset (a plain npm run build)" \
-           "empty:set::CF_PAGES_BRANCH= (a preview by command)" \
-           "preview:set:$preview:CF_PAGES_BRANCH=$preview (a preview branch)"; do
-    IFS=: read -r name how value what <<<"$c"
-    build "$name" "$how" "$value"
-    expect_off "$name" "$what"
-    expect_go "$name" "$what" none
-  done
-  if [ "$fail" -eq 0 ]; then
-    echo "✓ analytics gate: $checked builds in server mode, no script in any; email links counted on the live build only"
-  fi
-  exit "$fail"
-fi
-
 if [ "$use" = false ]; then
   report_problems "$(csp_host_left public/_headers)" "analytics is off, and public/_headers lists $host in none of script-src, script-src-elem, connect-src and default-src"
   build live set "$prod"
   expect_off live "CF_PAGES_BRANCH=$prod (the live build, analytics off)"
   expect_go live "CF_PAGES_BRANCH=$prod (the live build, analytics off)" none
+  build workers-live unset "" "$prod"
+  expect_off workers-live "$wvar=$prod (a Workers Builds live build, analytics off)"
 else
 report_problems "$(csp_host_problems public/_headers)" "public/_headers lists $host as a token in script-src and connect-src"
 
@@ -746,6 +766,18 @@ for stubfile in "$work"/stubs/*.js; do
   kept+=("$stubfile")
   report_problems "$(csp_inline_problems public/_headers "$stubfile")" "the CSP lets the built init stub run ($(basename "$stubfile"))"
 done
+
+# Workers Builds sets $wvar, not CF_PAGES_BRANCH. The CSP was checked on the Pages live build.
+build workers-live unset "" "$prod"
+before=$fail; fail=0
+expect_on workers-live "$wvar=$prod (a Workers Builds live build)"
+[ "$fail" = 0 ] || echo "  src/config.ts needs the enabled: line of the 0.35 release notes."
+fail=$((fail | before))
+expect_go workers-live "$wvar=$prod (a Workers Builds live build)" none
+build workers-preview unset "" "$preview"
+expect_off workers-preview "$wvar=$preview (a Workers Builds preview)"
+build workers-pages-empty set "" "$prod"
+expect_off workers-pages-empty "CF_PAGES_BRANCH= with $wvar=$prod (CF_PAGES_BRANCH wins)"
 fi
 
 build unset unset
@@ -764,7 +796,7 @@ if [ "$fail" -eq 0 ]; then
   if [ "$use" = false ]; then
     echo "✓ analytics gate: $checked builds, off in every one (USE_ANALYTICS = false)"
   else
-    echo "✓ analytics gate: $checked builds, on only when CF_PAGES_BRANCH is '$prod'"
+    echo "✓ analytics gate: $checked builds, on only for '$prod' (CF_PAGES_BRANCH, or $wvar where that is unset)"
   fi
 fi
 exit "$fail"

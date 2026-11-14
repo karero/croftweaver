@@ -45,7 +45,7 @@ not this guide — it's a read-only diagnostic, not a voice/EEAT audit.
 1. Positioning comes first: `website-positioning` has already produced
    `POSITIONING.md` (what you offer, for whom, the market category). Read it and
    build the voice on top of it. Then pull insights: run `customer-research` for
-   ICP + voice-of-customer, and `content-strategy` if topic planning is needed.
+   ICP + voice-of-customer, and `site-architecture` if the topics and page hubs need planning.
    Feed the findings in.
 2. Copy the template to `CONTENT_GUIDE.md` and fill every `[BRACKET]`.
 3. For actual page copy, hand off wording to `copywriting`, then apply the voice
@@ -61,6 +61,10 @@ truth; the guide explains the *why*.
 - **Exempt:** genuinely quoted customer/human voice — wrap in `<blockquote>`,
   `<q>`, or add `data-tov-exempt`. Do not use this to smuggle brand copy past the
   rules.
+
+**Role words (not checked by the tone test):** where a page calls the reader by a role (owner,
+user, client or member), say once, before the page first uses the word to say who does what, that
+it means the reader. Call the people behind the site by name or "we", not by the same role word.
 
 The rules below are lexical (specific words/mechanisms to avoid) and differ by
 language — apply the subsection that matches the site's content language.
@@ -107,14 +111,28 @@ translation error.
 
 ## EEAT — build it in from the start
 
-Search and AI answer engines reward Experience, Expertise, Authoritativeness,
-Trust. Ship the signals, not just claims:
+Google calls these signals E-E-A-T: Experience, Expertise, Authoritativeness and
+Trust. It says E-E-A-T "itself isn't a specific ranking factor", but that "using a mix
+of factors that can identify content with good E-E-A-T is useful", and that of the four
+"trust is most important" ([Google](https://developers.google.com/search/docs/fundamentals/creating-helpful-content)). Ship the signals, not just claims:
 - **Experience/Expertise:** named authors with a real bio and a stable schema
-  `@id`; first-hand specifics and dates; inline citations on claim-heavy copy.
+  `@id`; first-hand specifics and dates; inline citations on claim-heavy copy
+  (what a citation holds: **Claims on the page**, below).
 - **Authoritativeness:** `sameAs` profiles that actually resolve (LinkedIn,
   GitHub, public register); Organization schema; corroborating external mentions.
 - **Trust:** imprint/legal entity page, clear contact, privacy page, last-updated
   timestamps, HTTPS, zero broken links.
+
+**Claims on the page.** Give every figure what a reader needs to check it:
+- **Every figure carries its source, its date and what it counts:** "120 clients since
+  2019", not "120+ happy clients"; a survey says who was asked and when.
+- **Name the seller.** A study by a company that sells what it measures says so.
+- **Keep the finding apart from your conclusion:** first what the source found, then
+  what the business takes from it.
+- **Put each figure in the `facts-check` list** (value, source, owner), so every page
+  says the same.
+
+Do this for the reader's trust; don't promise that it raises AI citations.
 
 The author/Organization/`sameAs` plumbing lives in `website-seo-geo` (schema) and
 `config.ts`/`SAME_AS`; this skill decides *what* those signals should be.

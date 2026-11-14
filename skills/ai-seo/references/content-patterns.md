@@ -1,6 +1,6 @@
 # AEO and GEO Content Patterns
 
-Reusable content block patterns optimized for answer engines and AI citation.
+Reusable content block patterns that make a passage easy to lift out and quote.
 
 ---
 
@@ -12,7 +12,7 @@ Reusable content block patterns optimized for answer engines and AI citation.
 
 ## Answer Engine Optimization (AEO) Patterns
 
-These patterns help content appear in featured snippets, AI Overviews, voice search results, and answer boxes.
+These patterns make a passage easy to lift out and quote. We found no study showing they raise placement in featured snippets, AI Overviews or voice results. Google says you don't need to write in a specific way just for generative AI search or break content into tiny pieces ([Google](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide), read 2026-11-09). Microsoft's guidance for Bing's AI answers asks for concise answers, lists, tables, Q&A and strong headings ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025).
 
 ### Definition Block
 
@@ -165,7 +165,7 @@ Use for "Best [X]", "Top [X]", "[Number] ways to [X]" queries.
 
 ## Generative Engine Optimization (GEO) Patterns
 
-These patterns optimize content for citation by AI assistants like ChatGPT, Claude, Perplexity, and Gemini.
+These patterns follow what the Princeton GEO study tested: statistics, quotations and citations raised visibility on its simulated engine and on Perplexity, measured on pages already given to the engine, so they apply to a page once it is found (see What the 2026 studies found in SKILL.md). It did not test ChatGPT, Claude or Gemini, so for those the patterns are advice.
 
 ### Statistic Citation Block
 
@@ -208,7 +208,7 @@ Bread stays fresh longer when it is stored cool and dry. The Example Bakers' Gui
 
 ### Self-Contained Answer Block
 
-Create quotable, standalone statements that AI can extract directly.
+Write quotable, standalone statements. This is advice; Microsoft's guidance for Bing's AI answers asks for sentences that make sense when pulled out of context ([Microsoft Advertising](https://about.ads.microsoft.com/en/blog/post/october-2025/optimizing-your-content-for-inclusion-in-ai-search-answers), 8 October 2025).
 
 ```markdown
 **[Topic/Question]**: [Complete, self-contained answer that makes sense without additional context. Include specific details, numbers, or examples in 2-3 sentences.]
@@ -238,7 +238,7 @@ Evidence supporting this includes:
 
 ## Domain-Specific GEO Tactics
 
-Different content domains benefit from different authority signals.
+These are suggestions for showing authority by topic; no study this skill cites compares topics. Google says its systems give more weight to content that aligns with strong E-E-A-T on topics that could significantly affect health, financial stability or safety ([Google](https://developers.google.com/search/docs/fundamentals/creating-helpful-content), read 2026-11-09).
 
 ### Technology Content
 - Emphasize technical precision and correct terminology
@@ -274,7 +274,7 @@ Different content domains benefit from different authority signals.
 
 ## Voice Search Optimization
 
-Voice queries are conversational and question-based. Optimize for these patterns:
+We found no study or company page that measures voice search, so this section is advice. If someone asks aloud, a short direct answer is easy to speak. Question forms to try:
 
 ### Question Formats for Voice
 - "What is..."

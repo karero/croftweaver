@@ -1,12 +1,14 @@
 # AGENTS.md — rules for AI assistants (Codex, Claude Code) working on this site
 
-Website of [SITE_NAME]. Astro, static, GitHub → Cloudflare Pages.
+Website of [SITE_NAME]. Astro, static, GitHub → Cloudflare (a Worker; a site made before 0.35 may still be on Pages, and `PUBLISHING.md` says where the two differ).
 Live: [LIVE_URL] · Preview: [PREVIEW_URL]
 
 <!-- Scaffold note (delete after filling): new-website fills the [BRACKET] slots at
-     scaffold time — SITE_NAME, LIVE_URL, PREVIEW_URL (two-stage: main.<project>.pages.dev;
-     single-stage: "pull-request previews only, <branch>.<project>.pages.dev"; where
-     Cloudflare gave the project another address than its name, the address on its page),
+     scaffold time — SITE_NAME, LIVE_URL, PREVIEW_URL (a Worker: the Preview link of the form
+     https://<prefix>-<worker>.<account>.workers.dev, or "pull-request previews only" on a
+     single-stage site; a site on Pages: two-stage main.<project>.pages.dev, single-stage
+     "pull-request previews only, <branch>.<project>.pages.dev"; where Cloudflare gave the
+     Pages project another address than its name, the address on its page),
      TITLE_SUFFIX + SUFFIX_LENGTH + TITLE_MAX in §6, and keeps ONE publish-model block
      in §2. §5 ships with single-owner defaults; website-team-setup rewrites it
      (collaborators, rights level, merge rule, who publishes). This file stays English
@@ -99,7 +101,8 @@ applies there; instead of steps 2 to 4, only this:
   This rule binds the assistant from day one. On a single-owner site the owner may
   still push to `main` themselves as `PUBLISHING.md` describes; once
   `website-team-setup` has run it binds everyone, and GitHub or the pre-push hook
-  rejects a direct push.
+  rejects a direct push. The one exception is the site's first upload,
+  `git push -u origin main`: a new repository has no `main` to open a pull request against.
   - Locally (Codex or Claude Code on your own computer): every task on its own branch
     (see 1.4), then `git push -u origin content/<short-name>` and open the pull request
     on GitHub.
@@ -139,10 +142,10 @@ applies there; instead of steps 2 to 4, only this:
   - No signed-in GitHub CLI, or `gh` cannot reach GitHub: say so and ask the person to
     press the button.
 - **Preview before merging:** once the repo is connected to Cloudflare by git
-  integration (the `new-website` skill's setup script does that, or `website-team-setup`
-  §6 by hand), every pull request gets its own preview address from Cloudflare, listed
+  integration (in the Cloudflare dashboard, as the `new-website` setup script says when it
+  finds no Worker, or by `website-team-setup` §6), every pull request gets its own preview address from Cloudflare, listed
   under the pull request's checks. Look at the change there before merging. Until then
-  (a site uploaded by `wrangler pages deploy`, see `PUBLISHING.md`, "Deploy by command")
+  (a site uploaded by command, with `npm run deploy:live` or, on Pages, `wrangler pages deploy`; see `PUBLISHING.md`, "Deploy by command")
   there is no pull-request preview: check locally with `npm run dev`.
 - **What a merge means** depends on the publish model of this site. Both blocks
   assume the git integration above; on a site deployed by command a merge publishes
@@ -176,8 +179,8 @@ applies there; instead of steps 2 to 4, only this:
   change is the change most likely to fail them. Everything must be green.
   - On your own computer the push is the check. Commit, then
     `git push -u origin <branch>`: the pre-push hook runs `scripts/verify.mjs`, which
-    reinstalls the exact packages only when needed (first run, or `package-lock.json`
-    changed since), runs `npm run check`, then builds the site once and runs all tests.
+    reinstalls the exact packages only when needed (first run, or `package.json` or
+    `package-lock.json` changed since), runs `npm run check`, then builds the site once and runs all tests.
     It prints a short result, or the errors. Red: the push is refused; fix the cause,
     commit, push again. Do not also run `npm ci`, `npm run check`, `npm run build` or
     `npx playwright test` by hand first: the push runs the same steps, so doing both
@@ -258,8 +261,43 @@ For everyone, the owner included:
 - Tests may be **extended** (e.g. a new page in `PAGES`). Never weaken, delete or
   disable a test just to get green. If a test fails: fix the cause or report it.
 - Deleting a page's entry from `UNFILLED_UNTIL_LAUNCH` in
-  `tests/placeholders.spec.ts` once that page is filled belongs to filling it, at
-  every rights level. The test asks for it.
+  `tests/placeholders.spec.ts` once that page is filled and its draft notice is
+  cleared (next bullet) belongs to filling it, at every rights level. The test asks
+  for it.
+- The draft notice under the heading of the legal pages (the privacy page, and the
+  Legal Notice or Impressum where the site has one; `[DRAFT NOTICE, …]`, in German
+  `[ENTWURFSHINWEIS, …]`) is the owner's to clear, at every
+  rights level. Do not delete it to turn a test green: `tests/placeholders.spec.ts`
+  fails for a legal page in `PAGES` whose notice is gone while no answer is recorded.
+  To clear it:
+  - Once the slots of those pages are filled, ask the owner once. The answer is the
+    owner's alone: when this section lists collaborators, ask the person whether they
+    are the owner. If they are not, leave the notices and tell them the answer is the
+    owner's. Ask (`AskUserQuestion` or in the chat): "Before you publish: the imprint
+    and the privacy page are first drafts, not legal advice. They cannot know your
+    whole situation, and what the law asks of you depends on your country and on what
+    your site does." (On a site with no imprint, word it for the privacy page alone.)
+    Options: **A lawyer has reviewed them** / **I use my own texts** /
+    **Publish the drafts as they are**.
+  - The kit ships the English Legal Notice. In the same message, ask whether the
+    business is based in Germany. If it is, offer the German Impressum as well
+    (`src/pages/_impressum.astro`, whose header has the steps); offer it to no one
+    else.
+  - Record the answer first, as a line of its own in the `README.md` in the folder
+    that holds `package.json`: one of the forms below, written bare (no list marker, no
+    backticks) and nothing else on that line, the date as YYYY-MM-DD. Then delete the
+    notices.
+    - `legal pages: reviewed by a lawyer (<date>)`
+    - `legal pages: own texts (<date>)`
+    - `legal pages: published as drafted (owner's decision, <date>)`
+  - **I use my own texts:** put the owner's texts on the pages first. Until they are
+    there, record nothing and leave the notices.
+  - No answer: the notices stay, the pages stay listed in `UNFILLED_UNTIL_LAUNCH`,
+    and the site does not launch.
+  - A line in one of those forms already in the `README.md` means: do not ask again,
+    except for a legal page added after its date (a new locale, the `/datenschutz`
+    swap). Ask again for that page and add a new dated line. The launch check quoting a line and
+    asking whether it still holds is not asking again.
 - Changes to `.github/`, `scripts/`, `functions/`, `public/_headers`,
   `astro.config.mjs`, `package.json` or `AGENTS.md` affect tests, the server or
   publishing. Say so explicitly in the pull request.

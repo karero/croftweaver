@@ -33,9 +33,11 @@ and runs the commands; the skills cannot run anything by themselves.
   The full list is in [Writes outside your site's folder](#writes-outside-your-sites-folder).
 - **In Claude Code, routine build commands run without asking**, because each site made
   with Claude Code gets a permission list (see
-  [What runs without asking](#what-runs-without-asking); read from Claude Code's
-  documentation on permission rules, not tried in a live session). That list also lets `node`,
-  `npm run` and `git push` run without asking. It saves clicks; it is not a safety fence.
+  [What runs without asking](#what-runs-without-asking)). Since 2026-11 the git commands that
+  change branches or publish are allowed only in the exact forms the skills use, and a
+  commit, a new working branch, `node` scripts and the image tools ask first. `npm run …`
+  and a plain `git push` still run without asking. It saves clicks; it is not a safety
+  fence.
 - **Releases carry no signature of our own.** Since v0.32 a `SHA256SUMS` file sits beside
   the zip, the release cannot change once published, and GitHub signs a record of it;
   v0.31 and earlier have none of this, but GitHub shows a SHA-256 for each download. See
@@ -47,50 +49,94 @@ and runs the commands; the skills cannot run anything by themselves.
 ([template](../skills/new-website/templates/claude/settings.json)). The `website-permissions`
 skill installs the same file into an existing site. It has three parts. What each part
 does below is how Claude Code's
-[permission documentation](https://code.claude.com/docs/en/permissions) describes it; it
-was read, not tried in a live session.
+[permission documentation](https://code.claude.com/docs/en/permissions) describes it. A rule
+with no `*` matches that one command exactly; a rule ending in `:*` matches the command on
+its own or followed by a space and anything after it.
 
-- **Runs without asking:** `npm install`, `npm ci`, `npm run …`, `npm test …`, `npm exec …`,
-  `npx astro`, `npx keystatic`, `npx playwright`, `wrangler pages dev` and `wrangler whoami`
-  (each plain or with `npx`),
-  `astro`, `playwright`, `node …`, `bash scripts/check_external_links.sh`, most everyday git
-  commands (`status`, `diff`, `log`, `show`, `add`, `commit`, `branch`, `checkout`, `switch`,
-  `init`, `merge`, `restore`, `stash`, `remote`, `fetch`, `pull`, `rev-parse`, `push`),
-  `gh auth status`, `gh repo view`, `gh repo create`, `gh pr view`, `gh pr list`, the image
-  tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`, `jpegoptim`, `svgo`,
-  `exiftool`), file commands (`ls`, `cat`, `head`, `tail`, `wc`, `tree`, `find`, `grep`,
-  `rg`, `mkdir`, `cp`, `mv`, `touch`, `echo`, `open`), and reading three documentation sites
-  (docs.astro.build, developers.cloudflare.com, keystatic.com).
+- **Runs without asking:**
+  - `npm install`, `npm ci`, `npm run …`, `npm test …`, `npx astro`, `npx keystatic`,
+    `npx playwright`, `wrangler pages dev` and `wrangler whoami` (each plain or with `npx`),
+    `astro`, `playwright`, `bash scripts/check_external_links.sh` and `node --version`.
+  - git: `status`, `diff`, `log`, `show`, `add` and `rev-parse` with anything after them,
+    and these exact commands only: `git init`, `git checkout main`,
+    `git checkout -b production`, `git checkout -- .gitignore`, `git switch main`,
+    `git switch -`, `git fetch`, `git fetch origin`, `git pull`, `git pull --ff-only`,
+    `git pull --no-rebase`, `git push`, `git push -u origin main`,
+    `git push -u origin production` and `git push --dry-run origin HEAD:main`.
+  - `gh auth status`, `gh repo view`, `gh repo create`, `gh pr view` and `gh pr list`.
+  - File commands: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `mkdir`, `cp`, `touch` and
+    `echo`.
+  - Reading three documentation sites (docs.astro.build, developers.cloudflare.com,
+    keystatic.com).
 - **Blocked:** `rm -rf`, the usual force pushes (`--force`, `--force-with-lease`, `-f` or
   a `+branch`, wherever it stands in the command), `git reset --hard`, `gh repo delete`,
-  `wrangler delete` and `wrangler pages delete` (with or without `npx`). The documentation
-  says a block rule prevents the command; it does not ask. You run such a command yourself
-  if you really mean it.
+  `wrangler delete` and `wrangler pages delete` (with or without `npx`), any git command
+  with a word starting `--output` (for `git log`, `diff` and `show`, writing to a file),
+  and `git add` reading its paths from a file (`--pathspec-from-file`). The documentation says a block rule prevents the command; it
+  does not ask. You run such a command yourself if you really mean it.
 - **Everything else asks first**, as long as Claude Code is in its normal mode. If you
   switch Claude Code to a mode that approves everything, nothing asks.
 
 What this list does and does not protect:
 
-- `node …`, `npm run …` and `npm exec …` can run any program. So the list is a way to stop
-  routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
+- Most of the allowed build and git commands (`npm install`, `npm ci`, `npm run …`,
+  `npm test …`, `astro`, `playwright` and their `npx` forms, `wrangler pages dev`,
+  `bash scripts/check_external_links.sh`, `git push`, `git pull`) run the site's own
+  scripts, config files or git hooks; `git checkout`, `git switch` and `git pull` change
+  which version of those files is on disk, and can run git hooks the site carries. Anyone who can change those files can run code through them: a collaborator, a
+  pull from `origin`, or the assistant through an edit you approve. So the list is a way to
+  stop routine prompts, not a sandbox. Apart from the list, the site's `AGENTS.md` tells the
   assistant never to run `npm run ship` unasked and to merge a pull request only when you
   say so. Those are written rules for the assistant, not something Claude Code enforces.
 - `git push` and `gh repo create` are allowed on purpose. `SETUP.md` in each site says to
-  take them out of the list if you would rather confirm each push.
+  take them out of the list if you would rather confirm each push. A plain `git push` goes
+  where the branch's upstream and git's push settings send it: by default the current
+  branch to the branch it tracks.
 - The block rules match the command as written. Besides `git push --force` and
   `git push -f` at the start, three rules catch a force flag or a `+` later in a push, so
-  `git push origin main --force` and `git push origin +main` are blocked too.
-  `git push --delete` is allowed: tidying up merged branches needs it. Tested on
-  2026-10-14 with Claude Code 2.1.287, run headless with these settings in a throwaway
-  repository: all seven force-push forms tried were blocked, and `--delete`, a plain push
-  and `--follow-tags` ran. With the rules as they were before, five of the seven ran,
-  `git push --force-with-lease` at the start among them. A force flag bundled with others
-  still runs (`git push -uf origin main` and `git push origin main -vf`, tested the same
-  day): a rule broad enough to catch it would also block `--follow-tags` and branch names
-  with `-f` in them.
-- `find` with `-delete` or `-exec` should still ask: Claude Code's documentation says a
-  `find` rule cannot approve a `find` that deletes, writes or runs commands. (Read, not
-  tried in a live session.)
+  `git push origin main --force` and `git push origin +main` are blocked too. Tested on
+  2026-10-14 with Claude Code 2.1.287, run headless with the list as it then was, in a
+  throwaway repository: all seven force-push forms tried were blocked. Since the push rules
+  became exact commands, a push with any other options, a bundled force flag among them,
+  asks rather than runs.
+- The three `--output` and `--pathspec` block rules match the usual spelling only. Git
+  accepts other ways of writing some options, and a rule matches text.
+- A rule ending in `:*` allows whatever follows it. The `:*` rules left were not reviewed
+  option by option.
+
+**Now asks** (since 2026-11; before, these ran without asking):
+
+- `node` scripts: the Cloudflare check and setup (`CLOUDFLARE_CHECK.md` and
+  `CLOUDFLARE_FIRST_DEPLOY.md` in each site) and the `node -e` lines in `website-qa`.
+- `npm exec …`, `rg`, `find`, `tree`, `mv` and `open` (`geo-check` opens a report with
+  `open -e`).
+- The image tools (`cwebp`, `dwebp`, `avifenc`, `magick`, `convert`, `oxipng`, `jpegoptim`,
+  `svgo`, `exiftool`), which `website-brand-kit` and `image` use.
+- Every `git commit`. You see the message before it is made.
+- A new working branch (`git switch --no-track -c …` in `AGENTS.md` and
+  `website-team-setup`), its first push (`git push -u origin <branch>`), and
+  `git branch -D`. Only `production`, made once at launch, is created without asking;
+  only `main` and `production` get their first push without asking.
+- Pushes with other options: `git push --no-verify`, `git push --follow-tags` and
+  `git push --delete`.
+- `git restore`, `git merge`, `git stash`, `git remote`, and `git checkout` or `git switch`
+  to anything but the forms listed above.
+
+For a change made the way `AGENTS.md` describes, this means about three more questions
+than before: making the branch, the commit and the branch's first push.
+
+**Tested on 2026-11-05** with Claude Code 2.1.309, run headless with this list
+(`--settings`, normal mode) in a throwaway repository with a local `origin`: each of the
+16 exact commands it adds or narrows (`node --version`, `git init`, the three `checkout`,
+two `switch`, two `fetch`, three `pull` and four `push` forms) ran with no prompt, and each
+did what it should (a new commit on `origin`, a switched branch, a fetched commit).
+`npm ci` on an untouched copy of the starter ran with no prompt and pointed git's hooks at
+`scripts/hooks`, where the pre-push hook lives. Only allowed commands were tried.
+
+**Still open.** What the list refuses rests on Claude Code's documented matching; it was
+read, not tested. Claude Code refused reads and writes outside the site's folder for `cat`,
+`grep`, `cp` and `echo` in headless runs on 2026-11-04, with the list as it then was; those
+were not re-run.
 
 **Codex and Antigravity** do not read `.claude/settings.json`. They use their own approval
 settings, which Croftweaver does not change.
@@ -160,19 +206,42 @@ an "Email Tap" event there, as a click on an email address does.
 ### Skills that run scripts
 
 - **`new-website`** creates the site folder (in the folder you confirm), runs `git init`,
-  `npm create astro@latest`, copies the templates and 28 skills into the site, and runs the
-  build and tests. For Cloudflare it uses `npx wrangler pages project create` and
-  `npx wrangler pages deploy` with a token you make, or `npx wrangler login`. Its
+  `npm create astro@latest`, copies the templates and 29 skills into the site, and runs the
+  build and tests. For Cloudflare it uses `npm run deploy:preview` and
+  `npm run deploy:live` (the site's `scripts/deploy.sh`, which builds the site and runs
+  `wrangler preview` or `wrangler deploy`) with a token you make, or `npx wrangler login`. A site still on Pages uses
+  `npx wrangler pages project create` and `npx wrangler pages deploy`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
-  settings; it needs no token. It also sends requests that carry the names of AI crawlers
+  settings; it needs no token. With `--site` it also reads the Wrangler files in your site's folder. It also sends requests that carry the names of AI crawlers
   (GPTBot, ClaudeBot and others) to your own domain, to see whether Cloudflare lets them in.
   Its `scripts/cloudflare-setup.mjs` changes your Cloudflare account through Cloudflare's API,
-  with a short-lived token you make: it creates the Pages project or uses the one connected
-  to your repository, starts its first build, changes your domain's settings from the
-  Cloudflare checklist, and writes the verification records you give it. It changes nothing
-  until you have said yes to the list it prints, and it deletes nothing. It runs `git` to read
-  your repository's branches and `src/config.ts`, and asks your domain's nameservers whether
-  a record it wrote is there. It sends your domain no request. The `SETUP.md` it puts in
+  with a short-lived token you make: it reads the Worker connected to your repository,
+  changes your domain's settings from the Cloudflare checklist, and writes the verification
+  records you give it; on launch day it also attaches your domain to the Worker. It changes
+  nothing until you have said yes to the list it prints. The one thing it deletes is the old DNS
+  record of each host it attaches, after that yes (Cloudflare refuses to attach a domain over an
+  existing record); it saves the record first in `setup-run/`, a folder in your site, and puts
+  the record back if the attach fails. On launch day it also writes a commit on your branch
+  that adds the domain route to the Worker's config, and does not push it. It runs `git` to
+  read your repository's branches and `src/config.ts`, and asks your domain's nameservers
+  whether a record it wrote is there. Until launch day it sends your domain no request; on
+  launch day it runs the site check against the domain (a few requests, including the AI-crawler ones).
+  Its `scripts/move-to-workers.mjs` is for moving a live site's domain from its Pages project
+  to its Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
+  short-lived token you make, from `CLOUDFLARE_API_TOKEN` or from the site's `.dev.vars`, which
+  it reads only if git ignores that file. It reads your zone and its DNS records, the Pages
+  project and the Worker's domains through Cloudflare's API; the repository's branches and
+  checks on GitHub; and your site's own pages. Once a run has found that `origin` is on GitHub,
+  it writes a status page to `move-run/`, a folder in your site; it puts a `.gitignore` holding
+  `*` there if there is none, and stops if git tracks a file in it. Runs other than `check` also
+  keep the move's state (see "Writes outside your site's folder"). `record` builds the live
+  branch's newest commit with `npm ci` (or `npm install`) and `npm run build`, in a copy under
+  `move-run/`. When the Workers config's routes need changing, `move` and `undo` write a commit
+  on your branch that sets or takes them out, and do not push it. Only `move --confirm` and
+  `undo --confirm`, after your yes to the question they print, send Cloudflare changes: `move`
+  asks it to delete each host's Pages domain and its DNS record and to attach the host to the
+  Worker; `undo` asks for the reverse.
+  The `SETUP.md` it puts in
   your site also has `gh` commands that change your GitHub repository's settings:
   `gh repo edit --delete-branch-on-merge` (a merged pull request's branch is deleted), and two
   `gh api -X PUT` calls that switch on Dependabot alerts and Dependabot security updates
@@ -194,8 +263,10 @@ an "Email Tap" event there, as a click on an email address does.
 - **`website-launch-check`** runs the site's build and tests, then `report_html.py`, which turns
   each launch report's Markdown in `docs/launch/` into an HTML page beside it. That script reads
   and writes only those files and makes no network call. For a site that replaces an older one,
-  the assistant reads the old site's public `sitemap.xml`; at the optional live re-check it reads
-  the new site's live pages, only once its production build is Active. It measures speed the way
+  the assistant reads the old site's public `sitemap.xml`; at the live re-check it reads
+  the new site's live pages, only once its production build is Active, and runs
+  `check_live_analytics.py`, which fetches the live home page once, with a throwaway query, and reads
+  `src/config.ts` (it writes nothing). It measures speed the way
   `website-qa` does (Lighthouse, see that skill). It also starts the site's local preview to read the
   console, and stops it again, and keeps the test output in a scratch file while it reads it.
 - **`facts-check`** runs `facts_check.py`, which reads your site's public pages and its
@@ -242,6 +313,12 @@ an "Email Tap" event there, as a click on an email address does.
   names). It draws the icons with the site's own `sharp` package, without a browser. It
   makes no network call of its own and needs no key; the site's build and tests it runs are the site's own, and whatever they fetch is not covered here. In Claude Code, `python3` is not on the
   allowlist, so starting it asks; the commands it runs from there are not asked one by one.
+- **`website-new-page`** (only when you add or rewrite a page) writes a page document in
+  your site's folder and has a fresh pair of eyes read it: a subagent or a new conversation of
+  your own assistant, or, if you chose it, the outside reviewers of `independent-review`. It
+  then runs `check_page_text.py`, which reads the page document and the built page in your
+  folder and prints the differences. It makes no network call and needs no key. The research
+  step has the assistant read the top search results for your page's topic.
 - **`website-permissions`** copies `.claude/settings.json` and the sync hook script it
   registers (`git-stand.mjs`, which runs `git fetch`) into the site (see
   [What runs without asking](#what-runs-without-asking)).
@@ -249,7 +326,9 @@ an "Email Tap" event there, as a click on an email address does.
   Search Console data) and may offer `independent-review`.
 - **`independent-review`** is for people who change the toolkit or their site's code. It
   sends a plan or a code change to outside AI reviewers (see the next section). The skill
-  asks before a repository's content goes to each service for the first time.
+  asks before a repository's content goes to each service for the first time. With
+  `--content` it sends a page document and its research file instead of a plan or a diff, and
+  only when you chose outside reviewers for `website-new-page`.
   `seo-reposition` and `website-review` offer it only with your OK. It is not copied into
   new sites.
 
@@ -270,7 +349,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 
 | Who | Used by | Key or sign-in | Reads or sends |
 |---|---|---|---|
-| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix) | your git and `gh` sign-in | reads, and sends your site's code when pushing; changes the repository's settings when the `SETUP.md` or team-setup commands run (see "Skills that run scripts"); a fix proposal's pull request carries search figures if the repository is private, and in a public one only if you have said yes (the assistant asks once) |
+| GitHub | git (`fetch`, `pull`, `push`), `gh`, `npm run ship`, the sync hook, the weekly fix proposal (`gh pr view`, and a pull request when you accept a fix), `move-to-workers.mjs` (`git ls-remote`, and `gh api`, or GitHub's API with no sign-in, for branches and checks) | your git and `gh` sign-in | reads, and sends your site's code when pushing; changes the repository's settings when the `SETUP.md` or team-setup commands run (see "Skills that run scripts"); a fix proposal's pull request carries search figures if the repository is private, and in a public one only if you have said yes (the assistant asks once) |
 | GitHub release downloads | `npm create croftweaver` | none | reads `croftweaver.zip` and its `SHA256SUMS` from the newest release |
 | npm registry | `npm install`, `npm ci`, `npx`, `npm create astro` | none | reads packages |
 | Playwright's download servers | `npx playwright install chromium` | none | reads the test browser |
@@ -278,22 +357,23 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | chatgpt.com, antigravity.google, ollama.com | the `curl … \| sh` install lines in `independent-review`'s setup guide, if you use them | none | reads the installers |
 | croftweaver.com | `new-website`'s footer credit step, only if you say yes | none | reads the badge code from `/partner-assets` and the badge files |
 | An image service you choose | `image`, if you use one | your own key | sends your image prompts |
-| Cloudflare | `wrangler` (deploy, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
-| Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Pages projects; after your yes, creates or changes the project, starts a build, and writes zone settings, Bot Management and DNS records |
+| Cloudflare | `wrangler` (`deploy`, `preview`; on a Pages site `pages deploy`, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
+| Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Worker; after your yes, attaches the domain to the Worker, deletes the host's old DNS record (saved first), and writes zone settings, Bot Management and DNS records |
+| Cloudflare's API | `move-to-workers.mjs` | an API token you make, ending within a week | reads your zone, its DNS records, the Pages project, its builds and the Worker's domains; after your yes, asks it to move each host between the Pages project and the Worker, deleting or writing its DNS record |
 | Your domain's nameservers | `cloudflare-setup.mjs` | none | asks whether a record it wrote is served |
 | Google Search Console | `search-console-insights` (`gsc_query.py`, `search_report.py`, `insights.py`) | your own Google sign-in, scope `webmasters.readonly` | reads only; asks for clicks, impressions and positions |
 | Bing Webmaster | `bing_query.py` | your `BING_API_KEY` | reads only |
 | Serper or SerpApi | `serp_check.py` | your `SERPER_API_KEY` or `SERPAPI_KEY` | sends a keyword, country and language; reads search results |
 | OpenRouter, or Gemini, OpenAI, Anthropic, Perplexity directly | the weekly AI check (`geo_check.py`) | your own key for each (`GEO_…_API_KEY`) | sends the questions you confirmed, one of which names your business; reads the answers |
 | SerpApi (Google's AI answers) | `geo_check.py`, only if you switch it on | your `SERPAPI_KEY` | sends the same questions |
-| Your own site's pages | `geo_check.py` (the home page), the weekly search report (pages a fix changed) | none | reads them; the report follows redirects only on your own domain |
+| Your own site's pages | `geo_check.py` (the home page), the weekly search report (pages a fix changed), `move-to-workers.mjs` (the built pages and `/build.txt`, on each host and on the Worker's version address) | none | reads them; the report follows redirects only on your own domain |
 | OpenAI (through the Codex app) | `independent-review` | your Codex sign-in | sends the plan or code change |
 | ollama.com | `independent-review` | your `OLLAMA_API_KEY` or `ollama signin` | sends the plan or code change |
 | melious.ai | `independent-review`, only when a model is named for it | your `MELIOUS_API_KEY` | sends the plan or code change |
 | Google Antigravity | `independent-review`, only when you ask for it | your Antigravity sign-in | sends the plan or code change |
 | Public web pages | `facts-check`, `wordpress-inspector`, `outgoing-link-audit`, `business-listings-setup`, `cloudflare-check.mjs`, `website-launch-check` (the old site's sitemap and, to measure speed, its pages in a relaunch; the live site at the re-check) | none | reads only |
 | docs.astro.build, developers.cloudflare.com, keystatic.com | the assistant, when it looks up documentation (allowed without asking in Claude Code) | none | reads only |
-| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. In server mode the site's Cloudflare Function sends instead, from Cloudflare: per page view the page address, the referrer, the visitor's user agent and IP; per email tap the event name and the page (measured in a trial, 2026-10-15), plus the visitor's user agent and IP (read from the code). The contact form's button is not counted then |
+| Your analytics (Plausible), if you set it up | the built site, live version only | none | your visitors' page views, and an "Email Tap" event when a visitor clicks an email address or presses the contact form's button and the form's checks pass, go to the analytics address you set. The site's code passes Plausible only the event name; Plausible's script adds what it adds to every event (the code's comments name the page and the referrer). This was read from the code, not measured. |
 
 Some details:
 
@@ -313,8 +393,7 @@ Some details:
 - **The built site**, apart from the optional analytics script, loads no fonts, scripts
   or styles from other servers. Its security header (`public/_headers`) allows scripts only
   from the site itself, and from the analytics address you set once you switch analytics
-  on: the starter ships with it off. Analytics run only on the live site, not on previews. In analytics
-  server mode no analytics script loads at all.
+  on: the starter ships with it off. Analytics run only on the live site, not on previews.
 
 ## Telemetry
 
@@ -373,6 +452,7 @@ with its own terms.
 | `skills-before-croftweaver-…` next to the skills folder | `npm create croftweaver` | when the skills folder held folders it did not recognise | move them back |
 | `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/` with `ai-check.lock`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
 | `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour; a re-install at the same day and hour keeps the site's minute if no other site uses it, and with all twelve taken the site shares :00) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
+| `~/.config/croftweaver/moves/<zone>/<owner-repo>/` (`state.json`, and a `lock` while a run is going) | `move-to-workers.mjs` | runs other than `check` | delete the folder once the move is done and you will not undo |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |
@@ -401,9 +481,9 @@ the new release no longer has.
 | melious.ai key | `MELIOUS_API_KEY`, or `~/.config/reviewers/melious.env` (the setup guide says to make it readable only by you) |
 | ollama.com key | `OLLAMA_API_KEY` |
 | Codex, Antigravity, GitHub, Cloudflare sign-ins | each tool's own login |
-| Cloudflare API token | an environment variable for the session (Wrangler 4.151.0 read a token from the shell and not from `.dev.vars`, tested 2026-10-14); the guide asks for a narrow token that expires in about a week |
+| Cloudflare API token | an environment variable for the session (Wrangler 4.151.0 read a token from the shell and not from `.dev.vars`, tested 2026-10-14); the guide asks for a narrow token that expires in about a week; `move-to-workers.mjs` reads `CLOUDFLARE_API_TOKEN` from the environment, else from the site's `.dev.vars`, and refuses a `.dev.vars` that git tracks or does not ignore |
 
-All of these live outside the site's folder. The site's `.gitignore` also excludes `.env`,
+All of these live outside the site's folder, except a token you put in `.dev.vars`. The site's `.gitignore` also excludes `.env`,
 `.env.*` (but not `.env.example`), `.dev.vars`, `.wrangler/` and, at the site's top level,
 `client_secret*.json` and `token.json`, in case a copy lands there, and `analytics/`, where
 the reports are kept. The review tool passes
@@ -469,7 +549,7 @@ Snyk. Checked on 2026-10-14:
   `website-tagline`, `website-team-setup` and `wordpress-inspector` were missing, and
   `skills.sh/karero/croftweaver` did not exist. Later that day, after one install under the
   new name, the listing moved to
-  [karero/croftweaver](https://www.skills.sh/karero/croftweaver) with all 37 skills, and the
+  [karero/croftweaver](https://www.skills.sh/karero/croftweaver) with all 37 skills it had that day, and the
   old address forwards there (the README's install section says the same).
 - The audits are from 6 July to 6 September 2026, so they describe older versions.
 - **Socket:** pass on all 29.
@@ -493,7 +573,8 @@ private vulnerability reporting, on the repository's Security tab.
 ## What was not checked
 
 - Whether Claude Code's block and allow rules behave as its documentation describes,
-  beyond the push test above; the rest was read, not tried. The test ran headless, where a
+  beyond the push test and the 2026-11-05 run of the allowed commands above; the rest was
+  read, not tried. The push test ran headless, where a
   command that is not allowed is refused without a question, so it shows that the force
   pushes did not run, not that a blocked command never asks.
 - Whether Codex and Antigravity ignore `.claude/settings.json`; this was read from the

@@ -18,7 +18,7 @@ The script belongs to the `new-website` skill. It is in the Croftweaver folder a
 or `~/.gemini/config/skills`, wherever the suite is installed; as a Claude Code plugin, the
 `skills` folder under the install path that `claude plugin list --json` prints). A scaffolded site does not
 carry a copy: `new-website` is not one of the skills copied into a site. Run it from
-anywhere; it reads no file of the site.
+anywhere; it reads no file of the site unless you give `--site`.
 
 ```bash
 node "$SKILLS_ROOT/new-website/scripts/cloudflare-check.mjs" example.com --project my-project
@@ -30,6 +30,9 @@ node "$SKILLS_ROOT/new-website/scripts/cloudflare-check.mjs" example.com --proje
 | `--project <name>` | Your Pages project's own address (`my-project.pages.dev`), as Cloudflare shows it on the project's page: it is not always the project's name. `my-project` alone stands for `my-project.pages.dev`. Adds the checks of that address: that it answers, and that it forwards to the domain. |
 | `--hsts-on` | You have switched HSTS on. A missing header is then a failure, not a "look". |
 | `--build <sha>` | The commit you expect to be live: 7 to 40 hexadecimal characters. Without it the live build is only shown, not compared. |
+| `--site <folder>` | The site's folder. The check reads its Wrangler files (`wrangler.json`, `wrangler.jsonc`, or the `--config` file; `wrangler.toml` only to see that it holds `pages_build_output_dir`) and decides whether the site is a Pages site or a Worker. A Worker gets the two items below the Pages ones; a Pages site gets the results it had. |
+| `--config <file>` | A Workers config with another name. Only with `--site`; a relative path is taken from the `--site` folder. |
+| `--preview <link>,<link>` | For a Worker: one or more links of its versions or Previews, as `https://<prefix>-<worker>.<account>.workers.dev`. A version link is the one `wrangler versions upload` prints, or `node move-to-workers.mjs check` (it prints the live version's). Only with `--site`. |
 | `--json` | Print the results as JSON, for an assistant or another script. |
 | `--timeout <s>` | Seconds to wait for each answer, from 1 to 120. The default is 15. |
 | `--only <id>,<id>` | Judge only these items (the ids under "For an assistant") and send only the requests they need. The home page is always asked. |
@@ -54,7 +57,9 @@ Cloudflare, and most items are "not run".
 an item failed, when a request got no answer, or when the home page could not be judged
 (it redirected to another address, answered something other than a 200 page of HTML, or was
 a challenge page), so that items are "not run" for that reason. It is 2 when the command was
-wrong. "Not run" because you did not give `--project` does not change it. **An empty answer is
+wrong. "Not run" because you did not give `--project` does not change it. The two Worker items
+are the exception: for a Worker, "not checked" because no served version link was given counts as
+a failure (exit 1), since the address cannot be judged without one. **An empty answer is
 never a pass.**
 
 A home page that redirects to the same address (a language redirect, for instance) is
@@ -68,15 +73,17 @@ nowhere to go, is said so and the page is not judged.
 | Checklist item | What the script asks | `FAIL` means |
 |---|---|---|
 | Create a Pages project (1) | The `pages.dev` address answers below 400 (needs `--project`) | The address does not answer, or it answers an error |
-| Attach your domain (1) | The home page over https answers 200, through Cloudflare (a `cf-ray` header) | No answer, an error (522: the domain is probably not attached), a challenge page. No `cf-ray` is a `look` |
+| Attach your domain (1) | The home page over https answers 200, through Cloudflare (a `cf-ray` header) | No answer, an error (522: Cloudflare cannot reach your Worker or Pages project, so the domain is probably not attached; with `--site` the line names the one that applies), a challenge page. No `cf-ray` is a `look` |
 | Send pages.dev to your domain (1) | The `pages.dev` address answers 301 to your domain, and a page with a query (`/robots.txt?cb=…`) answers 301 to the same page and query there (needs `--project`) | It answers 200 or goes elsewhere: `CANONICAL_URL` is not in effect. Or a page loses its path or query on the way. A page with a query that got no answer is "not run" |
+| Keep the `workers.dev` address off (1, Workers only) | The Worker's address, asked without an `accept-encoding` header, answers 404 `error code: 1042`; and a version link of the same Worker serves, which shows that the Worker exists | Any other answer: the address is on. Without a served version link the line is "not checked", which counts as a failure |
+| Preview links carry noindex and no active NEL policy (1, Workers only) | Each `--preview` link answers below 400 with `noindex` in `x-robots-tag`, the whole value a plain list of directives such as `noindex` or `noindex, nofollow` (a colon, as in a value for one named crawler or a date, fails the link), and with no `report-to` header and no `nel` header unless that one is JSON with a `max_age` of 0 (no `nel` at all is fine); judged on the first answer (no redirect is followed), so it does not show that the rule is in `public/_headers` or covers every path | A link answers below 400 without such a noindex, with a `report-to`, or with a `nel` that is not `max_age` 0 (or not JSON), or does not answer. The fix names the starter's `public/_headers` rule. An answer of 400 or more (a Preview that no longer exists, for one) is a `look` |
 | Always Use HTTPS (2) | `http://domain/` answers 301 or 308 to `https://domain/`, as an address | No redirect, or one to another address |
 | HSTS (2) | The `strict-transport-security` header, read as directives: max-age in months, subdomains, preload | Missing, with `--hsts-on` |
 | NEL off (3) | No `nel` header; no `report-to` header carrying Cloudflare's group | The header is still sent. Another `report-to` group is a `look`. So is Cloudflare's script monitor (Client-side security), which the line names: a `report-to` group, a `reporting-endpoints` entry or a `report-uri` of a report-only policy that lists an address on csp-reporting.cloudflare.com, or on the origin of the answer that carries the header (its scheme, host and port) at the exact path /cdn-cgi/script-monitor/report (Cloudflare offers that with Client-Side Security Advanced; the line then says so), judged by the address and not by a name. It names what Cloudflare sends and does not decide what a browser would do with a header. NEL on still fails, and the line names the monitor beside it. The script reports the monitor as a `look`; the checklist asks for its switch Off (section 3, step 5) |
 | Bot Fight Mode off (3) | No Cloudflare cookie, and no `/cdn-cgi/challenge-platform/` address in the page's tags or scripts | Either is there. A cookie of your own is a `look` |
 | Web Analytics off (3) | No `<script src>` at `static.cloudflareinsights.com` and no `data-cf-beacon` attribute | It is there |
 | Email Address Obfuscation off (3) | No `email-decode.min.js` at Cloudflare's path, no `/cdn-cgi/l/email-protection` link and no `data-cfemail` attribute | Any is there |
-| AI crawlers allow (4) | Six requests that carry AI crawler names are not refused; `robots.txt` has no rules for named crawlers | Never `FAIL`: a refusal is a `look` (blocking Training may be your choice), and the policy itself is `by hand` |
+| AI crawlers allow (4) | Requests that carry the AI crawler names in the script's list are not refused; `robots.txt` has no rules for named crawlers | Never `FAIL`: a refusal is a `look` (a Training choice may be the cause: Cloudflare says Block and Disallow both keep training crawlers out, and Block keeps Googlebot, Bingbot and Applebot out too), and the policy itself is `by hand` |
 | Your own robots.txt (5) | A robots file with a `Sitemap:` line that names your domain, not the starter's `example.com` | It is a web page, tells every crawler to stay out (`Disallow: /`, `/*` or `*` for `User-agent: *`, unless the same group has an `Allow` of that kind that is as long or longer: RFC 9309, 2.2.2, "the match that has the most octets", a tie to allow), or the sitemap host is the placeholder |
 | The build that is live (5) | `/build.txt` is a full commit id; with `--build`, the one you gave | A different commit than `--build` |
 | No scripts you didn't add (5) | No `/cdn-cgi/` path in the page other than the three above | Never `FAIL`: another path (Rocket Loader, Zaraz, image resizing) is a `look` that names it |
@@ -140,7 +147,7 @@ items are a `look`, never `ok`.
 - **A network behind a proxy.** The script uses Node's own HTTP client, which does not read
   proxy settings the way curl does. If it cannot reach a site that curl reaches, run the
   checklist's commands instead.
-- **Whether a crawler name is treated as the real crawler.** The six crawler-named requests
+- **Whether a crawler name is treated as the real crawler.** The crawler-named requests
   are plain requests from your machine with the crawler's name in them. Cloudflare may tell
   the real crawlers apart by more than their name, so "none was refused" is a hint, not a
   proof, and the policy is listed `by hand`.
@@ -152,12 +159,12 @@ items are a `look`, never `ok`.
 Run it with `--json` and read the object: `domain`, `checkedAt`, `only` (with `--only`: the ids
 asked), `summary` (counts of `ok`,
 `fail`, `look`, `hand`, `skip`), `unanswered` (requests that got no answer),
-`couldNotJudge` (ids that were "not run" because the page could not be judged) and `results`.
+`couldNotJudge` (ids that were "not run" or "not checked" because the page, the address or a version link could not be judged) and `results`; with `--site`, also `site` (`folder`, `platform`, `note`).
 `results` is a list in the checklist's order of `{ id, section, title, state, detail, fix? }`,
 plus `blocked: true` on an item that could not be judged. `state` is one of `ok`, `fail`,
 `look`, `hand`, `skip` (the screen says "FAIL", "by hand" and "not run"). `fix` is present
 only on a `fail` or a `look`. The ids are stable: `pages`, `build-settings`, `domain`,
-`fail-open`, `canonical`, `https`, `tls`, `hsts`, `nel`, `bot`, `analytics`, `email`, `hints`,
+`fail-open`, `canonical`, `workers-dev`, `previews`, `https`, `tls`, `hsts`, `nel`, `bot`, `analytics`, `email`, `hints`,
 `ai`, `robots`, `build`, `scripts`.
 
 Say what the report says, in the owner's words: fix the `FAIL` lines first, ask about the

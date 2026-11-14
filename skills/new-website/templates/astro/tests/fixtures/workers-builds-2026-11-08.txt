@@ -1,0 +1,21 @@
+# What real Cloudflare Workers Builds builds saw, read 2026-11-08. check_analytics_gate.sh reads
+# the ENV-NAMES lines: the branch variable src/config.ts reads must be in each. A build step wrote
+# public/ci-env-build.txt (variable NAMES only, never values, plus the branch and commit); it was
+# read back with curl. Throwaway repos and Workers; account and address left out.
+
+## Production, a push to the production branch (live 42 s after the push)
+ENV-NAMES [build]: CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_BASE_URL CLOUDFLARE_API_TOKEN WORKERS_CI WORKERS_CI_BRANCH WORKERS_CI_BUILD_UUID WORKERS_CI_COMMIT_SHA
+WORKERS_CI_BRANCH=production CF_PAGES_BRANCH=(unset) WORKERS_CI_COMMIT_SHA=bc20f2050172151fa9f19fe6cb1151c882fcf479
+git: shallow=true HEAD=bc20f2050172151fa9f19fe6cb1151c882fcf479
+## Its home page, the analytics lines
+<script async src="https://analytics.example.com/js/pa-XXXXXXXXXXXXXXXXXXXX.js">
+plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()
+
+## Production, the build Cloudflare ran when the Worker was connected (no push)
+ENV-NAMES [build]: CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_BASE_URL CLOUDFLARE_API_TOKEN WORKERS_CI WORKERS_CI_BRANCH WORKERS_CI_BUILD_UUID WORKERS_CI_COMMIT_SHA
+WORKERS_CI_BRANCH=production CF_PAGES_BRANCH=(unset) WORKERS_CI_COMMIT_SHA=production
+git: shallow=true HEAD=b14b613afd51fb804476779f102759593a1c7df0
+
+## A Preview build of another branch (an earlier throwaway, built 2026-10-28, read 2026-11-08)
+ENV-NAMES [build]: CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_API_BASE_URL CLOUDFLARE_API_TOKEN WORKERS_CI WORKERS_CI_BRANCH WORKERS_CI_BUILD_UUID WORKERS_CI_COMMIT_SHA
+WORKERS_CI_BRANCH=preview-test WORKERS_CI_COMMIT_SHA=6836ed9e824eb2cb6159be27c077a038722f323f

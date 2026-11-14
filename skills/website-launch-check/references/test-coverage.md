@@ -41,6 +41,7 @@ name.
 | Exactly one H1 | `seo.spec.ts` | `seo — head contract on <page>` | `h1` count is 1 |
 | Title and description length | `seo.spec.ts` | `seo — head contract on <page>` | title not empty and at most 60 characters; description 120 to 160 characters |
 | The placeholder warnings the check reads | `placeholders.spec.ts` | `placeholders — no leftover on <page>` | each page's leftovers: a failure, or a `⚠ placeholders:` warning (see "Warnings in the output"). A page whose line is missing has unread warnings: a 🔴 blocker, and the check reads that page for leftovers itself |
+| A legal page carries its draft notice or an owner's recorded answer | `placeholders.spec.ts` | `placeholders — <page> keeps its draft notice until the owner's answer is recorded` | one per legal page in `PAGES` only (a page whose last path segment is `privacy`, `datenschutz`, `legal-notice` or `impressum`), not one per page: a legal page passes when the `README.md` has a `legal pages:` answer line, or when it is still listed in `UNFILLED_UNTIL_LAUNCH` and its draft notice is on the page and counted visible by Playwright; otherwise it fails. It does not check that the recorded answer is true, or that the notice is readable (a notice made transparent or placed off-screen still counts) |
 
 Not covered by any test, so always the check's: titles or descriptions shared by two pages,
 whether a title or description says what the page is, the starter's example values (the name

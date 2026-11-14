@@ -105,22 +105,21 @@ const robots = noindex
 // contradict inLanguage).
 const ogLocale = ogLocaleFor(lang);
 // Chrome strings that must not silently ship in the wrong language on a
-// German-language site: the skip link and the footer's privacy link. Keyed
+// German-language site: the skip link and the footer's privacy and legal-notice links. Keyed
 // on SITE.locale — the SITE's language, deliberately NOT the page's `lang`
 // prop: chrome (nav/footer) speaks the site's language even on a page whose
-// CONTENT is another language (the German Impressum on an English-market
-// site keeps the English footer, and its /privacy link keeps resolving).
-// SETTING SITE.locale to 'de' FLIPS THE FOOTER to /datenschutz — do the
-// privacy→datenschutz swap IN THE SAME STEP (rename the in-repo draft
-// src/pages/_datenschutz.astro per its header, which lists every gate-file
-// change) or every navigation test fails on the footer link.
+// CONTENT is another language (the German Impressum on an English site keeps
+// the English footer, and its /privacy link keeps resolving).
+// SETTING SITE.locale to 'de' FLIPS THE FOOTER to /datenschutz and /impressum —
+// do both swaps IN THE SAME STEP (rename the in-repo drafts
+// src/pages/_datenschutz.astro and src/pages/_impressum.astro per their headers,
+// which list every gate-file change) or every navigation test fails on a footer link.
 // Unmapped languages fall back to English — extend as you translate.
 // Multilingual sites: astro-i18n-setup §3 rewires this lookup (SITE.locale
 // is removed there — rekey on Astro.currentLocale, see that skill).
-// The Impressum label stays the German word in both languages by convention.
-const CHROME: Record<string, { skip: string; privacyLabel: string; privacyHref: string }> = {
-  en: { skip: 'Skip to content', privacyLabel: 'Privacy Policy', privacyHref: '/privacy' },
-  de: { skip: 'Zum Inhalt springen', privacyLabel: 'Datenschutz', privacyHref: '/datenschutz' },
+const CHROME: Record<string, { skip: string; privacyLabel: string; privacyHref: string; imprintLabel: string; imprintHref: string }> = {
+  en: { skip: 'Skip to content', privacyLabel: 'Privacy Policy', privacyHref: '/privacy', imprintLabel: 'Legal Notice', imprintHref: '/legal-notice' },
+  de: { skip: 'Zum Inhalt springen', privacyLabel: 'Datenschutz', privacyHref: '/datenschutz', imprintLabel: 'Impressum', imprintHref: '/impressum' },
 };
 const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
 ---
@@ -147,7 +146,7 @@ const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
     {alternates.map((a) => <link rel="alternate" hreflang={a.hreflang} href={altHref(a.href)} />)}
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48 64x64" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content={SITE.themeColor} />
@@ -171,8 +170,7 @@ const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
       <script type="application/ld+json" is:inline set:html={JSON.stringify(schema)} />
     ))}
 
-    {/* Server mode (src/config.ts) counts from the Pages Function: no tag in the page. */}
-    {ANALYTICS.enabled && ANALYTICS.mode === 'script' && (
+    {ANALYTICS.enabled && (
       <Fragment>
         <script is:inline async src={`${ANALYTICS.scriptHost}/js/${ANALYTICS.scriptId}.js`} />
         <script is:inline set:html={'window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()'} />
@@ -185,14 +183,16 @@ const chrome = CHROME[SITE.locale.toLowerCase().split('-')[0]] ?? CHROME.en;
     <main id="main"><slot /></main>
     <!-- Every page links the privacy policy (GDPR: reachable from anywhere). -->
     <!-- Providers established in Germany or targeting the German market:
-         § 5 DDG requires the Impressum reachable from every page too. Neither
-         applies? Delete all six pieces: this link, src/pages/impressum.astro,
+         § 5 DDG requires the legal notice reachable from every page too. Neither
+         applies? Delete all seven pieces: this link, src/pages/legal-notice.astro,
          its tests/_helpers.ts PAGES entry, its public/llms.txt line, its
-         OWN_CARD_EXEMPT entry in tests/seo.spec.ts, and its
-         UNFILLED_UNTIL_LAUNCH entry in tests/placeholders.spec.ts. -->
+         OWN_CARD_EXEMPT entry in tests/seo.spec.ts, its POSITIONING_EXEMPT entry
+         in tests/positioning.spec.ts, and its UNFILLED_UNTIL_LAUNCH entry in
+         tests/placeholders.spec.ts. -->
     <footer class="site-footer">
       <a href={chrome.privacyHref}>{chrome.privacyLabel}</a>
-      <a href="/impressum">Impressum</a>
+      <a href={chrome.imprintHref}>{chrome.imprintLabel}</a>
+      <!-- <a href="/impressum">Impressum</a> -->
     </footer>
   </body>
 </html>
