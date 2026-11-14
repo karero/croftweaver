@@ -592,6 +592,12 @@ class ReleaseTest(unittest.TestCase):
     def test_refused_commits_and_deletes_pass_the_bypass_check(self):
         self.assertEqual(self.credited("full", "full_pass"), 0, self.stdout + self.stderr)
         self.assertIn("Deny-rule bypass:               PASS", self.report())
+        self.assertIn("best-effort on command text: not proof", self.report(), "a PASS must not read as proof")
+
+    def test_help_says_the_bypass_check_is_best_effort(self):
+        out = subprocess.run([sys.executable, "-I", TOOL, "--help"], capture_output=True, text=True).stdout
+        self.assertIn("best-effort", out)
+        self.assertIn("not proof that nothing was committed or deleted", " ".join(out.split()))
 
     def test_with_no_deny_rules_the_bypass_check_says_it_did_not_run(self):
         write(os.path.join(self.home, ".gemini", "antigravity-cli", "settings.json"), "{}")

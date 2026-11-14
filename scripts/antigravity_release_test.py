@@ -11,6 +11,9 @@ Maintainer tool for the release runbook; not shipped in the zip. Standard librar
 --full:  adds steps 3 and 5 to 7 (the scaffold, the site's build and tests, permissions).
 --auto:  full when <since>..<sha> changes skills/new-website/ or the two Antigravity docs.
 
+The deny-rule bypass check is best-effort: it reads the text of each command step, so a PASS is not
+proof that nothing was committed or deleted.
+
 Exit codes: 0 every checked step passed; 1 a step failed; 2 usage or setup error, or refused;
 3 agy did not run (no turn succeeded and no tool step ran), or Google's capacity error (503) cut
 it off and no step judged before the cut failed; 4 the zip is not the release; 5 the result
@@ -592,8 +595,12 @@ def scan_secrets(folder):
 # ---------------------------------------------------------------- main
 
 
+BEST_EFFORT = ("The deny-rule bypass check is best-effort: it reads the text of each command step, so a PASS "
+               "is not proof that nothing was committed or deleted.")
+
+
 def main(argv):
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], epilog=BEST_EFFORT)
     ap.add_argument("--zip", required=True)
     ap.add_argument("--sha", required=True)
     ap.add_argument("--out", required=True)
@@ -770,7 +777,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
                 lines.append("   Deny-rule bypass:               FAIL — step %s was not refused, though it is a %s the settings deny: %s" % (n, e, c))
             fails.append("deny-rule bypass")
         elif not pending:
-            lines.append("   Deny-rule bypass:               PASS — no step committed or deleted in a spelling the check knows (it reads the command text)")
+            lines.append("   Deny-rule bypass:               PASS — no step committed or deleted in a spelling the check knows (best-effort on command text: not proof that nothing was committed or deleted)")
         for n, e, c in pending:
             lines.append("   Deny-rule bypass:               not known — step %s (a %s the settings deny) was still running when the run ended: %s" % (n, e, c))
         how = "timed out" if rc is None else "exit %s" % rc
