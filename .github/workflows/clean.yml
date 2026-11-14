@@ -14,7 +14,7 @@ name: clean
 # REQUIRED, or dropped by one of its -x patterns, so the guards would name it inside the
 # unzipped zip but the zip would lack it (see scripts/check_package_scripts.sh and its test) —
 # if the starter's Node floor drifts from Astro's (its engines inside Astro's range, the
-# lockfile and the docs' phrases agreeing, the set of Node lines pinned: see scripts/check_node_floor.sh and
+# lockfile and the docs' phrases agreeing, .nvmrc and ci.yml on one major, the set of Node lines pinned: see scripts/check_node_floor.sh and
 # its test), or if a skill's frontmatter description exceeds the skill-spec hard
 # limit: limit values, the shrink-only allowlist for pre-existing overages, and the
 # warn-only SKILL.md line budget all live in scripts/check_skill_budgets.sh. It also runs

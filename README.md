@@ -541,7 +541,7 @@ scripts/
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_package_scripts.sh  every shell script under scripts/ ships in the handoff zip: in package.sh's zip -r line and REQUIRED (make check)
   test_check_package_scripts.sh  the package-scripts check goes red for a script left out, dropped by -x, or gone (make check)
-  check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree (make check)
+  check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree, .nvmrc and ci.yml on one major (make check)
   test_node_floor.sh        the Node-floor check goes red for each way the floor can drift (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
