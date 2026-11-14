@@ -64,6 +64,8 @@ NOT_RUN=(
   scripts/test_buglog_rows.sh                                   # builds throwaway repos; needs git
   scripts/test_check_package_scripts.sh                         # builds throwaway copies of scripts/
   scripts/check_cdpath_safe.sh                                  # this file
+  scripts/check_lock.sh                                         # run bare inside the lock make check holds, it is refused with no output, which this guard fails
+  scripts/test_check_lock.sh                                    # runs through make check already; builds throwaway copies and holders
   scripts/build_directory_tree.sh                               # reads git history; needs a clone (the plugin tests run it)
   scripts/publish_directory.sh                                  # pushes the branch directory to origin
   skills/independent-review/scripts/independent_review.sh       # calls external reviewers, costs money
