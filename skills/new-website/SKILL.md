@@ -496,7 +496,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch.
    **This starter needs Node ≥22.23.4**, and Node's current security fixes are in 22.23.4, 24.22.1 and 26.12.1 (one per line).
-   The overlay's `.nvmrc` pins 24 for local + Cloudflare's builds. If `npm install` prints
+   The overlay's `.nvmrc` pins 26 for local + Cloudflare's builds. If `npm install` prints
    `EBADENGINE` for the site's own package (the `name@version` in the site's `package.json`, whatever the
    owner named it) and `node`, stop and have the owner update Node (SETUP.md) before going on; a warning
    for another package is not this.
