@@ -333,8 +333,10 @@ def effects(command, depth=0):
     git`, `os.system("git commit")`, a `$(rm x)` in a heredoc, a heredoc given with a redirection before
     its command, `<<EOF bash`) is not seen, and a program that only
     prints `shutil.rmtree(x)`, an `rm` after a `;` inside a `#` comment, or an argument after `-c` that
-    is not code (`bash script.sh -c x`) is over-seen, and so is the rest of a command line after a
-    quoted `<<word`, which is read as a heredoc: the report quotes the command for a person to read. `commit` is `git commit` and
+    is not code (`bash script.sh -c x`) is over-seen. A `<<word` inside quotes is read as a heredoc, so
+    commands after it can be hidden (it takes the lines up to the next line equal to `word`, or the end) and
+    a real heredoc after it is read as a different one's body: effects are missed or over-seen. The
+    report quotes the command for a person to read. `commit` is `git commit` and
     `commit-tree` only; `git rm`, `npm rm` and the other history-changing git commands are other deny
     rules' business. `git commit --dry-run` and `git clean -n` do nothing."""
     bodies = [m.group(4) for m in HEREDOC.finditer(command)]
