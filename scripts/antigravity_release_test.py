@@ -296,7 +296,7 @@ COMMIT_VALUE_OPTIONS = ("-m", "-F", "-C", "-c", "-t", "--message", "--file", "--
 CLEAN_VALUE_OPTIONS = ("-e", "--exclude")
 NO_EFFECT = ("--dry-run", "-h", "--help")
 GIT_SUBPROCESS = re.compile(r"""['"](?:[^'"]*/)?git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""")
-HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:^\t*\2(?:\n|\Z)|\Z)", re.S | re.M)  # the body runs to the end if never closed, as in bash
+HEREDOC = re.compile(r"(?<!<)<<(-)?[ \t]*(['\"]?)(\w+)\2[^\n]*\n(.*?)(?:^(?(1)\t*)\3(?:\n|\Z)|\Z)", re.S | re.M)  # the body runs to the end if never closed, as in bash
 
 
 def has_option(rest, value_options, hit):
@@ -330,12 +330,14 @@ def effects(command, depth=0):
     position; `git` with its global options; the code string of `bash -c` and of `python3 -c` or
     `node -e`, and a heredoc body given to an interpreter or a shell; `shutil.rmtree(`, `fs.rmSync(`,
     `find -delete`, `git clean`. A spelling it does not know (`g=git; $g commit`, `echo commit | xargs
-    git`, `os.system("git commit")`, a `$(rm x)` in a heredoc) is not seen, and a program that only
+    git`, `os.system("git commit")`, a `$(rm x)` in a heredoc, a heredoc given with a redirection before
+    its command, `<<EOF bash`) is not seen, and a program that only
     prints `shutil.rmtree(x)`, an `rm` after a `;` inside a `#` comment, or an argument after `-c` that
-    is not code (`bash script.sh -c x`) is over-seen: the report quotes the command for a person to read. `commit` is `git commit` and
+    is not code (`bash script.sh -c x`) is over-seen, and so is the rest of a command line after a
+    quoted `<<word`, which is read as a heredoc: the report quotes the command for a person to read. `commit` is `git commit` and
     `commit-tree` only; `git rm`, `npm rm` and the other history-changing git commands are other deny
     rules' business. `git commit --dry-run` and `git clean -n` do nothing."""
-    bodies = [m.group(3) for m in HEREDOC.finditer(command)]
+    bodies = [m.group(4) for m in HEREDOC.finditer(command)]
     text = HEREDOC.sub(lambda m: m.group(0).split("\n", 1)[0] + "\n", command)
     text = text.replace("\\\n", "").replace("\n", " ; ")  # a line continuation joins, a newline ends a command like `;`
     try:

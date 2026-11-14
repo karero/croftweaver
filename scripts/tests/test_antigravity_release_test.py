@@ -283,6 +283,8 @@ class Spellings(unittest.TestCase):
                 ("git clean -exn -fd", {"delete"}),
                 ("git clean -fde -n", {"delete"}),
                 ("sudo bash <<EOF\nrm x\nEOF", {"delete"}),
+                ("cat <<-EOF\n\tEOF\nrm x", {"delete"}),
+                ("cat <<< foo\nrm x", {"delete"}),
                 ("cat <<EOF\nrm x\nEOF\nrm y", {"delete"}),
                 ("cat <<EOF\nEOF\nrm y", {"delete"}),
                 ("git commit --pathspec-from-file --dry-run", {"commit"}),
@@ -300,7 +302,7 @@ class Spellings(unittest.TestCase):
                     "python3 -c \"print('shutil.rmtree deletes a folder')\"",
                     "grep -c \"rm x\" /dev/null", "python3 --version; echo \"shutil.rmtree(x)\"",
                     "git clean -fd -e --dry-run -n", "sh -c true; cat <<EOF\nrm x\nEOF",
-                    "cat <<'EOF'\nrm x\nEOF; echo done", "git clean -exne -n -fd", "git commit -mfoo --dry-run", "grep -e \"shutil.rmtree(x)\" f", "cat <<EOF\nrm -rf x\ngit commit\nEOF", "true # rm x\ntrue"):
+                    "cat <<'EOF'\nrm x\nEOF; echo done", "git clean -exne -n -fd", "cat <<EOF\n\tEOF\nrm x\nEOF", "git commit -mfoo --dry-run", "grep -e \"shutil.rmtree(x)\" f", "cat <<EOF\nrm -rf x\ngit commit\nEOF", "true # rm x\ntrue"):
             self.assertEqual(self.t.effects(cmd), set(), cmd)
 
 
