@@ -296,7 +296,7 @@ COMMIT_VALUE_OPTIONS = ("-m", "-F", "-C", "-c", "-t", "--message", "--file", "--
 CLEAN_VALUE_OPTIONS = ("-e", "--exclude")
 NO_EFFECT = ("--dry-run", "-h", "--help")
 GIT_SUBPROCESS = re.compile(r"""['"](?:[^'"]*/)?git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""")
-HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)\n[ \t]*\2[ \t]*(?:\n|$)", re.S)
+HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:^\t*\2(?:\n|\Z)|\Z)", re.S | re.M)  # the body runs to the end if never closed, as in bash
 
 
 def has_option(rest, value_options, hit):
@@ -310,8 +310,11 @@ def has_option(rest, value_options, hit):
             return False
         elif hit(t):
             return True
-        elif t in value_options or (re.fullmatch(r"-[A-Za-z]{2,}", t) and "-" + t[-1] in value_options):
+        elif t in value_options:
             skip = True
+        elif re.fullmatch(r"-[A-Za-z]{2,}", t):  # a cluster: the first value option takes the rest of the token, or the next token if it is last
+            first = next((i for i, c in enumerate(t) if i and "-" + c in value_options), 0)
+            skip = first == len(t) - 1
     return False
 
 
@@ -328,8 +331,8 @@ def effects(command, depth=0):
     `node -e`, and a heredoc body given to an interpreter or a shell; `shutil.rmtree(`, `fs.rmSync(`,
     `find -delete`, `git clean`. A spelling it does not know (`g=git; $g commit`, `echo commit | xargs
     git`, `os.system("git commit")`, a `$(rm x)` in a heredoc) is not seen, and a program that only
-    prints `shutil.rmtree(x)` or an `rm` after a `;` inside a `#` comment is over-seen: the report
-    quotes the command for a person to read. Options given before the code string are read loosely. `commit` is `git commit` and
+    prints `shutil.rmtree(x)`, an `rm` after a `;` inside a `#` comment, or an argument after `-c` that
+    is not code (`bash script.sh -c x`) is over-seen: the report quotes the command for a person to read. `commit` is `git commit` and
     `commit-tree` only; `git rm`, `npm rm` and the other history-changing git commands are other deny
     rules' business. `git commit --dry-run` and `git clean -n` do nothing."""
     bodies = [m.group(3) for m in HEREDOC.finditer(command)]
