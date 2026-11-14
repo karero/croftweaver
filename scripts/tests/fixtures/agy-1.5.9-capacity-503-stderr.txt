@@ -1,0 +1,2 @@
+error: Our servers are experiencing high traffic right now, please try again in a minute. (UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server)
+AGY_ERROR: {"short_error":"UNAVAILABLE (code 503): No capacity available for model gemini-3.8-flash-high on the server","status":"UNAVAILABLE","error_code":503,"code_kind":"http","retryable":true,"error_id":"00000000-0000-0000-0000-000000000000-0-0"}
