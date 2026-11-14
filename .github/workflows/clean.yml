@@ -14,7 +14,7 @@ name: clean
 # REQUIRED, or dropped by one of its -x patterns, so the guards would name it inside the
 # unzipped zip but the zip would lack it (see scripts/check_package_scripts.sh and its test) —
 # if the starter's Node floor drifts from Astro's (its engines inside Astro's range, the
-# lockfile and the docs' phrases agreeing, the set of Node lines pinned: see scripts/check_node_floor.sh and
+# lockfile and the docs' phrases agreeing, .nvmrc and ci.yml on one major, the set of Node lines pinned: see scripts/check_node_floor.sh and
 # its test), or if a skill's frontmatter description exceeds the skill-spec hard
 # limit: limit values, the shrink-only allowlist for pre-existing overages, and the
 # warn-only SKILL.md line budget all live in scripts/check_skill_budgets.sh. It also runs
@@ -478,7 +478,7 @@ jobs:
         run: make test-agy-release PYTHON=python
   cloudflare-check-tests:
     # Node's standard library only, so nothing is installed. 18 is the oldest Node the scripts
-    # promise, 24 is the one the template pins and a site is built with; Windows runs the same
+    # promise, 26 is the one the template pins and a site is built with; Windows runs the same
     # files, since the scripts are started by a path there too. The check's tests make their
     # own certificate with openssl, which bash on the Windows runner has; the setup script's
     # tests make git repositories, and one of them waits out the script's 55-second deadline; the move script's tests also build a small site with npm.
@@ -490,7 +490,8 @@ jobs:
           - { os: ubuntu-latest, node: '20' }
           - { os: ubuntu-latest, node: '22' }
           - { os: ubuntu-latest, node: '24' }
-          - { os: windows-latest, node: '24' }
+          - { os: ubuntu-latest, node: '26' }
+          - { os: windows-latest, node: '26' }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

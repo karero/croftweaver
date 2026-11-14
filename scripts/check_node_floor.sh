@@ -18,7 +18,7 @@
 #       line. The phrases are unanchored, so a blockquote's ">" or leading spaces do not matter, and the
 #       check never joins lines: a rewrap that splits a phrase gives a red "phrase not on one line", on
 #       purpose.
-#   G4  the major in .nvmrc and in the starter's ci.yml node-version is one some alternative admits.
+#   G4  the major in .nvmrc and in the starter's ci.yml node-version is one some alternative admits, and the two are the same major.
 #   G5  the set of Node lines is pinned: one alternative per major, every one but the highest bounded to
 #       its line with a caret (so ">=24.22.1" in the middle, which would admit 25, is red), and as many
 #       alternatives as the SETUP.md and SKILL.md phrases list versions (LINE_COUNT). Adding "|| ^25.9.0"
@@ -89,7 +89,7 @@ const LINE_COUNT = 3; // the versions the SETUP.md, SKILL.md and UPGRADING.md ph
 const EXPECTED_SETUP_NODE = [
   '      - uses: actions/setup-node@v7',
   '        with:',
-  '          node-version: 24',
+  '          node-version: 26',
   '          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release',
   '          cache: npm',
 ].join('\n') + '\n';
@@ -250,6 +250,14 @@ function checkMajor(file, label, value) {
     });
     if (vals.length === 0) fail(FILES.ci + ': no node-version line (G4)');
     vals.forEach(function (v) { checkMajor(FILES.ci, 'node-version', v); });
+    // The same major in both: checkMajor above reports a value it cannot read, so unreadable ones are skipped here.
+    const nvm = nv === null ? null : /^["']?([0-9]+)["']?$/.exec(nv.split('\n')[0].trim());
+    if (nvm) vals.forEach(function (v) {
+      const m = /^["']?([0-9]+)["']?$/.exec(v);
+      if (m && Number(m[1]) !== Number(nvm[1])) {
+        fail(FILES.ci + ': node-version is Node ' + m[1] + ' but .nvmrc says Node ' + nvm[1] + ': CI must test the major the starter pins (G4)');
+      }
+    });
     // G6: the expected step once, starting a line, followed by the next step or the end; no other setup-node.
     const at = ci.indexOf(EXPECTED_SETUP_NODE);
     const after = at < 0 ? '' : ci.slice(at + EXPECTED_SETUP_NODE.length);
@@ -302,5 +310,5 @@ if (fails.length) {
   fails.forEach(function (f) { console.log('FAIL — ' + f); });
   process.exit(1);
 }
-console.log('OK — the starter\'s Node floor holds: engines "' + starterText + '" is inside Astro ' + astroVersion + '\'s "' + astroText + '", the lockfile root agrees, .nvmrc and ci.yml name an admitted major, ci.yml asks setup-node for the latest release, and ' + phrasesOk + ' phrases in ' + Object.keys(textOf).length + ' files carry the same versions.');
+console.log('OK — the starter\'s Node floor holds: engines "' + starterText + '" is inside Astro ' + astroVersion + '\'s "' + astroText + '", the lockfile root agrees, .nvmrc and ci.yml name the same admitted major, ci.yml asks setup-node for the latest release, and ' + phrasesOk + ' phrases in ' + Object.keys(textOf).length + ' files carry the same versions.');
 JS

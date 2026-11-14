@@ -10,7 +10,7 @@ drives assembly; this README is the manual reference.
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
 package-lock.json             # the exact dependency versions; commit it, CI uses `npm ci`
-.nvmrc                        # Node 24 — the starter needs >=22.23.4 (Cloudflare Pages reads it)
+.nvmrc                        # Node 26 — the starter needs >=22.23.4 (Cloudflare Pages reads it)
 .gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
 CROFTWEAVER-LICENSE.md        # the licence of the Croftweaver files in this folder (tests, scripts, hooks); keep it when you hand the source on
 src/config.ts                 # single source of truth (URL, name, analytics, EEAT)
@@ -62,7 +62,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
    npm 11.20.0 and create-astro 5.3.1), then copy `templates/.gitignore` in again: the scaffold
    replaces step 1's `.gitignore` with its own. Requires **Node ≥22.23.4**
    (this starter's floor, never below Astro's own); keep Node current: SETUP.md lists the fixed version of
-   each line. The committed `.nvmrc` pins 24 for local + Cloudflare builds.
+   each line. The committed `.nvmrc` pins 26 for local + Cloudflare builds.
 3. Copy this overlay over the scaffold (the files above, `package.json` included: it carries `engines`,
    which makes npm warn when Node is older than the fixed version of its line) + `tests/`, but not this
    `README.md` (the site's own holds the owner's answers), then:

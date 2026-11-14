@@ -9,10 +9,11 @@
 # guard goes red for Astro raising any line, for a floor looser than Astro's, for a range it cannot read,
 # for a lockfile root that differs, for a missing Astro entry, a missing file or a JSON file that is not
 # an object, for a phrase that is missing, doubled or split over lines, for an .nvmrc or CI major no
-# alternative admits, and for a change of the set of Node lines (one more, one fewer, or one widened with
-# ">="), and that it stays green when the starter is stricter than Astro and the docs follow. It enters
-# the way make check and CI do: it runs the guard script, which finds its files from where it sits, so
-# each copy is laid out as the handoff zip is (no repo-root .github/, no packages/, no git).
+# alternative admits, for a CI major that differs from .nvmrc's, and for a change of the set of Node
+# lines (one more, one fewer, or one widened with ">="), and that it stays green when the starter is
+# stricter than Astro and the docs follow. It enters the way make check and CI do: it runs the guard
+# script, which finds its files from where it sits, so each copy is laid out as the handoff zip is
+# (no repo-root .github/, no packages/, no git).
 #
 # The versions in the cases are read from the real package.json, so a Node security release that moves a
 # version in the range changes ONE line here, EXPECTED_RANGE, which pins the real range on purpose (a
@@ -205,22 +206,25 @@ expect "12 a blockquote rewrapped inside the phrase: red, \"not on one line\"" "
 fresh; tsub "$c/$SETUP" "> **Node ≥$V22 required**" "   >   **Node ≥$V22 required**"
 expect "12 a blockquote marker and spaces before a phrase do not matter" "$c" pass "Node floor holds"
 
-# -- scenarios 13 and 21: .nvmrc and the CI major --------------------------------------------------
+# -- scenarios 13, 21 and 22: .nvmrc and the CI major --------------------------------------------------
 fresh; printf '25\n' >"$c/$ASTRO/.nvmrc"
 expect "13 .nvmrc says 25: red, no alternative admits it" "$c" fail "which no alternative"
 for v in 'v24' 'lts/*'; do
   fresh; printf '%s\n' "$v" >"$c/$ASTRO/.nvmrc"
   expect "21 .nvmrc says \"$v\": red, cannot read" "$c" fail "cannot read the Node version"
 done
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "node-version: 24" "node-version: 25"
-expect "13 ci.yml node-version 25: red" "$c" fail "node-version is Node 25"
-fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "node-version: 24" "node-version: '24'"
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "node-version: 26" "node-version: 25"
+expect "13 ci.yml node-version 25: red, by the admission rule" "$c" fail "node-version is Node 25, which no alternative"
+fresh; tsub "$c/$ASTRO/.github/workflows/ci.yml" "node-version: 26" "node-version: '26'"
 out="$(bash "$c/scripts/check_node_floor.sh" 2>&1)"
 if ! grep -q "(G4)" <<<"$out" && grep -Fq "is not EXPECTED_SETUP_NODE" <<<"$out"; then
-  printf 'ok   ci.yml node-version quoted '"'"'24'"'"': G4 reads it, G6 is red (the step is compared literally)\n'
+  printf 'ok   ci.yml node-version quoted '"'"'26'"'"': G4 reads it, G6 is red (the step is compared literally)\n'
 else
-  printf 'FAIL ci.yml node-version quoted '"'"'24'"'"': want no G4 line and the G6 red, got:\n%s\n' "$out"; fails=$((fails+1))
+  printf 'FAIL ci.yml node-version quoted '"'"'26'"'"': want no G4 line and the G6 red, got:\n%s\n' "$out"; fails=$((fails+1))
 fi
+# .nvmrc moves alone (an admitted major, so the first G4 check passes): CI would test a major the starter does not pin
+fresh; printf '24\n' >"$c/$ASTRO/.nvmrc"
+expect "22 .nvmrc says 24 while ci.yml and G6 say 26: red, names the mismatch" "$c" fail "but .nvmrc says Node 24"
 
 # -- G6: ci.yml holds the expected setup-node step byte for byte (CI once ran 24.21.0 under ^24.22.1) ----
 # The shipped starter passes in every green case above. Each case below changes the step one way and must be red.
