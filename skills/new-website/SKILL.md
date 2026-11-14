@@ -42,6 +42,8 @@ Everything needed is bundled here:
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
 - `references/WEBSITE_ARCHITECTURE.md` (bundled with this skill) — the Cloudflare
   **tier 1/2/3** decision tree + limits (the tiers are also summarized in §1, question 2).
+- `docs/MOVE-TO-WORKERS.md` (in the Croftweaver folder) — the owner's guide to moving a live Pages site to a
+  Worker; `references/CLOUDFLARE_MOVE.md` is your own page for it. Start with the guide when asked to "move my site to Workers".
 
 Sibling skills (run in order, each usable on its own):
 `website-positioning` · `website-content-guide` · `website-seo-geo` ·

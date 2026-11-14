@@ -6,9 +6,12 @@ Pages if you ask. It needs Node 18 or newer and nothing from npm. It never pushe
 you push the one commit it writes.
 
 A site whose domain is not yet on its Pages project has nothing to move: it launches first, as
-`CLOUDFLARE_FIRST_DEPLOY.md` says.
+`CLOUDFLARE_FIRST_DEPLOY.md` says. Before the User makes a token, read the address in
+`SITE.url` in `src/config.ts` and look up its name servers (`dig NS <domain> +short`): if they are not
+Cloudflare's, the domain's DNS is elsewhere and the site launches first.
 
-This page tells an assistant when to run each command. It is not the User guide.
+This page tells an assistant when to run each command. It is not the User guide: that is
+`docs/MOVE-TO-WORKERS.md` in the Croftweaver folder.
 
 ## Where it is, and how to run it
 
@@ -67,7 +70,7 @@ computer, and a second computer would not know the move had begun.
 5. **Clean up (later, not this script).** Delete the token if you will not undo soon; an undo
    later needs a new one, made the same way. Keep the Pages project 14 days in
    case you want `undo`, then retire it as a step of its own. Only then do
-   `functions/_middleware.ts` and the Pages config go.
+   `functions/_middleware.ts` and the Pages config go. Retiring it is **not tested yet**: this page has no steps for it, so leave the Pages project alone.
 
 ## The token
 
@@ -78,7 +81,8 @@ https://dash.cloudflare.com/profile/api-tokens. (The Workers permission's exact 
 checked yet; the script's error says so if the token lacks it.)
 
 Say this plainly to the User: Pages Edit and the Workers permission reach every project on her
-account. The script keeps to her site: every request it sends is checked against her hosts, her
+account. The script reads some lists across the account (her zones, her Pages projects, the DNS
+export) but changes only her site: every change it sends is checked against her hosts, her
 Pages project and her Worker before it goes out, and anything else is refused.
 
 The Workers permission makes every zone of the account show up in the token's zone list; that is
@@ -239,4 +243,5 @@ network, and `move-run/` is ignored by git. Tell the User where it is.
   The move stays open for `undo` while the Pages project is kept, and an undo later needs a new
   token, made the same way. After an `undo` that `after` has closed, delete the token.
 - Look at the live site once in a browser.
-- Wait 14 days before retiring the Pages project; that is a step of its own, not this script.
+- Wait 14 days before retiring the Pages project; that is a step of its own, not this script,
+  and **not tested yet**: until a later kit release gives the steps, keep it.
