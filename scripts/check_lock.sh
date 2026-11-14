@@ -30,14 +30,15 @@ mkdir -p -- "$dir" || { echo "make check cannot create the lock folder $dir" >&2
 
 exec perl -e '
 use strict; use warnings; no warnings "exec";
-use Fcntl qw(:flock O_RDWR O_CREAT);
+use Fcntl qw(:flock O_RDWR O_CREAT F_SETFD FD_CLOEXEC);
 use POSIX qw(strftime);
 use Cwd qw(getcwd);
 my ($lock, @cmd) = @ARGV;
 $| = 1;
 sysopen(my $fh, $lock, O_RDWR | O_CREAT, 0600)
   or do { print STDERR "make check cannot open its lock file $lock: $!\n"; exit 1 };
-chmod 0600, $fh;
+chmod(0600, $fh) or do { print STDERR "make check cannot secure its lock file $lock: $!\n"; exit 1 };
+fcntl($fh, F_SETFD, FD_CLOEXEC);
 if (!flock($fh, LOCK_EX | LOCK_NB)) {
   my $err = $!;
   if (!$!{EWOULDBLOCK}) { print STDERR "make check cannot lock $lock: $err\n"; exit 1 }
@@ -64,22 +65,26 @@ sysseek($fh, 0, 0);
 syswrite($fh, $info);
 truncate($fh, length $info);
 # TERM and HUP (a plain kill of make reaches only this process) go on to the command, and the lock
-# stays held until it ends. They are set before the fork so no signal finds the default action; one
-# that arrives before the command exists is sent on once it does. INT and QUIT also reach the command
-# from the terminal, so they are ignored here.
-my ($kid, $sig);
+# stays held until it ends. They are blocked across the fork, so the pid of the command is known when one
+# is delivered and the child never runs with the parent handlers. INT and QUIT also reach the
+# command from the terminal, so they are ignored here.
+my $kid;
 $SIG{INT} = $SIG{QUIT} = "IGNORE";
-$SIG{TERM} = sub { $sig = "TERM"; kill "TERM", $kid if $kid };
-$SIG{HUP}  = sub { $sig = "HUP";  kill "HUP",  $kid if $kid };
+$SIG{TERM} = sub { kill "TERM", $kid };
+$SIG{HUP}  = sub { kill "HUP",  $kid };
+my $both = POSIX::SigSet->new(POSIX::SIGTERM(), POSIX::SIGHUP());
+my $old  = POSIX::SigSet->new;
+POSIX::sigprocmask(POSIX::SIG_BLOCK(), $both, $old);
 $kid = fork;
 if (!defined $kid) { print STDERR "make check cannot start $cmd[0]: $!\n"; exit 1 }
 if (!$kid) {
   $SIG{$_} = "DEFAULT" for qw(INT QUIT TERM HUP);
+  POSIX::sigprocmask(POSIX::SIG_SETMASK(), $old);
   exec { $cmd[0] } @cmd;
   print STDERR "make check cannot start $cmd[0]: $!\n";
   POSIX::_exit(1);
 }
-kill $sig, $kid if $sig;
+POSIX::sigprocmask(POSIX::SIG_SETMASK(), $old);
 my $w;
 do { $w = waitpid($kid, 0) } while ($w == -1 && $!{EINTR});
 my $rc = $?;

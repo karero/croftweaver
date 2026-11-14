@@ -188,37 +188,39 @@ if wait_holder "$DL" "$h"; then
   fi
 fi
 
-# --- T8: a TERM to the lock holder alone reaches the command and frees the lock after it ends ----
+# --- T8: a TERM or HUP to the lock holder alone reaches the command and frees the lock after it ends
 # A plain kill of the outer make reaches only the process holding the lock. If it died at once, the
 # guards would run on with the lock free.
 ended() { local s; s="$(ps -o stat= -p "$1" 2>/dev/null)"; case "$s" in ""|Z*) return 0 ;; *) return 1 ;; esac; }
-L8="$T/t8.lock"
-start_holder "$A" local_t8_session CROFTWEAVER_CHECK_LOCK="$L8"
-if wait_holder "$L8" "$h"; then
-  kid=""
-  for i in $(seq 1 100); do kid="$(pgrep -P "$h" | sed -n 1p)"; [ -n "$kid" ] && break; sleep 0.1; done
-  if [ -z "$kid" ]; then
-    fail "T8 the holder started no command (no child of pid $h)"
-  else
-    kill -TERM "$h"
-    for i in $(seq 1 100); do ended "$h" && break; sleep 0.1; done
-    if ended "$h" && ! kill -0 "$kid" 2>/dev/null; then
-      { wait "$h"; } 2>/dev/null
-      rm -f "$B/marker"
-      run_make "$B" check CROFTWEAVER_CHECK_LOCK="$L8" CHECK_STUB_MARKER="$B/marker"
-      if [ -e "$B/marker" ] && case "$m_out" in *"Error 75"*|*"refused"*) false ;; *) true ;; esac; then
-        ok "T8 a TERM to the holder alone ends its command too, and the lock is free after"
-      else
-        fail "T8 the lock was not free after the holder ended (exit $m_rc): $m_out"
-      fi
+for sig in TERM HUP; do
+  L8="$T/t8-$sig.lock"
+  start_holder "$A" local_t8_session CROFTWEAVER_CHECK_LOCK="$L8"
+  if wait_holder "$L8" "$h"; then
+    kid=""
+    for i in $(seq 1 100); do kid="$(pgrep -P "$h" | sed -n 1p)"; [ -n "$kid" ] && break; sleep 0.1; done
+    if [ -z "$kid" ]; then
+      fail "T8 $sig: the holder started no command (no child of pid $h)"
     else
-      hend=no; ended "$h" && hend=yes
-      krun=no; kill -0 "$kid" 2>/dev/null && krun=yes
-      kill -KILL "$kid" 2>/dev/null
-      fail "T8 after TERM to the holder alone: holder ended=$hend, its command (pid $kid) still running=$krun"
+      kill -"$sig" "$h"
+      for i in $(seq 1 100); do ended "$h" && break; sleep 0.1; done
+      if ended "$h" && ! kill -0 "$kid" 2>/dev/null; then
+        { wait "$h"; } 2>/dev/null
+        rm -f "$B/marker"
+        run_make "$B" check CROFTWEAVER_CHECK_LOCK="$L8" CHECK_STUB_MARKER="$B/marker"
+        if [ -e "$B/marker" ] && case "$m_out" in *"Error 75"*|*"refused"*) false ;; *) true ;; esac; then
+          ok "T8 a $sig to the holder alone ends its command too, and the lock is free after"
+        else
+          fail "T8 $sig: the lock was not free after the holder ended (exit $m_rc): $m_out"
+        fi
+      else
+        hend=no; ended "$h" && hend=yes
+        krun=no; kill -0 "$kid" 2>/dev/null && krun=yes
+        kill -KILL "$kid" 2>/dev/null
+        fail "T8 after $sig to the holder alone: holder ended=$hend, its command (pid $kid) still running=$krun"
+      fi
     fi
   fi
-fi
+done
 
 # --- T9: no stray noise on stderr, and a command that cannot start is one clear line ---------------
 out="$(CROFTWEAVER_CHECK_LOCK="$T/t9.lock" bash "$HERE/check_lock.sh" true 2>&1)"; rc=$?
