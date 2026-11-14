@@ -11,9 +11,15 @@ Maintainer tool for the release runbook; not shipped in the zip. Standard librar
 --full:  adds steps 3 and 5 to 7 (the scaffold, the site's build and tests, permissions).
 --auto:  full when <since>..<sha> changes skills/new-website/ or the two Antigravity docs.
 
+The deny-rule bypass check is best-effort: it reads the text of each command step, so a PASS is not
+proof that nothing was committed or deleted.
+
 Exit codes: 0 every checked step passed; 1 a step failed; 2 usage or setup error, or refused;
-3 agy did not run (no turn succeeded and no tool step ran); 4 the zip is not the release;
-5 the result cannot be trusted (agy changed a file the test protects).
+3 agy did not run (no turn succeeded and no tool step ran), or Google's capacity error (503) cut
+it off and no step judged before the cut failed; 4 the zip is not the release; 5 the result
+cannot be trusted (agy changed a file the test protects). After a Google 503 the steps that
+turns not finished would have produced are "not judged"; a trust failure found in the build turn,
+when it finished, still gives exit 5.
 """
 import argparse
 import hashlib
@@ -21,6 +27,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -39,7 +46,7 @@ SECRET = re.compile(r"ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A-Za
                     r"|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----"
                     r"|://[^/\s\"'@:]+:[^/\s\"'@]+@")
 EXIT_TEXT = {0: "every checked step passed", 1: "a step failed", 2: "usage or setup error",
-             3: "agy did not run", 4: "the zip is not the release", 5: "result cannot be trusted"}
+             3: "agy did not run, or Google had no capacity", 4: "the zip is not the release", 5: "result cannot be trusted"}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
@@ -224,8 +231,9 @@ def usage_text(agy, cwd):
 
 
 def parse(transcript):
-    """Results in order, and every tool step in the order first seen, with its last state."""
-    results, tools = [], {}
+    """Results in order, every tool step in the order first seen (each with its last state), and
+    how many turns agy took in (user inputs): a turn that failed or was cut off still ran."""
+    results, tools, inputs = [], {}, set()
     with open(transcript, errors="replace") as f:
         for line in f:
             try:
@@ -235,15 +243,27 @@ def parse(transcript):
             if ev.get("event") == "result":
                 results.append(ev.get("result") or {})
             su = ev.get("step_update")
+            if ev.get("event") == "step_update" and isinstance(su, dict) and su.get("step_type") == "user_input":
+                inputs.add((su.get("conversation_id"), su.get("step_index")))
             if ev.get("event") == "step_update" and isinstance(su, dict) and su.get("step_type") == "tool":
                 key = (su.get("conversation_id"), su.get("step_index"))
                 tools[key] = su
-    return results, list(tools.values())  # first-seen order; each step holds its last state
+    return results, list(tools.values()), len(inputs)  # first-seen order; each step holds its last state
 
 
 def tool_param(step, name):
     info = step.get("tool_info") or {}
     return str((info.get("parameters") or {}).get(name, ""))
+
+
+READ_TOOLS = ("view_file", "read_file")  # agy 1.4.2 wrote view_file(AbsolutePath), 1.4.9 and 1.5.9 read_file(Path)
+
+
+def read_path(step):
+    """The file a finished read-tool step read, else an empty string."""
+    if step.get("tool_name") not in READ_TOOLS or step.get("state") != "DONE":
+        return ""
+    return tool_param(step, "AbsolutePath") or tool_param(step, "Path")
 
 
 REFUSAL = "Matches user-configured deny rule"  # agy 1.4.2's text for a deny-rule refusal (fixture)
@@ -253,6 +273,142 @@ def refused(step):
     """A tool step agy's own permission check refused (the deny rules in its settings)."""
     err = (step.get("tool_info") or {}).get("error")
     return step.get("state") == "ERROR" and isinstance(err, dict) and REFUSAL in str(err.get("message", ""))
+
+
+CAPACITY = re.compile(r"UNAVAILABLE \(code 503\)[^\n\")]*")  # Google's "no capacity", as agy 1.4.9 and 1.5.9 print it
+
+
+def capacity_error(results):
+    """Google's capacity error text when it ended the run, else None. Only the last turn's own error
+    counts: agy may print a retried 503 to stderr before a run that failed for another reason."""
+    if not results or results[-1].get("status") == "SUCCESS":
+        return None
+    m = CAPACITY.search(results[-1].get("error") or "")
+    return m.group(0).strip() if m else None
+
+
+GIT_VALUE_OPTIONS = ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--exec-path", "--config-env")
+SEPARATORS = ("&&", "||", ";", "|", "&", "(", ")", ";;", "|&", "{", "}", "!")
+PREFIXES = ("sudo", "env", "command", "exec", "nohup", "time", "xargs", "then", "do", "else", "-exec")  # a command may follow these
+DELETERS = ("rm", "rmdir", "unlink", "shred", "trash", "rimraf")
+DELETE_CALL = re.compile(r"(?:\b(?:rmtree|rmSync|unlinkSync|rmdirSync|os\.(?:remove|unlink|rmdir|removedirs))|\.(?:unlink|rmdir))\s*\(")
+INTERPRETER = re.compile(r"python[\d.]*|node(?:js)?|perl|ruby|deno|bun")
+SHELL = re.compile(r"bash|sh|zsh|dash|ksh")
+COMMIT_VALUE_OPTIONS = ("-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author", "--date", "--template", "--reuse-message",
+                        "--reedit-message", "--fixup", "--squash", "--cleanup", "--pathspec-from-file", "--trailer")
+CLEAN_VALUE_OPTIONS = ("-e", "--exclude")
+NO_EFFECT = ("--dry-run", "-h", "--help")
+GIT_SUBPROCESS = re.compile(r"""['"](?:[^'"]*/)?git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""")
+HEREDOC = re.compile(r"(?<!<)<<(-)?[ \t]*(['\"]?)(\w+)\2[^\n]*\n(.*?)(?:^(?(1)\t*)\3(?:\n|\Z)|\Z)", re.S | re.M)  # the body runs to the end if never closed, as in bash
+
+
+def has_option(rest, value_options, hit):
+    """True if a token of `rest` for which hit() holds is an option of the git command: not the value
+    of one of value_options (alone or last in a short cluster such as -am) and not after `--`."""
+    skip = False
+    for t in rest:
+        if skip:
+            skip = False
+        elif t == "--":
+            return False
+        elif hit(t):
+            return True
+        elif t in value_options:
+            skip = True
+        elif re.fullmatch(r"-[A-Za-z]{2,}", t):  # a cluster: the first value option takes the rest of the token, or the next token if it is last
+            first = next((i for i, c in enumerate(t) if i and "-" + c in value_options), 0)
+            skip = first == len(t) - 1
+    return False
+
+
+def code_effects(code):
+    """The commit and delete calls in a program's text (a Python `subprocess.run(['git', 'commit'])`,
+    `shutil.rmtree(`, Node's `fs.rmSync(`)."""
+    return ({"commit"} if GIT_SUBPROCESS.search(code) else set()) | ({"delete"} if DELETE_CALL.search(code) else set())
+
+
+def effects(command, depth=0):
+    """What a shell command line does that agy's deny rules for `git commit` and `rm` exist to stop:
+    {"commit", "delete"}. It reads the text for the common literal spellings: a command in command
+    position; `git` with its global options; the code string of `bash -c` and of `python3 -c` or
+    `node -e`, and a heredoc body given to an interpreter or a shell; `shutil.rmtree(`, `fs.rmSync(`,
+    `find -delete`, `git clean`. A spelling it does not know (`g=git; $g commit`, `echo commit | xargs
+    git`, `os.system("git commit")`, a `$(rm x)` in a heredoc, a heredoc given with a redirection before
+    its command, `<<EOF bash`) is not seen, and a program that only
+    prints `shutil.rmtree(x)`, an `rm` after a `;` inside a `#` comment, or an argument after `-c` that
+    is not code (`bash script.sh -c x`) is over-seen. A `<<word` inside quotes is read as a heredoc, so
+    commands after it can be hidden (it takes the lines up to the next line equal to `word`, or the end) and
+    a real heredoc after it is read as a different one's body: effects are missed or over-seen. The
+    report quotes the command for a person to read. `commit` is `git commit` and
+    `commit-tree` only; `git rm`, `npm rm` and the other history-changing git commands are other deny
+    rules' business. `git commit --dry-run` and `git clean -n` do nothing."""
+    bodies = [m.group(4) for m in HEREDOC.finditer(command)]
+    text = HEREDOC.sub(lambda m: m.group(0).split("\n", 1)[0] + "\n", command)
+    text = text.replace("\\\n", "").replace("\n", " ; ")  # a line continuation joins, a newline ends a command like `;`
+    try:
+        lex = shlex.shlex(text, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        lex.commenters = ""
+        tokens = list(lex)
+    except ValueError:
+        tokens = text.split()
+    found, receivers = set(), []  # receivers: the command each heredoc is given to, in order
+    cmd = ""  # the command the current token belongs to
+    at_command = True  # the next token can name a command
+    for i, tok in enumerate(tokens):
+        base = os.path.basename(tok)
+        if tok in SEPARATORS:
+            at_command = True
+            continue
+        if at_command and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tok):
+            continue  # VAR=value before the command
+        if at_command:
+            cmd = base
+        if tok == "<<":
+            receivers.append(cmd)
+        if at_command and base == "git":
+            j = i + 1
+            while j < len(tokens) and tokens[j].startswith("-"):
+                j += 2 if tokens[j] in GIT_VALUE_OPTIONS else 1
+            rest = []
+            for t in tokens[j + 1:]:
+                if t in SEPARATORS:
+                    break
+                rest.append(t)
+            sub = tokens[j] if j < len(tokens) else ""
+            if sub in ("commit", "commit-tree") and not has_option(rest, COMMIT_VALUE_OPTIONS, NO_EFFECT.__contains__):
+                found.add("commit")
+            if sub == "clean" and not has_option(rest, CLEAN_VALUE_OPTIONS, lambda t: t in NO_EFFECT or re.fullmatch(r"-[A-DF-Za-df-z]*n[A-Za-z]*", t)):
+                found.add("delete")
+        if (at_command and base in DELETERS) or tok == "-delete":
+            found.add("delete")
+        prev = tokens[i - 1] if i else ""
+        if depth < 2 and SHELL.fullmatch(cmd) and prev in ("-c", "-lc"):
+            found |= effects(tok, depth + 1)  # bash -c "...", sh -lc "..."
+        if INTERPRETER.fullmatch(cmd) and prev in ("-c", "-e", "-p", "-pe", "-E"):
+            found |= code_effects(tok)  # python3 -c "...", node -e "..."
+        at_command = tok in PREFIXES
+    for body, receiver in zip(bodies, receivers):
+        if SHELL.fullmatch(receiver) and depth < 2:
+            found |= effects(body, depth + 1)
+        if INTERPRETER.fullmatch(receiver):
+            found |= code_effects(body)
+    return found
+
+
+def bypasses(tools, deny, states=("DONE", "ERROR")):
+    """The tool steps in one of `states` that agy's permission check did not refuse although its
+    settings deny what they do: (step, effect, text). The deny rule is that check, so an ERROR that
+    is not a refusal (the command ran and failed) still got past it. A step still ACTIVE when the run
+    ended is asked for apart (states=("ACTIVE",)): it is not known to have run."""
+    want = {"commit": deny["git commit"], "delete": deny["rm"]}
+    out = []
+    for s in tools:
+        if s.get("tool_name") != "run_command" or refused(s) or s.get("state") not in states:
+            continue
+        cmd = tool_param(s, "CommandLine")
+        out += [(s.get("step_index"), e, cmd.strip().replace("\n", " ; ")[:100]) for e in sorted(effects(cmd)) if want[e]]
+    return out
 
 
 def tool_output(step):
@@ -266,8 +422,8 @@ def tool_output(step):
 def check_discovery(results, tools, ws_skill):
     seen = set()
     for s in tools:
-        p = tool_param(s, "AbsolutePath")
-        if s.get("tool_name") == "view_file" and s.get("state") == "DONE" and p.endswith("/new-website/SKILL.md"):
+        p = read_path(s)
+        if p.endswith("/new-website/SKILL.md"):
             seen.add(p)
     reply = (results[0].get("response") or "") if results else ""
     for p in re.findall(r"(?:file://)?(/[^\s`'\"()\[\]]*?/new-website/SKILL\.md)", reply):
@@ -276,8 +432,7 @@ def check_discovery(results, tools, ws_skill):
              if s.get("tool_name") == "run_command" and ".gemini/config/skills" in tool_param(s, "CommandLine")]
     real = os.path.realpath(ws_skill)
     other = sorted(p for p in seen if os.path.realpath(p) != real)
-    read = any(s.get("tool_name") == "view_file" and s.get("state") == "DONE"
-               and os.path.realpath(tool_param(s, "AbsolutePath")) == real for s in tools)
+    read = any(read_path(s) and os.path.realpath(read_path(s)) == real for s in tools)
     ok = read and not other and not shell
     detail = "read %s" % (", ".join(sorted(seen)) or "no new-website/SKILL.md")
     if shell:
@@ -301,10 +456,13 @@ def check_interview(results):
 def check_scaffold(websites, release, since):
     """The site folder, its root files and its skills; returns (ok, detail, site, deviations)."""
     entries = sorted(e for e in os.listdir(websites) if e != ".agents")
-    if len(entries) != 1 or not os.path.isdir(os.path.join(websites, entries[0])):
-        return False, "the websites folder holds %s, not one new folder" % (entries or "nothing"), None, []
-    site = os.path.join(websites, entries[0])
-    problems, deviations = [], []
+    folders = [e for e in entries if os.path.isdir(os.path.join(websites, e))]
+    strays = [e for e in entries if e not in folders]  # files agy left beside the site: named, not failed
+    deviations = ["files beside the site folder: %s" % ", ".join(strays)] if strays else []
+    if len(folders) != 1:
+        return False, "the websites folder holds %s, not one new folder" % (folders or "no folder"), None, deviations
+    site = os.path.join(websites, folders[0])
+    problems = []
     problems += ["%s missing" % f for f in ROOT_FILES if not os.path.isfile(os.path.join(site, f))]
     names, removed = copy_block(open(os.path.join(release, "skills", "new-website", "SKILL.md")).read())
     rel_skills = os.path.join(release, "skills")
@@ -437,8 +595,12 @@ def scan_secrets(folder):
 # ---------------------------------------------------------------- main
 
 
+BEST_EFFORT = ("The deny-rule bypass check is best-effort: it reads the text of each command step, so a PASS "
+               "is not proof that nothing was committed or deleted.")
+
+
 def main(argv):
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], epilog=BEST_EFFORT)
     ap.add_argument("--zip", required=True)
     ap.add_argument("--sha", required=True)
     ap.add_argument("--out", required=True)
@@ -518,29 +680,51 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
     rc = run_group(cmd, websites, os.path.join(staging, "turns.ndjson"), transcript,
                    os.path.join(staging, "agy-stderr.txt"), deadline)
     after = usage_text(agy, websites)
-    results, tools = parse(transcript)
+    results, tools, inputs = parse(transcript)
     succeeded = sum(1 for r in results if r.get("status") == "SUCCESS")
+    ran = max(len(results), inputs)
+    with open(os.path.join(staging, "agy-stderr.txt"), errors="replace") as f:
+        stderr_text = f.read()
+    capacity = capacity_error(results)
+    judged = not capacity or (bool(results) and results[0].get("status") == "SUCCESS")  # turn 1 finished: its steps are evidence
+    judged_build = not capacity or succeeded >= 2  # turn 2 (the scaffold, npm install, build and test) finished
+    cut = "Google's capacity error stopped the run in turn %d of %d, not Croftweaver" % (ran, len(sent))
 
     lines, fails, code = [], [], 0
     if succeeded == 0 and not tools:
-        err = ([r.get("error") for r in results if r.get("error")] or [open(os.path.join(staging, "agy-stderr.txt"), errors="replace").read().strip()[-300:]])[-1]
-        code, lines = 3, ["Not run: %s" % (err or "agy exit %s" % rc)]
+        err = ([r.get("error") for r in results if r.get("error")] or [stderr_text.strip()[-300:]])[-1]
+        code, lines = 3, ["Not run: %s" % (("Google's capacity error stopped turn %d, not Croftweaver: %s" % (ran, capacity)) if capacity
+                                            else (err or "agy exit %s" % rc))]
     else:
         lines.append("1. Install (all skill folders):    PASS — zip matches SHA256SUMS; skills/ identical to git archive %s" % args.sha)
         ok, d = check_discovery(results, tools, ws_skill)
-        lines.append("2. Discovery (sees new-website):   %s — %s" % ("PASS" if ok else "FAIL", d))
-        fails += [] if ok else ["discovery"]
+        if judged:
+            lines.append("2. Discovery (sees new-website):   %s — %s" % ("PASS" if ok else "FAIL", d))
+            fails += [] if ok else ["discovery"]
+        else:
+            lines.append("2. Discovery (sees new-website):   not judged — %s" % cut)
         site = None
-        if level == "full":
+        if level == "full" and not judged_build:
+            lines.append("3. $SKILLS_ROOT resolved to:       not judged — %s" % cut)
+        elif level == "full":
             ok_s, d_s, site, deviations = check_scaffold(websites, release, args.since)
             lines.append("3. $SKILLS_ROOT resolved to:       %s (the site's skills %s the release's; the copy's source is not claimed)"
                          % (websites + "/.agents/skills", "match" if ok_s else "do not all match"))
         else:
             lines.append("3. $SKILLS_ROOT resolved to:       not run (short check)")
         ok, d = check_interview(results)
-        lines.append("4. \"new website\" starts interview: %s — %s" % ("SEE NOTE" if ok is None else "FAIL", d))
-        fails += [] if ok is None else ["interview"]
-        if level == "full":
+        if judged:
+            lines.append("4. \"new website\" starts interview: %s — %s" % ("SEE NOTE" if ok is None else "FAIL", d))
+            fails += [] if ok is None else ["interview"]
+        else:
+            lines.append("4. \"new website\" starts interview: not judged — %s" % cut)
+        if level == "full" and not judged_build:
+            lines += ["5. Scaffold cp paths (no errors):  not judged — %s" % cut,
+                      "6. Generated site build + tests:   not judged — %s" % cut,
+                      "   First command naming npm test:  %s (matched by its text)" % first_npm_test(tools),
+                      "   Permissions sanity:             not judged — %s" % cut,
+                      "   Commit:                         not judged — %s" % cut]
+        elif level == "full":
             lines.append("5. Scaffold cp paths (no errors):  %s — %s" % ("PASS" if ok_s else "FAIL", d_s))
             fails += [] if ok_s else ["scaffold"]
             changed = check_untouched(site, release) if site else []
@@ -585,11 +769,26 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         lines.append("7. Subagents (async research/seo): %s" % ("YES" if sub else "NO"))
         for w in workarounds(tools):
             lines.append("   Command that failed:            %s" % w)
-        if succeeded < len(sent) or rc != 0:
-            fails.append("agy %d of %d turns, %s" % (succeeded, len(sent), "timed out" if rc is None else "exit %s" % rc))
-            how = "timed out" if rc is None else "exit %s" % rc
+        bypassed, pending = bypasses(tools, deny), bypasses(tools, deny, ("ACTIVE",))
+        if not (deny["git commit"] or deny["rm"]):
+            lines.append("   Deny-rule bypass:               not checked — agy's settings deny neither git commit nor rm")
+        elif bypassed:
+            for n, e, c in bypassed:
+                lines.append("   Deny-rule bypass:               FAIL — step %s was not refused, though it is a %s the settings deny: %s" % (n, e, c))
+            fails.append("deny-rule bypass")
+        elif not pending:
+            lines.append("   Deny-rule bypass:               PASS — no step committed or deleted in a spelling the check knows (best-effort on command text: not proof that nothing was committed or deleted)")
+        for n, e, c in pending:
+            lines.append("   Deny-rule bypass:               not known — step %s (a %s the settings deny) was still running when the run ended: %s" % (n, e, c))
+        how = "timed out" if rc is None else "exit %s" % rc
+        if capacity:
+            lines.append("   agy ran %d of %d turns (%d succeeded); %s: %s" % (ran, len(sent), succeeded, cut, capacity))
+            if not fails and code != 5:
+                code = 3
+        elif succeeded < len(sent) or rc != 0:
+            fails.append("agy ran %d of %d turns, %d succeeded, %s" % (ran, len(sent), succeeded, how))
             if succeeded < len(sent):
-                lines.append("   agy stopped after %d of %d turns (%s)" % (succeeded, len(sent), how))
+                lines.append("   agy ran %d of %d turns (%d succeeded) and stopped (%s)" % (ran, len(sent), succeeded, how))
             else:
                 lines.append("   agy finished all %d turns but ended with %s" % (len(sent), how))
         if code == 0 and fails:
