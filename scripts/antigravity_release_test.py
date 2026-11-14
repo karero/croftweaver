@@ -14,7 +14,8 @@ Maintainer tool for the release runbook; not shipped in the zip. Standard librar
 Exit codes: 0 every checked step passed; 1 a step failed; 2 usage or setup error, or refused;
 3 agy did not run (no turn succeeded and no tool step ran), or Google's capacity error (503) cut
 it off and no step judged before the cut failed; 4 the zip is not the release; 5 the result
-cannot be trusted (agy changed a file the test protects).
+cannot be trusted (agy changed a file the test protects). After a Google 503 the steps that
+turns not finished would have produced are "not judged"; no exit 5 can come from them.
 """
 import argparse
 import hashlib
@@ -274,54 +275,76 @@ CAPACITY = re.compile(r"UNAVAILABLE \(code 503\)[^\n\")]*")  # Google's "no capa
 
 
 def capacity_error(results, stderr):
-    """Google's capacity error text when it ended the run (the last turn failed with it), else None."""
+    """Google's capacity error text when it ended the run, else None. The last turn's own error
+    decides; stderr is read only when that turn named no error, because agy may print a retried 503
+    there before a run that failed for another reason."""
     if not results or results[-1].get("status") == "SUCCESS":
         return None
-    m = CAPACITY.search("%s\n%s" % (results[-1].get("error") or "", stderr))
+    m = CAPACITY.search(results[-1].get("error") or stderr)
     return m.group(0).strip() if m else None
 
 
 GIT_VALUE_OPTIONS = ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--exec-path", "--config-env")
-SEPARATORS = ("&&", "||", ";", "|", "&", "(", ")", ";;", "|&")
+SEPARATORS = ("&&", "||", ";", "|", "&", "(", ")", ";;", "|&", "{", "}", "!")
+PREFIXES = ("sudo", "env", "command", "exec", "nohup", "time", "xargs", "then", "do", "else", "-exec")  # a command may follow these
 DELETERS = ("rm", "rmdir", "unlink", "shred", "trash", "rimraf")
-PY_DELETE = re.compile(r"\b(?:rmtree|os\.(?:remove|unlink|rmdir|removedirs))\b|\.(?:unlink|rmdir)\(")
+DELETE_CALL = re.compile(r"\b(?:rmtree|rmSync|unlinkSync|rmdirSync|os\.(?:remove|unlink|rmdir|removedirs))\b|\.(?:unlink|rmdir)\(")
+GIT_SUBPROCESS = re.compile(r"""['"](?:[^'"]*/)?git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""")
 
 
 def effects(command, depth=0):
-    """What a shell command line does that agy's deny rules for `git commit` and `rm` exist to stop,
-    whatever its spelling: {"commit", "delete"}. Read from the text, so it can over-report (a quoted
-    "rm"); a hit is named in the report for a person to check."""
+    """What a shell command line does that agy's deny rules for `git commit` and `rm` exist to stop:
+    {"commit", "delete"}. It reads the text for the common literal spellings (a command in command
+    position; `git` with its global options; `bash -c` and `python3 -c` strings; `shutil.rmtree`,
+    `fs.rmSync`, `find -delete`, `git clean`), so a spelling it does not know (`g=git; $g commit`,
+    `echo commit | xargs git`) is not seen.
+    `commit` is `git commit` and `commit-tree` only; the other history-changing git commands are
+    other deny rules' business. `--dry-run`, `-h` and `--help` make no commit."""
     try:
         lex = shlex.shlex(command, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
         tokens = list(lex)
     except ValueError:
         tokens = command.split()
-    found = set()
+    found = {"commit"} if GIT_SUBPROCESS.search(command) else set()
+    at_command = True  # the next token can name a command
     for i, tok in enumerate(tokens):
         base = os.path.basename(tok)
-        if base == "git":
+        if tok in SEPARATORS:
+            at_command = True
+            continue
+        if at_command and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tok):
+            continue  # VAR=value before the command
+        if at_command and base == "git":
             j = i + 1
-            while j < len(tokens) and tokens[j] not in SEPARATORS and tokens[j].startswith("-"):
+            while j < len(tokens) and tokens[j].startswith("-"):
                 j += 2 if tokens[j] in GIT_VALUE_OPTIONS else 1
-            if j < len(tokens) and tokens[j] in ("commit", "commit-tree"):
+            rest = []
+            for t in tokens[j + 1:]:
+                if t in SEPARATORS:
+                    break
+                rest.append(t)
+            if j < len(tokens) and tokens[j] in ("commit", "commit-tree") and not {"--dry-run", "-h", "--help"} & set(rest):
                 found.add("commit")
-        if base in DELETERS or tok == "-delete" or PY_DELETE.search(tok):
+            if j < len(tokens) and tokens[j] == "clean":
+                found.add("delete")
+        if (at_command and base in DELETERS) or tok == "-delete" or DELETE_CALL.search(tok):
             found.add("delete")
-        if re.search(r"""['"]git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""", tok):
-            found.add("commit")  # subprocess.run(['git', ..., 'commit'])
-        if depth < 2 and re.search(r"\s", tok) and tok != command:
-            found |= effects(tok, depth + 1)  # bash -c "...", python3 -c "..."
+        if depth < 2 and i and tokens[i - 1] in ("-c", "-lc", "-e") and tok != command:
+            found |= effects(tok, depth + 1)  # bash -c "...", sh -lc "..."
+        at_command = tok in PREFIXES
     return found
 
 
 def bypasses(tools, deny):
-    """The tool steps that went through although agy's settings deny what they do: (step, effect, text)."""
+    """The tool steps that got past agy's permission check although its settings deny what they do:
+    (step, effect, text). A finished step (DONE, or an ERROR that is not a deny-rule refusal) counts;
+    one still ACTIVE when the run ended is not known to have run."""
     want = {"commit": deny["git commit"], "delete": deny["rm"]}
     out = []
     for s in tools:
-        if s.get("tool_name") != "run_command" or s.get("state") == "ERROR":
-            continue  # an ERROR step did not run: a refusal, or a tool failure
+        if s.get("tool_name") != "run_command" or refused(s) or s.get("state") not in ("DONE", "ERROR"):
+            continue
         cmd = tool_param(s, "CommandLine")
         out += [(s.get("step_index"), e, cmd.strip().replace("\n", " ; ")[:100]) for e in sorted(effects(cmd)) if want[e]]
     return out
@@ -599,6 +622,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         stderr_text = f.read()
     capacity = capacity_error(results, stderr_text)
     judged = not capacity or (bool(results) and results[0].get("status") == "SUCCESS")  # turn 1 finished: its steps are evidence
+    judged_build = not capacity or succeeded >= 2  # turn 2 (the scaffold, npm install, build and test) finished
     cut = "Google's capacity error stopped the run in turn %d of %d, not Croftweaver" % (ran, len(sent))
 
     lines, fails, code = [], [], 0
@@ -614,7 +638,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         else:
             lines.append("2. Discovery (sees new-website):   not judged — %s" % cut)
         site = None
-        if level == "full" and capacity:
+        if level == "full" and not judged_build:
             lines.append("3. $SKILLS_ROOT resolved to:       not judged — %s" % cut)
         elif level == "full":
             ok_s, d_s, site, deviations = check_scaffold(websites, release, args.since)
@@ -628,7 +652,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
             fails += [] if ok is None else ["interview"]
         else:
             lines.append("4. \"new website\" starts interview: not judged — %s" % cut)
-        if level == "full" and capacity:
+        if level == "full" and not judged_build:
             lines += ["5. Scaffold cp paths (no errors):  not judged — %s" % cut,
                       "6. Generated site build + tests:   not judged — %s" % cut,
                       "   First command naming npm test:  %s (matched by its text)" % first_npm_test(tools),
@@ -679,14 +703,15 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         lines.append("7. Subagents (async research/seo): %s" % ("YES" if sub else "NO"))
         for w in workarounds(tools):
             lines.append("   Command that failed:            %s" % w)
+        bypassed = bypasses(tools, deny)
         if not (deny["git commit"] or deny["rm"]):
             lines.append("   Deny-rule bypass:               not checked — agy's settings deny neither git commit nor rm")
-        elif bypasses(tools, deny):
-            for n, e, c in bypasses(tools, deny):
+        elif bypassed:
+            for n, e, c in bypassed:
                 lines.append("   Deny-rule bypass:               FAIL — step %s did a %s the settings deny: %s" % (n, e, c))
             fails.append("deny-rule bypass")
         else:
-            lines.append("   Deny-rule bypass:               PASS — no step committed or deleted where the settings deny it")
+            lines.append("   Deny-rule bypass:               PASS — no step committed or deleted in a spelling the check knows (it reads the command text)")
         how = "timed out" if rc is None else "exit %s" % rc
         if capacity:
             lines.append("   agy ran %d of %d turns (%d succeeded); %s: %s" % (ran, len(sent), succeeded, cut, capacity))
