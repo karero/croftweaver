@@ -11,7 +11,8 @@
 # kernel drops it when the holder dies, even on kill -9. macOS has no flock command, so Perl
 # (which ships with macOS) takes it. The file also holds the holder's details, written best
 # effort so a refused run can say who holds the lock. Perl marks the descriptor close-on-exec,
-# so the guards the command starts do not inherit the lock.
+# so the guards the command starts do not inherit the lock; a TERM or HUP sent to this process alone
+# is passed on to the command, so the lock is not freed while the guards still run.
 #
 # CROFTWEAVER_CHECK_LOCK overrides the file's path, for the tests.
 set -u
@@ -61,8 +62,21 @@ my $info = join "", map { my $v = $_; $v =~ s/[[:cntrl:]]//g; "$v\n" }
 sysseek($fh, 0, 0);
 syswrite($fh, $info);
 truncate($fh, length $info);
-my $rc = system { $cmd[0] } @cmd;
-if ($rc == -1) { print STDERR "make check cannot start $cmd[0]: $!\n"; exit 1 }
+my $kid = fork;
+if (!defined $kid) { print STDERR "make check cannot start $cmd[0]: $!\n"; exit 1 }
+if (!$kid) {
+  exec { $cmd[0] } @cmd;
+  print STDERR "make check cannot start $cmd[0]: $!\n";
+  POSIX::_exit(1);
+}
+# TERM and HUP (a plain kill of make reaches only this process) go on to the command, and the lock
+# stays held until it ends. INT and QUIT also reach the command from the terminal, so they are ignored here.
+$SIG{INT} = $SIG{QUIT} = "IGNORE";
+$SIG{TERM} = sub { kill "TERM", $kid };
+$SIG{HUP}  = sub { kill "HUP", $kid };
+my $w;
+do { $w = waitpid($kid, 0) } while ($w == -1 && $!{EINTR});
+my $rc = $?;
 exit(128 + ($rc & 127)) if $rc & 127;
 exit($rc >> 8);
 ' -- "$lock" "$@"

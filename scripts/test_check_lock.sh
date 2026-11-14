@@ -7,6 +7,8 @@
 # seven at once pushed this Mac's load past what the browser tests survive. The lock is only
 # worth having if the real `make check` goes through it, so every case enters the way production
 # does: it runs `make check` (or `make package`) in a copy of the real Makefile and check_lock.sh.
+# The exceptions are the unit-level cases (T6's exit status, T8's signal forwarding), which run the
+# script directly beside the case that goes through make.
 # In the copy the first guard, scripts/check_clean.sh, is a stub that writes a marker file and
 # fails, so no case runs the real guards or recurses into this test.
 #
@@ -33,6 +35,8 @@ cleanup() {
   rm -rf "$T"
 }
 trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 command -v perl >/dev/null 2>&1 || { echo "FAIL — perl is needed: check_lock.sh takes its lock with it."; exit 1; }
 command -v make >/dev/null 2>&1 || { echo "FAIL — make is needed."; exit 1; }
 
@@ -181,6 +185,38 @@ if wait_holder "$DL" "$h"; then
     ok "T7 two copies with different TMPDIR and XDG_CACHE_HOME share one default lock under HOME"
   else
     fail "T7 the default lock path is not shared (exit $m_rc, marker $([ -e "$B7/marker" ] && echo written || echo absent)): $m_out"
+  fi
+fi
+
+# --- T8: a TERM to the lock holder alone reaches the command and frees the lock after it ends ----
+# A plain kill of the outer make reaches only the process holding the lock. If it died at once, the
+# guards would run on with the lock free.
+ended() { local s; s="$(ps -o stat= -p "$1" 2>/dev/null)"; case "$s" in ""|Z*) return 0 ;; *) return 1 ;; esac; }
+L8="$T/t8.lock"
+start_holder "$A" local_t8_session CROFTWEAVER_CHECK_LOCK="$L8"
+if wait_holder "$L8" "$h"; then
+  kid=""
+  for i in $(seq 1 100); do kid="$(pgrep -P "$h" | sed -n 1p)"; [ -n "$kid" ] && break; sleep 0.1; done
+  if [ -z "$kid" ]; then
+    fail "T8 the holder started no command (no child of pid $h)"
+  else
+    kill -TERM "$h"
+    for i in $(seq 1 100); do ended "$h" && break; sleep 0.1; done
+    if ended "$h" && ! kill -0 "$kid" 2>/dev/null; then
+      { wait "$h"; } 2>/dev/null
+      rm -f "$B/marker"
+      run_make "$B" check CROFTWEAVER_CHECK_LOCK="$L8" CHECK_STUB_MARKER="$B/marker"
+      if [ -e "$B/marker" ] && case "$m_out" in *"Error 75"*|*"refused"*) false ;; *) true ;; esac; then
+        ok "T8 a TERM to the holder alone ends its command too, and the lock is free after"
+      else
+        fail "T8 the lock was not free after the holder ended (exit $m_rc): $m_out"
+      fi
+    else
+      hend=no; ended "$h" && hend=yes
+      krun=no; kill -0 "$kid" 2>/dev/null && krun=yes
+      kill -KILL "$kid" 2>/dev/null
+      fail "T8 after TERM to the holder alone: holder ended=$hend, its command (pid $kid) still running=$krun"
+    fi
   fi
 fi
 
