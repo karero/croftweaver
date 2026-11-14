@@ -15,7 +15,8 @@ Exit codes: 0 every checked step passed; 1 a step failed; 2 usage or setup error
 3 agy did not run (no turn succeeded and no tool step ran), or Google's capacity error (503) cut
 it off and no step judged before the cut failed; 4 the zip is not the release; 5 the result
 cannot be trusted (agy changed a file the test protects). After a Google 503 the steps that
-turns not finished would have produced are "not judged"; a trust failure in the turns that finished still gives exit 5.
+turns not finished would have produced are "not judged"; a trust failure found in the build turn,
+when it finished, still gives exit 5.
 """
 import argparse
 import hashlib
@@ -288,47 +289,60 @@ SEPARATORS = ("&&", "||", ";", "|", "&", "(", ")", ";;", "|&", "{", "}", "!")
 PREFIXES = ("sudo", "env", "command", "exec", "nohup", "time", "xargs", "then", "do", "else", "-exec")  # a command may follow these
 DELETERS = ("rm", "rmdir", "unlink", "shred", "trash", "rimraf")
 DELETE_CALL = re.compile(r"(?:\b(?:rmtree|rmSync|unlinkSync|rmdirSync|os\.(?:remove|unlink|rmdir|removedirs))|\.(?:unlink|rmdir))\s*\(")
-INTERPRETER = re.compile(r"python[\d.]*|node(?:js)?|perl|ruby|deno|bun")  # code run by these is read for delete and commit calls
-COMMIT_VALUE_OPTIONS = ("-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author", "--date", "--template",
-                        "--reuse-message", "--reedit-message", "--fixup", "--squash", "--cleanup")
+INTERPRETER = re.compile(r"python[\d.]*|node(?:js)?|perl|ruby|deno|bun")
+SHELL = re.compile(r"bash|sh|zsh|dash|ksh")
+COMMIT_VALUE_OPTIONS = ("-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author", "--date", "--template", "--reuse-message",
+                        "--reedit-message", "--fixup", "--squash", "--cleanup", "--pathspec-from-file", "--trailer")
+CLEAN_VALUE_OPTIONS = ("-e", "--exclude")
 NO_EFFECT = ("--dry-run", "-h", "--help")
+GIT_SUBPROCESS = re.compile(r"""['"](?:[^'"]*/)?git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""")
+HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n(.*?)\n[ \t]*\2[ \t]*(?:\n|$)", re.S)
 
 
-def commit_makes_no_commit(rest):
-    """`git commit` options that make no commit (--dry-run, -h, --help), as options and not as the
-    value of -m and the like or after `--`."""
+def has_option(rest, value_options, hit):
+    """True if a token of `rest` for which hit() holds is an option of the git command: not the value
+    of one of value_options (alone or last in a short cluster such as -am) and not after `--`."""
     skip = False
     for t in rest:
         if skip:
             skip = False
         elif t == "--":
             return False
-        elif t in NO_EFFECT:
+        elif hit(t):
             return True
-        elif t in COMMIT_VALUE_OPTIONS or (re.fullmatch(r"-[A-Za-z]{2,}", t) and t[-1] in "mFCct"):
+        elif t in value_options or (re.fullmatch(r"-[A-Za-z]{2,}", t) and "-" + t[-1] in value_options):
             skip = True
     return False
-GIT_SUBPROCESS = re.compile(r"""['"](?:[^'"]*/)?git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""")
+
+
+def code_effects(code):
+    """The commit and delete calls in a program's text (a Python `subprocess.run(['git', 'commit'])`,
+    `shutil.rmtree(`, Node's `fs.rmSync(`)."""
+    return ({"commit"} if GIT_SUBPROCESS.search(code) else set()) | ({"delete"} if DELETE_CALL.search(code) else set())
 
 
 def effects(command, depth=0):
     """What a shell command line does that agy's deny rules for `git commit` and `rm` exist to stop:
-    {"commit", "delete"}. It reads the text for the common literal spellings (a command in command
-    position; `git` with its global options; `bash -c` and `python3 -c` strings; `shutil.rmtree`,
-    `fs.rmSync`, `find -delete`, `git clean`), so a spelling it does not know (`g=git; $g commit`,
-    `echo commit | xargs git`) is not seen. Interpreter code is read only when an interpreter runs
-    (`python3`, `node`, ...), so `echo shutil.rmtree` is clean and a heredoc body is read as shell.
-    `commit` is `git commit` and `commit-tree` only; `git rm`, `npm rm` and the other history-changing
-    git commands are other deny rules' business. `git commit --dry-run` and `git clean -n` do nothing."""
-    text = command.replace("\\\n", " ").replace("\n", " ; ")  # a newline ends a command like `;`
+    {"commit", "delete"}. It reads the text for the common literal spellings: a command in command
+    position; `git` with its global options; the code string of `bash -c` and of `python3 -c` or
+    `node -e`, and a heredoc body given to an interpreter or a shell; `shutil.rmtree(`, `fs.rmSync(`,
+    `find -delete`, `git clean`. A spelling it does not know (`g=git; $g commit`, `echo commit | xargs
+    git`, `os.system("git commit")`) is not seen, and a program that only prints `shutil.rmtree(x)`
+    is over-seen: the report quotes the command for a person to read. `commit` is `git commit` and
+    `commit-tree` only; `git rm`, `npm rm` and the other history-changing git commands are other deny
+    rules' business. `git commit --dry-run` and `git clean -n` do nothing."""
+    bodies = [m.group(3) for m in HEREDOC.finditer(command)]
+    text = HEREDOC.sub(lambda m: m.group(0).split("\n", 1)[0] + "\n", command)
+    text = text.replace("\\\n", "").replace("\n", " ; ")  # a line continuation joins, a newline ends a command like `;`
     try:
         lex = shlex.shlex(text, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
+        lex.commenters = ""
         tokens = list(lex)
     except ValueError:
         tokens = text.split()
-    found = set()
-    interpreter = False
+    found, owners = set(), set()
+    cmd = ""  # the command the current token belongs to
     at_command = True  # the next token can name a command
     for i, tok in enumerate(tokens):
         base = os.path.basename(tok)
@@ -337,8 +351,9 @@ def effects(command, depth=0):
             continue
         if at_command and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tok):
             continue  # VAR=value before the command
-        if at_command and INTERPRETER.fullmatch(base):
-            interpreter = True
+        if at_command:
+            cmd = base
+            owners |= {"shell"} if SHELL.fullmatch(base) else {"code"} if INTERPRETER.fullmatch(base) else set()
         if at_command and base == "git":
             j = i + 1
             while j < len(tokens) and tokens[j].startswith("-"):
@@ -348,31 +363,36 @@ def effects(command, depth=0):
                 if t in SEPARATORS:
                     break
                 rest.append(t)
-            if j < len(tokens) and tokens[j] in ("commit", "commit-tree") and not commit_makes_no_commit(rest):
+            sub = tokens[j] if j < len(tokens) else ""
+            if sub in ("commit", "commit-tree") and not has_option(rest, COMMIT_VALUE_OPTIONS, NO_EFFECT.__contains__):
                 found.add("commit")
-            if j < len(tokens) and tokens[j] == "clean" and not any(t in NO_EFFECT or re.fullmatch(r"-[A-Za-z]*n[A-Za-z]*", t) for t in rest):
+            if sub == "clean" and not has_option(rest, CLEAN_VALUE_OPTIONS, lambda t: t in NO_EFFECT or re.fullmatch(r"-[A-Za-z]*n[A-Za-z]*", t)):
                 found.add("delete")
         if (at_command and base in DELETERS) or tok == "-delete":
             found.add("delete")
-        if depth < 2 and i and tokens[i - 1] in ("-c", "-lc") and tok != command:
+        prev = tokens[i - 1] if i else ""
+        if depth < 2 and SHELL.fullmatch(cmd) and prev in ("-c", "-lc"):
             found |= effects(tok, depth + 1)  # bash -c "...", sh -lc "..."
+        if INTERPRETER.fullmatch(cmd) and prev in ("-c", "-e", "-p", "-pe", "-E"):
+            found |= code_effects(tok)  # python3 -c "...", node -e "..."
         at_command = tok in PREFIXES
-    if interpreter:
-        if GIT_SUBPROCESS.search(command):
-            found.add("commit")
-        if DELETE_CALL.search(command):
-            found.add("delete")
+    for body in bodies:
+        if "shell" in owners and depth < 2:
+            found |= effects(body, depth + 1)
+        if "code" in owners:
+            found |= code_effects(body)
     return found
 
 
-def bypasses(tools, deny):
-    """The tool steps that got past agy's permission check although its settings deny what they do:
-    (step, effect, text). A finished step (DONE, or an ERROR that is not a deny-rule refusal) counts;
-    one still ACTIVE when the run ended is not known to have run."""
+def bypasses(tools, deny, states=("DONE", "ERROR")):
+    """The tool steps in one of `states` that agy's permission check did not refuse although its
+    settings deny what they do: (step, effect, text). The deny rule is that check, so an ERROR that
+    is not a refusal (the command ran and failed) still got past it. A step still ACTIVE when the run
+    ended is asked for apart (states=("ACTIVE",)): it is not known to have run."""
     want = {"commit": deny["git commit"], "delete": deny["rm"]}
     out = []
     for s in tools:
-        if s.get("tool_name") != "run_command" or refused(s) or s.get("state") not in ("DONE", "ERROR"):
+        if s.get("tool_name") != "run_command" or refused(s) or s.get("state") not in states:
             continue
         cmd = tool_param(s, "CommandLine")
         out += [(s.get("step_index"), e, cmd.strip().replace("\n", " ; ")[:100]) for e in sorted(effects(cmd)) if want[e]]
@@ -657,7 +677,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
     lines, fails, code = [], [], 0
     if succeeded == 0 and not tools:
         err = ([r.get("error") for r in results if r.get("error")] or [stderr_text.strip()[-300:]])[-1]
-        code, lines = 3, ["Not run: %s" % (("Google's capacity error stopped turn 1, not Croftweaver: %s" % capacity) if capacity
+        code, lines = 3, ["Not run: %s" % (("Google's capacity error stopped turn %d, not Croftweaver: %s" % (ran, capacity)) if capacity
                                             else (err or "agy exit %s" % rc))]
     else:
         lines.append("1. Install (all skill folders):    PASS — zip matches SHA256SUMS; skills/ identical to git archive %s" % args.sha)
@@ -733,13 +753,16 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         lines.append("7. Subagents (async research/seo): %s" % ("YES" if sub else "NO"))
         for w in workarounds(tools):
             lines.append("   Command that failed:            %s" % w)
-        bypassed = bypasses(tools, deny)
+        bypassed, pending = bypasses(tools, deny), bypasses(tools, deny, ("ACTIVE",))
         if not (deny["git commit"] or deny["rm"]):
             lines.append("   Deny-rule bypass:               not checked — agy's settings deny neither git commit nor rm")
         elif bypassed:
             for n, e, c in bypassed:
                 lines.append("   Deny-rule bypass:               FAIL — step %s did a %s the settings deny: %s" % (n, e, c))
             fails.append("deny-rule bypass")
+        elif pending:
+            for n, e, c in pending:
+                lines.append("   Deny-rule bypass:               not known — step %s (a %s the settings deny) was still running when the run ended: %s" % (n, e, c))
         else:
             lines.append("   Deny-rule bypass:               PASS — no step committed or deleted in a spelling the check knows (it reads the command text)")
         how = "timed out" if rc is None else "exit %s" % rc
