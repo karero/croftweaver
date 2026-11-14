@@ -10,9 +10,10 @@
 # for a lockfile root that differs, for a missing Astro entry, a missing file or a JSON file that is not
 # an object, for a phrase that is missing, doubled or split over lines, for an .nvmrc or CI major no
 # alternative admits, for a CI major that differs from .nvmrc's, and for a change of the set of Node
-# lines (one more, one fewer, or one widened with ">="), and that it stays green when the starter is stricter than Astro and the docs follow. It enters
-# the way make check and CI do: it runs the guard script, which finds its files from where it sits, so
-# each copy is laid out as the handoff zip is (no repo-root .github/, no packages/, no git).
+# lines (one more, one fewer, or one widened with ">="), and that it stays green when the starter is
+# stricter than Astro and the docs follow. It enters the way make check and CI do: it runs the guard
+# script, which finds its files from where it sits, so each copy is laid out as the handoff zip is
+# (no repo-root .github/, no packages/, no git).
 #
 # The versions in the cases are read from the real package.json, so a Node security release that moves a
 # version in the range changes ONE line here, EXPECTED_RANGE, which pins the real range on purpose (a
