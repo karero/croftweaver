@@ -181,6 +181,26 @@ jobs:
         run: bash scripts/check_node_floor.sh
       - name: Check the guard fails on each way the floor can drift
         run: bash scripts/test_node_floor.sh
+  starter-node-24:
+    # The starter's .nvmrc and ci.yml are on Node 26, but its engines still admit 24, and a site
+    # owner may run it. This installs, type-checks and builds the starter on 24, so a change that
+    # needs 26 fails here and not on a site.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+      - name: Stop unless this really is Node 24
+        run: node -e 'process.exit(process.versions.node.split(".")[0] === "24" ? 0 : 1)' || { echo "::error::this job is meant to run Node 24, not $(node -v)"; exit 1; }
+      - name: Install, type-check and build the starter
+        run: |
+          cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
+          cd "$RUNNER_TEMP/starter"
+          npm ci --no-audit --no-fund
+          npm run check
+          npm run build
   skill-budgets:
     runs-on: ubuntu-latest
     steps:
