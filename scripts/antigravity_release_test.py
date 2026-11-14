@@ -15,7 +15,7 @@ Exit codes: 0 every checked step passed; 1 a step failed; 2 usage or setup error
 3 agy did not run (no turn succeeded and no tool step ran), or Google's capacity error (503) cut
 it off and no step judged before the cut failed; 4 the zip is not the release; 5 the result
 cannot be trusted (agy changed a file the test protects). After a Google 503 the steps that
-turns not finished would have produced are "not judged"; no exit 5 can come from them.
+turns not finished would have produced are "not judged"; a trust failure in the turns that finished still gives exit 5.
 """
 import argparse
 import hashlib
@@ -274,13 +274,12 @@ def refused(step):
 CAPACITY = re.compile(r"UNAVAILABLE \(code 503\)[^\n\")]*")  # Google's "no capacity", as agy 1.4.9 and 1.5.9 print it
 
 
-def capacity_error(results, stderr):
-    """Google's capacity error text when it ended the run, else None. The last turn's own error
-    decides; stderr is read only when that turn named no error, because agy may print a retried 503
-    there before a run that failed for another reason."""
+def capacity_error(results):
+    """Google's capacity error text when it ended the run, else None. Only the last turn's own error
+    counts: agy may print a retried 503 to stderr before a run that failed for another reason."""
     if not results or results[-1].get("status") == "SUCCESS":
         return None
-    m = CAPACITY.search(results[-1].get("error") or stderr)
+    m = CAPACITY.search(results[-1].get("error") or "")
     return m.group(0).strip() if m else None
 
 
@@ -288,7 +287,27 @@ GIT_VALUE_OPTIONS = ("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--s
 SEPARATORS = ("&&", "||", ";", "|", "&", "(", ")", ";;", "|&", "{", "}", "!")
 PREFIXES = ("sudo", "env", "command", "exec", "nohup", "time", "xargs", "then", "do", "else", "-exec")  # a command may follow these
 DELETERS = ("rm", "rmdir", "unlink", "shred", "trash", "rimraf")
-DELETE_CALL = re.compile(r"\b(?:rmtree|rmSync|unlinkSync|rmdirSync|os\.(?:remove|unlink|rmdir|removedirs))\b|\.(?:unlink|rmdir)\(")
+DELETE_CALL = re.compile(r"(?:\b(?:rmtree|rmSync|unlinkSync|rmdirSync|os\.(?:remove|unlink|rmdir|removedirs))|\.(?:unlink|rmdir))\s*\(")
+INTERPRETER = re.compile(r"python[\d.]*|node(?:js)?|perl|ruby|deno|bun")  # code run by these is read for delete and commit calls
+COMMIT_VALUE_OPTIONS = ("-m", "-F", "-C", "-c", "-t", "--message", "--file", "--author", "--date", "--template",
+                        "--reuse-message", "--reedit-message", "--fixup", "--squash", "--cleanup")
+NO_EFFECT = ("--dry-run", "-h", "--help")
+
+
+def commit_makes_no_commit(rest):
+    """`git commit` options that make no commit (--dry-run, -h, --help), as options and not as the
+    value of -m and the like or after `--`."""
+    skip = False
+    for t in rest:
+        if skip:
+            skip = False
+        elif t == "--":
+            return False
+        elif t in NO_EFFECT:
+            return True
+        elif t in COMMIT_VALUE_OPTIONS or (re.fullmatch(r"-[A-Za-z]{2,}", t) and t[-1] in "mFCct"):
+            skip = True
+    return False
 GIT_SUBPROCESS = re.compile(r"""['"](?:[^'"]*/)?git['"]\s*,\s*(?:['"][^'"]*['"]\s*,\s*)*['"]commit['"]""")
 
 
@@ -297,16 +316,19 @@ def effects(command, depth=0):
     {"commit", "delete"}. It reads the text for the common literal spellings (a command in command
     position; `git` with its global options; `bash -c` and `python3 -c` strings; `shutil.rmtree`,
     `fs.rmSync`, `find -delete`, `git clean`), so a spelling it does not know (`g=git; $g commit`,
-    `echo commit | xargs git`) is not seen.
-    `commit` is `git commit` and `commit-tree` only; the other history-changing git commands are
-    other deny rules' business. `--dry-run`, `-h` and `--help` make no commit."""
+    `echo commit | xargs git`) is not seen. Interpreter code is read only when an interpreter runs
+    (`python3`, `node`, ...), so `echo shutil.rmtree` is clean and a heredoc body is read as shell.
+    `commit` is `git commit` and `commit-tree` only; `git rm`, `npm rm` and the other history-changing
+    git commands are other deny rules' business. `git commit --dry-run` and `git clean -n` do nothing."""
+    text = command.replace("\\\n", " ").replace("\n", " ; ")  # a newline ends a command like `;`
     try:
-        lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lex = shlex.shlex(text, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
         tokens = list(lex)
     except ValueError:
-        tokens = command.split()
-    found = {"commit"} if GIT_SUBPROCESS.search(command) else set()
+        tokens = text.split()
+    found = set()
+    interpreter = False
     at_command = True  # the next token can name a command
     for i, tok in enumerate(tokens):
         base = os.path.basename(tok)
@@ -315,6 +337,8 @@ def effects(command, depth=0):
             continue
         if at_command and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*=.*", tok):
             continue  # VAR=value before the command
+        if at_command and INTERPRETER.fullmatch(base):
+            interpreter = True
         if at_command and base == "git":
             j = i + 1
             while j < len(tokens) and tokens[j].startswith("-"):
@@ -324,15 +348,20 @@ def effects(command, depth=0):
                 if t in SEPARATORS:
                     break
                 rest.append(t)
-            if j < len(tokens) and tokens[j] in ("commit", "commit-tree") and not {"--dry-run", "-h", "--help"} & set(rest):
+            if j < len(tokens) and tokens[j] in ("commit", "commit-tree") and not commit_makes_no_commit(rest):
                 found.add("commit")
-            if j < len(tokens) and tokens[j] == "clean":
+            if j < len(tokens) and tokens[j] == "clean" and not any(t in NO_EFFECT or re.fullmatch(r"-[A-Za-z]*n[A-Za-z]*", t) for t in rest):
                 found.add("delete")
-        if (at_command and base in DELETERS) or tok == "-delete" or DELETE_CALL.search(tok):
+        if (at_command and base in DELETERS) or tok == "-delete":
             found.add("delete")
-        if depth < 2 and i and tokens[i - 1] in ("-c", "-lc", "-e") and tok != command:
+        if depth < 2 and i and tokens[i - 1] in ("-c", "-lc") and tok != command:
             found |= effects(tok, depth + 1)  # bash -c "...", sh -lc "..."
         at_command = tok in PREFIXES
+    if interpreter:
+        if GIT_SUBPROCESS.search(command):
+            found.add("commit")
+        if DELETE_CALL.search(command):
+            found.add("delete")
     return found
 
 
@@ -620,7 +649,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
     ran = max(len(results), inputs)
     with open(os.path.join(staging, "agy-stderr.txt"), errors="replace") as f:
         stderr_text = f.read()
-    capacity = capacity_error(results, stderr_text)
+    capacity = capacity_error(results)
     judged = not capacity or (bool(results) and results[0].get("status") == "SUCCESS")  # turn 1 finished: its steps are evidence
     judged_build = not capacity or succeeded >= 2  # turn 2 (the scaffold, npm install, build and test) finished
     cut = "Google's capacity error stopped the run in turn %d of %d, not Croftweaver" % (ran, len(sent))
@@ -628,7 +657,8 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
     lines, fails, code = [], [], 0
     if succeeded == 0 and not tools:
         err = ([r.get("error") for r in results if r.get("error")] or [stderr_text.strip()[-300:]])[-1]
-        code, lines = 3, ["Not run: %s" % (err or "agy exit %s" % rc)]
+        code, lines = 3, ["Not run: %s" % (("Google's capacity error stopped turn 1, not Croftweaver: %s" % capacity) if capacity
+                                            else (err or "agy exit %s" % rc))]
     else:
         lines.append("1. Install (all skill folders):    PASS — zip matches SHA256SUMS; skills/ identical to git archive %s" % args.sha)
         ok, d = check_discovery(results, tools, ws_skill)
@@ -715,7 +745,7 @@ def run(args, agy, level, why, version, deny, global_note, release_src, digest, 
         how = "timed out" if rc is None else "exit %s" % rc
         if capacity:
             lines.append("   agy ran %d of %d turns (%d succeeded); %s: %s" % (ran, len(sent), succeeded, cut, capacity))
-            if not fails:
+            if not fails and code != 5:
                 code = 3
         elif succeeded < len(sent) or rc != 0:
             fails.append("agy ran %d of %d turns, %d succeeded, %s" % (ran, len(sent), succeeded, how))
