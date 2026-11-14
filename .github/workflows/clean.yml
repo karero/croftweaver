@@ -193,7 +193,8 @@ jobs:
           node-version: 24
           check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
       - name: Stop unless this really is Node 24
-        run: node -e 'process.exit(process.versions.node.split(".")[0] === "24" ? 0 : 1)' || { echo "::error::this job is meant to run Node 24, not $(node -v)"; exit 1; }
+        run: |
+          node -e 'process.exit(process.versions.node.split(".")[0] === "24" ? 0 : 1)' || { echo "::error::this job is meant to run Node 24, not $(node -v)"; exit 1; }
       - name: Install, type-check and build the starter
         run: |
           cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
