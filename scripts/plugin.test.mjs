@@ -496,7 +496,7 @@ test('the workflow moves stable to a release that is on main, forward only', () 
 // docs/reviews/SKILL-PLAN-directory-plugin-folder.md. The lists below are written here, not
 // read from scripts/build_directory_tree.sh, so a wrong list in the script fails.
 const DIRECTORY_FILES = ['.claude-plugin/icon.png', '.claude-plugin/plugin.json', '.gitattributes', 'LICENSE', 'README.md', 'SECURITY.md',
-  'THIRD-PARTY-LICENSES.md', 'docs/CLOUDFLARE-CHECKLIST.md', 'docs/PAGES-OR-WORKERS.md', 'docs/WHAT-THE-SKILLS-RUN.md'];
+  'THIRD-PARTY-LICENSES.md', 'docs/CLOUDFLARE-CHECKLIST.md', 'docs/MOVE-TO-WORKERS.md', 'docs/PAGES-OR-WORKERS.md', 'docs/WHAT-THE-SKILLS-RUN.md'];
 const DIRECTORY_DROPS = ['skills/independent-review/', 'skills/facts-check/scripts/tests/', 'skills/new-website/scripts/tests/',
   'skills/search-console-insights/scripts/tests/', 'skills/website-brand-kit/scripts/tests/'];
 const TEST_FOLDERS = DIRECTORY_DROPS.filter((d) => d.endsWith('/scripts/tests/')).map((d) => d.split('/')[1]);

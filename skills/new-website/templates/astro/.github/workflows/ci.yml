@@ -2,7 +2,7 @@ name: CI
 # Runs astro check (strict TS) + the full quality harness (tests/*.spec.ts: a11y, seo,
 # navigation, images, tone and the rest) against a production build. A red check blocks the
 # merge — the point. Needs a committed package-lock.json (npm ci).
-# node-version 24: keep in sync with .nvmrc. The Node floor is in package.json's engines.
+# node-version 26: keep in sync with .nvmrc. The Node floor is in package.json's engines.
 on:
   push:
     branches: [main, production]
@@ -129,7 +129,7 @@ jobs:
         run: bash tests/check_ship_push.sh
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
           check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
           cache: npm
       - run: npm ci

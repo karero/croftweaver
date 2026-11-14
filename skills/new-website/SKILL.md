@@ -42,6 +42,8 @@ Everything needed is bundled here:
 - `templates/positioning.md`, `templates/content-guide.md`, `templates/brand.md` — the per-site docs.
 - `references/WEBSITE_ARCHITECTURE.md` (bundled with this skill) — the Cloudflare
   **tier 1/2/3** decision tree + limits (the tiers are also summarized in §1, question 2).
+- `docs/MOVE-TO-WORKERS.md` (in the Croftweaver folder) — the owner's guide to moving a live Pages site to a
+  Worker; `references/CLOUDFLARE_MOVE.md` is your own page for it. Start with the guide when asked to "move my site to Workers".
 
 Sibling skills (run in order, each usable on its own):
 `website-positioning` · `website-content-guide` · `website-seo-geo` ·
@@ -494,7 +496,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch.
    **This starter needs Node ≥22.23.4**, and Node's current security fixes are in 22.23.4, 24.22.1 and 26.12.1 (one per line).
-   The overlay's `.nvmrc` pins 24 for local + Cloudflare's builds. If `npm install` prints
+   The overlay's `.nvmrc` pins 26 for local + Cloudflare's builds. If `npm install` prints
    `EBADENGINE` for the site's own package (the `name@version` in the site's `package.json`, whatever the
    owner named it) and `node`, stop and have the owner update Node (SETUP.md) before going on; a warning
    for another package is not this.

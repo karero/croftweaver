@@ -146,6 +146,7 @@ and it is his to approve.
 | 19 | `engines` gains `\|\| ^25.9.0` | `make check` | red: "engines names 4 lines, the docs list 3" (G5) |
 | 20 | `engines` drops `^24.22.1` | `make check` | red (G5), not a docs list that claims a line npm no longer allows |
 | 21 | `.nvmrc` says `v24` or `lts/*` | `make check` | red: "cannot read" (G4) |
+| 22 | `.nvmrc` says an admitted major (24) while the starter's `ci.yml` and G6 say another (26) | `make check` | red: "node-version is Node 26 but .nvmrc says Node 24" (G4) |
 
 Measured on 2026-10-22 with npm 11.20.0 on Node 26.12.0 (commands: `npm install --package-lock-only
 --ignore-scripts --no-audit --no-fund --offline` in a copy of the starter): with `engines.node` set to

@@ -14,7 +14,7 @@ name: clean
 # REQUIRED, or dropped by one of its -x patterns, so the guards would name it inside the
 # unzipped zip but the zip would lack it (see scripts/check_package_scripts.sh and its test) —
 # if the starter's Node floor drifts from Astro's (its engines inside Astro's range, the
-# lockfile and the docs' phrases agreeing, the set of Node lines pinned: see scripts/check_node_floor.sh and
+# lockfile and the docs' phrases agreeing, .nvmrc and ci.yml on one major, the set of Node lines pinned: see scripts/check_node_floor.sh and
 # its test), or if a skill's frontmatter description exceeds the skill-spec hard
 # limit: limit values, the shrink-only allowlist for pre-existing overages, and the
 # warn-only SKILL.md line budget all live in scripts/check_skill_budgets.sh. It also runs
@@ -181,6 +181,27 @@ jobs:
         run: bash scripts/check_node_floor.sh
       - name: Check the guard fails on each way the floor can drift
         run: bash scripts/test_node_floor.sh
+  starter-node-24:
+    # The starter's .nvmrc and ci.yml are on Node 26, but its engines still admit 24, and a site
+    # owner may run it. This installs, type-checks and builds the starter on 24, so a change that
+    # needs 26 fails here and not on a site.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+      - name: Stop unless this really is Node 24
+        run: |
+          node -e 'process.exit(process.versions.node.split(".")[0] === "24" ? 0 : 1)' || { echo "::error::this job is meant to run Node 24, not $(node -v)"; exit 1; }
+      - name: Install, type-check and build the starter
+        run: |
+          cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
+          cd "$RUNNER_TEMP/starter"
+          npm ci --no-audit --no-fund
+          npm run check
+          npm run build
   skill-budgets:
     runs-on: ubuntu-latest
     steps:
@@ -478,7 +499,7 @@ jobs:
         run: make test-agy-release PYTHON=python
   cloudflare-check-tests:
     # Node's standard library only, so nothing is installed. 18 is the oldest Node the scripts
-    # promise, 24 is the one the template pins and a site is built with; Windows runs the same
+    # promise, 26 is the one the template pins and a site is built with; Windows runs the same
     # files, since the scripts are started by a path there too. The check's tests make their
     # own certificate with openssl, which bash on the Windows runner has; the setup script's
     # tests make git repositories, and one of them waits out the script's 55-second deadline; the move script's tests also build a small site with npm.
@@ -490,7 +511,8 @@ jobs:
           - { os: ubuntu-latest, node: '20' }
           - { os: ubuntu-latest, node: '22' }
           - { os: ubuntu-latest, node: '24' }
-          - { os: windows-latest, node: '24' }
+          - { os: ubuntu-latest, node: '26' }
+          - { os: windows-latest, node: '26' }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

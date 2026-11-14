@@ -67,7 +67,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
-              skills/new-website/templates/astro/*|skills/new-website/scripts/tests/make-icons.test.mjs|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-hero-carousel/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|scripts/test_served_build.sh|.github/workflows/template-tests.yml) run=true ;;
+              skills/new-website/templates/astro/*|skills/new-website/scripts/tests/make-icons.test.mjs|skills/new-website/scripts/tests/test_og_fonts.py|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-hero-carousel/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|scripts/test_served_build.sh|.github/workflows/template-tests.yml) run=true ;;
               \"*) run=true ;;
             esac
           done <<EOF
@@ -779,6 +779,15 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           python -m pip install Pillow
+      # The installer test below runs the generator only with a font installed; this checks the no-font stop.
+      - name: Share-card fonts (skills/new-website/scripts/tests/test_og_fonts.py)
+        working-directory: .
+        env:
+          OG_FONTS_REQUIRE_FONT: "1"
+        # A listed font, installed here rather than assumed from the runner image.
+        run: |
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core
+          python skills/new-website/scripts/tests/test_og_fonts.py
       - name: Icons, as setup makes them (SITE.name set, then scripts/make-icons.mjs --setup)
         working-directory: ${{ runner.temp }}/site
         run: |

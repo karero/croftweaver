@@ -541,7 +541,7 @@ scripts/
   check_template_coverage.sh  every astro template file is bucketed for drift tracking (make check)
   check_package_scripts.sh  every shell script under scripts/ ships in the handoff zip: in package.sh's zip -r line and REQUIRED (make check)
   test_check_package_scripts.sh  the package-scripts check goes red for a script left out, dropped by -x, or gone (make check)
-  check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree (make check)
+  check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree, .nvmrc and ci.yml on one major (make check)
   test_node_floor.sh        the Node-floor check goes red for each way the floor can drift (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
@@ -561,6 +561,7 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
   GETTING-STARTED.md   the gentle version — start here if the suite is new to you
   UPGRADING.md     upgrading a built site's Astro version (whats-new.sh points here)
   CLOUDFLARE-CHECKLIST.md  the Cloudflare settings a site relies on (HTTPS, privacy, search and AI visibility), each with its dashboard path, and an outside check where one exists
+  MOVE-TO-WORKERS.md  moving a live Pages site to a Worker: what you do, what your assistant does, how to go back
   ANTIGRAVITY.md   using the suite with Google Antigravity
   CODEX.md         using the suite with OpenAI Codex
   ANTIGRAVITY-TEST.md  testing the suite itself with Antigravity

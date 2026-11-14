@@ -92,7 +92,7 @@ npx playwright install chromium        # per machine, once
 > site's `package.json` makes npm warn when its Node is older than that. After installing, and
 > if Node is already on your computer, run `node --version` and update it the way you
 > installed it when it is older. The repo's
-> `.nvmrc` pins 24 for local + Cloudflare's builds. On **npm ≥11.16**, `npm install` warns
+> `.nvmrc` pins 26 for local + Cloudflare's builds. On **npm ≥11.16**, `npm install` warns
 > "packages have install scripts not yet covered" for scripts it hasn't been told to trust
 > — per npm's own docs this is currently advisory only (the scripts still run; a future
 > npm release will start blocking them). The starter's `package.json` already decides the

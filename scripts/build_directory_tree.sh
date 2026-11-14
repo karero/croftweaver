@@ -9,7 +9,7 @@ set -euo pipefail
 
 # What the branch holds. The test in scripts/plugin.test.mjs writes the same list itself.
 KEEP=(.claude-plugin/plugin.json .claude-plugin/icon.png skills
-  docs/CLOUDFLARE-CHECKLIST.md docs/PAGES-OR-WORKERS.md docs/WHAT-THE-SKILLS-RUN.md
+  docs/CLOUDFLARE-CHECKLIST.md docs/MOVE-TO-WORKERS.md docs/PAGES-OR-WORKERS.md docs/WHAT-THE-SKILLS-RUN.md
   README.md LICENSE THIRD-PARTY-LICENSES.md SECURITY.md .gitattributes)
 # Left out: the toolkit's own tests that no skill runs, and independent-review (a review
 # tool, not one that builds sites; the maintainer's decision, 2026-10-24).
