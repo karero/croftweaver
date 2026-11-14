@@ -23,3 +23,9 @@ answered turn 2 with `UNAVAILABLE (code 503): No capacity available for model ..
 `new-website/SKILL.md`, turn 1's result (reply cut to 1,200 characters), turn 2's last `read_file`
 and its two error steps, and turn 2's error result; the stderr file whole. Changed: the run's
 folder is `/W`, conversation ids and the error id are zeros. Nothing else was edited.
+
+`agy-1.5.9-git-C-commit.ndjson` is the 0.35 trial's step 64 (agy 1.5.9), a `git -C ... commit` that went
+through although `git commit` was denied; `agy-1.4.9-rmtree-and-refused-commit.ndjson` is that trial's
+step 98 (agy 1.4.9), a `shutil.rmtree` that went through although `rm` was denied, and step 40, a
+`git commit` the deny rule did refuse. Each step is kept whole, both states where there were two;
+only the conversation id is zeros.
