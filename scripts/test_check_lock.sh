@@ -220,6 +220,16 @@ if wait_holder "$L8" "$h"; then
   fi
 fi
 
+# --- T9: no stray noise on stderr, and a command that cannot start is one clear line ---------------
+out="$(CROFTWEAVER_CHECK_LOCK="$T/t9.lock" bash "$HERE/check_lock.sh" true 2>&1)"; rc=$?
+if [ "$rc" = 0 ] && [ -z "$out" ]; then ok "T9 a successful run prints nothing of its own"
+else fail "T9 a successful run exited $rc and printed: $out"; fi
+out="$(CROFTWEAVER_CHECK_LOCK="$T/t9.lock" bash "$HERE/check_lock.sh" /nonexistent/command 2>&1)"; rc=$?
+if [ "$rc" = 1 ] && [ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" = 1 ] \
+   && case "$out" in "make check cannot start /nonexistent/command"*) true ;; *) false ;; esac; then
+  ok "T9 a command that cannot start gives exit 1 and one line"
+else fail "T9 a command that cannot start: exit $rc, output: $out"; fi
+
 if [ "$fails" -gt 0 ]; then
   echo "test_check_lock.sh: $fails case(s) failed"
   exit 1

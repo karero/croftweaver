@@ -12,7 +12,7 @@
 # (which ships with macOS) takes it. The file also holds the holder's details, written best
 # effort so a refused run can say who holds the lock. Perl marks the descriptor close-on-exec,
 # so the guards the command starts do not inherit the lock; a TERM or HUP sent to this process alone
-# is passed on to the command, so the lock is not freed while the guards still run.
+# is passed on to the command, and the lock is held until the command ends.
 #
 # CROFTWEAVER_CHECK_LOCK overrides the file's path, for the tests.
 set -u
@@ -29,7 +29,7 @@ dir="$(dirname -- "$lock")"
 mkdir -p -- "$dir" || { echo "make check cannot create the lock folder $dir" >&2; exit 1; }
 
 exec perl -e '
-use strict; use warnings;
+use strict; use warnings; no warnings "exec";
 use Fcntl qw(:flock O_RDWR O_CREAT);
 use POSIX qw(strftime);
 use Cwd qw(getcwd);
@@ -37,6 +37,7 @@ my ($lock, @cmd) = @ARGV;
 $| = 1;
 sysopen(my $fh, $lock, O_RDWR | O_CREAT, 0600)
   or do { print STDERR "make check cannot open its lock file $lock: $!\n"; exit 1 };
+chmod 0600, $fh;
 if (!flock($fh, LOCK_EX | LOCK_NB)) {
   my $err = $!;
   if (!$!{EWOULDBLOCK}) { print STDERR "make check cannot lock $lock: $err\n"; exit 1 }
@@ -62,18 +63,23 @@ my $info = join "", map { my $v = $_; $v =~ s/[[:cntrl:]]//g; "$v\n" }
 sysseek($fh, 0, 0);
 syswrite($fh, $info);
 truncate($fh, length $info);
-my $kid = fork;
+# TERM and HUP (a plain kill of make reaches only this process) go on to the command, and the lock
+# stays held until it ends. They are set before the fork so no signal finds the default action; one
+# that arrives before the command exists is sent on once it does. INT and QUIT also reach the command
+# from the terminal, so they are ignored here.
+my ($kid, $sig);
+$SIG{INT} = $SIG{QUIT} = "IGNORE";
+$SIG{TERM} = sub { $sig = "TERM"; kill "TERM", $kid if $kid };
+$SIG{HUP}  = sub { $sig = "HUP";  kill "HUP",  $kid if $kid };
+$kid = fork;
 if (!defined $kid) { print STDERR "make check cannot start $cmd[0]: $!\n"; exit 1 }
 if (!$kid) {
+  $SIG{$_} = "DEFAULT" for qw(INT QUIT TERM HUP);
   exec { $cmd[0] } @cmd;
   print STDERR "make check cannot start $cmd[0]: $!\n";
   POSIX::_exit(1);
 }
-# TERM and HUP (a plain kill of make reaches only this process) go on to the command, and the lock
-# stays held until it ends. INT and QUIT also reach the command from the terminal, so they are ignored here.
-$SIG{INT} = $SIG{QUIT} = "IGNORE";
-$SIG{TERM} = sub { kill "TERM", $kid };
-$SIG{HUP}  = sub { kill "HUP", $kid };
+kill $sig, $kid if $sig;
 my $w;
 do { $w = waitpid($kid, 0) } while ($w == -1 && $!{EINTR});
 my $rc = $?;
