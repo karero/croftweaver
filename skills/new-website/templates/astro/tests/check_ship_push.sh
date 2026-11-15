@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.31   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.32   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -1130,6 +1130,9 @@ GATE
   # fixture <name>: origin with main and production at one commit, the seed, and the clone
   # with the setting on and its hooks setting as the template's install leaves it.
   fixture() {
+    # A case's setup runs before its run_ship, which is what names the case. Without this, a
+    # setup step that failed was reported under the case before it.
+    cname="$1 (setup)"
     D="$G/$1"; O="$D/origin.git"; C="$D/clone"; S="$D/seed"; M="$D/marks"
     mkdir -p "$D/tmp" "$M"
     # Branches named main without `git init -b` (git 2.28), so an older git still runs these.
@@ -1339,9 +1342,24 @@ GATE
     while kill -0 "$1" 2>/dev/null; do i=$((i + 1)); [ "$i" -gt 20 ] && return 1; "$REAL_SLEEP" 0.1; done
   }
   # On this file's way out, every group it started goes too. A setup step that fails stops the
-  # file (set -e) with no word of its own, so say which case it was in.
+  # file (set -e) with no word of its own, so say which case it was in, and where: the ERR trap
+  # keeps the last statement set -e acted on (errtrace carries it into fixture, advance and the
+  # other helpers). It names that statement's last command: a pipeline's tail, not necessarily
+  # the stage that failed; a $(…) that ends nonzero, through the assignment that holds it. A
+  # failure before && in a list does not stop the run and is not named, and one inside a ( … )
+  # subshell is named only as that statement on newer bash, not at all on 3.2. Bash 3.2 (macOS) gives
+  # the wrong line number inside a function.
+  rg_err=""
+  set -E
+  trap 'rg_err="line $LINENO: $BASH_COMMAND"' ERR
   trap 'for g in $groups; do kill -KILL -- "-$g" 2>/dev/null || true; done
-    if [ "$rg_done" != 1 ]; then echo "✗ ship push gate, real git: stopped part-way, in or after case [$cname]; the cases after it did not run."; fi
+    if [ "$rg_done" != 1 ]; then
+      echo "✗ ship push gate, real git: stopped part-way, in or after case [$cname]; the cases after it did not run."
+      if [ -n "$rg_err" ]; then
+        echo "  Stopped at $rg_err"
+        if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then echo "  (bash 3.2 gives the wrong line number here; go by the command.)"; fi
+      fi
+    fi
     rm -rf "$work"' EXIT
 
   # --- S2: a feature branch, an edit and an untracked folder; GitHub's main two ahead -------
@@ -2206,6 +2224,7 @@ STAND
     want "... and so is its child" gone_soon "$(cat "$G/t8-child.pid")"
   fi
   rg_done=1
+  trap - ERR; set +E
 }
 
 real_git_cases
