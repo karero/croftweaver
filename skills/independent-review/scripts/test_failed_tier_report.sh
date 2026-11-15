@@ -2094,12 +2094,29 @@ melious $MELIOUS_OK takes:500000$REF
 " "$T/latin1.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
 check "T11: the same for Melious: FAILED, its request never left" \
   sh -c 'grep -qF "melious FAILED (a prompt of" "$1" && [ ! -e "$2/melious-body" ]' _ "$T/t11l.out" "$T/t11l.marks"
+# A Latin-1 file, made by iconv as an editor saves one, through the script as a caller runs it:
+# Codex refuses such a prompt (codex-cli 0.163.0: "input is not valid UTF-8"), so the seat refuses
+# it first, naming the part of the diff that holds the byte, and never starts Codex.
+command -v iconv >/dev/null 2>&1 || { echo "FAIL — iconv is needed to make the Latin-1 case's file."; fails=$((fails+1)); }
+printf 'diff --git a/ok.md b/ok.md\n+plain\ndiff --git a/notes fr.txt b/notes fr.txt\n+un café\n' \
+  | iconv -f UTF-8 -t ISO-8859-1 >"$T/latin1-small.diff"
+run u8codex bash "$SCRIPT" "$T/latin1-small.diff" --base none --seat codex
+check "UTF-8: a Latin-1 diff fails the Codex seat on the UTF-8 check" has u8codex.out "codex FAILED (UTF-8 check: the prompt is not valid UTF-8"
+check "UTF-8: ... naming the part that holds the byte" has u8codex.out 'in the part that starts "diff --git a/notes fr.txt b/notes fr.txt"'
+check "UTF-8: ... saying how to fix it" has u8codex.out "Save that file as UTF-8"
+check "UTF-8: ... and codex never ran" [ ! -e "$T/u8codex.marks/codex-ran" ]
+check "UTF-8: ... and with no reviewer left the exit is 4" rc_is u8codex 4
+iconv -f ISO-8859-1 -t UTF-8 <"$T/latin1-small.diff" >"$T/utf8-small.diff"
+run u8fixed bash "$SCRIPT" "$T/utf8-small.diff" --base none --seat codex
+check "UTF-8: the same diff saved as UTF-8 runs Codex" sh -c '[ -e "$1/codex-ran" ] && grep -qF "reviewers: codex OK" "$2"' _ "$T/u8fixed.marks" "$T/u8fixed.out"
 limitcase t11m "codex stub-codex takes:500000$REF
 " "$T/utf8.diff" -- --seat codex
 check "T11: valid UTF-8 under the same limit runs" rc_is t11m 0
-limitcase t11n "codex stub-codex takes:700000$REF
-" "$T/latin1.diff" -- --seat codex
-check "T11: Latin-1 runs where three times it fits" rc_is t11n 0
+# On Melious, whose request builder replaces each bad byte: Codex refuses Latin-1 on its own check.
+limitcase t11n "codex stub-codex refuses$REF
+melious $MELIOUS_OK takes:700000$REF
+" "$T/latin1.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
+check "T11: Latin-1 runs where three times it fits" has t11n.out "melious OK"
 # Under 120,000 bytes the no-line limit is no way round a smaller takes: limit.
 bigdiff 100000 "$T/big100.diff"
 { printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big100.diff"; } >"$T/latin1-100.diff"
