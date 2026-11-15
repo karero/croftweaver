@@ -803,7 +803,7 @@ hold Search Console Request Indexing until then.
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
       the Worker's *production branch* = `production` (in its Settings → Builds, after the
       import: the import form has no such field, so the first build runs from `main`, and the
-      live build comes with the next `npm run ship`, before launch) — so
+      live build comes with the first `npm run ship` after a new commit on `main`, before launch) — so
       `main` = noindexed preview, `production` = live; analytics, once switched on, fires on production only.
       **Single-stage:** `main` = live (the production branch is `main`).
       **Creating the Worker + first deploy** (the step a Cloudflare newcomer

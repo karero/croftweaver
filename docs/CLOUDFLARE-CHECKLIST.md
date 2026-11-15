@@ -47,7 +47,8 @@ own. The boxes that follow are the checks.)
   `wrangler.jsonc`. The form has no production-branch field: the first build runs from `main`.
   A two-stage site: after the import, set the **production branch** to `production` in the
   Worker's **Settings → Builds**, and leave **Preview builds** on. The live build comes with
-  the next push to `production` (`npm run ship`): make it before launch, which attaches the
+  the next push to `production`: `npm run ship` after a new commit on `main` (with none, it
+  pushes nothing). Make it before launch, which attaches the
   domain. Under Advanced settings pick **Create new token** for the build, so this Worker has a
   token of its own (the build token section of that guide says which rows to cut it down to).
 

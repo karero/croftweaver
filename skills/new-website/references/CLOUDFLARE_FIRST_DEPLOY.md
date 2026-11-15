@@ -336,8 +336,8 @@ production-branch field: the Worker starts with the repository's default branch 
 starter site) as its production branch, and connecting builds it straight away. For a two-stage site, once the
 import is done, open the Worker's **Settings → Builds** (Cloudflare's docs: Build → Branch
 control), set the **production branch** to `production` (see new-website §4) and leave
-**Preview builds** on. The live build comes from the next push to `production` (`npm run
-ship`, after a change on `main`). Until a build runs from `production`, the Worker keeps the
+**Preview builds** on. The live build comes from the next push to `production`: `npm run
+ship` after a new commit on `main` (with none, it pushes nothing). Until a build runs from `production`, the Worker keeps the
 build from `main`, which has no analytics: `src/config.ts` turns them on in `production` builds
 only. Launch checks which commit the Worker serves, not which branch built it, so make that push
 before launch. In the one check of this, on a new starter site (`workers_dev` off and no route
