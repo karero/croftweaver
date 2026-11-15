@@ -332,14 +332,17 @@ re-checked since):
 
 Cloudflare → **Workers & Pages → Create → Import a repository** → pick the repo. The Worker's
 name comes from `wrangler.jsonc`; build command `npm run build`. The import form has no
-production-branch field: the Worker starts with the repository's default branch, `main`, as its
-production branch, and connecting builds it straight away. For a two-stage site, once the
+production-branch field: the Worker starts with the repository's default branch (`main` on a
+starter site) as its production branch, and connecting builds it straight away. For a two-stage site, once the
 import is done, open the Worker's **Settings → Builds** (Cloudflare's docs: Build → Branch
 control), set the **production branch** to `production` (see new-website §4) and leave
-**Preview builds** on; the next push to `production` builds the live site. In the one check of
-this, on a new starter site (`workers_dev` off and no route in `wrangler.jsonc`), the first
-build from `main` deployed to no address; nothing else was tested. Attach the domain only after
-the branch is set, as launch does.
+**Preview builds** on. The live build comes from the next push to `production` (`npm run
+ship`, after a change on `main`). Until a build runs from `production`, the Worker keeps the
+build from `main`, which has no analytics: `src/config.ts` turns them on in `production` builds
+only. Launch checks which commit the Worker serves, not which branch built it, so make that push
+before launch. In the one check of this, on a new starter site (`workers_dev` off and no route
+in `wrangler.jsonc`), the first build from `main` deployed to no address; nothing else was
+tested. The domain is attached later, at launch.
 
 **The build token.** Under Advanced settings, the API token field picks an existing token by
 default: choose **Create new token**, so this Worker has a token of its own. Then cut it down in
