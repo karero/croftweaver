@@ -2106,6 +2106,10 @@ check "UTF-8: ... naming the part that holds the byte" has u8codex.out 'in the p
 check "UTF-8: ... saying how to fix it" has u8codex.out "Save that file as UTF-8"
 check "UTF-8: ... and codex never ran" [ ! -e "$T/u8codex.marks/codex-ran" ]
 check "UTF-8: ... and with no reviewer left the exit is 4" rc_is u8codex 4
+run u8pair bash "$SCRIPT" "$T/latin1-small.diff" --base none
+check "UTF-8: the default pair: Codex FAILED on the UTF-8 check, the second seat still counts" \
+  has u8pair.out "reviewers: codex FAILED (UTF-8 check: the prompt is not valid UTF-8"
+check "UTF-8: ... and ollama-cloud OK, exit 0" sh -c 'grep -qF "ollama-cloud OK" "$1" && [ "$(cat "$2")" = 0 ] && [ ! -e "$3/codex-ran" ]' _ "$T/u8pair.out" "$T/u8pair.rc" "$T/u8pair.marks"
 iconv -f ISO-8859-1 -t UTF-8 <"$T/latin1-small.diff" >"$T/utf8-small.diff"
 run u8fixed bash "$SCRIPT" "$T/utf8-small.diff" --base none --seat codex
 check "UTF-8: the same diff saved as UTF-8 runs Codex" sh -c '[ -e "$1/codex-ran" ] && grep -qF "reviewers: codex OK" "$2"' _ "$T/u8fixed.marks" "$T/u8fixed.out"
