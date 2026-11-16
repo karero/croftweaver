@@ -6,7 +6,7 @@ This session (the small BUGLOG sweep) created the worktree and the branch.
 
 Artifact: round 1 `git diff 07211892...78859f51 -- . ':(exclude)docs/reviews/'`; round 2 `git diff
 78859f51..4240b5cd` (same exclusion), with `--base 78859f51`; round 3 `git diff 4240b5cd..1e43be89`,
-with `--base 4240b5cd`. Wording passes, Codex alone: the round 3 fixes `git diff 1e43be89 9a4e7fdc` with `--base 1e43be89`, and the record prose `git diff 2125aa79 6054595c -- docs/BUGLOG.md` with `--base 2125aa79` (2125aa79 merges origin/main, so one diff over both would mix two bases; the script refused it, at no cost). Confirmations: `git diff 6054595c 4dd93a2a` and `git diff 4dd93a2a a4704eef`, each with its first commit as `--base`. Evidence: each round runs the two
+with `--base 4240b5cd`. Wording passes, Codex alone: the round 3 fixes `git diff 1e43be89 9a4e7fdc` with `--base 1e43be89`, and the record prose `git diff 2125aa79 6054595c -- docs/BUGLOG.md` with `--base 2125aa79` (2125aa79 merges origin/main; the branch holds the same merge as 9c785520, with its message amended and the same tree, so one diff over both would mix two bases; the script refused it, at no cost). Confirmations: `git diff 6054595c 4dd93a2a` and `git diff 4dd93a2a a4704eef`, each with its first commit as `--base`. Evidence: each round runs the two
 test scripts on its head and on the head before it (origin/main's `whats-new.sh` for round 1), with
 that round's tests copied in.
 Gate id 20261116T142727Z-57519.
