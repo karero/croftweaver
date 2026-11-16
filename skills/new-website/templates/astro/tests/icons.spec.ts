@@ -48,8 +48,9 @@ const svgSize = (page: Page, bytes: Buffer) =>
 
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
 
-// Every logo the JSON-LD names, at any depth and on a node of any type (Organization, a subtype such
-// as LocalBusiness, or an array of types): a URL, or an ImageObject's url. An empty one is skipped.
+// Every logo the JSON-LD gives as a URL, at any depth and on a node of any type (Organization, a
+// subtype such as LocalBusiness, or an array of types): a URL string, or the string url of an object
+// such as an ImageObject. An empty one is skipped, and so is a logo given only as an @id.
 const logoUrls = (value: unknown): string[] => {
   if (Array.isArray(value)) return value.flatMap(logoUrls);
   if (typeof value === 'string') return value ? [value] : [];
