@@ -1237,9 +1237,13 @@ check "lightnone: ...and the plain line does not appear" lacks lightnone.out "$L
 run lightpair OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none --depth light
 check "lightpair: a pair that lost a seat still warns" has lightpair.out "⚠ DIFF round landed with 1 reviewer(s) counted toward the gate"
 check "lightpair: ...and the plain line does not appear" lacks lightpair.out "$LIGHT_PLAIN"
-run lightlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none --local-only --depth light
+run lightlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none --local-only --first-success --depth light
 check "lightlocal: --local-only at Light keeps its degraded warning" has lightlocal.out "--local-only, degraded by owner choice."
 check "lightlocal: ...and gets no plain line" lacks lightlocal.out "$LIGHT_PLAIN"
+check "lightseat: the plain line names the reviewer that counted" has lightseat.out "as a Light review allows: codex OK."
+check "lightpair: ...nor on stderr" lacks lightpair.err "$LIGHT_PLAIN"
+check "lightnone: ...nor on stderr" lacks lightnone.err "$LIGHT_PLAIN"
+check "lightlocal: ...nor on stderr" lacks lightlocal.err "$LIGHT_PLAIN"
 run normalseat bash "$SCRIPT" "$T/change.diff" --base none --seat codex --depth normal
 check "normalseat: one seat at Normal keeps the warning" has normalseat.out "⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested."
 check "normalseat: ...and the standard-pair advice" has normalseat.out "any other round needs the standard pair."

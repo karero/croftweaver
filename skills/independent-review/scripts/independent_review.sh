@@ -1866,7 +1866,7 @@ report_round() {
      && { [ -n "$SEAT" ] || [ "$FIRST_SUCCESS" = 1 ]; }; then
     # A Light review runs on one seat chosen on purpose (owner's rule, 2026-10-09), so this is a
     # plain line, not a warning. A pair that lost a seat still warns below.
-    note="$gate round ran on 1 reviewer, as a Light review allows. Name the Light gate and its seat in the trail."
+    note="$gate round ran on 1 reviewer, as a Light review allows: $SUMMARY. Name the Light gate and the reviewer that counted in the trail."
   elif [ "$SUCCESS_COUNT" -lt 2 ]; then
     note="⚠ $gate round landed with $SUCCESS_COUNT reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
     if [ "$LOCAL_ONLY" = "1" ]; then
