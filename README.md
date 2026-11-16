@@ -326,7 +326,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > uncommitted skill changes, so an overwrite stays recoverable via the site's git
 > history). A skill deliberately forked for one site (e.g. localized copy) can be
 > pinned: list its name in `<skills_dir>/REFRESH-KEEP` (one per line, `#` comments)
-> and `--refresh` will never touch it — reports mark it "(pinned)". Plain
+> and `--refresh` will never touch it — reports mark it "(pinned)". A refresh writes the
+> pinned skill's old baseline as a `pinned:` line in `SUITE-VERSION`, so its upstream changes
+> stay in the report; once the copy has what you want from them, delete that line. Plain
 > `make whats-new` shows the suite's recent skill changes.
 >
 > One folder never reaches a site: `website-brand-kit/scripts/tests`, the toolkit's own
@@ -345,7 +347,11 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
-> `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. A changed file the site has no copy
+> `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. Before stamping, add a line
+> `left_out: <path> — <why>` to `tests/TESTS-VERSION` for each file you reviewed and did not
+> take (`kept: <path> — <why>` for one the starter dropped and the site keeps): the stamp keeps
+> those lines, adds a `left_out:` line for each file changed since the last stamp that the site
+> has no copy of, and every report lists them. A changed file the site has no copy
 > of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
 > `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
 > never marked MISSING.

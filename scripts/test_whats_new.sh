@@ -292,5 +292,50 @@ for part in "runs \`node scripts/make-icons.mjs --setup\` before \`npm test\`" "
   else printf 'FAIL S11 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
 done
 
+# L1-L5: --stamp-tests keeps the site's record of files it did not take. It used to write two
+# lines only, so a site's `left_out:` and `kept:` lines vanished, and a changed file the site
+# lacks dropped out of every later report with no record. The report runs as an owner runs it,
+# through make whats-new.
+S6="$T/suite6" P6="$T/site6"
+mkdir -p "$S6/scripts" "$P6/.claude/skills" "$P6/tests"
+cp "$HERE/whats-new.sh" "$S6/scripts/"
+put "$S6/$A/tests/a.spec.ts" v1
+put "$S6/skills/new-website/templates/AGENTS.md" v1
+$git -C "$S6" init -q && $git -C "$S6" add -A && $git -C "$S6" commit -qm base
+BASE6="$($git -C "$S6" rev-parse HEAD)"
+put "$S6/$A/tests/a.spec.ts" v2                     # changed, the site merges it
+put "$S6/skills/new-website/templates/AGENTS.md" v2 # changed, the site leaves it out by hand
+put "$S6/$A/tests/new.spec.ts" v1                   # added, the site does not take it
+$git -C "$S6" add -A && $git -C "$S6" commit -qm later
+HEAD6="$($git -C "$S6" rev-parse HEAD)"
+stamp "$P6/.claude/skills/SUITE-VERSION" "$HEAD6"
+stamp "$P6/tests/TESTS-VERSION" "$BASE6"
+printf '%s\n' "left_out: AGENTS.md — the site keeps its own rules" "kept: old.spec.ts — the starter dropped it; the site still needs it" >> "$P6/tests/TESTS-VERSION"
+echo v2 > "$P6/tests/a.spec.ts"; echo v1 > "$P6/AGENTS.md"
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P6/tests" > "$T/stamp-out" 2>&1 || { echo "FAIL L1 --stamp-tests exits non-zero"; fails=$((fails+1)); }
+cp "$P6/tests/TESTS-VERSION" "$T/out"
+has   "L1 the stamp moves to the suite's head"                "suite_commit: $HEAD6"
+has   "L1 the site's left_out line is kept"                   "left_out: AGENTS.md — the site keeps its own rules"
+has   "L1 the site's kept line is kept"                       "kept: old.spec.ts — the starter dropped it; the site still needs it"
+has   "L2 a changed file the site lacks is recorded"          "left_out: tests/new.spec.ts — not in the site when stamped $(date +%Y-%m-%d)"
+hasnt "L2 a file the site has is not recorded"                "tests/a.spec.ts"
+make -s --no-print-directory -C "$S6" -f "$HERE/../Makefile" whats-new PROJECT="$P6" > "$T/out" 2>&1; rc=$?
+if [ "$rc" -eq 0 ]; then echo "ok   L3 make whats-new exits 0"; else echo "FAIL L3 make whats-new exits $rc"; fails=$((fails+1)); fi
+has   "L3 the tests channel is up to date"                    "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE / frozen root+infra files."
+has   "L3 the report lists the site's record"                 "  left_out: AGENTS.md — the site keeps its own rules"
+has   "L3 the report lists the kept file"                     "  kept: old.spec.ts — the starter dropped it; the site still needs it"
+has   "L3 the report lists the file not taken"                "  left_out: tests/new.spec.ts — not in the site when stamped $(date +%Y-%m-%d)"
+# Once the site takes the file, the next stamp drops the line it added; the owner's lines stay.
+echo v1 > "$P6/tests/new.spec.ts"
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P6/tests" > /dev/null 2>&1
+cp "$P6/tests/TESTS-VERSION" "$T/out"
+hasnt "L4 a file the site now has loses its line"             "tests/new.spec.ts"
+has   "L4 the owner's line stays"                             "left_out: AGENTS.md — the site keeps its own rules"
+# A first stamp, as the scaffold writes before it copies CONTENT_GUIDE.md, records nothing.
+P7="$T/site7"; mkdir -p "$P7/tests"
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P7/tests" > /dev/null 2>&1
+cp "$P7/tests/TESTS-VERSION" "$T/out"
+hasnt "L5 a first stamp writes no left_out line"              "left_out:"
+
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed" >&2; exit 1; }
 echo "all whats-new missing-file and import tests passed"

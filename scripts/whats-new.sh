@@ -12,7 +12,9 @@
 #                                                 # Skills listed in <skills_dir>/REFRESH-KEEP
 #                                                 # (one name per line, # comments) are
 #                                                 # deliberate local forks: never overwritten,
-#                                                 # reported as "(pinned)".
+#                                                 # reported as "(pinned)", their changes kept
+#                                                 # in the report until the owner deletes the
+#                                                 # skill's `pinned:` line in SUITE-VERSION.
 #   scripts/whats-new.sh --stamp <skills_dir>     # write the SUITE-VERSION stamp. This is
 #                                                 # the ONLY writer of the stamp format —
 #                                                 # new-website's scaffold step calls it too.
@@ -26,7 +28,11 @@
 #                                                 # --refresh deliberately never touches
 #                                                 # (a blind overwrite would clobber the
 #                                                 # site's own PAGES list / exemptions).
-#                                                 # Merge those by hand, then re-stamp.
+#                                                 # Merge those by hand, then re-stamp. The
+#                                                 # stamp keeps the site's `left_out:` and
+#                                                 # `kept:` lines, adds one for each file
+#                                                 # changed since the last stamp that the
+#                                                 # site lacks, and every report lists them.
 #
 # The report also flags a stale Astro MAJOR version (site's package.json vs. the suite's
 # current template pin) and points at docs/UPGRADING.md — deliberately a pointer, not an
@@ -66,9 +72,9 @@ suite_has() {  # $1 = skill name
 # folder after its copy; test_whats_new_removed_skill.sh checks that the two name one path.
 LEFT_BEHIND='website-brand-kit/scripts/tests'
 
-write_stamp() {  # $1 = skills dir
-  printf 'suite_commit: %s\ncopied: %s\n' \
-    "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/SUITE-VERSION"
+write_stamp() {  # $1 = skills dir, $2 = optional `pinned:` lines to keep (see process_dir)
+  printf 'suite_commit: %s\ncopied: %s\n%s' \
+    "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" "${2:-}" > "$1/SUITE-VERSION"
 }
 
 # Upstream template files that scaffolded sites carry as FROZEN copies (tests/*,
@@ -104,9 +110,64 @@ TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/te
 # decision instead of a silent gap it would otherwise flag as unaccounted-for.
 SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json skills/new-website/templates/astro/wrangler.jsonc skills/new-website/templates/astro/scripts/generate_og_cards.py skills/new-website/templates/.gitignore skills/new-website/templates/brand.md skills/new-website/templates/positioning.md'
 
+# Must agree with the "(site copy: ...)" arms in process_tests_stamp: test_whats_new.sh checks
+# every TEMPLATE_TRACKED file against both. PUBLISHING.md has no fixed site path (an owner's
+# translation may be saved as PUBLISHING.de.md), so it is never marked MISSING.
+site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, or nothing if unknown
+  case "$1" in
+    skills/new-website/templates/content-guide.md) echo "CONTENT_GUIDE.md" ;;
+    skills/new-website/templates/AGENTS.md) echo "AGENTS.md" ;;
+    skills/new-website/templates/CLAUDE.md) echo "CLAUDE.md" ;;
+    skills/new-website/templates/SETUP.md) echo "SETUP.md" ;;
+    # Workers sites only: a Pages site has no use for it, so it is never marked MISSING.
+    skills/new-website/templates/astro/scripts/deploy.sh) ;;
+    skills/new-website/templates/astro/*) echo "${1#skills/new-website/templates/astro/}" ;;
+    skills/new-website/templates/claude/*) echo ".claude/${1#skills/new-website/templates/claude/}" ;;
+  esac
+}
+
+# The site's record of frozen files it reviewed and did not take: `left_out: <path> — <why>` and
+# `kept: <path> — <why>` lines in TESTS-VERSION, written by hand. A stamp keeps them, and adds a
+# left_out line for each file it moves past that the site has no copy of (changed upstream since
+# the old baseline, and still in the suite), so no stamp hides one; every report lists them. An
+# added line goes once the site has the file.
+AUTO_LEFT_OUT='— not in the site when stamped'
 write_tests_stamp() {  # $1 = tests dir
-  printf 'suite_commit: %s\ncopied: %s\n' \
-    "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" > "$1/TESTS-VERSION"
+  local stamp="$1/TESTS-VERSION" site_root own="" auto="" old_base="" changed="" f rel path rest
+  site_root="$(dirname "$1")"
+  if [ -f "$stamp" ]; then
+    own="$(grep -E '^(left_out|kept): ' "$stamp" | grep -vF -- "$AUTO_LEFT_OUT" || true)"
+    old_base="$(sed -n 's/^suite_commit: //p' "$stamp")"
+    while read -r _ path rest; do
+      [ -n "$path" ] && [ ! -e "$site_root/$path" ] && auto="${auto}left_out: $path $rest
+"
+    done <<<"$(grep -E '^left_out: ' "$stamp" | grep -F -- "$AUTO_LEFT_OUT" || true)"
+  fi
+  if [ -n "$old_base" ] && git -C "$REPO_DIR" cat-file -e "$old_base^{commit}" 2>/dev/null; then
+    # shellcheck disable=SC2086
+    changed="$(git -C "$REPO_DIR" diff --name-only "$old_base" HEAD -- $TEMPLATE_TRACKED)"
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rel="$(site_copy_of "$f")"
+    [ -n "$rel" ] && [ ! -e "$site_root/$rel" ] && git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null || continue
+    # skip a path a line already names, site-relative or relative to tests/
+    awk -v a="$rel" -v b="${rel#tests/}" '$2 == a || $2 == b { found = 1 } END { exit !found }' <<<"$own
+$auto" && continue
+    auto="${auto}left_out: $rel $AUTO_LEFT_OUT $(date +%Y-%m-%d)
+"
+  done <<<"$changed"
+  printf 'suite_commit: %s\ncopied: %s\n%s%s' \
+    "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" "${own:+$own
+}" "$auto" > "$stamp"
+}
+
+print_left_out() {  # $1 = tests dir
+  local lines
+  lines="$(grep -E '^(left_out|kept): ' "$1/TESTS-VERSION" 2>/dev/null || true)"
+  [ -n "$lines" ] || return 0
+  echo "Not taken, or kept after the starter dropped them (the site's record in $1/TESTS-VERSION):"
+  printf '%s\n' "$lines" | sed 's/^/  /'
 }
 
 is_int() { case "$1" in ''|*[!0-9]*) return 1 ;; *) return 0 ;; esac; }
@@ -169,6 +230,9 @@ if [ "$MODE" = stamp-tests ]; then
   fi
   write_tests_stamp "$TARGET"
   echo "stamped $TARGET/TESTS-VERSION → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
+  print_left_out "$TARGET"
+  echo "A file you reviewed and did not take needs a line \`left_out: <path> — <why>\` in"
+  echo "$TARGET/TESTS-VERSION; the stamp keeps such lines, and every report lists them."
   exit 0
 fi
 
@@ -224,11 +288,27 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     [ -d "$skills_dir/$s" ] && stale="$stale $s"
   done
 
+  # A skill --refresh skipped as pinned keeps its own baseline in a `pinned: <skill> <commit>`
+  # line of the stamp, so its upstream changes stay in the report after the stamp moves on.
+  # Deleting the line, once the copy has what the owner wants, ends that.
+  pins="$(sed -n 's/^pinned: //p' "$stamp")"
+  while read -r s pb; do
+    [ -n "$s" ] || continue
+    if ! git -C "$REPO_DIR" cat-file -e "$pb^{commit}" 2>/dev/null; then
+      echo "error: the pinned baseline of $s in $stamp ($pb) is not in this clone — run 'git pull'" >&2
+      echo "first; if it still fails, delete that line and compare $s by hand." >&2
+      return 1
+    fi
+    case " $stale " in *" $s "*) continue ;; esac
+    [ -d "$skills_dir/$s" ] || continue
+    git -C "$REPO_DIR" diff --quiet "$pb" HEAD -- "skills/$s" ":(exclude)skills/$LEFT_BEHIND" || stale="$stale $s"
+  done <<<"$pins"
+  pin_base() { local b; b="$(awk -v s="$1" '$1 == s { print $2; exit }' <<<"$pins")"; printf '%s' "${b:-$base}"; }
+
   # Skills pinned by the site (deliberate local forks): REFRESH-KEEP next to the
   # stamp, one skill name per line, '#' comments allowed. --refresh leaves them
-  # untouched; the report shows their upstream changes SINCE THE STAMP, marked
-  # (pinned). Note a refresh advances the stamp past skipped changes too — each
-  # pinned change is reported until the next refresh, not forever.
+  # untouched; the report shows their upstream changes since their pinned baseline
+  # (above) or, without one, since the stamp, marked (pinned).
   keep=""
   [ -f "$skills_dir/REFRESH-KEEP" ] && keep="$(sed 's/#.*//' "$skills_dir/REFRESH-KEEP")"
   # One name per line, split once: on words, so spaces around a name don't matter, and with
@@ -247,22 +327,29 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   # stamp, so the report would repeat. Say so here, where a reader looks, not only after a
   # failed --refresh. A pinned one is left alone by --refresh, so it is not "gone". "Removed"
   # is suite_has: the committed tree, so the report and --refresh always agree.
-  gone=""; n_stale=0; n_gone=0
+  gone=""; n_stale=0; n_gone=0; n_pinned=0
   echo "Bundled skills with upstream updates:"
   for s in $stale; do
     echo
     n_stale=$((n_stale + 1))
     if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "  $s   (pinned in REFRESH-KEEP — --refresh will skip it)"
+      n_pinned=$((n_pinned + 1))
     elif ! suite_has "$s"; then
       echo "  $s   (removed upstream — delete its copy, or list it in REFRESH-KEEP to keep it)"
       gone="$gone $s"; n_gone=$((n_gone + 1))
     else
       echo "  $s"
     fi
-    git -C "$REPO_DIR" log --oneline "$base"..HEAD -- "skills/$s" ":(exclude)skills/$LEFT_BEHIND" | sed 's/^/    /'
+    git -C "$REPO_DIR" log --oneline "$(pin_base "$s")"..HEAD -- "skills/$s" ":(exclude)skills/$LEFT_BEHIND" | sed 's/^/    /'
   done
   echo
+  if [ "$n_pinned" -gt 0 ]; then
+    echo "Pinned copies are never overwritten, and their changes above stay in this report after a"
+    echo "refresh. Once a pinned copy has what you want from them, delete its \`pinned:\` line in"
+    echo "$stamp (a refresh writes one), and the report stops listing them."
+    echo
+  fi
 
   if [ "$MODE" != refresh ]; then
     if [ "$n_gone" -gt 0 ]; then
@@ -302,10 +389,13 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     echo "skill copies with no way back." >&2
   fi
 
-  missing=0
+  missing=0; pinned_lines=""
   for s in $stale; do
     if [ -n "$keep" ] && grep -Fxq -- "$s" <<<"$keep"; then
       echo "pinned    $s — in REFRESH-KEEP; local copy left as-is despite upstream changes"
+      # A pinned skill the suite removed has nothing more to report: no line, so the repeat ends.
+      suite_has "$s" && pinned_lines="${pinned_lines}pinned: $s $(git -C "$REPO_DIR" rev-parse "$(pin_base "$s")")
+"
       continue
     fi
     if suite_has "$s"; then
@@ -341,24 +431,9 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
     echo "stamp NOT advanced (still $short_base) so the removed-upstream warning keeps firing." >&2
     return 1
   fi
-  write_stamp "$skills_dir"
+  write_stamp "$skills_dir" "$pinned_lines"
   echo "stamp updated → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
-}
-
-# Must agree with the "(site copy: ...)" arms in process_tests_stamp: test_whats_new.sh checks
-# every TEMPLATE_TRACKED file against both. PUBLISHING.md has no fixed site path (an owner's
-# translation may be saved as PUBLISHING.de.md), so it is never marked MISSING.
-site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, or nothing if unknown
-  case "$1" in
-    skills/new-website/templates/content-guide.md) echo "CONTENT_GUIDE.md" ;;
-    skills/new-website/templates/AGENTS.md) echo "AGENTS.md" ;;
-    skills/new-website/templates/CLAUDE.md) echo "CLAUDE.md" ;;
-    skills/new-website/templates/SETUP.md) echo "SETUP.md" ;;
-    # Workers sites only: a Pages site has no use for it, so it is never marked MISSING.
-    skills/new-website/templates/astro/scripts/deploy.sh) ;;
-    skills/new-website/templates/astro/*) echo "${1#skills/new-website/templates/astro/}" ;;
-    skills/new-website/templates/claude/*) echo ".claude/${1#skills/new-website/templates/claude/}" ;;
-  esac
+  [ -z "$pinned_lines" ] || echo "pinned skills keep their own baseline in $skills_dir/SUITE-VERSION, so their upstream changes stay in the report"
 }
 
 # The first ./ or ../ specifier of each one-line static import on stdin. A helper, not a
@@ -417,6 +492,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
   fi
   short_base="$(git -C "$REPO_DIR" rev-parse --short "$base")"
   echo "Template tests: $tests_dir (baseline $short_base, from $src)"
+  print_left_out "$tests_dir"
 
   # shellcheck disable=SC2086
   changed="$(git -C "$REPO_DIR" diff --name-only "$base" HEAD -- $TEMPLATE_TRACKED)"
@@ -558,7 +634,8 @@ CHANGED
     echo "multilingual sites, mail-form.spec.ts with a contact form), so merge the helpers together"
     echo "with any spec that uses the new exports, or the import breaks loudly."
   fi
-  echo "When the site's copies are current again, advance the baseline:"
+  echo "When the site's copies are current again, advance the baseline. First add a line"
+  echo "\`left_out: <path> — <why>\` to $tests_dir/TESTS-VERSION for each file you chose not to take:"
   echo "  scripts/whats-new.sh --stamp-tests $tests_dir"
   return 2
 }
