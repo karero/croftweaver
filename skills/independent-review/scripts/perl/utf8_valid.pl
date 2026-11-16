@@ -26,9 +26,9 @@ my $before = substr($s, 0, $at);
 my $line = ($before =~ tr/\n//) + 1;
 my $part = '';
 if ($before =~ /.*^(diff --git [^\n]*)/ms) {
-  # $before is well-formed, so only control characters (C0, DEL, C1) need replacing before the
-  # header reaches the terminal.
-  (my $head = $1) =~ s/[\x00-\x1F\x7F]|\xC2[\x80-\x9F]/?/g;
+  # $before is well-formed, so only control characters (C0, DEL, C1) and the bidi controls that
+  # reorder a line (U+202A-U+202E, U+2066-U+2069) need replacing before the header is printed.
+  (my $head = $1) =~ s/[\x00-\x1F\x7F]|\xC2[\x80-\x9F]|\xE2\x80[\xAA-\xAE]|\xE2\x81[\xA6-\xA9]/?/g;
   $part = ", in the part that starts \"$head\"";
 }
 print "the first bad byte is on line $line of the prompt$part";

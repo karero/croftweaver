@@ -2133,6 +2133,9 @@ check "T11: noncharacters, 200 KB, under a takes:300000 line: Codex runs at its 
 printf 'diff --git a/caf\303\251\302\233x b/x\n+x \351\n' >"$T/u8head.diff"
 check "utf8_valid --where: a header's UTF-8 letters print as they are, a C1 control as ?" \
   sh -c 'out="$(perl "$1" --where "$2")"; [ "$out" = "the first bad byte is on line 2 of the prompt, in the part that starts \"diff --git a/caf$(printf "\303\251")?x b/x\"" ]' _ "$HERE/perl/utf8_valid.pl" "$T/u8head.diff"
+printf 'diff --git a/\342\200\256x\342\201\246y b/x\n+x \351\n' >"$T/bidihead.diff"
+check "utf8_valid --where: a header's bidi controls (U+202E, U+2066) print as ?" \
+  sh -c 'out="$(perl "$1" --where "$2")"; [ "$out" = "the first bad byte is on line 2 of the prompt, in the part that starts \"diff --git a/?x?y b/x\"" ]' _ "$HERE/perl/utf8_valid.pl" "$T/bidihead.diff"
 limitcase t11m "codex stub-codex takes:500000$REF
 " "$T/utf8.diff" -- --seat codex
 check "T11: valid UTF-8 under the same limit runs" rc_is t11m 0
