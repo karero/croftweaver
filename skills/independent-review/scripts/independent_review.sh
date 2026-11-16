@@ -1857,11 +1857,17 @@ attempt() { run_tier "$2" "$3"; report_tier "$1" "$2"; }
 # One summary line for the round, on stdout (where the caller consolidates) and on
 # stderr (where a human watching a redirected run looks), plus a note whenever
 # fewer than 2 reviewers counted toward the gate — PLAN and DIFF alike. ("Counted",
-# not "external": under --local-only the one local reviewer counts, degraded.)
+# not "external": under --local-only the one local reviewer counts, degraded.) A Light round on
+# the one seat it chose gets a plain line instead of the warning.
 report_round() {
   local line="reviewers: ${SUMMARY:-none attempted}" note="" gate
   gate="$(printf '%s' "$TYPE" | tr '[:lower:]' '[:upper:]')"
-  if [ "$SUCCESS_COUNT" -lt 2 ]; then
+  if [ "$SUCCESS_COUNT" -eq 1 ] && [ "$DEPTH" = light ] && [ "$LOCAL_ONLY" != 1 ] \
+     && { [ -n "$SEAT" ] || [ "$FIRST_SUCCESS" = 1 ]; }; then
+    # A Light review runs on one seat chosen on purpose (owner's rule, 2026-10-09), so this is a
+    # plain line, not a warning. A pair that lost a seat still warns below.
+    note="$gate round ran on 1 reviewer, as a Light review allows. Name the Light gate and its seat in the trail."
+  elif [ "$SUCCESS_COUNT" -lt 2 ]; then
     note="⚠ $gate round landed with $SUCCESS_COUNT reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
     if [ "$LOCAL_ONLY" = "1" ]; then
       note="$note — --local-only, degraded by owner choice."

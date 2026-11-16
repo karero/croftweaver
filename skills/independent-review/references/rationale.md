@@ -103,7 +103,8 @@ DIFF included, not only PLAN; `--first-success` reduces either to a single revie
 enough that "whichever one answered first" isn't enough independence, so the script
 notes it explicitly (see Procedure below) whenever a plan lands with fewer than 2
 reviewers. The same note fires for a DIFF round too: a tier that fails quietly is
-how a one-reviewer round once passed for a pair. This is a default expectation, not a hard
+how a one-reviewer round once passed for a pair. A Light round on one chosen seat gets a plain
+line instead, as one reviewer is what Light allows. This is a default expectation, not a hard
 floor: passing `--first-success` on a plan is a caller's conscious choice to accept one
 reviewer instead (the script honors this, it does not override it — see the
 credit-cost tradeoff this represents). If a
