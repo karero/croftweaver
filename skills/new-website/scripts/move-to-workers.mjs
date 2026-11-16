@@ -949,9 +949,9 @@ async function stageOneGaps(git, sha) {
   for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
     const r = await git('show', `${sha}:${f}`);
     if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
-    // Block comments go first; a // counts as a comment only at a line start or after a space (not inside a URL).
-    const code = r.stdout.replace(/\/\*[\s\S]*?\*\//g, '');
-    if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l.replace(/(^|\s)\/\/.*$/, '$1')))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
+    // Comments are cut and each string is blanked in one pass, so a `//` inside a URL or a `/*` inside a string is not taken for a comment.
+    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) => (m[0] === '/' ? '' : '""'));
+    if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
   }
   await asLines(async () => {
     const cfg = await readSiteConfig(git, sha);
@@ -1333,14 +1333,15 @@ export async function ensureRouteCommit(ctx, want, kind) {
 
 function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); } // ok_: true, false, or 'wait' (not wrong, not finished)
 
-// How a host answers /build.txt now, in words: the status, the commit it names and, from Pages' CORS header, which platform likely sent it.
+// How a host answers /build.txt now, in words: the status, the commit it names and, from the build's platform line, else Pages' CORS header, which platform likely sent it.
 function answerWords(r) {
   if (r.status === 0) return `no answer: ${r.error ?? 'none'}`;
   const first = r.body.toString('utf8').split('\n')[0].trim();
   if (r.status === 200) {
     if (!/^[0-9a-f]{40}$/.test(first)) return 'answers now: 200, not a build.txt this kit writes';
     const text = r.body.toString('utf8');
-    const how = /^platform=\S+/m.test(text) ? `its platform line says ${platformOf(r, text) === 'pages' ? 'Pages' : 'the Worker'}` : r.headers.get('access-control-allow-origin') !== null ? "Pages' header is there, so likely Pages" : 'no Pages header, so likely the Worker';
+    const line = /^platform=(\S+)/m.exec(text)?.[1];
+    const how = line ? `its platform line says ${line === 'pages' ? 'Pages' : line === 'worker' ? 'the Worker' : JSON.stringify(line.slice(0, 20))}` : r.headers.get('access-control-allow-origin') !== null ? "Pages' header is there, so likely Pages" : 'no Pages header, so likely the Worker';
     return `answers now: 200, build.txt names ${short(first)}, ${how}`;
   }
   const to = r.headers.get('location');

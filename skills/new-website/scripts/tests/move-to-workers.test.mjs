@@ -3280,6 +3280,7 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
   for (const [label, line] of [
     ['a commented-out line', '      // lastmod: new Date(),'],
     ['a // comment after other code', '      sitemap(), // lastmod: new Date()'],
+    ['a // comment right after code, no space', '      sitemap(),// lastmod: new Date()'],
     ['a fixed date', "      lastmod: new Date('2026-01-01'),"],
     ['a line inside a block comment', '      /*\n      lastmod: new Date(),\n      */'],
   ]) {
@@ -3290,11 +3291,16 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
     });
   }
 
-  test('2b: the build-time line after a URL on the same line is still a gap', async () => {
-    const r = await scenario({ site: withLine("      filter: (p) => p !== 'https://x.example/', lastmod: new Date(),") }).go(['check']);
-    assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /sets the sitemap's lastmod to the build time/);
-  });
+  for (const [label, line] of [
+    ['after a URL on the same line', "      filter: (p) => p !== 'https://x.example/', lastmod: new Date(),"],
+    ['after a string holding /*, with a block comment further down', "      filter: (p) => !p.includes('/drafts/*'),\n      lastmod: new Date(),\n      /** a later comment */"],
+  ]) {
+    test(`2b: the build-time line ${label} is still a gap`, async () => {
+      const r = await scenario({ site: withLine(line) }).go(['check']);
+      assert.equal(r.code, 1, r.text);
+      assert.match(r.text, /sets the sitemap's lastmod to the build time/);
+    });
+  }
 
   // The real stop (record-stopped-lastmod-2026-11-16): the two sitemap files differ only in their bodies.
   const sitemapSite = () => makeSite({ files: { 'site/sitemap-index.xml': '<sitemapindex/>', 'site/sitemap-0.xml': '<urlset/>' } });
@@ -3366,7 +3372,7 @@ describe('0.36 fix 4: the go question in plain words first', () => {
     const wrong = await s.go(['move', '--confirm', '0'.repeat(16)]);
     assert.equal(wrong.code, 3);
     assert.ok(wrong.out.includes(`Move ${both} to the new hosting now?`));
-    assert.ok(!wrong.text.includes('Say yes within'), wrong.text);
+    assert.doesNotMatch(wrong.text, /say yes within/i, wrong.text);
     const go = await s.go(['move', '--confirm', codeOf(q)]);
     assert.equal(go.code, 0, go.text);
     assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
@@ -3453,5 +3459,12 @@ describe('0.36 fix 5: check says how each host answers now', () => {
     const r = await s.go(['check']);
     assert.equal(r.code, 0, r.text);
     assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, build.txt names aaaaaaa, its platform line says the Worker.`), r.text);
+  });
+
+  test('5g: a platform line with another value is quoted, not turned into Pages or the Worker', async () => {
+    const s = apexOnly({ [HOSTS[1]]: { status: 200, headers: {}, body: `${'a'.repeat(40)}\nplatform=staging\n` } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, build.txt names aaaaaaa, its platform line says "staging".`), r.text);
   });
 });
