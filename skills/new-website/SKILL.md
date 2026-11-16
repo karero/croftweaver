@@ -495,7 +495,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch.
-   **This starter needs Node ≥22.23.4**, and Node's current security fixes are in 22.23.4, 24.22.1 and 26.12.1 (one per line).
+   **This starter needs Node ≥22.23.5**, and Node's current security fixes are in 22.23.5, 24.22.3 and 26.13.1 (one per line).
    The overlay's `.nvmrc` pins 26 for local + Cloudflare's builds. If `npm install` prints
    `EBADENGINE` for the site's own package (the `name@version` in the site's `package.json`, whatever the
    owner named it) and `node`, stop and have the owner update Node (SETUP.md) before going on; a warning
@@ -801,7 +801,9 @@ hold Search Console Request Indexing until then.
 - [ ] Deployed to Cloudflare, as a Worker, per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
-      the Worker's *production branch* = `production` (Workers Builds, in its import form) — so
+      the Worker's *production branch* = `production` (in its Settings → Builds, after the
+      import: the import form has no such field, so the first build runs from `main`, and the
+      live build comes with the first `npm run ship` after a new commit on `main`, before launch) — so
       `main` = noindexed preview, `production` = live; analytics, once switched on, fires on production only.
       **Single-stage:** `main` = live (the production branch is `main`).
       **Creating the Worker + first deploy** (the step a Cloudflare newcomer
