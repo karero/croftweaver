@@ -3284,6 +3284,7 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
     ['a string that holds the text', "      description: 'lastmod: new Date() is not used',"],
     ['a fixed date', "      lastmod: new Date('2026-01-01'),"],
     ['a line inside a block comment', '      /*\n      lastmod: new Date(),\n      */'],
+    ['a comment after a division on a property called return', '      priority: weights.return / 2, // lastmod: new Date()'],
   ]) {
     test(`2b: ${label} is no gap`, async () => {
       const r = await scenario({ site: withLine(line) }).go(['check']);
@@ -3297,6 +3298,7 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
     ['after a regex literal holding //', "      filter: (p) => !/^https?:\\/\\//.test(p), lastmod: new Date(),"],
     ['after a division', "      priority: 1 / 2, lastmod: new Date(),"],
     ['after a regex literal in a returning function', "      filter: (p) => { return /^https?:\\/\\//.test(p); }, lastmod: new Date(),"],
+    ['after a division on a property called return, with a regex-like // further on', "      priority: weights.return / 2, lastmod: new Date(), exclude: [/x/],"],
     ['after a division broken over two lines, with a regex literal further down', "      priority: (10\n / 2), lastmod: new Date(), exclude: [/x/],"],
     ['after a string holding /*, with a block comment further down', "      filter: (p) => !p.includes('/drafts/*'),\n      lastmod: new Date(),\n      /** a later comment */"],
   ]) {
