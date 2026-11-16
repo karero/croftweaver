@@ -803,12 +803,13 @@ if [ -n "$SEAT_LIMITS_WHY" ]; then
 fi
 # seat_fits <seat> <model> <the prompt file it would send, or empty for agy, which has no line>: may
 # this seat send it? Sets WHY for its FAILED section when not. A takes: line is held against the
-# file's bytes when it is valid UTF-8 for the decoder the request builders use (perl/utf8_valid.pl),
-# else, or with no perl, against three times them: a decoder replaces a bad byte with at most one
+# file's bytes when it is valid UTF-8 for the decoder the request builders use (perl/utf8_valid.pl;
+# for Codex, the rule codex-cli applies, --where), else, or with no perl, against three times them: a decoder replaces a bad byte with at most one
 # 3-byte U+FFFD, so the prompt can grow (the ollama CLI did, one for each; Codex refuses it).
 # With no line, the 120,000 limit is on the artifact plus prior findings and evidence (CONTENT_BYTES).
 seat_fits() {
-  local rule="" line n n3
+  local rule="" line n n3 rfc=""
+  [ "$1" = codex ] && rfc=--where
   while IFS= read -r line; do
     case "$line" in "$1 $2 "*) rule="${line#"$1 $2 "}"; break ;; esac
   done <<<"$SEAT_LIMITS"
@@ -817,7 +818,7 @@ seat_fits() {
     takes:*)
       n=""; [ -f "$3" ] && [ -r "$3" ] && n="$(wc -c 2>/dev/null <"$3" | tr -d ' ')"
       case "$n" in ''|*[!0123456789]*) WHY="could not count the prompt's bytes (no readable prompt file); nothing was sent"; return 1 ;; esac
-      if command -v perl >/dev/null 2>&1 && perl "$PERL_DIR/utf8_valid.pl" "$3"; then
+      if command -v perl >/dev/null 2>&1 && perl "$PERL_DIR/utf8_valid.pl" ${rfc:+"$rfc"} "$3" >/dev/null; then
         [ "$n" -le "${rule#takes:}" ] && return 0
         WHY="a prompt of $n bytes, over the ${rule#takes:} this seat took whole (seat_limits.txt); nothing was sent"
       else
@@ -1298,6 +1299,18 @@ run_codex() {
   # The prompt goes on stdin (`-`): no argv limit. Probe P1 (2026-10-22) recorded a 400,040-byte
   # prompt sent this way arriving byte for byte.
   printf '%s' "$SEND_TOOLED" >"$RAW_DIR/codex.prompt" || { WHY="could not write the prompt file"; return 1; }
+  # Codex refuses a prompt that is not valid UTF-8 with an error that does not name the file. This
+  # runs before seat_fits, which would count the whole prompt at three times its bytes and give
+  # the wrong remedy.
+  # Without perl, or when it cannot read the file (no line printed), the prompt goes as it is.
+  local where=""
+  if command -v perl >/dev/null 2>&1; then
+    where="$(perl "$PERL_DIR/utf8_valid.pl" --where "$RAW_DIR/codex.prompt")" || true
+  fi
+  if [ -n "$where" ]; then
+    WHY="$NOT_UTF8_WHY the prompt is not valid UTF-8 ($where), and Codex refuses such a prompt, so nothing was sent"
+    return 1
+  fi
   seat_fits codex "$(codex_model)" "$RAW_DIR/codex.prompt" || return 1
   "$bin" "$@" - <"$RAW_DIR/codex.prompt" >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   local rc=$?
@@ -1674,6 +1687,9 @@ THINK_TAG_WHY="think-tag guard:"
 # Melious's error code for an empty balance (melious_stream.pl exit 10). The owner's rule,
 # 2026-10-27: with Melious as the second seat, Codex alone is enough for that round, no rerun owed.
 NO_BALANCE_WHY="out of balance"
+# run_codex refuses, before it sends anything, a prompt that is not valid UTF-8 (a Latin-1 file in
+# the diff, say): Codex would refuse it. report_tier reads this prefix to give it its own section.
+NOT_UTF8_WHY="UTF-8 check:"
 # A quota/rate-limit refusal needs a different remedy (wait, or add credits) from
 # every other failure (fix the CLI, sign-in or model name), so it is named apart.
 # No bare "quota": "disk quota exceeded" is a setup failure, not a provider refusal
@@ -1715,7 +1731,7 @@ SUMMARY="" ; TIMINGS="" ; WHY="" ; TIER_PRINTED=0
 CODEX_OUTCOME="" ; MELIOUS_OUTCOME=""   # each seat's outcome as SUMMARY shows it, for report_round
 MELIOUS_NO_BALANCE=0                    # 1 when the Melious seat failed for an empty balance
 report_tier() {
-  local label="$1" stem="$2" rc=1 secs="" err="" out="" error_lines="" model="" outcome reason sized=0 guarded=0
+  local label="$1" stem="$2" rc=1 secs="" err="" out="" error_lines="" model="" outcome reason sized=0 guarded=0 notutf8=0
   WHY="tier did not report (killed or crashed?)" ; TIER_PRINTED=0
   if [ -s "$RAW_DIR/$stem.status" ]; then
     { read -r rc; read -r TIER_PRINTED; read -r secs; IFS= read -r WHY; } <"$RAW_DIR/$stem.status"
@@ -1752,6 +1768,9 @@ report_tier() {
     if case "$WHY" in "$THINK_TAG_WHY"*) true ;; *) false ;; esac; then
       outcome="FAILED ($WHY)" ; guarded=1
       reason="$WHY. Run this round on Codex (--seat codex) at the depth the depth rule gives this change, or on the model Melious runs at any depth (melious_models.txt)."
+    elif case "$WHY" in "$NOT_UTF8_WHY"*) true ;; *) false ;; esac; then
+      outcome="FAILED ($WHY)" ; notutf8=1
+      reason="$WHY. Save that file as UTF-8 (for Latin-1: iconv -f ISO-8859-1 -t UTF-8), or leave it out of the review, then run the round again."
     elif [ "$stem" = melious ] && case "$WHY" in "$NO_BALANCE_WHY"*) true ;; *) false ;; esac; then
       outcome="FAILED ($WHY)" ; MELIOUS_NO_BALANCE=1
       if [ "$SECOND_SEAT" = melious ] || [ "$SEAT" = melious ]; then
@@ -1787,6 +1806,8 @@ report_tier() {
       printf '\nThe seat never started: its size limit is checked before it sends anything.\n'
     elif [ "$guarded" = 1 ]; then
       printf '\nThe seat never started: the think-tag check runs before it sends anything.\n'
+    elif [ "$notutf8" = 1 ]; then
+      printf '\nThe seat never started: the UTF-8 check runs before it sends anything. The prompt it would have sent: %s\n' "$RAW_DIR/$stem.prompt"
     elif [ -n "$err" ]; then
       printf '\nLast lines of its stderr (full file: %s):\n\n' "$RAW_DIR/$stem.err"
       printf '%s\n' "$err" | sed 's/^/    /'
