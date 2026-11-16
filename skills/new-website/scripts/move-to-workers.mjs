@@ -949,8 +949,8 @@ async function stageOneGaps(git, sha) {
   for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
     const r = await git('show', `${sha}:${f}`);
     if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
-    // Comments are cut and each string is blanked in one pass, so a `//` inside a URL or a `/*` inside a string is not taken for a comment.
-    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, (m) => (m[0] === '/' ? '' : '""'));
+    // Comments and regex literals are cut and each string is blanked in one pass, so a `//` inside a URL, a string or a regex literal is not taken for a comment. A regex literal is read only after `( , : = [ ! & | ? { ;`, `=>` or a line start, so a division is not one.
+    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*|^\s*)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
     if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
   }
   await asLines(async () => {
@@ -1341,7 +1341,7 @@ function answerWords(r) {
     if (!/^[0-9a-f]{40}$/.test(first)) return 'answers now: 200, not a build.txt this kit writes';
     const text = r.body.toString('utf8');
     const line = /^platform=(\S+)/m.exec(text)?.[1];
-    const how = line ? `its platform line says ${line === 'pages' ? 'Pages' : line === 'worker' ? 'the Worker' : JSON.stringify(line.slice(0, 20))}` : r.headers.get('access-control-allow-origin') !== null ? "Pages' header is there, so likely Pages" : 'no Pages header, so likely the Worker';
+    const how = line ? `its platform line says ${line === 'pages' ? 'Pages' : line === 'worker' ? 'the Worker' : JSON.stringify(line.length > 20 ? `${line.slice(0, 20)}…` : line)}` : r.headers.get('access-control-allow-origin') !== null ? "Pages' header is there, so likely Pages" : 'no Pages header, so likely the Worker';
     return `answers now: 200, build.txt names ${short(first)}, ${how}`;
   }
   const to = r.headers.get('location');

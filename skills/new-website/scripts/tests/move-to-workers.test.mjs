@@ -3281,6 +3281,7 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
     ['a commented-out line', '      // lastmod: new Date(),'],
     ['a // comment after other code', '      sitemap(), // lastmod: new Date()'],
     ['a // comment right after code, no space', '      sitemap(),// lastmod: new Date()'],
+    ['a string that holds the text', "      description: 'lastmod: new Date() is not used',"],
     ['a fixed date', "      lastmod: new Date('2026-01-01'),"],
     ['a line inside a block comment', '      /*\n      lastmod: new Date(),\n      */'],
   ]) {
@@ -3293,6 +3294,8 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
 
   for (const [label, line] of [
     ['after a URL on the same line', "      filter: (p) => p !== 'https://x.example/', lastmod: new Date(),"],
+    ['after a regex literal holding //', "      filter: (p) => !/^https?:\\/\\//.test(p), lastmod: new Date(),"],
+    ['after a division', "      priority: 1 / 2, lastmod: new Date(),"],
     ['after a string holding /*, with a block comment further down', "      filter: (p) => !p.includes('/drafts/*'),\n      lastmod: new Date(),\n      /** a later comment */"],
   ]) {
     test(`2b: the build-time line ${label} is still a gap`, async () => {
