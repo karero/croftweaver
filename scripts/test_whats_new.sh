@@ -292,7 +292,7 @@ for part in "runs \`node scripts/make-icons.mjs --setup\` before \`npm test\`" "
   else printf 'FAIL S11 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
 done
 
-# L1-L5: --stamp-tests keeps the site's record of files it did not take. It used to write two
+# L1-L11: --stamp-tests keeps the site's record of files it did not take. It used to write two
 # lines only, so a site's `left_out:` and `kept:` lines vanished, and a changed file the site
 # lacks dropped out of every later report with no record. The report runs as an owner runs it,
 # through make whats-new.
@@ -306,36 +306,80 @@ BASE6="$($git -C "$S6" rev-parse HEAD)"
 put "$S6/$A/tests/a.spec.ts" v2                     # changed, the site merges it
 put "$S6/skills/new-website/templates/AGENTS.md" v2 # changed, the site leaves it out by hand
 put "$S6/$A/tests/new.spec.ts" v1                   # added, the site does not take it
+put "$S6/$A/tests/skip.spec.ts" v1                  # added, the owner's line already names it
 $git -C "$S6" add -A && $git -C "$S6" commit -qm later
 HEAD6="$($git -C "$S6" rev-parse HEAD)"
 stamp "$P6/.claude/skills/SUITE-VERSION" "$HEAD6"
 stamp "$P6/tests/TESTS-VERSION" "$BASE6"
-printf '%s\n' "left_out: AGENTS.md — the site keeps its own rules" "kept: old.spec.ts — the starter dropped it; the site still needs it" >> "$P6/tests/TESTS-VERSION"
+OWN_KEPT="kept: legacy.spec.ts — not in the site when stamped by an old tool; the site keeps it"
+printf '%s\n' "# the owner's note" "left_out: AGENTS.md — the site keeps its own rules" "kept: old.spec.ts — the starter dropped it; the site still needs it" \
+  "left_out: skip.spec.ts — the site has no forms" "$OWN_KEPT" >> "$P6/tests/TESTS-VERSION"
 echo v2 > "$P6/tests/a.spec.ts"; echo v1 > "$P6/AGENTS.md"
 bash "$S6/scripts/whats-new.sh" --stamp-tests "$P6/tests" > "$T/stamp-out" 2>&1 || { echo "FAIL L1 --stamp-tests exits non-zero"; fails=$((fails+1)); }
 cp "$P6/tests/TESTS-VERSION" "$T/out"
+TODAY="$(sed -n 's/^copied: //p' "$T/out")"   # the stamp's own date, so a run across midnight still matches
+AUTO_NEW="left_out: tests/new.spec.ts — not in the site when stamped $TODAY"
 has   "L1 the stamp moves to the suite's head"                "suite_commit: $HEAD6"
 has   "L1 the site's left_out line is kept"                   "left_out: AGENTS.md — the site keeps its own rules"
 has   "L1 the site's kept line is kept"                       "kept: old.spec.ts — the starter dropped it; the site still needs it"
-has   "L2 a changed file the site lacks is recorded"          "left_out: tests/new.spec.ts — not in the site when stamped $(date +%Y-%m-%d)"
+has   "L1 the owner's comment line is kept"                   "# the owner's note"
+has   "L1 an owner's line quoting the marker is kept"         "$OWN_KEPT"
+has   "L2 a changed file the site lacks is recorded"          "$AUTO_NEW"
 hasnt "L2 a file the site has is not recorded"                "tests/a.spec.ts"
+hasnt "L7 a file the owner's line names (tests/-relative) gets no second line" "left_out: tests/skip.spec.ts"
+cp "$T/stamp-out" "$T/out"
+hasnt "L1 a usable baseline prints no warning"                "warning:"
 make -s --no-print-directory -C "$S6" -f "$HERE/../Makefile" whats-new PROJECT="$P6" > "$T/out" 2>&1; rc=$?
 if [ "$rc" -eq 0 ]; then echo "ok   L3 make whats-new exits 0"; else echo "FAIL L3 make whats-new exits $rc"; fails=$((fails+1)); fi
 has   "L3 the tests channel is up to date"                    "Up to date — no upstream changes to the template test suite / CONTENT_GUIDE / frozen root+infra files."
 has   "L3 the report lists the site's record"                 "  left_out: AGENTS.md — the site keeps its own rules"
 has   "L3 the report lists the kept file"                     "  kept: old.spec.ts — the starter dropped it; the site still needs it"
-has   "L3 the report lists the file not taken"                "  left_out: tests/new.spec.ts — not in the site when stamped $(date +%Y-%m-%d)"
+has   "L3 the report lists the file not taken"                "  $AUTO_NEW"
+# A second stamp while the site still lacks the file keeps the line, once: the baseline has moved
+# past the change, so the line is the only record left.
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P6/tests" > /dev/null 2>&1
+cp "$P6/tests/TESTS-VERSION" "$T/out"
+has   "L6 a second stamp keeps the added line"                "$AUTO_NEW"
+n="$(grep -cF -- "tests/new.spec.ts" "$T/out")"
+if [ "$n" -eq 1 ]; then echo "ok   L6 ... once"; else echo "FAIL L6 the line is there $n times"; fails=$((fails+1)); fi
+has   "L6 the owner's quoting line is still kept"             "$OWN_KEPT"
 # Once the site takes the file, the next stamp drops the line it added; the owner's lines stay.
 echo v1 > "$P6/tests/new.spec.ts"
 bash "$S6/scripts/whats-new.sh" --stamp-tests "$P6/tests" > /dev/null 2>&1
 cp "$P6/tests/TESTS-VERSION" "$T/out"
 hasnt "L4 a file the site now has loses its line"             "tests/new.spec.ts"
 has   "L4 the owner's line stays"                             "left_out: AGENTS.md — the site keeps its own rules"
-# A first stamp, as the scaffold writes before it copies CONTENT_GUIDE.md, records nothing.
-P7="$T/site7"; mkdir -p "$P7/tests"
-bash "$S6/scripts/whats-new.sh" --stamp-tests "$P7/tests" > /dev/null 2>&1
+# An added line for a file the suite later deletes goes too: nothing is left to take.
+put "$S6/$A/tests/gone.spec.ts" v1; $git -C "$S6" add -A && $git -C "$S6" commit -qm "add gone"
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P6/tests" > /dev/null 2>&1
+cp "$P6/tests/TESTS-VERSION" "$T/out"
+has   "L9 a file added since is recorded"                     "left_out: tests/gone.spec.ts — not in the site when stamped $TODAY"
+$git -C "$S6" rm -q "$A/tests/gone.spec.ts" && $git -C "$S6" commit -qm "drop gone"
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P6/tests" > /dev/null 2>&1
+cp "$P6/tests/TESTS-VERSION" "$T/out"
+hasnt "L9 its line goes once the suite deletes the file"      "tests/gone.spec.ts"
+# A scaffold stamps the skills, then the tests, at one commit: there is nothing to record.
+P7="$T/site7"; mkdir -p "$P7/tests" "$P7/.claude/skills"
+bash "$S6/scripts/whats-new.sh" --stamp "$P7/.claude/skills" > /dev/null 2>&1
+(cd "$P7" && bash "$S6/scripts/whats-new.sh" --stamp-tests tests) > /dev/null 2>&1
 cp "$P7/tests/TESTS-VERSION" "$T/out"
-hasnt "L5 a first stamp writes no left_out line"              "left_out:"
+hasnt "L5 a scaffold's first stamp writes no left_out line"   "left_out:"
+# A site made before TESTS-VERSION: the first --stamp-tests compares from its skills stamp, as
+# the report does, so a file the site lacks is not passed over with no record.
+P8="$T/site8"; mkdir -p "$P8/tests" "$P8/.claude/skills"
+stamp "$P8/.claude/skills/SUITE-VERSION" "$BASE6"
+echo v2 > "$P8/tests/a.spec.ts"; echo v1 > "$P8/tests/skip.spec.ts"; echo v1 > "$P8/AGENTS.md"
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P8/tests" > /dev/null 2>&1
+cp "$P8/tests/TESTS-VERSION" "$T/out"
+has   "L10 no TESTS-VERSION: a file the site lacks is recorded" "left_out: tests/new.spec.ts — not in the site when stamped $TODAY"
+hasnt "L10 ... and not one it has"                             "tests/a.spec.ts"
+# A baseline this clone does not have cannot be compared: the stamp says so instead of
+# passing over the files in silence.
+P9="$T/site9"; mkdir -p "$P9/tests"
+stamp "$P9/tests/TESTS-VERSION" 0123456789abcdef0123456789abcdef01234567
+bash "$S6/scripts/whats-new.sh" --stamp-tests "$P9/tests" > "$T/out" 2>&1; rc=$?
+if [ "$rc" -eq 0 ]; then echo "ok   L11 an unknown baseline still stamps"; else echo "FAIL L11 --stamp-tests exits $rc"; fails=$((fails+1)); fi
+has   "L11 ... and warns that it cannot list the files"       "warning: the old baseline in $P9/tests/TESTS-VERSION (0123456789abcdef0123456789abcdef01234567) is not a commit in this clone, so this"
 
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed" >&2; exit 1; }
 echo "all whats-new missing-file and import tests passed"

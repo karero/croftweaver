@@ -349,7 +349,8 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
 > `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. Before stamping, add a line
 > `left_out: <path> — <why>` to `tests/TESTS-VERSION` for each file you reviewed and did not
-> take (`kept: <path> — <why>` for one the starter dropped and the site keeps): the stamp keeps
+> take (`kept: <path> — <why>` for one the starter dropped and the site keeps), the path as the
+> site has it or would (`tests/x.spec.ts`, `AGENTS.md`): the stamp keeps
 > those lines, adds a `left_out:` line for each file changed since the last stamp that the site
 > has no copy of, and every report lists them. A changed file the site has no copy
 > of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.

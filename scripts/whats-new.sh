@@ -15,7 +15,8 @@
 #                                                 # reported as "(pinned)", their changes kept
 #                                                 # in the report until the owner deletes the
 #                                                 # skill's `pinned:` line in SUITE-VERSION.
-#   scripts/whats-new.sh --stamp <skills_dir>     # write the SUITE-VERSION stamp. This is
+#   scripts/whats-new.sh --stamp <skills_dir>     # write the SUITE-VERSION stamp, keeping its
+#                                                 # `pinned:` lines. This is
 #                                                 # the ONLY writer of the stamp format —
 #                                                 # new-website's scaffold step calls it too.
 #   scripts/whats-new.sh --stamp-tests <tests_dir> # write the TESTS-VERSION stamp next to a
@@ -132,20 +133,55 @@ site_copy_of() {  # $1 = TEMPLATE_TRACKED file; prints its site-relative copy, o
 # the old baseline, and still in the suite), so no stamp hides one; every report lists them. An
 # added line goes once the site has the file.
 AUTO_LEFT_OUT='— not in the site when stamped'
+# An added line, matched whole, so an owner's line that quotes the marker stays the owner's.
+AUTO_RE="^left_out: [^ ]+ $AUTO_LEFT_OUT [0-9]{4}-[0-9]{2}-[0-9]{2}\$"
+
+suite_site_paths() {  # prints the site path of each tracked template file at HEAD
+  # shellcheck disable=SC2086
+  git -C "$REPO_DIR" ls-tree -r --name-only HEAD -- $TEMPLATE_TRACKED | while IFS= read -r f; do site_copy_of "$f"; done
+}
+
+# The oldest suite commit, in this clone, among SUITE-VERSION stamps: under-reporting is the
+# dangerous direction for a staleness channel.
+oldest_stamp_base() {  # $1 = SUITE-VERSION paths, one per line
+  local s sb pick=""
+  while IFS= read -r s; do
+    [ -n "$s" ] || continue
+    sb="$(sed -n 's/^suite_commit: //p' "$s")"
+    [ -n "$sb" ] && [ "$sb" != "unknown" ] || continue
+    git -C "$REPO_DIR" cat-file -e "$sb^{commit}" 2>/dev/null || continue
+    # older = ancestor of the current pick (linear history), else compare dates
+    if [ -z "$pick" ] || git -C "$REPO_DIR" merge-base --is-ancestor "$sb" "$pick" 2>/dev/null \
+       || [ "$(git -C "$REPO_DIR" show -s --format=%ct "$sb")" -lt "$(git -C "$REPO_DIR" show -s --format=%ct "$pick")" ]; then
+      pick="$sb"
+    fi
+  done <<<"$1"
+  printf '%s' "$pick"
+}
+
 write_tests_stamp() {  # $1 = tests dir
-  local stamp="$1/TESTS-VERSION" site_root own="" auto="" old_base="" changed="" f rel path rest
+  local stamp="$1/TESTS-VERSION" site_root own="" auto="" old_base="" changed="" suite_paths f rel path rest
   site_root="$(dirname "$1")"
+  suite_paths="$(suite_site_paths)"
   if [ -f "$stamp" ]; then
-    own="$(grep -E '^(left_out|kept): ' "$stamp" | grep -vF -- "$AUTO_LEFT_OUT" || true)"
+    own="$(grep -E '^(#|(left_out|kept): )' "$stamp" | grep -vE -- "$AUTO_RE" || true)"
     old_base="$(sed -n 's/^suite_commit: //p' "$stamp")"
+    # An added line stays while the site lacks the file and the suite still has it.
     while read -r _ path rest; do
-      [ -n "$path" ] && [ ! -e "$site_root/$path" ] && auto="${auto}left_out: $path $rest
+      [ -n "$path" ] && [ ! -e "$site_root/$path" ] && grep -Fxq -- "$path" <<<"$suite_paths" && auto="${auto}left_out: $path $rest
 "
-    done <<<"$(grep -E '^left_out: ' "$stamp" | grep -F -- "$AUTO_LEFT_OUT" || true)"
+    done <<<"$(grep -E -- "$AUTO_RE" "$stamp" || true)"
+  else
+    # A site made before TESTS-VERSION: its baseline is the oldest skills stamp, as in the report.
+    old_base="$(oldest_stamp_base "$(find "$site_root" -maxdepth 4 -name SUITE-VERSION -not -path '*/node_modules/*' 2>/dev/null | sort)")"
   fi
   if [ -n "$old_base" ] && git -C "$REPO_DIR" cat-file -e "$old_base^{commit}" 2>/dev/null; then
     # shellcheck disable=SC2086
     changed="$(git -C "$REPO_DIR" diff --name-only "$old_base" HEAD -- $TEMPLATE_TRACKED)"
+  elif [ -n "$old_base" ]; then
+    echo "warning: the old baseline in $stamp ($old_base) is not a commit in this clone, so this" >&2
+    echo "stamp cannot list the files changed since then that the site lacks. Compare them by hand" >&2
+    echo "and add a \`left_out: <path> — <why>\` line for each file the site does not take." >&2
   fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -215,7 +251,9 @@ if [ "$MODE" = stamp ]; then
     echo "which may not match copies made from the working tree. Commit the suite first" >&2
     echo "for a clean baseline." >&2
   fi
-  write_stamp "$TARGET"
+  pins="$(grep '^pinned: ' "$TARGET/SUITE-VERSION" 2>/dev/null || true)"
+  write_stamp "$TARGET" "${pins:+$pins
+}"
   echo "stamped $TARGET/SUITE-VERSION → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
   exit 0
 fi
@@ -232,7 +270,8 @@ if [ "$MODE" = stamp-tests ]; then
   echo "stamped $TARGET/TESTS-VERSION → $(git -C "$REPO_DIR" rev-parse --short HEAD)"
   print_left_out "$TARGET"
   echo "A file you reviewed and did not take needs a line \`left_out: <path> — <why>\` in"
-  echo "$TARGET/TESTS-VERSION; the stamp keeps such lines, and every report lists them."
+  echo "$TARGET/TESTS-VERSION, the path as the site has it or would (tests/x.spec.ts, AGENTS.md);"
+  echo "the stamp keeps such lines, and every report lists them."
   exit 0
 fi
 
@@ -294,6 +333,7 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
   pins="$(sed -n 's/^pinned: //p' "$stamp")"
   while read -r s pb; do
     [ -n "$s" ] || continue
+    [ -n "$pb" ] || { echo "error: the line 'pinned: $s' in $stamp names no commit — write it as 'pinned: <skill> <commit>', or delete it." >&2; return 1; }
     if ! git -C "$REPO_DIR" cat-file -e "$pb^{commit}" 2>/dev/null; then
       echo "error: the pinned baseline of $s in $stamp ($pb) is not in this clone — run 'git pull'" >&2
       echo "first; if it still fails, delete that line and compare $s by hand." >&2
@@ -672,25 +712,7 @@ echo "Project:    $PROJECT"
 # template-test drift) for every site that predates TESTS-VERSION. With
 # multiple stamps (.claude/skills AND .agents/skills), take the OLDEST commit —
 # under-reporting is the dangerous direction for a staleness channel.
-FALLBACK_BASE=""
-while IFS= read -r STAMP; do
-  [ -n "$STAMP" ] || continue
-  SB="$(sed -n 's/^suite_commit: //p' "$STAMP")"
-  [ -n "$SB" ] && [ "$SB" != "unknown" ] || continue
-  git -C "$REPO_DIR" cat-file -e "$SB^{commit}" 2>/dev/null || continue
-  if [ -z "$FALLBACK_BASE" ]; then
-    FALLBACK_BASE="$SB"
-  else
-    # older = ancestor of the current pick (linear history), else compare dates
-    if git -C "$REPO_DIR" merge-base --is-ancestor "$SB" "$FALLBACK_BASE" 2>/dev/null; then
-      FALLBACK_BASE="$SB"
-    elif [ "$(git -C "$REPO_DIR" show -s --format=%ct "$SB")" -lt "$(git -C "$REPO_DIR" show -s --format=%ct "$FALLBACK_BASE")" ]; then
-      FALLBACK_BASE="$SB"
-    fi
-  fi
-done <<EOF
-$STAMPS
-EOF
+FALLBACK_BASE="$(oldest_stamp_base "$STAMPS")"
 
 FAIL=0
 while IFS= read -r STAMP; do

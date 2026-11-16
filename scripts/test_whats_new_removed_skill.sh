@@ -331,6 +331,20 @@ printf 'pinned: alpha 0123456789abcdef0123456789abcdef01234567\n' >> "$S11/.clau
 out="$(mk whats-new PROJECT="$S11")"; rc=$?
 check "pinned drift: a baseline not in the clone fails"         test "$rc" -ne 0
 check "pinned drift: and says which line"                       has "$out" "the pinned baseline of alpha"
+grep -v '^pinned: ' "$S11/.claude/skills/SUITE-VERSION" > "$T/sv" && mv "$T/sv" "$S11/.claude/skills/SUITE-VERSION"
+printf 'pinned: alpha\n' >> "$S11/.claude/skills/SUITE-VERSION"
+out="$(mk whats-new PROJECT="$S11")"; rc=$?
+check "pinned drift: a line with no commit fails"               test "$rc" -ne 0
+check "pinned drift: and says the line names no commit"         has "$out" "the line 'pinned: alpha' in"
+check "pinned drift: ... names no commit"                        has "$out" "names no commit"
+# --stamp, the scaffold's call and an owner's reset, keeps the pinned lines: dropping one would
+# end the report of that fork's skipped changes with nobody deleting it.
+grep -v '^pinned: ' "$S11/.claude/skills/SUITE-VERSION" > "$T/sv" && mv "$T/sv" "$S11/.claude/skills/SUITE-VERSION"
+printf 'pinned: alpha %s\n' "$OLD" >> "$S11/.claude/skills/SUITE-VERSION"
+bash "$WN" --stamp "$S11/.claude/skills/" >/dev/null 2>&1; rc=$?
+check "pinned drift: --stamp exits 0"                           test "$rc" -eq 0
+check "pinned drift: --stamp moves the stamp"                   test "$(stamp "$S11")" = "$($git -C "$SUITE" rev-parse HEAD)"
+check "pinned drift: --stamp keeps the pinned line"             grep -qxF "pinned: alpha $OLD" "$S11/.claude/skills/SUITE-VERSION"
 
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"
