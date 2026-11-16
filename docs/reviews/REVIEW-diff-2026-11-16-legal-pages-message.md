@@ -31,3 +31,10 @@ unit test run with origin/main's message put back. Gate id 20261116T145245Z-8188
 Mutation check on `ff2ce1f8` (playwright, `tests/placeholders.spec.ts -g 'draft notice rules pick'`): 3
 mutations of the message on `placeholders.spec.ts` line 150, all 3 killed, and both baselines
 passed.
+
+Rebased onto main twice, after #574 (`cef99c83`) and after #575 (`d1f6e1a6`); the hashes above are
+from before. Old → final: 3db8dc0e → f53618cd, f4a7c52a → aba742dd, 065874bb → f69c2abb,
+2e2e687b → 24b660e2, ff2ce1f8 → beb2c0a0. `docs/BUGLOG.md` merges with git's union driver, so each
+rebase kept both versions of three rows (the base's open rows for `--refresh` and `--stamp-tests`,
+and main's open legal-pages row); `scripts/check_buglog_rows.sh` caught them each time, and the
+commit that adds this paragraph deleted them.
