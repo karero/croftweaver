@@ -282,7 +282,11 @@ For everyone, the owner included:
   - The kit ships the English Legal Notice. In the same message, ask whether the
     business is based in Germany. If it is, offer the German Impressum as well
     (`src/pages/_impressum.astro`, whose header has the steps); offer it to no one
-    else.
+    else. A site made before 0.35 may already route it as `src/pages/impressum.astro`:
+    then it has the page and there is nothing to offer. On a site with neither file, do
+    not follow the header's steps: they assume the files a site made from 0.35 on has
+    (`legal-notice.astro`, its footer, its tests). Tell the owner the German page needs
+    setting up by hand there, as a task of its own.
   - Record the answer first, as a line of its own in the `README.md` in the folder
     that holds `package.json`: one of the forms below, written bare (no list marker, no
     backticks) and nothing else on that line, the date as YYYY-MM-DD. Then delete the
