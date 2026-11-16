@@ -49,15 +49,29 @@ const svgSize = (page: Page, bytes: Buffer) =>
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
 
 // Every logo the JSON-LD names, at any depth and on a node of any type (Organization, a subtype such
-// as LocalBusiness, or an array of types): a URL, or an ImageObject's url.
+// as LocalBusiness, or an array of types): a URL, or an ImageObject's url. An empty one is skipped.
+const logoUrls = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.flatMap(logoUrls);
+  if (typeof value === 'string') return value ? [value] : [];
+  const url = value && typeof value === 'object' ? (value as { url?: unknown }).url : undefined;
+  return typeof url === 'string' && url ? [url] : [];
+};
 const logosIn = (node: unknown): string[] => {
   if (Array.isArray(node)) return node.flatMap(logosIn);
   if (!node || typeof node !== 'object') return [];
-  return Object.entries(node).flatMap(([key, value]) =>
-    key === 'logo'
-      ? [value].flat().flatMap((l) => (typeof l === 'string' ? [l] : typeof l?.url === 'string' ? [l.url] : logosIn(l)))
-      : logosIn(value));
+  return Object.entries(node).flatMap(([key, value]) => [...(key === 'logo' ? logoUrls(value) : []), ...logosIn(value)]);
 };
+
+test('icons — the logo reader finds every logo the structured data names, and only those', () => {
+  expect(logosIn({ '@type': 'Organization', logo: '/a.png' }), 'a URL').toEqual(['/a.png']);
+  expect(logosIn({ '@type': ['Organization', 'LocalBusiness'], logo: { '@type': 'ImageObject', url: '/a.png' } }), 'an ImageObject on a node of two types').toEqual(['/a.png']);
+  expect(logosIn({ '@graph': [{ '@type': 'WebSite', publisher: { '@type': 'Organization', logo: '/a.png' } }] }), 'a node nested in another').toEqual(['/a.png']);
+  expect(logosIn({ logo: { url: '/outer.png', creator: { logo: '/a.png' } } }), "a logo inside a logo's ImageObject").toEqual(['/outer.png', '/a.png']);
+  expect(logosIn({ logo: [['/a.png'], '/b.png'] }), 'arrays of URLs, at any depth').toEqual(['/a.png', '/b.png']);
+  expect(logosIn({ logo: '' }), 'an empty URL is no logo').toEqual([]);
+  expect(logosIn({ logo: { '@type': 'ImageObject' } }), 'nor an ImageObject with no url').toEqual([]);
+  expect(logosIn({ '@type': 'Organization', image: '/a.png', url: 'https://example.com' }), 'nor another property').toEqual([]);
+});
 
 for (const icon of ICONS) {
   test(`icons — ${icon.path} is linked and is ${icon.kind === 'png' ? `a ${icon.size} px PNG` : icon.kind === 'ico' ? 'an ICO with a 32 px frame' : 'an SVG'}`, async ({ page, request }) => {
