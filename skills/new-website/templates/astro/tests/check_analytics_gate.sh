@@ -73,11 +73,15 @@ prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src
 # src/config.ts is the site's own file, so whats-new never lists a line it lacks: each message
 # about it names the line, as the starter writes it.
 ENABLED_LINE="enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,"
+# That line reads USE_ANALYTICS, which a site made before the switch does not define.
+USE_HINT=""
+grep -q 'USE_ANALYTICS' src/config.ts || USE_HINT="  It reads USE_ANALYTICS, which src/config.ts lacks: add export const USE_ANALYTICS = true; as well (true keeps analytics on, as now)."
 if [ -z "$prod" ]; then
   echo "✗ analytics gate: no \"export const PROD_BRANCH = '…';\" line in src/config.ts to test against."
   echo "  Add it as the starter's src/config.ts has it, naming the branch Cloudflare builds as Production,"
   echo "  for example: export const PROD_BRANCH = 'production';"
   echo "  and have the ANALYTICS enabled: line compare against it: $ENABLED_LINE"
+  [ -z "$USE_HINT" ] || echo "$USE_HINT"
   exit 1
 fi
 # Whether the owner uses analytics at all. No line means a site made before the switch: on.
@@ -128,6 +132,7 @@ if [ "$use" != false ]; then
   wvar_fail() {
     echo "✗ analytics gate: $1"
     echo "  The starter's line, which works on Pages and on Workers Builds alike: $ENABLED_LINE"
+    [ -z "$USE_HINT" ] || echo "$USE_HINT"
     exit 1
   }
   [ "$(grep -cE '^[[:space:]]*enabled:.*process\.env\.' src/config.ts)" = 1 ] || wvar_fail "src/config.ts needs exactly one enabled: line reading process.env."
@@ -777,7 +782,7 @@ done
 build workers-live unset "" "$prod"
 before=$fail; fail=0
 expect_on workers-live "$wvar=$prod (a Workers Builds live build)"
-[ "$fail" = 0 ] || echo "  src/config.ts needs the starter's enabled: line: $ENABLED_LINE"
+[ "$fail" = 0 ] || { echo "  src/config.ts needs the starter's enabled: line: $ENABLED_LINE"; [ -z "$USE_HINT" ] || echo "$USE_HINT"; }
 fail=$((fail | before))
 expect_go workers-live "$wvar=$prod (a Workers Builds live build)" none
 build workers-preview unset "" "$preview"

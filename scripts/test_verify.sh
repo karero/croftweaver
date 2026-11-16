@@ -132,8 +132,8 @@ JS
 check "npm_execpath names pnpm: the npm on PATH runs"       "check test" "$(calls)"
 check "... and pnpm's entry did not"                        no "$([ -e "$CALLS-pnpm" ] && echo yes || echo no)"
 
-# A Workers site (scripts/deploy.sh present) publishes with `npm run deploy:live`; its test,
-# tests/check_deploy.sh, runs only in the toolkit's CI, so verify must catch a missing line.
+# A Workers site (scripts/deploy.sh present) publishes with `npm run deploy:live`;
+# tests/check_deploy.sh runs it only in the toolkit's CI, so verify must catch a missing script.
 # Every run above had no deploy.sh, as on a Pages site, and none of them was stopped.
 : >"$SITE/scripts/deploy.sh"
 echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs"}}' >"$SITE/package.json"
@@ -153,6 +153,14 @@ echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs", "deploy:
 out="$(go)"
 check "deploy:live only: fails"                             1 "$(rc "$out")"
 check "... and names deploy:preview alone"                  yes "$(has "$out" 'no "deploy:preview" script')"
+echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs", "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "echo published"}}' >"$SITE/package.json"
+out="$(go)"
+check "a deploy:live that does not run deploy.sh: fails"    1 "$(rc "$out")"
+check "... and names it"                                    yes "$(has "$out" 'no "deploy:live" script that runs it')"
+echo '{"name": "site", "scripts": {' >"$SITE/package.json"
+out="$(go)"
+check "package.json not valid JSON: fails"                  1 "$(rc "$out")"
+check "... in one line that says so"                        yes "$(has "$out" '✗ verify: package.json is not valid JSON')"
 echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs", "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live"}}' >"$SITE/package.json"
 out="$(go)"
 check "both deploy scripts: green"                          0 "$(rc "$out")"

@@ -54,7 +54,7 @@ NOT_RUN=(
   scripts/test_whats_new_removed_skill.sh                       # builds a throwaway suite and sites; needs git
   scripts/test_package_leak.sh                                  # runs package.sh in a throwaway dir with stub zip/unzip
   scripts/test_pre_push_hook.sh                                 # builds a throwaway repo; needs git
-  scripts/test_verify.sh                                        # builds a throwaway site with a stub npm; needs node
+  scripts/test_verify.sh                                        # builds a throwaway site with a stub npm; needs node and a real npm
   scripts/test_config_lines.sh                                  # builds throwaway sites and a suite repo; needs git and node
   scripts/test_clean_denylist.sh                                # builds a throwaway repo and worktree; needs git
   scripts/test_git_stand_hook.sh                                # builds throwaway repos; needs git and node

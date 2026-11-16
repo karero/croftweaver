@@ -8,8 +8,8 @@
 # never lists a line the site lacks. A site made before 0.35 then failed the new gate with a
 # pointer to release notes that did not name the line (one with no PROD_BRANCH export failed
 # outright), and check_deploy.sh named four lines without saying which one was missing. These
-# cases pin that each failure names the missing line as the starter writes it, and that the
-# report says the two tests read src/config.ts.
+# cases pin that the failures before a build name the missing line as the starter writes it,
+# and that the report says the two tests read src/config.ts.
 #
 # Usage: bash scripts/test_config_lines.sh
 set -u
@@ -48,6 +48,7 @@ run "$G" bash tests/check_analytics_gate.sh
 check "gate, no PROD_BRANCH: fails"                         1 "$rc"
 has   "... names the line to add"                           "export const PROD_BRANCH = 'production';"
 has   "... and the enabled: line that compares against it"  "$ENABLED"
+has   "... and, with no USE_ANALYTICS line, says to add one" "add export const USE_ANALYTICS = true; as well"
 
 # The gate on a site that has the export but an enabled: line reading CF_PAGES_BRANCH only.
 cat >"$G/src/config.ts" <<'TS'
@@ -64,6 +65,22 @@ check "gate, enabled: without WORKERS_CI_BRANCH: fails"     1 "$rc"
 has   "... says what the line reads"                        "it reads: none"
 has   "... and gives the starter's line"                    "$ENABLED"
 hasnt "... with no pointer to release notes"                "release notes"
+hasnt "... nor a USE_ANALYTICS line the site already has"   "add export const USE_ANALYTICS"
+
+# The gate on a site made before the switch: no USE_ANALYTICS line, an enabled: line reading
+# CF_PAGES_BRANCH only. The starter's line reads USE_ANALYTICS, so pasting it alone breaks the build.
+cat >"$G/src/config.ts" <<'TS'
+export const PROD_BRANCH = 'production';
+export const ANALYTICS = {
+  scriptHost: 'https://stats.example.com',
+  scriptId: 'pa-x',
+  enabled: process.env.CF_PAGES_BRANCH === PROD_BRANCH,
+};
+TS
+run "$G" bash tests/check_analytics_gate.sh
+check "gate, no USE_ANALYTICS line: fails"                  1 "$rc"
+has   "... gives the starter's line"                        "$ENABLED"
+has   "... and the USE_ANALYTICS line it needs"             "add export const USE_ANALYTICS = true; as well"
 
 # check_deploy.sh on a Workers site whose config.ts lacks PROD_BRANCH and USE_ANALYTICS.
 D="$T/deploy"
@@ -90,9 +107,11 @@ cp "$HERE/whats-new.sh" "$S/scripts/"
 for f in check_analytics_gate.sh check_deploy.sh other.spec.ts; do echo v1 >"$S/$A/tests/$f"; cp "$S/$A/tests/$f" "$SITE/tests/"; done
 $git -C "$S" init -q && $git -C "$S" add -A && $git -C "$S" commit -qm base
 printf 'suite_commit: %s\ncopied: 2026-01-01\n' "$($git -C "$S" rev-parse HEAD)" >"$SITE/tests/TESTS-VERSION"
+mkdir -p "$SITE/.claude/skills" && cp "$SITE/tests/TESTS-VERSION" "$SITE/.claude/skills/SUITE-VERSION"
 for f in check_analytics_gate.sh check_deploy.sh other.spec.ts; do echo v2 >"$S/$A/tests/$f"; done
 $git -C "$S" commit -qam later
 run "$S" make -s --no-print-directory -f "$HERE/../Makefile" whats-new PROJECT="$SITE"
+check "make whats-new exits 0"                              0 "$rc"
 for f in check_analytics_gate.sh check_deploy.sh; do
   has "whats-new: tests/$f says it reads src/config.ts"     "tests/$f (site copy: tests/$f — it reads src/config.ts, the site's own file, which this report never lists"
 done

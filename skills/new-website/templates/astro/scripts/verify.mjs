@@ -5,7 +5,7 @@
 // placeholder only warns here (CI fails on it, so a draft pull request can still be pushed;
 // AGENTS.md §2), and CI also runs tests/check_ship_push.sh, which the pre-push hook runs too.
 //  0. With scripts/deploy.sh present (a Workers site), package.json must have the
-//     "deploy:preview" and "deploy:live" scripts that run it.
+//     "deploy:preview" and "deploy:live" scripts, each naming scripts/deploy.sh.
 //  1. `npm ci`, only on the first run here or when package.json or package-lock.json changed
 //     since the last install it made (a hash in node_modules/.verify-lock-hash). Every other
 //     run keeps node_modules. package.json counts too: edited without the lockfile, the two
@@ -74,15 +74,23 @@ function fail(what, res, after = ' Nothing after it ran.') {
   process.exit(1);
 }
 
-// 0. A Workers site publishes with scripts/deploy.sh through two package.json lines. The test of
-// them, tests/check_deploy.sh, runs in the toolkit's CI, not here, so a missing line would show
-// only when the owner publishes: it stops here instead.
+// 0. A Workers site publishes with scripts/deploy.sh through two package.json scripts.
+// tests/check_deploy.sh runs them (npm run deploy:live -- --dry-run) in the toolkit's CI, not
+// here, so a missing one would show only when the owner publishes: it stops here instead.
 const manifest = join(site, 'package.json');
 if (existsSync(join(site, 'scripts', 'deploy.sh'))) {
-  const scripts = existsSync(manifest) ? JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {} : {};
-  const lacking = ['deploy:preview', 'deploy:live'].filter((name) => !scripts[name]);
+  let scripts = {};
+  if (existsSync(manifest)) {
+    try {
+      scripts = JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {};
+    } catch (err) {
+      console.error(`✗ verify: package.json is not valid JSON (${err.message}).`);
+      process.exit(1);
+    }
+  }
+  const lacking = ['deploy:preview', 'deploy:live'].filter((name) => !String(scripts[name] ?? '').includes('scripts/deploy.sh'));
   if (lacking.length) {
-    console.error(`✗ verify: scripts/deploy.sh is here, but package.json has no ${lacking.map((n) => `"${n}"`).join(' or ')} script. Add the starter's lines to "scripts": "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live".`);
+    console.error(`✗ verify: scripts/deploy.sh is here, but package.json has no ${lacking.map((n) => `"${n}"`).join(' or ')} script that runs it. Add the starter's lines to "scripts": "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live".`);
     process.exit(1);
   }
 }
