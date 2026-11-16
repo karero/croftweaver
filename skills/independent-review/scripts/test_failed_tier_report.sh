@@ -1220,6 +1220,40 @@ run seatlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base non
 check "seat: --local-only refuses an external seat, exit 2, nothing ran" \
   sh -c '[ "$(cat "$1/seatlocal.rc")" = 2 ] && [ ! -e "$1/seatlocal.marks/codex-ran" ]' _ "$T"
 
+# 29b. A Light round on its one chosen seat is allowed (owner's rule, 2026-10-09): a plain line,
+#      never the "fewer than the 2" warning. Every other one-reviewer round keeps the warning.
+LIGHT_PLAIN="round ran on 1 reviewer, as a Light review allows"
+run lightseat bash "$SCRIPT" "$T/change.diff" --base none --seat codex --depth light
+check "lightseat: one reviewer counted" has lightseat.out "reviewers: codex OK"
+check "lightseat: a plain line says it ran on one reviewer" has lightseat.out "DIFF $LIGHT_PLAIN"
+check "lightseat: ...on stderr too" has lightseat.err "DIFF $LIGHT_PLAIN"
+check "lightseat: no warning, on either stream" sh -c '! grep -qF -e "⚠" -e "fewer than the 2" "$1/lightseat.out" "$1/lightseat.err"' _ "$T"
+run lightfirst bash "$SCRIPT" "$T/plan.md" --first-success --depth light
+check "lightfirst: --first-success at Light gets the plain line, no warning" \
+  sh -c 'grep -qF "PLAN $2" "$1/lightfirst.out" && ! grep -qF "⚠" "$1/lightfirst.out"' _ "$T" "$LIGHT_PLAIN"
+run lightfall CODEX_STUB=auth bash "$SCRIPT" "$T/change.diff" --base none --first-success --depth light
+check "lightfall: --first-success at Light, Codex failed and ollama counted: the plain line shows the failed seat" \
+  has lightfall.out "as a Light review allows: codex FAILED (exit 1), ollama-cloud OK."
+run lightnone CODEX_STUB=auth bash "$SCRIPT" "$T/change.diff" --base none --seat codex --depth light
+check "lightnone: no reviewer counted, the warning stays" has lightnone.out "⚠ DIFF round landed with 0 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
+check "lightnone: ...and the plain line does not appear" lacks lightnone.out "$LIGHT_PLAIN"
+run lightpair OLLAMA_STUB=429 bash "$SCRIPT" "$T/change.diff" --base none --depth light
+check "lightpair: a pair that lost a seat still warns" has lightpair.out "⚠ DIFF round landed with 1 reviewer(s) counted toward the gate"
+check "lightpair: ...and the plain line does not appear" lacks lightpair.out "$LIGHT_PLAIN"
+run lightlocal OLLAMA_MODEL=stub-local bash "$SCRIPT" "$T/change.diff" --base none --local-only --first-success --depth light
+check "lightlocal: --local-only at Light keeps its degraded warning" has lightlocal.out "--local-only, degraded by owner choice."
+check "lightlocal: ...and gets no plain line" lacks lightlocal.out "$LIGHT_PLAIN"
+check "lightseat: the plain line names the reviewer that counted" has lightseat.out "as a Light review allows: codex OK."
+check "lightpair: ...nor on stderr" lacks lightpair.err "$LIGHT_PLAIN"
+check "lightnone: ...nor on stderr" lacks lightnone.err "$LIGHT_PLAIN"
+check "lightlocal: ...nor on stderr" lacks lightlocal.err "$LIGHT_PLAIN"
+run normalseat bash "$SCRIPT" "$T/change.diff" --base none --seat codex --depth normal
+check "normalseat: one seat at Normal keeps the warning" has normalseat.out "⚠ DIFF round landed with 1 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair — --seat codex was requested."
+check "normalseat: ...and the standard-pair advice" has normalseat.out "any other round needs the standard pair."
+check "normalseat: ...and gets no plain line" lacks normalseat.out "$LIGHT_PLAIN"
+run nodepthseat bash "$SCRIPT" "$T/change.diff" --base none --seat codex
+check "nodepthseat: one seat with no --depth keeps the warning" has nodepthseat.out "⚠ DIFF round landed with 1 reviewer(s) counted toward the gate"
+
 # 30. merge_link.sh (2026-09-26): the merge link's artifact, on real merges. Both reviewers of
 #     the change that introduced it found a way the one-line command lost a file: a path with a
 #     space (round 1) and an own edit the merge threw away (the final full read).
