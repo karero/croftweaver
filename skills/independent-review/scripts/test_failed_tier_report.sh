@@ -1231,6 +1231,9 @@ check "lightseat: no warning, on either stream" sh -c '! grep -qF -e "⚠" -e "f
 run lightfirst bash "$SCRIPT" "$T/plan.md" --first-success --depth light
 check "lightfirst: --first-success at Light gets the plain line, no warning" \
   sh -c 'grep -qF "PLAN $2" "$1/lightfirst.out" && ! grep -qF "⚠" "$1/lightfirst.out"' _ "$T" "$LIGHT_PLAIN"
+run lightfall CODEX_STUB=auth bash "$SCRIPT" "$T/change.diff" --base none --first-success --depth light
+check "lightfall: --first-success at Light, Codex failed and ollama counted: the plain line shows the failed seat" \
+  has lightfall.out "as a Light review allows: codex FAILED (exit 1), ollama-cloud OK."
 run lightnone CODEX_STUB=auth bash "$SCRIPT" "$T/change.diff" --base none --seat codex --depth light
 check "lightnone: no reviewer counted, the warning stays" has lightnone.out "⚠ DIFF round landed with 0 reviewer(s) counted toward the gate, fewer than the 2 of the standard pair"
 check "lightnone: ...and the plain line does not appear" lacks lightnone.out "$LIGHT_PLAIN"
