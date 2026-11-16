@@ -43,3 +43,8 @@ Mutation check on `abaf9e1e` (playwright, `tests/icons.spec.ts`, after setting `
 (`icons.spec.ts` lines 55-63), all 5 killed, and both baselines passed. The SVG half of the change has
 no mutation here; round 1's scratch run is its evidence (origin/main's spec passes a cut-off
 `favicon.svg`, the new spec fails it).
+
+Rebased onto main after #576 merged (`5216f096`); the hashes above are from before the rebase.
+Old → new: 433a8b6f → 18a9e9b3, 625d9a5c → b427f484, c366b927 → 6ae0e16c, 207bb5b0 → f60f8152,
+78df2270 → 9ab919e0, abaf9e1e → 58132fc0. `scripts/check_buglog_rows.sh` found no row kept twice,
+and the BUGLOG diff against main is this branch's own four edited rows and one added row.
