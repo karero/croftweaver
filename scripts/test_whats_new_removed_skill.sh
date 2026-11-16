@@ -296,5 +296,55 @@ PAT="^[[:space:]]*(from|import)$W([^#]*$W)?(tests|$mods)($W|\$)|require[[:space:
 check "scaffold: no brand kit file reaches for its tests"        finds_none "$T/reach" -rnE "$PAT" "$PSD/website-brand-kit"
 [ ! -s "$T/reach" ] || sed 's/^/     /' "$T/reach"
 
+# --- 11. a pinned skill's upstream changes outlive a refresh. The stamp moves on for the other
+# skills, while the pinned one keeps its own baseline until the owner deletes its pinned: line;
+# before, the next report said "Up to date" over the pinned fork's drift. Enters as an owner
+# does, through make refresh and make whats-new.
+mk() { make -s --no-print-directory -C "$SUITE" -f "$HERE/../Makefile" "$@" 2>&1; }
+S11="$(make_site pinned-drift alpha gamma)"
+printf 'alpha # a local fork\n' > "$S11/.claude/skills/REFRESH-KEEP"
+$git -C "$S11" add -A && $git -C "$S11" commit -q -m pin
+out="$(mk refresh PROJECT="$S11")"; rc=$?
+check "pinned drift: refresh exits 0"                           test "$rc" -eq 0
+check "pinned drift: the stamp moves to the suite's head"       test "$(stamp "$S11")" = "$NEW"
+check "pinned drift: the pinned copy is left as it was"         test "$(cat "$S11/.claude/skills/alpha/SKILL.md")" = "# alpha"
+check "pinned drift: the stamp keeps alpha's old baseline"      grep -qxF "pinned: alpha $OLD" "$S11/.claude/skills/SUITE-VERSION"
+$git -C "$S11" add -A && $git -C "$S11" commit -q -m refreshed
+out="$(mk whats-new PROJECT="$S11")"
+check "pinned drift: the next report still lists alpha"         has "$out" "alpha   (pinned in REFRESH-KEEP"
+check "pinned drift: with the change it skipped"                has "$out" "edit alpha, remove beta"
+check "pinned drift: the next report is not up to date"         lacks "$out" "Up to date"
+check "pinned drift: the report says how to end it"             has "$out" "delete its \`pinned:\` line"
+printf '# alpha, edited again\n' > "$SUITE/skills/alpha/SKILL.md"
+$git -C "$SUITE" add -A && $git -C "$SUITE" commit -q -m "edit alpha again"
+mk refresh PROJECT="$S11" >/dev/null; rc=$?
+check "pinned drift: a second refresh exits 0"                  test "$rc" -eq 0
+check "pinned drift: it keeps the first baseline"               grep -qxF "pinned: alpha $OLD" "$S11/.claude/skills/SUITE-VERSION"
+$git -C "$S11" add -A && $git -C "$S11" commit -q -m refreshed
+out="$(mk whats-new PROJECT="$S11")"
+check "pinned drift: both skipped changes are listed"           has "$out" "edit alpha again"
+check "pinned drift: the first one too"                         has "$out" "edit alpha, remove beta"
+grep -v '^pinned: ' "$S11/.claude/skills/SUITE-VERSION" > "$T/sv" && mv "$T/sv" "$S11/.claude/skills/SUITE-VERSION"
+out="$(mk whats-new PROJECT="$S11")"
+check "pinned drift: without the line, up to date"              has "$out" "Up to date"
+printf 'pinned: alpha 0123456789abcdef0123456789abcdef01234567\n' >> "$S11/.claude/skills/SUITE-VERSION"
+out="$(mk whats-new PROJECT="$S11")"; rc=$?
+check "pinned drift: a baseline not in the clone fails"         test "$rc" -ne 0
+check "pinned drift: and says which line"                       has "$out" "the pinned baseline of alpha"
+grep -v '^pinned: ' "$S11/.claude/skills/SUITE-VERSION" > "$T/sv" && mv "$T/sv" "$S11/.claude/skills/SUITE-VERSION"
+printf 'pinned: alpha\n' >> "$S11/.claude/skills/SUITE-VERSION"
+out="$(mk whats-new PROJECT="$S11")"; rc=$?
+check "pinned drift: a line with no commit fails"               test "$rc" -ne 0
+check "pinned drift: and says the line names no commit"         has "$out" "the line 'pinned: alpha' in"
+check "pinned drift: ... names no commit"                        has "$out" "names no commit"
+# --stamp, the scaffold's call and an owner's reset, keeps the pinned lines: dropping one would
+# end the report of that fork's skipped changes with nobody deleting it.
+grep -v '^pinned: ' "$S11/.claude/skills/SUITE-VERSION" > "$T/sv" && mv "$T/sv" "$S11/.claude/skills/SUITE-VERSION"
+printf 'pinned: alpha %s\n' "$OLD" >> "$S11/.claude/skills/SUITE-VERSION"
+bash "$WN" --stamp "$S11/.claude/skills/" >/dev/null 2>&1; rc=$?
+check "pinned drift: --stamp exits 0"                           test "$rc" -eq 0
+check "pinned drift: --stamp moves the stamp"                   test "$(stamp "$S11")" = "$($git -C "$SUITE" rev-parse HEAD)"
+check "pinned drift: --stamp keeps the pinned line"             grep -qxF "pinned: alpha $OLD" "$S11/.claude/skills/SUITE-VERSION"
+
 if [ "$fails" -ne 0 ]; then echo "test_whats_new_removed_skill: $fails case(s) failed"; exit 1; fi
 echo "test_whats_new_removed_skill: all cases passed"
