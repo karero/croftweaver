@@ -174,7 +174,7 @@ write_tests_stamp() {  # $1 = tests dir
     done <<<"$(grep -E -- "$AUTO_RE" "$stamp" || true)"
   fi
   # No baseline of its own (a site made before TESTS-VERSION, or "unknown"): the oldest skills
-  # stamp, as in the report.
+  # stamp, which the report also uses when TESTS-VERSION is absent.
   if [ -z "$old_base" ] || [ "$old_base" = unknown ]; then
     old_base="$(oldest_stamp_base "$(find "$site_root" -maxdepth 4 -name SUITE-VERSION -not -path '*/node_modules/*' 2>/dev/null | sort)")"
   fi

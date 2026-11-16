@@ -385,7 +385,7 @@ if [ "$rc" -eq 0 ]; then echo "ok   L11 an unknown baseline still stamps"; else 
 has   "L11 ... and warns that it cannot list the files"       "warning: the old baseline in $P9/tests/TESTS-VERSION (0123456789abcdef0123456789abcdef01234567) is not a commit in this clone, so this"
 cp "$P9/tests/TESTS-VERSION" "$T/out"; TODAY="$(sed -n 's/^copied: //p' "$T/out")"
 has   "L11 ... and the stamp keeps a note of the gap"          "# $TODAY: not compared with the suite, so files the site lacks may be unlisted: the old baseline in $P9/tests/TESTS-VERSION (0123456789abcdef0123456789abcdef01234567) is not a commit in this clone"
-# A stamp that names no baseline compares from the skills stamp, as the report does.
+# A stamp whose baseline is "unknown" compares from the skills stamp.
 P10="$T/site10"; mkdir -p "$P10/tests" "$P10/.claude/skills"
 stamp "$P10/.claude/skills/SUITE-VERSION" "$BASE6"
 stamp "$P10/tests/TESTS-VERSION" unknown
