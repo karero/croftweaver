@@ -84,11 +84,13 @@ if (existsSync(join(site, 'scripts', 'deploy.sh'))) {
     try {
       scripts = JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {};
     } catch (err) {
-      console.error(`✗ verify: package.json is not valid JSON (${err.message}).`);
+      console.error(`✗ verify: package.json is not valid JSON (${err.message.replace(/\s+/g, ' ')}).`);
       process.exit(1);
     }
   }
-  const lacking = ['deploy:preview', 'deploy:live'].filter((name) => !String(scripts[name] ?? '').includes('scripts/deploy.sh'));
+  // Each runs deploy.sh in its own mode, as a command, not as a word in another one (an echo).
+  const runsDeploy = (name) => /(?:^|&&|;)\s*(?:(?:bash|sh)\s+)?(?:\.\/)?scripts\/deploy\.sh\s+(preview|live)(?:\s|$)/.exec(String(scripts[name] ?? ''))?.[1] === name.slice('deploy:'.length);
+  const lacking = ['deploy:preview', 'deploy:live'].filter((name) => !runsDeploy(name));
   if (lacking.length) {
     console.error(`✗ verify: scripts/deploy.sh is here, but package.json has no ${lacking.map((n) => `"${n}"`).join(' or ')} script that runs it. Add the starter's lines to "scripts": "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live".`);
     process.exit(1);

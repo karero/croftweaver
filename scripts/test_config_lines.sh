@@ -49,6 +49,18 @@ check "gate, no PROD_BRANCH: fails"                         1 "$rc"
 has   "... names the line to add"                           "export const PROD_BRANCH = 'production';"
 has   "... and the enabled: line that compares against it"  "$ENABLED"
 has   "... and, with no USE_ANALYTICS line, says to add one" "add export const USE_ANALYTICS = true; as well"
+# The same site with the starter's enabled: line pasted in, which names USE_ANALYTICS but does
+# not define it: the hint still shows.
+cat >"$G/src/config.ts" <<'TS'
+export const ANALYTICS = {
+  scriptHost: 'https://stats.example.com',
+  scriptId: 'pa-x',
+  enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,
+};
+TS
+run "$G" bash tests/check_analytics_gate.sh
+check "gate, enabled: line pasted, no export: fails"         1 "$rc"
+has   "... and still says to add the USE_ANALYTICS line"    "add export const USE_ANALYTICS = true; as well"
 
 # The gate on a site that has the export but an enabled: line reading CF_PAGES_BRANCH only.
 cat >"$G/src/config.ts" <<'TS'

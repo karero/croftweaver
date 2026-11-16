@@ -563,7 +563,7 @@ scripts/
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer, and fails the build when a maintainer tracker (docs/BUGLOG.md, docs/DECISIONS_PENDING.md) is in the zip (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
-  test_config_lines.sh      the starter's analytics gate and deploy check name each src/config.ts line a site lacks, and whats-new says those two tests read that file (make check)
+  test_config_lines.sh      the starter's analytics gate and deploy check name, before a build, each src/config.ts line a site lacks, and whats-new says those two tests read that file (make check)
   test_whats_new.sh         whats-new marks a frozen template file the site lacks as MISSING, and shows and checks the same site path for every tracked file with a fixed one (all but PUBLISHING.md) (make check)
   test_mktemp_guard.sh      each script it lists that builds a throwaway folder stops with an error, and leaves the folder it ran from alone, when mktemp fails; a new script that calls mktemp must be listed or exempted in it (make check)
   check_lf_checkout.sh      every text file checks out LF, even where Git converts to CRLF (make check)

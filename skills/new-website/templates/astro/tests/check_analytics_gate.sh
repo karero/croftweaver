@@ -73,9 +73,10 @@ prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src
 # src/config.ts is the site's own file, so whats-new never lists a line it lacks: each message
 # about it names the line, as the starter writes it.
 ENABLED_LINE="enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,"
-# That line reads USE_ANALYTICS, which a site made before the switch does not define.
+# That line reads USE_ANALYTICS, which a site made before the switch does not define. The line
+# itself names it, so only the export counts.
 USE_HINT=""
-grep -q 'USE_ANALYTICS' src/config.ts || USE_HINT="  It reads USE_ANALYTICS, which src/config.ts lacks: add export const USE_ANALYTICS = true; as well (true keeps analytics on, as now)."
+grep -qE '^export const USE_ANALYTICS[[:space:]]*=' src/config.ts || USE_HINT="  It reads USE_ANALYTICS, which src/config.ts lacks: add export const USE_ANALYTICS = true; as well (true keeps analytics on, as now)."
 if [ -z "$prod" ]; then
   echo "✗ analytics gate: no \"export const PROD_BRANCH = '…';\" line in src/config.ts to test against."
   echo "  Add it as the starter's src/config.ts has it, naming the branch Cloudflare builds as Production,"
