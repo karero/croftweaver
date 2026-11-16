@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { COMPANY } from '../src/config';
 import { staleReasons } from '../scripts/make-icons.mjs';
+import { SITE } from '../src/config';
 
 // The seven icon files every site links, with the size each must have. Written out here, not read
 // from scripts/make-icons.mjs, so a change to the script cannot change what this test asks for.
@@ -14,7 +14,7 @@ const ICONS: Icon[] = [
   { path: '/icon-192.png', linkedBy: 'manifest', kind: 'png', size: 192 },
   { path: '/icon-512.png', linkedBy: 'manifest', kind: 'png', size: 512 },
   { path: '/icon-maskable-512.png', linkedBy: 'manifest', kind: 'png', size: 512 },
-  { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // COMPANY.logo, the Organization schema's logo
+  { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // the logo the page's structured data names
 ];
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -31,7 +31,48 @@ const decodedSize = (page: Page, bytes: Buffer, type: string) =>
     }
   }, [bytes.toString('base64'), type]);
 
+// An SVG as an <img> shows it (createImageBitmap takes no SVG): its size once decoded, or null when
+// it does not decode, as with a cut-off file. One with no width or height still has a size (Chromium
+// gives a viewBox-only file 150 x 150, an empty <svg> 300 x 150): this checks the file, not the picture.
+const svgSize = (page: Page, bytes: Buffer) =>
+  page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/svg+xml;base64,${b64}`;
+    try {
+      await img.decode();
+      return [img.naturalWidth, img.naturalHeight];
+    } catch {
+      return null;
+    }
+  }, bytes.toString('base64'));
+
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
+
+// Every logo the JSON-LD gives as a URL, at any depth and on a node of any type (Organization, a
+// subtype such as LocalBusiness, or an array of types): a URL string, or the string url of an object
+// such as an ImageObject. An empty one is skipped, and so is a logo given only as an @id.
+const logoUrls = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.flatMap(logoUrls);
+  if (typeof value === 'string') return value ? [value] : [];
+  const url = value && typeof value === 'object' ? (value as { url?: unknown }).url : undefined;
+  return typeof url === 'string' && url ? [url] : [];
+};
+const logosIn = (node: unknown): string[] => {
+  if (Array.isArray(node)) return node.flatMap(logosIn);
+  if (!node || typeof node !== 'object') return [];
+  return Object.entries(node).flatMap(([key, value]) => [...(key === 'logo' ? logoUrls(value) : []), ...logosIn(value)]);
+};
+
+test('icons — the logo reader finds every logo the structured data names, and only those', () => {
+  expect(logosIn({ '@type': 'Organization', logo: '/a.png' }), 'a URL').toEqual(['/a.png']);
+  expect(logosIn({ '@type': ['Organization', 'LocalBusiness'], logo: { '@type': 'ImageObject', url: '/a.png' } }), 'an ImageObject on a node of two types').toEqual(['/a.png']);
+  expect(logosIn({ '@graph': [{ '@type': 'WebSite', publisher: { '@type': 'Organization', logo: '/a.png' } }] }), 'a node nested in another').toEqual(['/a.png']);
+  expect(logosIn({ logo: { url: '/outer.png', creator: { logo: '/a.png' } } }), "a logo inside a logo's ImageObject").toEqual(['/outer.png', '/a.png']);
+  expect(logosIn({ logo: [['/a.png'], '/b.png'] }), 'arrays of URLs, at any depth').toEqual(['/a.png', '/b.png']);
+  expect(logosIn({ logo: '' }), 'an empty URL is no logo').toEqual([]);
+  expect(logosIn({ logo: { '@type': 'ImageObject' } }), 'nor an ImageObject with no url').toEqual([]);
+  expect(logosIn({ '@type': 'Organization', image: '/a.png', url: 'https://example.com' }), 'nor another property').toEqual([]);
+});
 
 for (const icon of ICONS) {
   test(`icons — ${icon.path} is linked and is ${icon.kind === 'png' ? `a ${icon.size} px PNG` : icon.kind === 'ico' ? 'an ICO with a 32 px frame' : 'an SVG'}`, async ({ page, request }) => {
@@ -50,9 +91,22 @@ for (const icon of ICONS) {
       expect(res.ok(), `${manifest} is served`).toBe(true);
       linked = ((await res.json()).icons as { src: string }[]).map((i) => pathOf(i.src, manifest));
     } else {
-      linked = [pathOf(COMPANY.logo, home)];
+      // The logo the page's structured data names. It must be on the site's own origin: a logo on
+      // another host is not this file, so it shows here as its whole address and fails.
+      const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+      const origin = new URL(SITE.url).origin;
+      linked = blocks
+        .flatMap((text, i) => {
+          try {
+            return logosIn(JSON.parse(text));
+          } catch (err) {
+            throw new Error(`the home page's structured data block ${i + 1} is not valid JSON: ${(err as Error).message}`);
+          }
+        })
+        .map((logo) => new URL(logo, origin))
+        .map((url) => (url.origin === origin ? url.pathname : url.href));
     }
-    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : 'COMPANY.logo'})`).toContain(icon.path);
+    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : "a logo in the page's structured data"})`).toContain(icon.path);
 
     const res = await request.get(icon.path);
     expect(res.ok(), `${icon.path} is served (status ${res.status()})`).toBe(true);
@@ -81,7 +135,8 @@ for (const icon of ICONS) {
       expect(await decodedSize(page, alone, 'image/x-icon'), `${icon.path}: its 32 pixel frame decodes to 32 x 32`).toEqual([icon.size, icon.size]);
     } else {
       expect(type, `${icon.path} content type`).toContain('image/svg+xml');
-      expect(body.toString('utf8'), `${icon.path} is an SVG`).toMatch(/<svg[\s>]/);
+      const size = await svgSize(page, body);
+      expect(size !== null && size[0] > 0 && size[1] > 0, `${icon.path} decodes as an SVG image (size ${JSON.stringify(size)})`).toBe(true);
     }
   });
 }
