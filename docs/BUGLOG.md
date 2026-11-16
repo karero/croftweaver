@@ -2,9 +2,11 @@
 
 Small bugs and follow-ups found while other work was in flight, kept for a later sweep
 instead of fixed on the spot. Close a row by fixing it and setting Status to the fixing
-commit or PR. This file merges with git's union driver (`.gitattributes`): merge `origin/main`
-locally, then run `make check`. It names two rows with the same date and Where, or the same
-start of What, which is how a row a merge kept in two versions usually shows.
+commit or PR. This file merges with git's union driver (`.gitattributes`), which reports no
+conflict even when it keeps two versions of an edited row. After you merge `origin/main` or
+rebase onto it, run `bash scripts/check_buglog_rows.sh` (under a second) before a full
+`make check`, which runs it too. It names two rows with the same date and Where, or the same
+start of What, which is how a row a merge or rebase kept in two versions usually shows.
 
 | Found | Where | What | Category | Impact | Effort | Status |
 |---|---|---|---|---|---|---|
