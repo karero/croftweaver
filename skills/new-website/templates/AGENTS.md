@@ -283,9 +283,11 @@ For everyone, the owner included:
     business is based in Germany. If it is, offer the German Impressum as well
     (`src/pages/_impressum.astro`, whose header has the steps); offer it to no one
     else. A site made before 0.35 may already route it as `src/pages/impressum.astro`:
-    then it has the page and there is nothing to offer. A site with neither file
-    copies `_impressum.astro` first, from `skills/new-website/templates/astro/src/pages/`
-    in the Croftweaver download.
+    then it has the page and there is nothing to offer. A site with neither file,
+    made before 0.15, copies `_impressum.astro` from
+    `skills/new-website/templates/astro/src/pages/` in the Croftweaver download into its
+    own `src/pages/` and follows the header's steps. Its footer links only the privacy
+    page, so it also adds `<a href="/impressum">Impressum</a>` there.
   - Record the answer first, as a line of its own in the `README.md` in the folder
     that holds `package.json`: one of the forms below, written bare (no list marker, no
     backticks) and nothing else on that line, the date as YYYY-MM-DD. Then delete the
