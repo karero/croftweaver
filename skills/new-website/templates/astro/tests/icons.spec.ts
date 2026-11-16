@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { staleReasons } from '../scripts/make-icons.mjs';
+import { SITE } from '../src/config';
 
 // The seven icon files every site links, with the size each must have. Written out here, not read
 // from scripts/make-icons.mjs, so a change to the script cannot change what this test asks for.
@@ -13,7 +14,7 @@ const ICONS: Icon[] = [
   { path: '/icon-192.png', linkedBy: 'manifest', kind: 'png', size: 192 },
   { path: '/icon-512.png', linkedBy: 'manifest', kind: 'png', size: 512 },
   { path: '/icon-maskable-512.png', linkedBy: 'manifest', kind: 'png', size: 512 },
-  { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // COMPANY.logo, the Organization schema's logo
+  { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // the logo the page's structured data names
 ];
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -31,7 +32,8 @@ const decodedSize = (page: Page, bytes: Buffer, type: string) =>
   }, [bytes.toString('base64'), type]);
 
 // An SVG as an <img> shows it (createImageBitmap takes no SVG): its size once decoded, or null when
-// it does not decode, as with a cut-off file.
+// it does not decode, as with a cut-off file. One with no width or height still has a size (Chromium
+// gives a viewBox-only file 150 x 150, an empty <svg> 300 x 150): this checks the file, not the picture.
 const svgSize = (page: Page, bytes: Buffer) =>
   page.evaluate(async (b64) => {
     const img = new Image();
@@ -45,6 +47,17 @@ const svgSize = (page: Page, bytes: Buffer) =>
   }, bytes.toString('base64'));
 
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
+
+// Every logo the JSON-LD names, at any depth and on a node of any type (Organization, a subtype such
+// as LocalBusiness, or an array of types): a URL, or an ImageObject's url.
+const logosIn = (node: unknown): string[] => {
+  if (Array.isArray(node)) return node.flatMap(logosIn);
+  if (!node || typeof node !== 'object') return [];
+  return Object.entries(node).flatMap(([key, value]) =>
+    key === 'logo'
+      ? [value].flat().flatMap((l) => (typeof l === 'string' ? [l] : typeof l?.url === 'string' ? [l.url] : logosIn(l)))
+      : logosIn(value));
+};
 
 for (const icon of ICONS) {
   test(`icons — ${icon.path} is linked and is ${icon.kind === 'png' ? `a ${icon.size} px PNG` : icon.kind === 'ico' ? 'an ICO with a 32 px frame' : 'an SVG'}`, async ({ page, request }) => {
@@ -63,17 +76,22 @@ for (const icon of ICONS) {
       expect(res.ok(), `${manifest} is served`).toBe(true);
       linked = ((await res.json()).icons as { src: string }[]).map((i) => pathOf(i.src, manifest));
     } else {
-      // The logo the page's structured data names: each Organization's logo, a URL or an ImageObject.
+      // The logo the page's structured data names. It must be on the site's own origin: a logo on
+      // another host is not this file, so it shows here as its whole address and fails.
       const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+      const origin = new URL(SITE.url).origin;
       linked = blocks
-        .flatMap((text) => {
-          const data = JSON.parse(text);
-          return Array.isArray(data) ? data : data['@graph'] ?? [data];
+        .flatMap((text, i) => {
+          try {
+            return logosIn(JSON.parse(text));
+          } catch (err) {
+            throw new Error(`the home page's structured data block ${i + 1} is not valid JSON: ${(err as Error).message}`);
+          }
         })
-        .filter((node) => node?.['@type'] === 'Organization' && node.logo)
-        .map((node) => pathOf(typeof node.logo === 'string' ? node.logo : node.logo.url ?? '', home));
+        .map((logo) => new URL(logo, origin))
+        .map((url) => (url.origin === origin ? url.pathname : url.href));
     }
-    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : "the Organization's logo in the page's structured data"})`).toContain(icon.path);
+    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : "a logo in the page's structured data"})`).toContain(icon.path);
 
     const res = await request.get(icon.path);
     expect(res.ok(), `${icon.path} is served (status ${res.status()})`).toBe(true);
