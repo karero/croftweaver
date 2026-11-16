@@ -88,11 +88,12 @@ if (existsSync(join(site, 'scripts', 'deploy.sh'))) {
       process.exit(1);
     }
   }
-  // Each runs deploy.sh in its own mode, as a command, not as a word in another one (an echo).
-  const runsDeploy = (name) => /(?:^|&&|;)\s*(?:(?:bash|sh)\s+)?(?:\.\/)?scripts\/deploy\.sh\s+(preview|live)(?:\s|$)/.exec(String(scripts[name] ?? ''))?.[1] === name.slice('deploy:'.length);
-  const lacking = ['deploy:preview', 'deploy:live'].filter((name) => !runsDeploy(name));
+  // Only the starter's own two lines count: a shell command cannot be told apart from text that
+  // merely names deploy.sh without running it, so verify does not try.
+  const STARTER = { 'deploy:preview': 'bash scripts/deploy.sh preview', 'deploy:live': 'bash scripts/deploy.sh live' };
+  const lacking = Object.keys(STARTER).filter((name) => String(scripts[name] ?? '').trim() !== STARTER[name]);
   if (lacking.length) {
-    console.error(`✗ verify: scripts/deploy.sh is here, but package.json has no ${lacking.map((n) => `"${n}"`).join(' or ')} script that runs it. Add the starter's lines to "scripts": "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live".`);
+    console.error(`✗ verify: scripts/deploy.sh is here, but package.json has no ${lacking.map((n) => `"${n}"`).join(' or ')} script that runs it. Add the starter's lines to "scripts", exactly as they are (verify takes no other form): "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live".`);
     process.exit(1);
   }
 }
