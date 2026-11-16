@@ -949,8 +949,8 @@ async function stageOneGaps(git, sha) {
   for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
     const r = await git('show', `${sha}:${f}`);
     if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
-    // Comments and regex literals are cut and each string is blanked in one pass, so a `//` inside a URL, a string or a regex literal is not taken for a comment. A regex literal is read only after `( , : = [ ! & | ? { ;`, `=>` or a line start, so a division is not one.
-    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*|^\s*)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
+    // Comments and regex literals are cut and each string is blanked in one pass, so a `//` inside a URL, a string or a regex literal is not taken for a comment. A regex literal is read only after `( , : = [ ! & | ? { ;`, `=>` or `return`, so a division is not one. The scan guesses: a form it misreads is a miss that `record` still stops on, and it names the likely cause, so it errs toward a miss, never a false gap.
+    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*|\breturn\s+)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
     if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
   }
   await asLines(async () => {
