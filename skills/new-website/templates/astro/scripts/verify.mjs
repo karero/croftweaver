@@ -4,6 +4,8 @@
 // short output. Two differences from CI, both on purpose: an unfilled "[MISSING: …]"
 // placeholder only warns here (CI fails on it, so a draft pull request can still be pushed;
 // AGENTS.md §2), and CI also runs tests/check_ship_push.sh, which the pre-push hook runs too.
+//  0. With scripts/deploy.sh present (a Workers site), package.json must have the
+//     "deploy:preview" and "deploy:live" scripts, each naming scripts/deploy.sh.
 //  1. `npm ci`, only on the first run here or when package.json or package-lock.json changed
 //     since the last install it made (a hash in node_modules/.verify-lock-hash). Every other
 //     run keeps node_modules. package.json counts too: edited without the lockfile, the two
@@ -72,6 +74,30 @@ function fail(what, res, after = ' Nothing after it ran.') {
   process.exit(1);
 }
 
+// 0. A Workers site publishes with scripts/deploy.sh through two package.json scripts.
+// tests/check_deploy.sh runs them (npm run deploy:live -- --dry-run) in the toolkit's CI, not
+// here, so a missing one would show only when the owner publishes: it stops here instead.
+const manifest = join(site, 'package.json');
+if (existsSync(join(site, 'scripts', 'deploy.sh'))) {
+  let scripts = {};
+  if (existsSync(manifest)) {
+    try {
+      scripts = JSON.parse(readFileSync(manifest, 'utf8')).scripts ?? {};
+    } catch (err) {
+      console.error(`✗ verify: package.json is not valid JSON (${err.message.replace(/\s+/g, ' ')}).`);
+      process.exit(1);
+    }
+  }
+  // Only the starter's own two lines count: verify does not parse shell, so it cannot tell a
+  // real run of deploy.sh from text that merely names it.
+  const STARTER = { 'deploy:preview': 'bash scripts/deploy.sh preview', 'deploy:live': 'bash scripts/deploy.sh live' };
+  const lacking = Object.keys(STARTER).filter((name) => String(scripts[name] ?? '').trim() !== STARTER[name]);
+  if (lacking.length) {
+    console.error(`✗ verify: scripts/deploy.sh is here, but package.json has no ${lacking.map((n) => `"${n}"`).join(' or ')} script that runs it. Add the starter's lines to "scripts", exactly as they are (verify takes no other form): "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live".`);
+    process.exit(1);
+  }
+}
+
 // 1. Packages. CI installs with `npm ci` from the committed lockfile, so this does too,
 // but only when package.json or the lockfile differs from what the last install here used.
 const lock = join(site, 'package-lock.json');
@@ -81,7 +107,6 @@ if (!existsSync(lock)) {
 }
 const modules = join(site, 'node_modules');
 const stamp = join(modules, '.verify-lock-hash');
-const manifest = join(site, 'package.json');
 const hash = createHash('sha256').update(readFileSync(lock));
 if (existsSync(manifest)) hash.update('\0').update(readFileSync(manifest));
 const want = hash.digest('hex');

@@ -60,8 +60,18 @@ prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src
 use="$(sed -nE "s/^export const USE_ANALYTICS = (true|false);?[[:space:]]*(\/\/.*)?$/\1/p" src/config.ts)"
 host="$(sed -nE "s/^[[:space:]]*scriptHost:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" src/config.ts)"
 id="$(sed -nE "s/^[[:space:]]*scriptId:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" src/config.ts)"
-if [ -z "$prod" ] || [ -z "$use" ] || [ -z "$host" ] || [ -z "$id" ]; then
-  echo "✗ check_deploy: src/config.ts must have the PROD_BRANCH, USE_ANALYTICS, scriptHost and scriptId lines the analytics gate reads."
+# src/config.ts is the site's own file, so whats-new never lists a line it lacks: name each one.
+missing=""
+[ -n "$prod" ] || missing="$missing
+  export const PROD_BRANCH = 'production';   (the branch Cloudflare builds as Production)"
+[ -n "$use" ] || missing="$missing
+  export const USE_ANALYTICS = true;   (or false; one line, a // comment after it is fine)"
+[ -n "$host" ] || missing="$missing
+  scriptHost: '…',   (inside the ANALYTICS object)"
+[ -n "$id" ] || missing="$missing
+  scriptId: '…',   (inside the ANALYTICS object)"
+if [ -n "$missing" ]; then
+  echo "✗ check_deploy: src/config.ts lacks lines this check and the analytics gate read. Add them as the starter's src/config.ts has them:$missing"
   exit 1
 fi
 script_path="/js/${id}.js"

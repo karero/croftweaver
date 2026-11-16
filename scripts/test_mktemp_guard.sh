@@ -38,6 +38,7 @@ set -u
 SCRIPTS=(
   scripts/test_whats_new.sh
   scripts/test_verify.sh
+  scripts/test_config_lines.sh
   scripts/check_cdpath_safe.sh
   scripts/test_clean_denylist.sh
   scripts/test_git_stand_hook.sh
