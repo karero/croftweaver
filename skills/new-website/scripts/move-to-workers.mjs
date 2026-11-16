@@ -949,7 +949,9 @@ async function stageOneGaps(git, sha) {
   for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
     const r = await git('show', `${sha}:${f}`);
     if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
-    if (r.stdout.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l.split('//')[0]))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
+    // Block comments go first; a // counts as a comment only at a line start or after a space (not inside a URL).
+    const code = r.stdout.replace(/\/\*[\s\S]*?\*\//g, '');
+    if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l.replace(/(^|\s)\/\/.*$/, '$1')))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
   }
   await asLines(async () => {
     const cfg = await readSiteConfig(git, sha);
@@ -1285,14 +1287,14 @@ export function confirmCode(input) {
 }
 
 // The question: plain words first (`plain`, the lines under its first), then what a yes does, for the assistant.
-// The 10-minute line comes with the plain run only: a --confirm run's 15 minutes count from that run's check.
+// The 10-minute line comes with the plain run only: the 15 minutes of a --confirm run count from the plain run's check.
 function askOrGo(ctx, kind, input, plain, lines, run) {
   const code = confirmCode(input);
   if (ctx.opts.confirm === code) return true;
   if (ctx.opts.confirm) ctx.say('', `The code ${ctx.opts.confirm} does not fit this question: something it covered has changed. Nothing was changed. Here is the question as it stands now.`);
   const [question, ...rest] = plain;
   ctx.say('', question, ...rest.map((l) => `- ${l}`));
-  if (ctx.opts.confirm === null) ctx.say(`- Say yes within ${ANSWER_MIN} minutes. After that, I ask you again, unless an address is left down, which I finish first.`);
+  if (ctx.opts.confirm === null) ctx.say(`- Please say yes within ${ANSWER_MIN} minutes. After ${CHECK_MAX_MS / 60_000} minutes I have to ask you again, unless an address is left down, which I finish first.`);
   ctx.say('Cloudflare has not been changed yet.', '', 'For your assistant, what a yes does:');
   lines.forEach((l, i) => ctx.say(`  ${i + 1}. ${l}`));
   ctx.say('', `To go ahead, run the same command again with: --confirm ${code}`);
@@ -1337,7 +1339,9 @@ function answerWords(r) {
   const first = r.body.toString('utf8').split('\n')[0].trim();
   if (r.status === 200) {
     if (!/^[0-9a-f]{40}$/.test(first)) return 'answers now: 200, not a build.txt this kit writes';
-    return `answers now: 200, build.txt names ${short(first)}, ${r.headers.get('access-control-allow-origin') !== null ? "Pages' header says Pages" : 'no Pages header, so likely the Worker'}`;
+    const text = r.body.toString('utf8');
+    const how = /^platform=\S+/m.test(text) ? `its platform line says ${platformOf(r, text) === 'pages' ? 'Pages' : 'the Worker'}` : r.headers.get('access-control-allow-origin') !== null ? "Pages' header is there, so likely Pages" : 'no Pages header, so likely the Worker';
+    return `answers now: 200, build.txt names ${short(first)}, ${how}`;
   }
   const to = r.headers.get('location');
   return REDIRECTS.includes(r.status) && to ? `answers now: ${r.status} to ${to}; the script cannot tell what sends it` : `answers now: ${r.status}`;

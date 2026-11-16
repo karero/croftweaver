@@ -3281,6 +3281,7 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
     ['a commented-out line', '      // lastmod: new Date(),'],
     ['a // comment after other code', '      sitemap(), // lastmod: new Date()'],
     ['a fixed date', "      lastmod: new Date('2026-01-01'),"],
+    ['a line inside a block comment', '      /*\n      lastmod: new Date(),\n      */'],
   ]) {
     test(`2b: ${label} is no gap`, async () => {
       const r = await scenario({ site: withLine(line) }).go(['check']);
@@ -3288,6 +3289,12 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
       assert.doesNotMatch(r.text, /lastmod/);
     });
   }
+
+  test('2b: the build-time line after a URL on the same line is still a gap', async () => {
+    const r = await scenario({ site: withLine("      filter: (p) => p !== 'https://x.example/', lastmod: new Date(),") }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /sets the sitemap's lastmod to the build time/);
+  });
 
   // The real stop (record-stopped-lastmod-2026-11-16): the two sitemap files differ only in their bodies.
   const sitemapSite = () => makeSite({ files: { 'site/sitemap-index.xml': '<sitemapindex/>', 'site/sitemap-0.xml': '<urlset/>' } });
@@ -3346,7 +3353,7 @@ describe('0.36 fix 4: the go question in plain words first', () => {
       `Move ${both} to the new hosting now?`,
       '- Visitors may get an error page for a few seconds while it switches.',
       '- If anything looks wrong afterwards, I can switch it back. In the tests the site was then down for one to two minutes, and it can take longer.',
-      '- Say yes within 10 minutes. After that, I ask you again, unless an address is left down, which I finish first.',
+      '- Please say yes within 10 minutes. After 15 minutes I have to ask you again, unless an address is left down, which I finish first.',
       'Cloudflare has not been changed yet.',
       'For your assistant, what a yes does:',
       `  1. Take ${HOSTS[0]}, ${HOSTS[1]} off the Pages project ${REPO}`,
@@ -3375,7 +3382,7 @@ describe('0.36 fix 4: the go question in plain words first', () => {
       `Move ${both} back to the old hosting (Pages) now?`,
       '- In the tests the site was down for one to two minutes while it switched back, and it can take longer.',
       '- After this, the site is where it was before the move.',
-      '- Say yes within 10 minutes.',
+      '- Please say yes within 10 minutes. After 15 minutes I have to ask you again',
       'Cloudflare has not been changed yet.',
       'For your assistant, what a yes does:',
       '  2. Each host is down from the moment it leaves its platform until the other one serves it: one to two minutes, 63 to 98 seconds in the tests.',
@@ -3386,7 +3393,7 @@ describe('0.36 fix 4: the go question in plain words first', () => {
 
 describe('0.36 fix 5: check says how each host answers now', () => {
   const short = (s) => s.site.frozen.slice(0, 7);
-  const apexLine = (s) => `  ${HOSTS[0]}: answers now: 200, build.txt names ${short(s)}, Pages' header says Pages; the move moves it.`;
+  const apexLine = (s) => `  ${HOSTS[0]}: answers now: 200, build.txt names ${short(s)}, Pages' header is there, so likely Pages; the move moves it.`;
   const NOT_PROJECT = 'not a domain of the Pages project, so the move does not touch it.';
   // www is no domain of the Pages project: its Pages domain and its CNAME are gone, and `elsewhere` answers for it.
   const apexOnly = (elsewhere) => {
@@ -3438,5 +3445,13 @@ describe('0.36 fix 5: check says how each host answers now', () => {
     const r = await s.go(['check']);
     assert.equal(r.code, 0, r.text);
     assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, not a build.txt this kit writes.`), r.text);
+  });
+
+  test("5f: a build.txt with its own platform line is believed over Pages' header", async () => {
+    const sha = 'a'.repeat(40);
+    const s = apexOnly({ [HOSTS[1]]: { status: 200, headers: { 'access-control-allow-origin': '*' }, body: `${sha}\nplatform=worker\n` } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, build.txt names aaaaaaa, its platform line says the Worker.`), r.text);
   });
 });

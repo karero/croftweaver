@@ -127,14 +127,14 @@ waiting on the day if it is missed.
   more than one. It does not see whether Pages and Workers Scripts are set to Edit, or which
   accounts the token reaches, so read the token's summary page before you create it: the four
   rows, one account, one zone, the end date. A token with Pages or Workers Scripts at Read
-  passes `check`. With Pages at Read, the move stops at its first change and nothing on
+  is not refused by `check` (read from the code, not run). With Pages at Read, the move stops at its first change and nothing on
   Cloudflare moves; you make a new token and run it again (not run in a test). With Workers
   Scripts at Read, the script can take a host off Pages before the step that puts it on the
   Worker fails, and the site is down until your assistant runs `undo` (read from the script's
   code; not run).
-- [ ] **Your assistant ran `check`, and it named `record` as the next step.** It does that only
-  when stage 1 is done, `main` and the live branch are the same commit, and the Worker serves
-  that commit.
+- [ ] **Your assistant ran `check` last, after every box above, and its status page names `record`
+  under "What to do next".** It does that only when stage 1 is done, `main` and the live branch
+  are the same commit, and the Worker serves that commit.
 
 ## 7. On the day
 

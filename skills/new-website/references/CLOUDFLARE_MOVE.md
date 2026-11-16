@@ -67,9 +67,10 @@ computer, and a second computer would not know the move had begun.
    with no `USE_ANALYTICS` line at all counts as on; since the new line names it, add
    `export const USE_ANALYTICS = true;` above it too.
    With analytics off, leave the line alone.
-2. **Freeze and record.** `check` and `record`. Run `check` before the freeze, when the User has
-   ticked the ready list in `docs/MOVE-TO-WORKERS.md` section 6; `check` names `record` as the
-   next step only when stage 1 is done. Nothing is merged or shipped from the freeze until
+2. **Freeze and record.** `check` and `record`. Run `check` before the freeze, while the User
+   works through the ready list in `docs/MOVE-TO-WORKERS.md` section 6, and once more when every
+   other box is ticked; its status page names `record` under "What to do next" only when stage 1
+   is done. Nothing is merged or shipped from the freeze until
    `after` passes, except the commit the script writes.
 3. **Switch.** `move`, and `undo` if you want to go back.
 4. **Check on the domain.** `after`.
