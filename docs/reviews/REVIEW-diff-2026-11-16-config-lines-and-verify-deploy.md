@@ -54,8 +54,10 @@ deploy.sh, or one that contains the starter's line; the JSON error kept on many 
 check taking any mention of `USE_ANALYTICS`), 9 killed, 1 survived. M8 puts back the old message
 after a Workers live build, the path no test reaches without a real build (F7, F14).
 
-Rebased onto main after #574 merged (cef99c83), with no conflicts; the hashes above are from before
-the rebase. Old → new: 93ac3e08 → 1e7aae0d, 3814fa2e → fa7c046a, 02d73dec → 589ec99a, 0f2464e5 →
+Rebased onto main after #574 merged (cef99c83); the hashes above are from before the rebase.
+`docs/BUGLOG.md` merges with git's union driver, so the rebase kept both versions of four rows
+(the base's open rows 325-327 and an earlier draft of row 325); `make check`'s row guard caught
+them on `8cac1fd6`, and the next commit deleted them. Old → new: 93ac3e08 → 1e7aae0d, 3814fa2e → fa7c046a, 02d73dec → 589ec99a, 0f2464e5 →
 8e85a35f, 87e28532 → 0ecc787c, e68b7313 → 1e874382, b708c512 → e8caab3e, 485f4f16 → 41ccc37b. On the
 rebased head, `test_whats_new.sh`, `test_whats_new_removed_skill.sh`, `test_config_lines.sh` and
 `test_verify.sh` all pass (both branches change `scripts/whats-new.sh`).
