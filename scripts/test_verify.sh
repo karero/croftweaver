@@ -47,6 +47,8 @@ esac
 exit 0
 NPM
 chmod +x "$T/bin/npm"
+# The real npm, found before the stub goes first on PATH: one case runs `npm run verify`.
+REAL_NPM="$(command -v npm || true)"
 export PATH="$T/bin:$PATH" CALLS="$T/calls"
 
 SITE="$T/site"
@@ -129,6 +131,32 @@ JS
 (cd "$T/elsewhere" && npm_execpath="$T/pnpm.cjs" node "$SITE/scripts/verify.mjs") >/dev/null 2>&1
 check "npm_execpath names pnpm: the npm on PATH runs"       "check test" "$(calls)"
 check "... and pnpm's entry did not"                        no "$([ -e "$CALLS-pnpm" ] && echo yes || echo no)"
+
+# A Workers site (scripts/deploy.sh present) publishes with `npm run deploy:live`; its test,
+# tests/check_deploy.sh, runs only in the toolkit's CI, so verify must catch a missing line.
+# Every run above had no deploy.sh, as on a Pages site, and none of them was stopped.
+: >"$SITE/scripts/deploy.sh"
+echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs"}}' >"$SITE/package.json"
+out="$(go)"
+check "deploy.sh, no deploy scripts: fails"                 1 "$(rc "$out")"
+check "... names both scripts"                              yes "$(has "$out" 'no "deploy:preview" or "deploy:live" script')"
+check "... gives the starter's lines"                       yes "$(has "$out" '"deploy:live": "bash scripts/deploy.sh live"')"
+check "... and runs no npm at all"                          "" "$(calls)"
+if [ -n "$REAL_NPM" ]; then
+  out="$(cd "$SITE" && PATH="$(dirname "$REAL_NPM"):$PATH" "$REAL_NPM" run --silent verify 2>&1; printf '@@rc=%s\n' "$?")"
+  check "... the same through \`npm run verify\`"            1 "$(rc "$out")"
+  check "... with the same message"                         yes "$(has "$out" 'no "deploy:preview" or "deploy:live" script')"
+else
+  echo "FAIL no real npm on PATH for the \`npm run verify\` case"; fails=$((fails+1))
+fi
+echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs", "deploy:live": "bash scripts/deploy.sh live"}}' >"$SITE/package.json"
+out="$(go)"
+check "deploy:live only: fails"                             1 "$(rc "$out")"
+check "... and names deploy:preview alone"                  yes "$(has "$out" 'no "deploy:preview" script')"
+echo '{"name": "site", "scripts": {"verify": "node scripts/verify.mjs", "deploy:preview": "bash scripts/deploy.sh preview", "deploy:live": "bash scripts/deploy.sh live"}}' >"$SITE/package.json"
+out="$(go)"
+check "both deploy scripts: green"                          0 "$(rc "$out")"
+check "... and the steps run as before"                     "ci check test" "$(calls)"
 
 if [ $fails -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"

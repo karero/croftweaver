@@ -564,6 +564,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  tests/icons.spec.ts (site copy: tests/icons.spec.ts — copy it with scripts/make-icons.mjs, which it imports; that file's note says what the icons need before npm test)" ;;
       skills/new-website/templates/astro/tests/middleware.spec.ts|skills/new-website/templates/astro/tests/analytics-server.spec.ts)
         echo "  ${f#skills/new-website/templates/astro/} (removed from the starter with Pages Functions and analytics server mode; keep your copy while the site keeps the functions/ file it imports, otherwise delete it)" ;;
+      skills/new-website/templates/astro/tests/check_analytics_gate.sh|skills/new-website/templates/astro/tests/check_deploy.sh)
+        echo "  ${f#skills/new-website/templates/astro/} (site copy: ${f#skills/new-website/templates/astro/} — it reads src/config.ts, the site's own file, which this report never lists: compare its PROD_BRANCH and USE_ANALYTICS lines and the ANALYTICS enabled: line with the starter's src/config.ts; the test names any line it lacks)" ;;
       skills/new-website/templates/astro/tests/*)
         echo "  ${f#skills/new-website/templates/astro/} (site copy: ${f#skills/new-website/templates/astro/})" ;;
       skills/new-website/templates/content-guide.md)

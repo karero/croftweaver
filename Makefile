@@ -47,6 +47,7 @@ check-run:  ## internal, use `make check`: run every suite guard: no personal da
 	@bash scripts/test_package_leak.sh
 	@bash scripts/test_pre_push_hook.sh
 	@bash scripts/test_verify.sh
+	@bash scripts/test_config_lines.sh
 	@bash scripts/test_clean_denylist.sh
 	@bash scripts/test_git_stand_hook.sh
 	@bash scripts/test_whats_new.sh
