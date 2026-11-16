@@ -88,8 +88,8 @@ if (existsSync(join(site, 'scripts', 'deploy.sh'))) {
       process.exit(1);
     }
   }
-  // Only the starter's own two lines count: telling a real run from text that merely names
-  // deploy.sh needs a shell parser, and verify has none.
+  // Only the starter's own two lines count: verify does not parse shell, so it cannot tell a
+  // real run of deploy.sh from text that merely names it.
   const STARTER = { 'deploy:preview': 'bash scripts/deploy.sh preview', 'deploy:live': 'bash scripts/deploy.sh live' };
   const lacking = Object.keys(STARTER).filter((name) => String(scripts[name] ?? '').trim() !== STARTER[name]);
   if (lacking.length) {
