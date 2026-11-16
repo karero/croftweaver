@@ -2086,8 +2086,8 @@ check "utf8_valid: a file it cannot read (a folder) is not" sh -c '! perl "$1" "
 { printf 'diff --git a/x b/x\n+caf\303\251 in UTF-8\n'; cat "$T/big200.diff"; } >"$T/utf8.diff"
 limitcase t11k "codex stub-codex takes:500000$REF
 " "$T/latin1.diff" -- --seat codex
-check "T11: Latin-1, 200 KB, under codex's 500000: three times it is over, FAILED" has t11k.out "codex FAILED (a prompt of"
-check "T11: ... saying the prompt is not valid UTF-8" has t11k.out "is not valid UTF-8"
+check "T11: Latin-1, 200 KB, under codex's 500000: the UTF-8 check fails it before the size check" \
+  sh -c 'grep -qF "codex FAILED (UTF-8 check:" "$1" && ! grep -qF "codex FAILED (a prompt of" "$1"' _ "$T/t11k.out"
 check "T11: ... and codex never ran" [ ! -e "$T/t11k.marks/codex-ran" ]
 limitcase t11l "codex stub-codex refuses$REF
 melious $MELIOUS_OK takes:500000$REF
@@ -2095,7 +2095,7 @@ melious $MELIOUS_OK takes:500000$REF
 check "T11: the same for Melious: FAILED, its request never left" \
   sh -c 'grep -qF "melious FAILED (a prompt of" "$1" && [ ! -e "$2/melious-body" ]' _ "$T/t11l.out" "$T/t11l.marks"
 # A Latin-1 file, made by iconv as an editor saves one, through the script as a caller runs it:
-# Codex refuses such a prompt (codex-cli 0.163.0: "input is not valid UTF-8"), so the seat refuses
+# Codex refuses such a prompt (codex-cli 0.169.0: "input is not valid UTF-8"), so the seat refuses
 # it first, naming the part of the diff that holds the byte, and never starts Codex.
 command -v iconv >/dev/null 2>&1 || { echo "FAIL — iconv is needed to make the Latin-1 case's file."; fails=$((fails+1)); }
 printf 'diff --git a/ok.md b/ok.md\n+plain\ndiff --git a/notes fr.txt b/notes fr.txt\n+un café\n' \
@@ -2113,20 +2113,31 @@ check "UTF-8: ... and ollama-cloud OK, exit 0" sh -c 'grep -qF "ollama-cloud OK"
 iconv -f ISO-8859-1 -t UTF-8 <"$T/latin1-small.diff" >"$T/utf8-small.diff"
 run u8fixed bash "$SCRIPT" "$T/utf8-small.diff" --base none --seat codex
 check "UTF-8: the same diff saved as UTF-8 runs Codex" sh -c '[ -e "$1/codex-ran" ] && grep -qF "reviewers: codex OK" "$2"' _ "$T/u8fixed.marks" "$T/u8fixed.out"
+# Codex takes noncharacters (U+FFFF, U+FDD0: codex-cli 0.169.0 answered one), which Encode refuses.
+printf 'diff --git a/x b/x\n+ok \357\277\277 and \357\267\220\n' >"$T/nonchar.diff"
+run u8nonchar bash "$SCRIPT" "$T/nonchar.diff" --base none --seat codex
+check "UTF-8: noncharacters are UTF-8: Codex runs" sh -c '[ -e "$1/codex-ran" ] && grep -qF "reviewers: codex OK" "$2"' _ "$T/u8nonchar.marks" "$T/u8nonchar.out"
+# The header is the diff's own text: its control bytes are not printed.
+printf 'diff --git a/\033[2Jx b/x\n+caf\351\n' >"$T/ctlhead.diff"
+check "utf8_valid --where: a header's control bytes print as ?" \
+  sh -c 'out="$(perl "$1" --where "$2")"; [ "$out" = "the first bad byte is on line 2 of the prompt, in the part that starts \"diff --git a/?[2Jx b/x\"" ]' _ "$HERE/perl/utf8_valid.pl" "$T/ctlhead.diff"
+check "utf8_valid --where: a file it cannot read prints nothing" \
+  sh -c 'out="$(perl "$1" --where "$2")"; [ $? = 1 ] && [ -z "$out" ]' _ "$HERE/perl/utf8_valid.pl" "$T"
 limitcase t11m "codex stub-codex takes:500000$REF
 " "$T/utf8.diff" -- --seat codex
 check "T11: valid UTF-8 under the same limit runs" rc_is t11m 0
-# On Melious, whose request builder replaces each bad byte: Codex refuses Latin-1 on its own check.
+# Melious's request builder replaces what is not UTF-8 with U+FFFD, so it takes Latin-1; Codex
+# refuses it on the UTF-8 check.
 limitcase t11n "codex stub-codex refuses$REF
 melious $MELIOUS_OK takes:700000$REF
 " "$T/latin1.diff" SECOND_SEAT=melious MELIOUS_MODEL="$MELIOUS_OK" --
-check "T11: Latin-1 runs where three times it fits" has t11n.out "melious OK"
+check "T11: Latin-1 on Melious runs where three times it fits; Codex FAILED on the UTF-8 check" \
+  sh -c 'grep -qF "melious OK" "$1" && grep -qF "codex FAILED (UTF-8 check:" "$1"' _ "$T/t11n.out"
 # Under 120,000 bytes the no-line limit is no way round a smaller takes: limit.
 bigdiff 100000 "$T/big100.diff"
-{ printf 'diff --git a/x b/x\n+caf\351 in Latin-1\n'; cat "$T/big100.diff"; } >"$T/latin1-100.diff"
 limitcase t11o "codex stub-codex takes:90000$REF
-" "$T/latin1-100.diff" -- --seat codex
-check "T11: Latin-1, 100 KB, over a takes:90000 line: FAILED, though under 120,000" has t11o.out "codex FAILED (a prompt of"
+" "$T/big100.diff" -- --seat codex
+check "T11: 100 KB, over a takes:90000 line: FAILED, though under 120,000" has t11o.out "codex FAILED (a prompt of"
 # With no perl nothing can say the prompt is valid UTF-8, so even one that is counts three times
 # (section 36's PATH of every tool but perl, codex's stub ahead of it).
 limitcase t11p "codex stub-codex takes:500000$REF

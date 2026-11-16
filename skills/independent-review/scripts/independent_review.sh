@@ -1298,14 +1298,18 @@ run_codex() {
   # The prompt goes on stdin (`-`): no argv limit. Probe P1 (2026-10-22) recorded a 400,040-byte
   # prompt sent this way arriving byte for byte.
   printf '%s' "$SEND_TOOLED" >"$RAW_DIR/codex.prompt" || { WHY="could not write the prompt file"; return 1; }
-  seat_fits codex "$(codex_model)" "$RAW_DIR/codex.prompt" || return 1
-  # Codex refuses a prompt that is not valid UTF-8 with an error that does not name the file.
-  # Without perl the prompt goes as it is, and Codex's own refusal is quoted.
-  local where
-  if command -v perl >/dev/null 2>&1 && ! where="$(perl "$PERL_DIR/utf8_valid.pl" --where "$RAW_DIR/codex.prompt")"; then
+  # Codex refuses a prompt that is not valid UTF-8 with an error that does not name the file. This
+  # runs before seat_fits, which would count each bad byte as three and give the wrong remedy.
+  # Without perl, or when it cannot read the file (no line printed), the prompt goes as it is.
+  local where=""
+  if command -v perl >/dev/null 2>&1; then
+    where="$(perl "$PERL_DIR/utf8_valid.pl" --where "$RAW_DIR/codex.prompt")" || true
+  fi
+  if [ -n "$where" ]; then
     WHY="$NOT_UTF8_WHY the prompt is not valid UTF-8 ($where), and Codex refuses such a prompt, so nothing was sent"
     return 1
   fi
+  seat_fits codex "$(codex_model)" "$RAW_DIR/codex.prompt" || return 1
   "$bin" "$@" - <"$RAW_DIR/codex.prompt" >"$RAW_DIR/codex.out" 2>"$RAW_DIR/codex.err"
   local rc=$?
   # An explicit CODEX_MODEL request failing must not fail silently — with
