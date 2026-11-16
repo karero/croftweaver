@@ -2113,7 +2113,7 @@ check "UTF-8: ... and ollama-cloud OK, exit 0" sh -c 'grep -qF "ollama-cloud OK"
 iconv -f ISO-8859-1 -t UTF-8 <"$T/latin1-small.diff" >"$T/utf8-small.diff"
 run u8fixed bash "$SCRIPT" "$T/utf8-small.diff" --base none --seat codex
 check "UTF-8: the same diff saved as UTF-8 runs Codex" sh -c '[ -e "$1/codex-ran" ] && grep -qF "reviewers: codex OK" "$2"' _ "$T/u8fixed.marks" "$T/u8fixed.out"
-# Codex takes noncharacters (U+FFFF, U+FDD0: codex-cli 0.169.0 answered one), which Encode refuses.
+# Codex takes noncharacters (codex-cli 0.169.0 answered U+FFFF, U+FFFE and U+FDD0), which Encode refuses.
 printf 'diff --git a/x b/x\n+ok \357\277\277 and \357\267\220\n' >"$T/nonchar.diff"
 run u8nonchar bash "$SCRIPT" "$T/nonchar.diff" --base none --seat codex
 check "UTF-8: noncharacters are UTF-8: Codex runs" sh -c '[ -e "$1/codex-ran" ] && grep -qF "reviewers: codex OK" "$2"' _ "$T/u8nonchar.marks" "$T/u8nonchar.out"
@@ -2123,6 +2123,16 @@ check "utf8_valid --where: a header's control bytes print as ?" \
   sh -c 'out="$(perl "$1" --where "$2")"; [ "$out" = "the first bad byte is on line 2 of the prompt, in the part that starts \"diff --git a/?[2Jx b/x\"" ]' _ "$HERE/perl/utf8_valid.pl" "$T/ctlhead.diff"
 check "utf8_valid --where: a file it cannot read prints nothing" \
   sh -c 'out="$(perl "$1" --where "$2")"; [ $? = 1 ] && [ -z "$out" ]' _ "$HERE/perl/utf8_valid.pl" "$T"
+# ... and seat_fits counts such a prompt at its bytes, not three times them: about 200 KB under a
+# takes:300000 line runs.
+{ printf 'diff --git a/x b/x\n+ok \357\277\277\n'; cat "$T/big200.diff"; } >"$T/nonchar200.diff"
+limitcase t11q "codex stub-codex takes:300000$REF
+" "$T/nonchar200.diff" -- --seat codex
+check "T11: noncharacters, 200 KB, under a takes:300000 line: Codex runs at its bytes" rc_is t11q 0
+# A header's letters that are UTF-8 print as they are; only control characters become ?.
+printf 'diff --git a/caf\303\251\302\233x b/x\n+x \351\n' >"$T/u8head.diff"
+check "utf8_valid --where: a header's UTF-8 letters print as they are, a C1 control as ?" \
+  sh -c 'out="$(perl "$1" --where "$2")"; [ "$out" = "the first bad byte is on line 2 of the prompt, in the part that starts \"diff --git a/caf$(printf "\303\251")?x b/x\"" ]' _ "$HERE/perl/utf8_valid.pl" "$T/u8head.diff"
 limitcase t11m "codex stub-codex takes:500000$REF
 " "$T/utf8.diff" -- --seat codex
 check "T11: valid UTF-8 under the same limit runs" rc_is t11m 0

@@ -803,12 +803,13 @@ if [ -n "$SEAT_LIMITS_WHY" ]; then
 fi
 # seat_fits <seat> <model> <the prompt file it would send, or empty for agy, which has no line>: may
 # this seat send it? Sets WHY for its FAILED section when not. A takes: line is held against the
-# file's bytes when it is valid UTF-8 for the decoder the request builders use (perl/utf8_valid.pl),
-# else, or with no perl, against three times them: a decoder replaces a bad byte with at most one
+# file's bytes when it is valid UTF-8 for the decoder the request builders use (perl/utf8_valid.pl;
+# for Codex, the rule codex-cli applies, --where), else, or with no perl, against three times them: a decoder replaces a bad byte with at most one
 # 3-byte U+FFFD, so the prompt can grow (the ollama CLI did, one for each; Codex refuses it).
 # With no line, the 120,000 limit is on the artifact plus prior findings and evidence (CONTENT_BYTES).
 seat_fits() {
-  local rule="" line n n3
+  local rule="" line n n3 rfc=""
+  [ "$1" = codex ] && rfc=--where
   while IFS= read -r line; do
     case "$line" in "$1 $2 "*) rule="${line#"$1 $2 "}"; break ;; esac
   done <<<"$SEAT_LIMITS"
@@ -817,7 +818,7 @@ seat_fits() {
     takes:*)
       n=""; [ -f "$3" ] && [ -r "$3" ] && n="$(wc -c 2>/dev/null <"$3" | tr -d ' ')"
       case "$n" in ''|*[!0123456789]*) WHY="could not count the prompt's bytes (no readable prompt file); nothing was sent"; return 1 ;; esac
-      if command -v perl >/dev/null 2>&1 && perl "$PERL_DIR/utf8_valid.pl" "$3"; then
+      if command -v perl >/dev/null 2>&1 && perl "$PERL_DIR/utf8_valid.pl" ${rfc:+"$rfc"} "$3" >/dev/null; then
         [ "$n" -le "${rule#takes:}" ] && return 0
         WHY="a prompt of $n bytes, over the ${rule#takes:} this seat took whole (seat_limits.txt); nothing was sent"
       else
@@ -1299,7 +1300,8 @@ run_codex() {
   # prompt sent this way arriving byte for byte.
   printf '%s' "$SEND_TOOLED" >"$RAW_DIR/codex.prompt" || { WHY="could not write the prompt file"; return 1; }
   # Codex refuses a prompt that is not valid UTF-8 with an error that does not name the file. This
-  # runs before seat_fits, which would count each bad byte as three and give the wrong remedy.
+  # runs before seat_fits, which would count the whole prompt at three times its bytes and give
+  # the wrong remedy.
   # Without perl, or when it cannot read the file (no line printed), the prompt goes as it is.
   local where=""
   if command -v perl >/dev/null 2>&1; then

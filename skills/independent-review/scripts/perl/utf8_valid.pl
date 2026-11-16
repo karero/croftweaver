@@ -26,7 +26,9 @@ my $before = substr($s, 0, $at);
 my $line = ($before =~ tr/\n//) + 1;
 my $part = '';
 if ($before =~ /.*^(diff --git [^\n]*)/ms) {
-  (my $head = $1) =~ tr/\x20-\x7E/?/c;   # the header is the diff's own text: no control byte reaches the terminal
+  # $before is well-formed, so only control characters (C0, DEL, C1) need replacing before the
+  # header reaches the terminal.
+  (my $head = $1) =~ s/[\x00-\x1F\x7F]|\xC2[\x80-\x9F]/?/g;
   $part = ", in the part that starts \"$head\"";
 }
 print "the first bad byte is on line $line of the prompt$part";
