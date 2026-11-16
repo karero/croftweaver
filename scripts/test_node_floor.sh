@@ -56,7 +56,7 @@ SKILL=skills/new-website/SKILL.md
 UPG=docs/UPGRADING.md
 ASTRO_ENG='["packages","node_modules/astro","engines","node"]'
 # The real range, pinned on purpose: change it here when a Node security release moves it.
-EXPECTED_RANGE='^22.23.4 || ^24.22.1 || >=26.12.1'
+EXPECTED_RANGE='^22.23.5 || ^24.22.3 || >=26.13.1'
 
 # The real range and its three versions, read from package.json: V22 (the lowest), V24 and V26.
 RANGE="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).engines.node)' "$ROOT/$PKG")" \
