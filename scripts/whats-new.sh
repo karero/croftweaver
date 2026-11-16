@@ -160,9 +160,10 @@ oldest_stamp_base() {  # $1 = SUITE-VERSION paths, one per line
 }
 
 write_tests_stamp() {  # $1 = tests dir
-  local stamp="$1/TESTS-VERSION" site_root own="" auto="" old_base="" changed="" suite_paths f rel path rest
+  local stamp="$1/TESTS-VERSION" site_root own="" auto="" old_base="" changed="" suite_paths today gap f rel path rest
   site_root="$(dirname "$1")"
   suite_paths="$(suite_site_paths)"
+  today="$(date +%Y-%m-%d)"   # read once, so the added lines and copied: agree across midnight
   if [ -f "$stamp" ]; then
     own="$(grep -E '^(#|(left_out|kept): )' "$stamp" | grep -vE -- "$AUTO_RE" || true)"
     old_base="$(sed -n 's/^suite_commit: //p' "$stamp")"
@@ -171,30 +172,37 @@ write_tests_stamp() {  # $1 = tests dir
       [ -n "$path" ] && [ ! -e "$site_root/$path" ] && grep -Fxq -- "$path" <<<"$suite_paths" && auto="${auto}left_out: $path $rest
 "
     done <<<"$(grep -E -- "$AUTO_RE" "$stamp" || true)"
-  else
-    # A site made before TESTS-VERSION: its baseline is the oldest skills stamp, as in the report.
+  fi
+  # No baseline of its own (a site made before TESTS-VERSION, or "unknown"): the oldest skills
+  # stamp, as in the report.
+  if [ -z "$old_base" ] || [ "$old_base" = unknown ]; then
     old_base="$(oldest_stamp_base "$(find "$site_root" -maxdepth 4 -name SUITE-VERSION -not -path '*/node_modules/*' 2>/dev/null | sort)")"
   fi
   if [ -n "$old_base" ] && git -C "$REPO_DIR" cat-file -e "$old_base^{commit}" 2>/dev/null; then
     # shellcheck disable=SC2086
     changed="$(git -C "$REPO_DIR" diff --name-only "$old_base" HEAD -- $TEMPLATE_TRACKED)"
-  elif [ -n "$old_base" ]; then
-    echo "warning: the old baseline in $stamp ($old_base) is not a commit in this clone, so this" >&2
+  else
+    # Nothing to compare from: say so on screen, and in the stamp, which outlives the screen.
+    if [ -n "$old_base" ]; then gap="the old baseline in $stamp ($old_base) is not a commit in this clone"
+    else gap="no stamp in $site_root names a baseline this clone has"; fi
+    echo "warning: $gap, so this" >&2
     echo "stamp cannot list the files changed since then that the site lacks. Compare them by hand" >&2
     echo "and add a \`left_out: <path> — <why>\` line for each file the site does not take." >&2
+    own="${own:+$own
+}# $today: not compared with the suite, so files the site lacks may be unlisted: $gap"
   fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     rel="$(site_copy_of "$f")"
     [ -n "$rel" ] && [ ! -e "$site_root/$rel" ] && git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null || continue
-    # skip a path a line already names, site-relative or relative to tests/
-    awk -v a="$rel" -v b="${rel#tests/}" '$2 == a || $2 == b { found = 1 } END { exit !found }' <<<"$own
+    # skip a path a left_out or kept line already names, site-relative or relative to tests/
+    awk -v a="$rel" -v b="${rel#tests/}" '($1 == "left_out:" || $1 == "kept:") && ($2 == a || $2 == b) { found = 1 } END { exit !found }' <<<"$own
 $auto" && continue
-    auto="${auto}left_out: $rel $AUTO_LEFT_OUT $(date +%Y-%m-%d)
+    auto="${auto}left_out: $rel $AUTO_LEFT_OUT $today
 "
   done <<<"$changed"
   printf 'suite_commit: %s\ncopied: %s\n%s%s' \
-    "$(git -C "$REPO_DIR" rev-parse HEAD)" "$(date +%Y-%m-%d)" "${own:+$own
+    "$(git -C "$REPO_DIR" rev-parse HEAD)" "$today" "${own:+$own
 }" "$auto" > "$stamp"
 }
 
