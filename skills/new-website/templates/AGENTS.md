@@ -281,8 +281,9 @@ For everyone, the owner included:
     **Publish the drafts as they are**.
   - The kit ships the English Legal Notice. In the same message, ask whether the
     business is based in Germany. If it is, offer the German Impressum as well
-    (`src/pages/_impressum.astro`, whose header has the steps); offer it to no one
-    else.
+    (`src/pages/_impressum.astro`, whose header has the steps; a site made before
+    that file existed takes it from the latest Croftweaver starter first); offer it
+    to no one else.
   - Record the answer first, as a line of its own in the `README.md` in the folder
     that holds `package.json`: one of the forms below, written bare (no list marker, no
     backticks) and nothing else on that line, the date as YYYY-MM-DD. Then delete the

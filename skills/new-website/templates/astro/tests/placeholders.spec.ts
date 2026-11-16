@@ -147,7 +147,8 @@ function legalVerdict(path: string, { listed, noteVisible, recorded }: { listed:
   return (
     `${path} is a legal page with no recorded answer, and ${listed ? 'is listed in UNFILLED_UNTIL_LAUNCH' : 'is not listed in UNFILLED_UNTIL_LAUNCH'} ` +
     `and ${noteVisible ? 'shows' : 'does not show'} its draft notice. Do not delete the notice or the entry to turn this green. ` +
-    `Ask the owner as AGENTS.md section 5 says, record the answer as one line of its own in README.md, written bare (no list marker, no backticks) ` +
+    `Ask the owner, and only the owner, which holds: a lawyer has reviewed the legal pages, the owner uses their own texts, or the drafts are published as they are ` +
+    `(AGENTS.md section 5 words the question, where the site has that file). Record the answer as one line of its own in README.md, written bare (no list marker, no backticks) ` +
     `("legal pages: reviewed by a lawyer (YYYY-MM-DD)", "legal pages: own texts (YYYY-MM-DD)" or ` +
     `"legal pages: published as drafted (owner's decision, YYYY-MM-DD)"), then delete the notices.`
   );
@@ -653,7 +654,11 @@ test('placeholders — the draft notice rules pick the legal pages and read the 
   expect(fine(true, false, true), 'a recorded answer clears the note').toBeNull();
   expect(fine(false, false, true), 'a recorded answer clears the note and the entry').toBeNull();
   expect(fine(false, true, true), 'a recorded answer with the note still on is not this test\'s business').toBeNull();
-  expect(fine(true, false, false), 'the note gone with no answer fails').toContain('AGENTS.md section 5');
+  // The message must stand on its own: a site with no AGENTS.md has no section 5 to read.
+  for (const option of ['a lawyer has reviewed the legal pages', 'the owner uses their own texts', 'the drafts are published as they are']) {
+    expect(fine(true, false, false), `the note gone with no answer fails, naming the answer "${option}"`).toContain(option);
+  }
+  expect(fine(true, false, false), '... and saying who answers').toContain('Ask the owner, and only the owner');
   expect(fine(false, true, false), 'the page delisted with the note on and no answer fails').toContain('is not listed in UNFILLED_UNTIL_LAUNCH and shows its draft notice');
   expect(fine(false, false, false), 'neither the note nor an answer fails').not.toBeNull();
   expect(fine(true, false, false)).toContain('legal pages: published as drafted (owner\'s decision, YYYY-MM-DD)');
