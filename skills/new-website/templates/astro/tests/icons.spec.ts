@@ -1,6 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { COMPANY } from '../src/config';
 import { staleReasons } from '../scripts/make-icons.mjs';
 
 // The seven icon files every site links, with the size each must have. Written out here, not read
@@ -31,6 +30,20 @@ const decodedSize = (page: Page, bytes: Buffer, type: string) =>
     }
   }, [bytes.toString('base64'), type]);
 
+// An SVG as an <img> shows it (createImageBitmap takes no SVG): its size once decoded, or null when
+// it does not decode, as with a cut-off file.
+const svgSize = (page: Page, bytes: Buffer) =>
+  page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/svg+xml;base64,${b64}`;
+    try {
+      await img.decode();
+      return [img.naturalWidth, img.naturalHeight];
+    } catch {
+      return null;
+    }
+  }, bytes.toString('base64'));
+
 const pathOf = (href: string, base: string) => new URL(href, base).pathname;
 
 for (const icon of ICONS) {
@@ -50,9 +63,17 @@ for (const icon of ICONS) {
       expect(res.ok(), `${manifest} is served`).toBe(true);
       linked = ((await res.json()).icons as { src: string }[]).map((i) => pathOf(i.src, manifest));
     } else {
-      linked = [pathOf(COMPANY.logo, home)];
+      // The logo the page's structured data names: each Organization's logo, a URL or an ImageObject.
+      const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+      linked = blocks
+        .flatMap((text) => {
+          const data = JSON.parse(text);
+          return Array.isArray(data) ? data : data['@graph'] ?? [data];
+        })
+        .filter((node) => node?.['@type'] === 'Organization' && node.logo)
+        .map((node) => pathOf(typeof node.logo === 'string' ? node.logo : node.logo.url ?? '', home));
     }
-    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : 'COMPANY.logo'})`).toContain(icon.path);
+    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : "the Organization's logo in the page's structured data"})`).toContain(icon.path);
 
     const res = await request.get(icon.path);
     expect(res.ok(), `${icon.path} is served (status ${res.status()})`).toBe(true);
@@ -81,7 +102,8 @@ for (const icon of ICONS) {
       expect(await decodedSize(page, alone, 'image/x-icon'), `${icon.path}: its 32 pixel frame decodes to 32 x 32`).toEqual([icon.size, icon.size]);
     } else {
       expect(type, `${icon.path} content type`).toContain('image/svg+xml');
-      expect(body.toString('utf8'), `${icon.path} is an SVG`).toMatch(/<svg[\s>]/);
+      const size = await svgSize(page, body);
+      expect(size !== null && size[0] > 0 && size[1] > 0, `${icon.path} decodes as an SVG image (size ${JSON.stringify(size)})`).toBe(true);
     }
   });
 }
