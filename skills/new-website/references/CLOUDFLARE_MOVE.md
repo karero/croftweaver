@@ -34,7 +34,11 @@ computer, and a second computer would not know the move had begun.
    text is true on both platforms (it names Cloudflare, not Pages); and the site has exactly one
    Workers config (a `.json` or `.jsonc` that holds `assets` and no `pages_build_output_dir`) with
    `workers_dev: false`, `preview_urls: true`, `not_found_handling: "404-page"` and no domain
-   routes. All of it is merged to the live branch. The Worker itself is made as
+   routes, and `astro.config` must not set the sitemap's `lastmod` to the build time
+   (`lastmod: new Date()`): two builds of one commit would serve two sitemaps and `record` would
+   stop on their bodies. Remove the line or give a fixed date; `check` lists that one form, and
+   when `record` stops on sitemap bodies alone, its refusal names this cause (other forms of a
+   build-time date are not caught by `check`). All of it is merged to the live branch. The Worker itself is made as
 `CLOUDFLARE_FIRST_DEPLOY.md` says for a new site: connected to GitHub with Workers Builds
 (B; the setup script, S, says how and reads the Worker once a build has made it), which then builds each push.
 
@@ -63,7 +67,9 @@ computer, and a second computer would not know the move had begun.
    with no `USE_ANALYTICS` line at all counts as on; since the new line names it, add
    `export const USE_ANALYTICS = true;` above it too.
    With analytics off, leave the line alone.
-2. **Freeze and record.** `check`, then `record`. Nothing is merged or shipped from here until
+2. **Freeze and record.** `check` and `record`. Run `check` before the freeze, when the User has
+   ticked the ready list in `docs/MOVE-TO-WORKERS.md` section 6; `check` names `record` as the
+   next step only when stage 1 is done. Nothing is merged or shipped from the freeze until
    `after` passes, except the commit the script writes.
 3. **Switch.** `move`, and `undo` if you want to go back.
 4. **Check on the domain.** `after`.
@@ -76,9 +82,13 @@ computer, and a second computer would not know the move had begun.
 
 Make one token on the site's one zone: **Zone Read** and **DNS Edit** on that zone; **Cloudflare
 Pages Edit** and the Workers permission that custom domains need, both on the account; and an
-end date within a week. The token page is
+end date 7 days from today. The token page is
 https://dash.cloudflare.com/profile/api-tokens. (The Workers permission's exact name is not
 checked yet; the script's error says so if the token lacks it.)
+
+Say why there are two tokens: the build token has no end date and any package in a build can
+read it, so it must not hold DNS Edit or Pages Edit; the move token holds them for 7 days, and the
+User deletes it once she will not go back (`after` says so).
 
 Say this plainly to the User: Pages Edit and the Workers permission reach every project on her
 account. The script reads some lists across the account (her zones, her Pages projects, the DNS
@@ -108,9 +118,9 @@ never gives it to a program it starts (the build, `git`).
 
 | Step | Command | What it does |
 |---|---|---|
-| 1 | `check` | Reads only. Says what the move would touch and what is there now, and refuses a site that is not ready (below). |
+| 1 | `check` | Reads only. Says what the move would touch and what is there now, one line for how each host answers `/build.txt` now (the Pages project's hosts, and the zone's apex and `www.` when they are not among them), and refuses a site that is not ready (below). |
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
-| 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. |
+| 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. Claude Code may ask before plain `move` runs: it writes the route commit (local, not pushed), the state file and the status page, and sends Cloudflare only reads (a test checks that). Ask the User once, before the day, whether to allow it. This is about the first plain `move` only; it says nothing about plain `undo`. |
 | 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote and nothing has changed since step 3 (below): it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
 | 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). The push runs the site's own tests first (a couple of minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did, on the User's own Cloudflare login, not the move token. On a site with the starter's `scripts/deploy.sh` (a `wrangler.jsonc` with no `wrangler.json` or `wrangler.toml` beside it), switch to the live branch with the pushed commit checked out and run `npm run deploy:live`: it builds with the live branch's name set, so analytics stays on, and deploys. Otherwise, on a kit site, from the pushed commit: `CF_PAGES_BRANCH=<the live branch> npm run build` (without it, a site with analytics on has its analytics and email-tap tracking switched off; this build sets `CF_PAGES_BRANCH`, which the old `enabled:` line and the 0.35 one both read), then `npx wrangler deploy --config <the Workers config file>` (the root `.json` or `.jsonc` file with `assets` that stage 1 deployed with; its name is not always `wrangler.jsonc`). `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit (`npm run deploy:live` takes the commit at the branch's tip). |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
@@ -118,8 +128,9 @@ never gives it to a program it starts (the build, `git`).
 **`check` refuses** (and each refusal says what to do): a Pages project made by direct upload, or
 none found for this repository; a Worker that already has a domain; more than one Workers
 config; a `functions/` folder holding anything but `_middleware.ts`, or a `public/_worker.js`;
-and a site in analytics server mode. Once the Worker's domain is checked, the other four (the
-Workers config, `functions/`, `public/_worker.js` and server mode) are listed together, and after a
+and a site in analytics server mode. Once the Worker's domain is checked, the other gaps (the
+Workers config, `functions/`, `public/_worker.js`, server mode, the analytics lines, and a
+sitemap `lastmod` set to the build time in `astro.config`) are listed together, and after a
 refused token too, so one run shows what stage 1 still lacks. Every run that gets that far reads
 the Workers config; the other checks are for a first move, and while a move is open they are
 lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
@@ -131,8 +142,9 @@ and, when a host is not where the move ends, the command that carries it on.
 **`record` takes minutes.** The build runs apart from the command. While it runs, `record`
 exits 4: run the same command again until it finishes.
 
-**The question (`move`) is the User's to answer.** Read her the printed end state, not a
-summary of it. The code changes with every fact in that end state, so a code from an earlier
+**The question (`move`) is the User's to answer.** Read her the plain lines at the top, word for
+word, not a summary; the lines under "For your assistant" are for you, and you read them to her
+when she asks. She should say yes within 10 minutes (the script allows 15). Plain `undo` prints the same shape. The code changes with every fact in that end state, so a code from an earlier
 question will not fit a later one: a wrong code asks again and changes nothing.
 
 ## Exit statuses
@@ -173,8 +185,8 @@ A run lasts at most about a minute. The switch is built for that.
 
 If a change fails, the run stops at once, reads the host back and says whether it is on Pages, on
 the Worker or on neither; **run the same command again at once**, because a host on neither is
-down. Each host is down from the moment it leaves its platform until the other serves it: about a
-minute. 15 minutes is the target, not a promise; past it the report says to go back.
+down. Each host is down from the moment it leaves its platform until the other serves it: a few seconds going
+forward, one to two minutes going back (63 to 98 seconds in the tests). 15 minutes is the target, not a promise; past it the report says to go back.
 
 ## After the push
 

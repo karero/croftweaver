@@ -190,7 +190,9 @@ export function makeSiteFetch(send, allowed, { clock = null, requestMs = REQUEST
       return { status: r.status, headers: r.headers, body: Buffer.from(await r.arrayBuffer()) };
     } catch (e) {
       if (clock && clock.left() <= 0) throw new Deadline(true, u.hostname, u.pathname);
-      return { status: 0, headers: new Headers(), body: Buffer.alloc(0), error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e) };
+      // Node's fetch says only "fetch failed"; the reason is the code on `cause`.
+      const code = e?.cause?.code ? ` (${e.cause.code})` : '';
+      return { status: 0, headers: new Headers(), body: Buffer.alloc(0), error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : `${String(e?.message ?? e)}${code}` };
     }
   };
 }
@@ -795,8 +797,8 @@ async function checkToken(ctx) {
   if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
   if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
   const ends = Date.parse(verify.body.result.expires_on ?? '');
-  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date a week out, and delete this one.');
-  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. A week at most: make one that ends within the week, and delete this one.`);
+  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date 7 days from today, and delete this one.');
+  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. 7 days at most: make one that ends within 7 days, and delete this one.`);
   ctx.tokenLeftMs = ends - ctx.now();
   if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
   const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
@@ -930,7 +932,10 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 // ---------------------------------------------------------------- the refusals of a first move
 
 // What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
-// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts and, with analytics on, an enabled: line that reads CF_PAGES_BRANCH only. Read from git only, so a run lists all of them at once.
+// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts, with analytics on an enabled: line that reads CF_PAGES_BRANCH only, and a sitemap lastmod set to the build time in astro.config. Read from git only, so a run lists all of them at once.
+const ASTRO_CONFIGS = ['astro.config.mjs', 'astro.config.js', 'astro.config.cjs', 'astro.config.ts', 'astro.config.mts'];
+// The one literal form of a build-time lastmod; any other form is left to record's refusal.
+const BUILD_TIME_LASTMOD = /lastmod\s*:\s*new Date\(\s*\)/;
 async function stageOneGaps(git, sha) {
   const gaps = [];
   const asLines = async (fn) => { try { await fn(); } catch (e) { if (!(e instanceof Stop)) throw e; gaps.push(...e.lines); } };
@@ -941,6 +946,11 @@ async function stageOneGaps(git, sha) {
   const fns = files.filter((f) => f.startsWith('functions/') && f !== 'functions/_middleware.ts');
   if (fns.length) gaps.push(`${short(sha)} holds ${fns.slice(0, 3).join(', ')}${fns.length > 3 ? ' and more' : ''} in functions/. The Worker would not run that code. Stage 1 of the move section takes functions/go/ out.`);
   if (files.includes('public/_worker.js')) gaps.push(`${short(sha)} holds public/_worker.js: code the Worker would not run.`);
+  for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
+    const r = await git('show', `${sha}:${f}`);
+    if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
+    if (r.stdout.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l.split('//')[0]))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
+  }
   await asLines(async () => {
     const cfg = await readSiteConfig(git, sha);
     if (cfg.serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
@@ -1200,6 +1210,10 @@ export function compare(was, now, { change, onVersion, expect }) {
 
 const unknownOf = (diffs) => diffs.filter((d) => !d.known);
 
+// The line a refusal adds when the only unknown differences are sitemap bodies: a lastmod set at build time can cause them.
+const SITEMAP_HINT = 'A sitemap that differs only in its body can be a lastmod set at build time, which makes two builds of one commit differ. Look in astro.config for it.';
+const sitemapLines = (unknown) => (unknown.length && unknown.every((d) => d.field === 'body' && /^sitemap[^/]*\.xml$/.test(String(d.path).split('/').pop())) ? [SITEMAP_HINT] : []);
+
 // Where a host's build.txt says it is served from: the build's own platform line when it has one,
 // else Pages' access-control-allow-origin header.
 function platformOf(r, text) {
@@ -1270,11 +1284,16 @@ export function confirmCode(input) {
   return createHash('sha256').update(JSON.stringify(input)).digest('hex').slice(0, 16);
 }
 
-function askOrGo(ctx, kind, input, lines, run) {
+// The question: plain words first (`plain`, the lines under its first), then what a yes does, for the assistant.
+// The 10-minute line comes with the plain run only: a --confirm run's 15 minutes count from that run's check.
+function askOrGo(ctx, kind, input, plain, lines, run) {
   const code = confirmCode(input);
   if (ctx.opts.confirm === code) return true;
   if (ctx.opts.confirm) ctx.say('', `The code ${ctx.opts.confirm} does not fit this question: something it covered has changed. Nothing was changed. Here is the question as it stands now.`);
-  ctx.say('', 'Cloudflare has not been changed yet. If you say yes, I will:');
+  const [question, ...rest] = plain;
+  ctx.say('', question, ...rest.map((l) => `- ${l}`));
+  if (ctx.opts.confirm === null) ctx.say(`- Say yes within ${ANSWER_MIN} minutes. After that, I ask you again, unless an address is left down, which I finish first.`);
+  ctx.say('Cloudflare has not been changed yet.', '', 'For your assistant, what a yes does:');
   lines.forEach((l, i) => ctx.say(`  ${i + 1}. ${l}`));
   ctx.say('', `To go ahead, run the same command again with: --confirm ${code}`);
   run.next = `node move-to-workers.mjs ${kind} --confirm ${code}`;
@@ -1312,12 +1331,28 @@ export async function ensureRouteCommit(ctx, want, kind) {
 
 function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); } // ok_: true, false, or 'wait' (not wrong, not finished)
 
+// How a host answers /build.txt now, in words: the status, the commit it names and, from Pages' CORS header, which platform likely sent it.
+function answerWords(r) {
+  if (r.status === 0) return `no answer: ${r.error ?? 'none'}`;
+  const first = r.body.toString('utf8').split('\n')[0].trim();
+  if (r.status === 200) {
+    if (!/^[0-9a-f]{40}$/.test(first)) return 'answers now: 200, not a build.txt this kit writes';
+    return `answers now: 200, build.txt names ${short(first)}, ${r.headers.get('access-control-allow-origin') !== null ? "Pages' header says Pages" : 'no Pages header, so likely the Worker'}`;
+  }
+  const to = r.headers.get('location');
+  return REDIRECTS.includes(r.status) && to ? `answers now: ${r.status} to ${to}; the script cannot tell what sends it` : `answers now: ${r.status}`;
+}
+
 async function cmdCheck(ctx, run) {
   const { say } = ctx;
   const gh = await ctx.github(`/repos/${ctx.repository}`); // first: a private repository or a missing gh explains the rest
   if (gh.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository} without a login: the repository is private. ${loginHint(ctx)}`);
   const live = await readLive(ctx);
   if (!ctx.open) await firstMoveRefusals(ctx, live);
+  // The apex and www of the zone are the hosts an owner is asked about; each is read once, with the project's hosts, all together.
+  const extra = [ctx.zone.name, `www.${ctx.zone.name}`].filter((h) => !ctx.hosts.includes(h));
+  for (const h of extra) ctx.allowed.add(h);
+  const answers = new Map(await Promise.all([...ctx.hosts, ...extra].map(async (h) => [h, await ctx.siteFetch(`https://${h}/build.txt`, { headers: { 'cache-control': 'no-cache' } })])));
   say(`Move check for ${ctx.hosts.join(', ')} (zone ${ctx.zone.name}, account ${ctx.account.name})`);
   say(`Repository ${ctx.repository}, ${ctx.twoStage ? 'two-stage: production is the live branch, main the preview' : 'single-stage: main is the live branch'}. Pages project ${ctx.project.name} (${ctx.project.subdomain}); Worker ${ctx.worker} (config ${ctx.configFile}).`);
   if (ctx.open && ctx.state.route) say(`A move is open. It expects the ${ctx.state.route.kind} commit ${short(ctx.state.route.commit)} on ${ctx.twoStage ? `${ctx.prodBranch} and main` : ctx.prodBranch}; after checks the hosts ${ctx.state.route.kind === 'route' ? 'on the Worker' : 'back on Pages'}.`);
@@ -1325,6 +1360,11 @@ async function cmdCheck(ctx, run) {
     const hs = hostState(ctx, live, h);
     say(`  ${h}: ${WHERE_WORDS[hs.where]}${notActive(hs)}; DNS ${hs.recs.map((r) => `${r.type} ${r.content}${r.proxied ? ' (proxied)' : ''}`).join('; ') || 'no record'}`);
     note(run, settled(hs, false), `${h} is ${WHERE_WORDS[hs.where]}${notActive(hs)}, DNS ${hs.recs.map((r) => `${r.type} ${r.content}`).join('; ') || 'none'}`);
+    say(`  ${h}: ${answerWords(answers.get(h))}${ctx.open ? '' : '; the move moves it'}.`);
+  }
+  for (const h of extra) {
+    const a = answerWords(answers.get(h));
+    say(`  ${h}: not a domain of the Pages project, so the move does not touch it. ${a[0].toUpperCase()}${a.slice(1)}.`);
   }
   say(`The live branch ${ctx.prodBranch} on GitHub is ${short(ctx.tip)}${ctx.twoStage ? `; main is ${short(ctx.mainSha)}${ctx.mainDiffers ? ' (it differs: they must be the same before record)' : ''}` : ''}.`);
   note(run, !ctx.mainDiffers, `GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
@@ -1464,7 +1504,7 @@ async function cmdRecord(ctx, run) {
     keep();
     note(run, false, `${unknown.length} differences the script does not know between the domain and the Worker's version`);
     for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${diffWords(d)}`);
-    throw new Stop(1, `${unknown.length} unknown differences: the Worker would not serve what the domain serves now. Fix the site (stage 1), then record again. Nothing was changed.`);
+    throw new Stop(1, `${unknown.length} unknown differences: the Worker would not serve what the domain serves now. Fix the site (stage 1), then record again. Nothing was changed.`, ...sitemapLines(unknown));
   }
   st.snapshots.push(await snapshot(ctx, live, 'record'));
   st.recording.status = 'done';
@@ -1484,6 +1524,7 @@ const hostReserve = (ctx) => ctx.io.reserveMs ?? 5 * (ctx.io.requestMs ?? REQUES
 // Why the plain run's check no longer holds, or null. A --confirm run goes ahead only on a check that
 // is under 15 minutes old and still describes the deployments and the branch tips.
 const CHECK_MAX_MS = 15 * 60_000;
+const ANSWER_MIN = 10; // the yes is asked for inside CHECK_MAX_MS, with room for the assistant's turn
 function driftOf(ctx, st, dir, light) {
   const c = st.checked;
   if (!c || c.kind !== dir) return `No plain ${dir} has checked this since the last change of direction, so there is nothing to compare with.`;
@@ -1582,11 +1623,15 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   lines.push(toWorker
     ? `Take ${ctx.hosts.join(', ')} off the Pages project ${ctx.project.name}, delete each host's CNAME to ${ctx.project.subdomain}, and attach each to the Worker ${ctx.worker} (account ${ctx.account.name}, zone ${ctx.zone.name}).`
     : `Take ${ctx.hosts.join(', ')} off the Worker ${ctx.worker}, add each back to the Pages project ${ctx.project.name} with its CNAME to ${ctx.project.subdomain} (account ${ctx.account.name}, zone ${ctx.zone.name}).`);
-  lines.push(`Each host is down from the moment it leaves its platform until the other one serves it: about a minute. The target is ${TARGET_MS / 60_000} minutes; past it, the run tells you to go back.`);
+  lines.push(`Each host is down from the moment it leaves its platform until the other one serves it: ${toWorker ? 'a few seconds' : 'one to two minutes, 63 to 98 seconds in the tests'}. The target is ${TARGET_MS / 60_000} minutes; past it, the run tells you to go back.`);
   lines.push(`Push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production' : 'main'} afterwards (you do that, not the script); then run after.`);
   const input = { kind: dir, account: ctx.account.id, zone: ctx.zone.id, repository: ctx.repository.toLowerCase(), project: ctx.project.name, worker: ctx.worker, hosts: [...ctx.hosts].sort(), commit, frozen: st.frozen };
   if (!todo.length && ctx.opts.confirm === null) say(`Every host is already ${toWorker ? 'on the Worker' : 'back on Pages'}.`);
-  if (!askOrGo(ctx, dir, input, lines, run)) return 3;
+  const names = ctx.hosts.length > 1 ? `${ctx.hosts.slice(0, -1).join(', ')} and ${ctx.hosts.at(-1)}` : ctx.hosts[0];
+  const plain = toWorker
+    ? [`Move ${names} to the new hosting now?`, 'Visitors may get an error page for a few seconds while it switches.', 'If anything looks wrong afterwards, I can switch it back. In the tests the site was then down for one to two minutes, and it can take longer.']
+    : [`Move ${names} back to the old hosting (Pages) now?`, 'In the tests the site was down for one to two minutes while it switched back, and it can take longer.', 'After this, the site is where it was before the move.'];
+  if (!askOrGo(ctx, dir, input, plain, lines, run)) return 3;
 
   // --- With the yes.
   // Before anything is changed: a record that no longer fits, and a run too short for the next host.
@@ -1838,7 +1883,7 @@ async function cmdAfter(ctx, run) {
   if (unknown.length) {
     for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${diffWords(d)}`);
     run.next = toWorker ? 'Read the differences; node move-to-workers.mjs undo if a visitor would notice.' : 'Read the differences.';
-    throw new Stop(1, `${unknown.length} unknown differences between the live site and the recording.`);
+    throw new Stop(1, `${unknown.length} unknown differences between the live site and the recording.`, ...sitemapLines(unknown));
   }
   const when = new Date(ctx.now()).toISOString();
   st.base = expect; // later builds are looked at from here on; it only moves forward

@@ -91,6 +91,10 @@ export function platformOf(w, host) {
 }
 
 function served(w, host, urlPath) {
+  // `w.elsewhere`: host → what another origin or a zone rule answers for a host on neither platform (an Error is thrown, as fetch does).
+  const away = w.elsewhere?.[host];
+  if (away instanceof Error) throw away;
+  if (away) return new Response(away.body ?? '', { status: away.status, headers: away.headers ?? {} });
   const platform = platformOf(w, host);
   if (!platform) return new Response('', { status: 522 });
   const shown = w.stale?.[host] ?? platform; // a stale answer from the platform a host just left
