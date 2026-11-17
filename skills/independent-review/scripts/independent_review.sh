@@ -1336,18 +1336,15 @@ run_codex() {
   set -- exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c skills.include_instructions=false
   # Turn off the MCP servers Codex can name, for this run only (the note above codex_model).
   # Listed in the folder exec runs in, bounded; any failure leaves them on and says why.
-  local mcp_why="" mcp_names="" mcp_line mcp_rc w0="${WHY:-}"
-  api_tools_ok || mcp_why="$WHY"
-  WHY="$w0"
-  if [ -z "$mcp_why" ]; then
-    perl "$PERL_DIR/run_limited.pl" 20 "$bin" mcp list --json --disable plugins </dev/null >"$RAW_DIR/codex.mcp.json" 2>"$RAW_DIR/codex.mcp.err"
-    mcp_rc=$?
-    case $mcp_rc in
-      0)   mcp_names="$(perl "$PERL_DIR/codex_mcp_off.pl" "$RAW_DIR/codex.mcp.json")" || mcp_why="its answer was not a readable list" ;;
-      142) mcp_why="listing them timed out after 20 seconds" ;;
-      *)   mcp_why="listing them failed (exit $mcp_rc: $(head -n 1 "$RAW_DIR/codex.mcp.err" | tr -cd '[:print:]' | cut -c 1-160))" ;;
-    esac
-  fi
+  # No version probe: a Perl too old or without JSON::PP fails here and takes the same way out.
+  local mcp_why="" mcp_names="" mcp_line mcp_rc
+  perl "$PERL_DIR/run_limited.pl" 20 "$bin" mcp list --json --disable plugins </dev/null >"$RAW_DIR/codex.mcp.json" 2>"$RAW_DIR/codex.mcp.err"
+  mcp_rc=$?
+  case $mcp_rc in
+    0)   mcp_names="$(perl "$PERL_DIR/codex_mcp_off.pl" "$RAW_DIR/codex.mcp.json")" || mcp_why="its answer was not a readable list" ;;
+    142) mcp_why="listing them timed out after 20 seconds" ;;
+    *)   mcp_why="listing them failed (exit $mcp_rc: $(head -n 1 "$RAW_DIR/codex.mcp.err" | tr -cd '[:print:]' | cut -c 1-160))" ;;
+  esac
   if [ -n "$mcp_why" ]; then
     echo "codex: MCP servers left on ($mcp_why)" >&2
   else
