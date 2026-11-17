@@ -87,3 +87,14 @@ test.describe('Workers config', () => {
     });
   }
 });
+
+// The reader Wrangler's own JSONC does: comments and a comma before a closing } or ] are fine,
+// but a `,}` inside a string is text and a missing comma is an error (as Wrangler 4 reports it).
+test.describe('Wrangler JSONC reader', () => {
+  test('a comma before a closing brace or bracket is dropped, one inside a string is kept', () => {
+    expect(parseJsonc('{ "a": "x,}", /* c */ "b": [1,], // d\n }')).toEqual({ a: 'x,}', b: [1] });
+  });
+  test('a missing comma is still an error', () => {
+    expect(() => parseJsonc('{ "a": 1 "b": 2 }')).toThrow();
+  });
+});

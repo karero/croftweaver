@@ -44,7 +44,14 @@ has_workers_config="$(node -e '
       else if (t[i] === "/" && t[i + 1] === "*") { const j = t.indexOf("*/", i + 2); i = j < 0 ? t.length : j + 2; }
       else { s += t[i]; i++; }
     }
-    try { const c = JSON.parse(s); if (c && typeof c === "object" && "assets" in c && !("pages_build_output_dir" in c)) { console.log(f); break; } } catch { /* not ours */ }
+    let u = "", k = 0;
+    while (k < s.length) {
+      const c = s[k];
+      if (c === "\"") { let m = k + 1; while (m < s.length && s[m] !== "\"") m += s[m] === "\\" ? 2 : 1; u += s.slice(k, m + 1); k = m + 1; }
+      else if (c === "," && /^\s*[}\]]/.test(s.slice(k + 1))) { k++; }
+      else { u += c; k++; }
+    }
+    try { const c = JSON.parse(u); if (c && typeof c === "object" && "assets" in c && !("pages_build_output_dir" in c)) { console.log(f); break; } } catch { /* not ours */ }
   }
 ')"
 if [ -z "$has_workers_config" ]; then
@@ -253,7 +260,8 @@ for e in "$site"/node_modules/* "$site"/node_modules/.[!.]*; do
   [ "$(basename "$e")" = .bin ] || ln -s "$e" "$copy/node_modules/$(basename "$e")"
 done
 for e in "$site"/node_modules/.bin/*; do
-  [ "$(basename "$e")" = wrangler ] || ln -s "$site/node_modules/.bin/$(readlink "$e")" "$copy/node_modules/.bin/$(basename "$e")"
+  [ "$(basename "$e")" = wrangler ] && continue
+  if [ -L "$e" ]; then ln -s "$site/node_modules/.bin/$(readlink "$e")" "$copy/node_modules/.bin/$(basename "$e")"; else ln -s "$e" "$copy/node_modules/.bin/$(basename "$e")"; fi
 done
 printf '#!/bin/sh\necho "stand-in wrangler $*"\n' > "$copy/node_modules/.bin/wrangler"
 chmod +x "$copy/node_modules/.bin/wrangler"
@@ -272,7 +280,13 @@ live_site() {
   asked="${asked% }"
   if [ "$rc" = 0 ] && [ "$asked" = "$2" ] && grep -qF -- "$3" "$work/$1.log"; then ok "$1: \"$3\" (asked: ${asked:-nothing})"; else bad "$1: expected exit 0, asking \"$2\" and saying \"$3\"; got exit $rc, asked \"$asked\":"; sed 's/^/  | /' "$work/$1.log"; fi
 }
-live_site site-one "https://example.com/build.txt" "LIVE — verified: https://example.com is serving build"
+# The site's own address, found by a different reader than deploy.sh's: its first plain `site: '…'` line.
+own_site="$(sed -nE "s/^[[:space:]]*site:[[:space:]]*['\"](https?:\/\/[^'\"]+)['\"].*/\1/p" "$copy/astro.config.mjs" | awk 'NR==1')"
+own_site="${own_site%/}"
+if [ -z "$own_site" ]; then
+  echo "· check_deploy: astro.config.mjs has no line of the form  site: 'https://…',  so the live-check cases were not run."
+else
+  live_site site-one "$own_site/build.txt" "LIVE — verified: $own_site is serving build"
 
 # An old address kept in a comment: two matches, so no one address to check.
 perl -pi -e 's|^(\s*site:.*)$|$1\n  // site: \x27https://old.example.invalid\x27,|' "$copy/astro.config.mjs"
@@ -280,16 +294,22 @@ git_in commit -q -am "an old address in a comment"
 live_site site-many "" "has more than one site: address"
 
 # Only a comment holds a site: address (the real one is written so that it does not match).
-perl -pi -e 's|^(\s*)site:\s*\x27https://example.com\x27,|$1\x27site\x27: \x27https://example.com\x27,|; s|^(\s*)// site: .*$|$1// site: \x27https://old.example.invalid\x27,|' "$copy/astro.config.mjs"
+perl -pi -e 's|^(\s*)site:(\s*)(\x27https?://[^\x27]+\x27)|$1\x27site\x27:$2$3|; s|^(\s*)// site: .*$|$1// site: \x27https://old.example.invalid\x27,|' "$copy/astro.config.mjs"
 git_in commit -q -am "the only site: is in a comment"
 live_site site-comment "" "sits in a comment"
+fi
 
 # deploy.sh's site: readers are the ones in scripts/ship.sh, word for word.
 reader() { awk '/^# The `site:` address in the astro.config.mjs text given/{p=1} p{print} p&&/^js_state\(\)/{j=1} j&&/^}$/{exit}' "$1"; }
-if grep -q '^site_count()' "$site/scripts/ship.sh" && grep -q '^site_count()' "$site/scripts/deploy.sh"; then
+has_ship=0; has_deploy=0
+grep -q '^site_count()' "$site/scripts/ship.sh" && has_ship=1
+grep -q '^site_count()' "$site/scripts/deploy.sh" && has_deploy=1
+if [ "$has_ship" = 1 ] && [ "$has_deploy" = 1 ]; then
   if [ -n "$(reader "$site/scripts/deploy.sh")" ] && [ "$(reader "$site/scripts/ship.sh")" = "$(reader "$site/scripts/deploy.sh")" ]; then ok "deploy.sh reads site: with the same functions as ship.sh"; else bad "the site: readers in scripts/deploy.sh and scripts/ship.sh differ: copy site_of, site_count and js_state from one to the other."; fi
+elif [ "$has_ship" = 1 ] || [ "$has_deploy" = 1 ]; then
+  bad "only one of scripts/ship.sh and scripts/deploy.sh has site_count(): copy site_of, site_count and js_state from one to the other."
 else
-  echo "· check_deploy: scripts/deploy.sh or scripts/ship.sh has no site_count(), so their site: readers were not compared."
+  echo "· check_deploy: neither scripts/ship.sh nor scripts/deploy.sh has site_count(), so their site: readers were not compared."
 fi
 
 if [ "$fail" = 0 ]; then echo "✓ check_deploy: all cases passed"; else echo "✗ check_deploy: failed"; exit 1; fi
