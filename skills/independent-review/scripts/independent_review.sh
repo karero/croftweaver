@@ -119,7 +119,7 @@
 # host's manager answered, and the closing lines of every round that names a kind cut earlier
 # remind the host to ask before the next fix (SKILL.md step 6). The answers go in the cost log.
 # Where the log is off (REVIEW_LOG=off) or cannot answer, the cut and fresh-eyes checks cannot
-# run: one warning line each, and the review goes on. Bookkeeping never fails a review. A run
+# run: one warning line each, and the review goes on; the manager ask has no warning of its own. Bookkeeping never fails a review. A run
 # with no --round (the wording pass, the final full read) needs neither option. Both options are
 # recorded on every cost-log line of the run.
 # BASE CHECK. Before any reviewer starts and before any of it leaves the machine, a diff is
@@ -314,6 +314,7 @@ while [ $# -gt 0 ]; do
              case "$ms_kind" in
                *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac
+             [ -n "$(printf '%s' "$ms_kind" | tr -d '._-')" ] || { echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2; }
              case "$ms_ans" in *[![:space:]]*) ;; *) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;; esac
              [ ${#1} -le 300 ] || { echo "bad value for --manager-said: ${#1} characters, more than 300" >&2; echo "$USAGE" >&2; exit 2; }
              MANAGER_SAID="${MANAGER_SAID:+$MANAGER_SAID; }$1"; shift ;;
@@ -1994,9 +1995,9 @@ report_round() {
   # A kind cut in an earlier round that this round names again has come back: the host sorts the
   # findings next, and asks its manager before the next fix if this round found it again
   # (SKILL.md step 6). Printed whether or not the round found it, since the host reads findings next.
-  local back_k back_round back_as
+  local back_k back_round
   if [ -n "$ROUND" ] && [ -n "$rc_back" ]; then
-    while IFS=$'\t' read -r back_k back_round back_as; do
+    while IFS=$'\t' read -r back_k back_round _; do
       [ -n "$back_k" ] || continue
       note="Kind $back_k was cut in round $back_round and came back in round $ROUND. If this round found it again, ask your manager before the next fix: take it out, make it a warning, or keep fixing?"
       printf '%s\n' "$note"; printf '%s\n' "$note" >&2

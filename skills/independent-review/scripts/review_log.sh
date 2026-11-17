@@ -259,7 +259,11 @@ gate() {
       if ($18 != "" && $18 != "-" && !((r, $18) in mseen)) {
         mseen[r, $18] = 1; ms[r] = ms[r] (ms[r] == "" ? "" : "; ") $18
         na = split($18, es, "; ")
-        for (e = 1; e <= na; e++) { a = es[e]; sub(/:.*/, "", a); a = tolower(a); gsub(/[._-]/, "", a); ans[r, a] = 1 }
+        for (e = 1; e <= na; e++) {
+          # An entry answers its kind only with a colon and a non-blank answer after it.
+          c = index(es[e], ":"); if (c == 0 || substr(es[e], c + 1) !~ /[^ ]/) continue
+          a = substr(es[e], 1, c - 1); a = tolower(a); gsub(/[._-]/, "", a); ans[r, a] = 1
+        }
       }
       # Every distinct cut of the round, each with the kinds of the rows that carry it: a round
       # whose seats logged two cuts shows both, and which kind each settled.

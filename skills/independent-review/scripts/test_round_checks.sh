@@ -460,7 +460,7 @@ if [ $rc -eq 0 ] && [[ "$out" != *"warning: kind"* ]] && [[ "$out" != *"Kind k w
   ok "ask: a kind cut once and not named again: nobody is asked"
 else fail "ask: a cut that held: exit $rc. Output: $out"; fi
 # Bad values are refused before anything runs.
-for bad in "" "nocolon" "k:" "k:   " ":x" "--cut" "a b: x" "k: keep fixing; j: " "k: a; j: b" $'k: one\ntwo' "$(printf 'x%.0s' $(seq 301))"; do
+for bad in "" "nocolon" "k:" "k:   " ":x" "--cut" "a b: x" "k: keep fixing; j: " "k: a; j: b" $'k: one\ntwo' $'k: one\ttwo' $'k: one\rtwo' "_: x" "k: $(printf 'x%.0s' $(seq 300))"; do
   run --round 4 --earned-by k --manager-said "$bad"
   check "--manager-said \"$(printf '%s' "$bad" | tr '\n' 'N' | cut -c1-12)\": a usage error, exit 2" 2 "bad value for --manager-said"
 done
@@ -470,7 +470,8 @@ check "--manager-said with no value: a usage error" 2 "--manager-said needs"
 # 16. A log whose header stops at column 17 (before manager_said): its lines read as no answer.
 L17="$T/l17.tsv"
 { printf '%s\n' "$HEADER17"
-  line G17 4 codex 1 k; line G17 5 codex 1 k a; line G17 6 codex 1 k b; line G17 7 codex 1 k
+  l17() { line "$@" | awk '{ print $0 "\t-" }'; }   # the reason column: 17 fields
+  l17 G17 4 codex 1 k; l17 G17 5 codex 1 k a; l17 G17 6 codex 1 k b; l17 G17 7 codex 1 k
 } >"$L17"
 got="$(REVIEW_LOG="$L17" gt --id G17 | sed -n 2p)"
 want="kinds: 4 k; 5 k (cut: a); 6 k (cut: b) [k back after the round 5 cut]; 7 k [k back after the round 5 cut; k: manager not asked]"
@@ -478,6 +479,16 @@ want="kinds: 4 k; 5 k (cut: a); 6 k (cut: b) [k back after the round 5 cut]; 7 k
 got="$(cd "$T/repo" && REVIEW_LOG="$L17" bash "$LOG_SH" round-check --id G17 --round 8 --kinds k)"
 want="$(printf 'gate\tG17\t7\t1\t4\nfresh\t-\nowed\tk\t7\tk\nback\tk\t5\tk\nask\tk\t5\t6, 7\tk')"
 [ "$got" = "$want" ] && ok "17-column log: round-check names the first cut and the returns" || fail "17-column log round-check: got [$got], want [$want]"
+# A blank answer joined to a real one (the log API takes any text): only the real one answers.
+L18="$T/l18.tsv"
+{ printf '%s\n' "$NEW_HEADER"
+  { line G18 4 codex 1 k,j; line G18 5 codex 1 k,j a; line G18 6 codex 1 k,j b; } | awk '{ print $0 "\t-\t-" }'
+  printf '%s\t-\t%s\n' "$(line G18 7 codex 1 k,j)" "k: keep fixing; j: "
+} >"$L18"
+got="$(REVIEW_LOG="$L18" gt --id G18 | sed -n 2p)"
+if [[ "$got" == *"j: manager not asked"* ]] && [[ "$got" != *"k: manager not asked"* ]]; then
+  ok "gate: a blank answer in a joined log value does not answer its kind"
+else fail "gate: blank joined answer: got [$got]"; fi
 use_gate G17
 REVIEW_LOG="$L17" run --round 8 --earned-by k --cut x
 check "17-column log: the script warns for the unanswered kind and goes on" $P "warning: kind k was cut in round 5 and came back in rounds 6, 7 before this one"

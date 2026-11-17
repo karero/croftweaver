@@ -349,7 +349,7 @@ Codex's effort for any run.
    kind, and record it in the trail. Nothing is refused: a round with no answer runs, and the gate
    line says "manager not asked". "Take it out" and "make it a warning" are scope cuts: the manager
    decides them and tells the owner in the PR's first lines. "Keep fixing" asks again at the next
-   return. A RISK
+   return; the `--cut` check above still applies to those rounds. A RISK
    whose fix leaves the meaning unchanged is wording: fix it like a NIT under (a2). Past round 3, a
    round with neither a substantive BUG nor an earning RISK ends the rounds: fix or refute its NITs without
    another round ((a2)), and the remaining wording goes to the wording pass or, where no round had
