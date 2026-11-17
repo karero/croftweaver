@@ -164,7 +164,7 @@ test('icons — the sizes declared for favicon.ico are the frames inside it', as
     frames.push(`${w}x${h}`);
   }
   const norm = (list: string[]) => [...new Set(list)].sort();
-  expect(norm(declared!.trim().split(/\s+/)), 'sizes in the tag, against the frames in the file').toEqual(norm(frames));
+  expect(norm(declared!.trim().split(/\s+/)), 'the sizes of the favicon.ico link in src/layouts/Base.astro must list every frame in public/favicon.ico (sizes in the tag, against the frames in the file)').toEqual(norm(frames));
 });
 
 // Warns, never fails: the starter's icons show the colour or letter the site had when they were
