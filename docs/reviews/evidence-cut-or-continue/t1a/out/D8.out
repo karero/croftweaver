@@ -10,60 +10,7 @@ reasoning summaries: none
 session id: <removed>
 --------
 user
-You are a reviewer in one round of a review. Answer only the CUT-CHECK below. Read only what is given; do not run anything.
-
---- CUT-CHECK ---
-This round reviews a fix that its author calls a cut, for the finding kind(s): lastmod-scan-regex-literal.
-The author's --cut text: "return counts as a keyword only when not a property name"
-The rule it must meet (independent-review, step 6): where a kind earned an earlier round too, the
-fix since then must be a cut, not another patch: take the feature out (a check that becomes a
-warning, or a report of what it could not read, counts), or replace it by a strict rule that
-accepts only the input it names and refuses the rest, with a test that ordinary input still
-passes. Refusing the one input the last BUG used is a patch.
-Judge the change below, not the claim. Answer with exactly one line of this form:
-CUT-CHECK: CUT
-or
-CUT-CHECK: PATCH — <why, in one sentence>
---- END CUT-CHECK ---
-
---- BEGIN DIFF ---
-diff --git a/skills/new-website/scripts/move-to-workers.mjs b/skills/new-website/scripts/move-to-workers.mjs
-index baad70f9..a3079a71 100644
---- a/skills/new-website/scripts/move-to-workers.mjs
-+++ b/skills/new-website/scripts/move-to-workers.mjs
-@@ -949,8 +949,8 @@ async function stageOneGaps(git, sha) {
-   for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
-     const r = await git('show', `${sha}:${f}`);
-     if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
--    // Comments and regex literals are cut and each string is blanked in one pass, so a `//` inside a URL, a string or a regex literal is not taken for a comment. A regex literal is read only after `( , : = [ ! & | ? { ;`, `=>` or `return`, so a division is not one. The scan guesses: a form it misreads is a miss that `record` still stops on, and it names the likely cause, so it errs toward a miss, never a false gap.
--    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*|\breturn\s+)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
-+    // Comments and regex literals are cut and each string is blanked in one pass, so a `//` inside a URL, a string or a regex literal is not taken for a comment. A regex literal is read only after `( , : = [ ! & | ? { ;`, `=>` or the keyword `return` (not `.return`), so a division is not one. The scan guesses: a form it misreads is a miss that `record` still stops on, and it names the likely cause, so it errs toward a miss, never a false gap.
-+    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*|(?<![.\w$])return\s+)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
-     if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
-   }
-   await asLines(async () => {
-diff --git a/skills/new-website/scripts/tests/move-to-workers.test.mjs b/skills/new-website/scripts/tests/move-to-workers.test.mjs
-index 152b203f..7635f17d 100644
---- a/skills/new-website/scripts/tests/move-to-workers.test.mjs
-+++ b/skills/new-website/scripts/tests/move-to-workers.test.mjs
-@@ -3284,6 +3284,7 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
-     ['a string that holds the text', "      description: 'lastmod: new Date() is not used',"],
-     ['a fixed date', "      lastmod: new Date('2026-01-01'),"],
-     ['a line inside a block comment', '      /*\n      lastmod: new Date(),\n      */'],
-+    ['a comment after a division on a property called return', '      priority: weights.return / 2, // lastmod: new Date()'],
-   ]) {
-     test(`2b: ${label} is no gap`, async () => {
-       const r = await scenario({ site: withLine(line) }).go(['check']);
-@@ -3297,6 +3298,7 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
-     ['after a regex literal holding //', "      filter: (p) => !/^https?:\\/\\//.test(p), lastmod: new Date(),"],
-     ['after a division', "      priority: 1 / 2, lastmod: new Date(),"],
-     ['after a regex literal in a returning function', "      filter: (p) => { return /^https?:\\/\\//.test(p); }, lastmod: new Date(),"],
-+    ['after a division on a property called return, with a regex-like // further on', "      priority: weights.return / 2, lastmod: new Date(), exclude: [/x/],"],
-     ['after a division broken over two lines, with a regex literal further down', "      priority: (10\n / 2), lastmod: new Date(), exclude: [/x/],"],
-     ['after a string holding /*, with a block comment further down', "      filter: (p) => !p.includes('/drafts/*'),\n      lastmod: new Date(),\n      /** a later comment */"],
-   ]) {
---- END DIFF ---
-
+[the prompt is removed here; make_briefs.py rebuilds it from git]
 codex
 CUT-CHECK: PATCH — It adds a property-name exception to the existing heuristic scanner without removing the feature or enforcing a strict accepted-input rule that refuses all other input.
 tokens used

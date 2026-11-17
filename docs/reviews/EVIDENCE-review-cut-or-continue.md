@@ -376,7 +376,8 @@ round, which had no `--cut`; its text is the probe's case B.
 head and its diff since the previous round. Each brief was one call:
 `codex exec -s read-only --skip-git-repo-check -c model_reasoning_effort=medium - < <id>.md`
 (Codex CLI 0.169.0, model gpt-6.1-sol), run from an empty folder. Outputs are in `t1a/out/`, with
-the `workdir:` and `session id:` lines replaced. Every case gave a valid verdict. Tokens: 350,196.
+the `workdir:` and `session id:` lines replaced and the echoed prompt cut out (it held old plan
+text naming people; `make_briefs.py` rebuilds it). Every case gave a valid verdict. Tokens: 350,196.
 
 ```text
 $ python3 -I docs/reviews/evidence-cut-or-continue/t1a/score.py   (last three lines)
