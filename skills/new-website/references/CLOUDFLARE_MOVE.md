@@ -85,8 +85,8 @@ Make one token with four permissions in two policies, and an end date of 7 days:
 Pages Edit** and **Workers Scripts Edit** on the User's account, and **Zone Read** and **DNS Edit**
 on the site's one zone. The token page is https://dash.cloudflare.com/profile/api-tokens. If the
 token has no Workers Scripts permission, the script's error on the Worker domains points back to
-this section. A token with Workers Scripts at Read is not stopped early: check that the row says
-Edit (step 3 below).
+this section. A token with Workers Scripts at Read is not stopped early (read from the code, not run): check that
+the row says Edit (step 3 below).
 
 Walk the User through the page one step at a time. These labels are as seen on 2026-11-17;
 Cloudflare moves things, so search for the name if one differs:
