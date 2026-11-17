@@ -54,6 +54,6 @@ name exits 1 with `invalid transport`. The other UNVERIFIABLE groups are unchang
 
 Round 3 found nothing and verified every round 1 and 2 fix as a plan correction. Its UNVERIFIABLE
 groups (Codex CLI internals, raw process traces, the wrapper, cost-log sums) are the same as
-before; none is a finding. **Verdict: CLEAN, no BUG open.** 3 rounds, 15 findings (3 BUG, 8 RISK,
-4 NIT), 165,041 Codex tokens logged plus 115,230 for fresh-eyes. Codex alone every round
+before; none is a finding. **Verdict: CLEAN, no BUG open.** 3 rounds, 15 findings (4 BUG, 8 RISK,
+3 NIT), 165,041 Codex tokens logged plus 115,230 for fresh-eyes. Codex alone every round
 (REVIEW-RULES; melious out of balance). Nothing built; building waits for the owner's go.
