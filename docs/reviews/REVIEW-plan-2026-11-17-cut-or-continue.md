@@ -174,3 +174,13 @@ Round 2 confirmed G1 to G5 and reran every recount script. Two new findings:
 |----|-----|---------|-------------|
 | H1 | BUG | Two cut rounds are not the second return: with K at 4, a cut at 5 and no cut at 6 (which the script allows), round 7 is the second return but has one cut, so the ask comes late | fixed: a round asks when it names a kind that an earlier round after the kind's first cut named too; the reminder prints at a kind's first return; S7 is now this sequence, and T1 tests it, with mutations for both off-by-one readings; the recount gives the same 39 / 78 / 57 / 4,989,208 (2 such rounds in the data, neither changing it) and 174 reminding rounds |
 | H2 | RISK | The two-week three-quarters rule did not say how a round due for two kinds with one answer counts | fixed: each due kind counts once per gate and round, seats and reruns deduplicated, and needs its own answer |
+
+## Round 3 (229 s, 69,217 tokens)
+
+Round 3 confirmed H1 and H2 and reran every recount (174 reminding rounds, 17 two-kind rounds).
+Two new findings:
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| J1 | BUG | Design 4 changed only step 6; step 7 still says a kind back after its cut stops the patching and goes to the owner, which contradicts waiting for the second return and the manager's "keep fixing"; `references/rationale.md` says the same | fixed: design 4 names the step 7 sentence and its replacement (first return: redesign, the next fix is a cut; second return: ask the manager), keeps "a change of scope" with the owner except for the two answers, and edits the rationale section on the 2026-10-22 rule |
+| J2 | RISK | The two-week check counts answers the host passes, and a host can pass one it never asked for | fixed: design 3 and the check say they count answers recorded, not asks made |

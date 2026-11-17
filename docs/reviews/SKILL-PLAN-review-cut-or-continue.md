@@ -74,15 +74,21 @@ not.
    rounds were due for two or more kinds. The answers are logged in a new column 18,
    `manager_said`, joined with "; " (`-` when none), and shown in the gate line.
    Nothing refuses: the owner prefers notices to refusals in the review process. A notice is also
-   what failed before, so the two-week check counts how often hosts ask.
+   what failed before, so the two-week check counts how often hosts record an answer. It cannot
+   tell an answer the manager gave from one the host wrote itself.
 4. `SKILL.md` step 6, after "Cut, don't patch": when a kind comes back a second time after a cut,
    the host asks its manager, the session or person that started it and directs it, "take it out,
    make it a warning, or keep fixing?", with the kind, the cut texts and the finding. Where nobody
    started the session, it asks the owner. It records the answer in the trail and passes it as
    `--manager-said "<kind>: <answer>"` on the next round. "Take it out" and "make it a warning"
    are scope cuts: the manager decides them and tells the owner in the PR's first lines. "Keep
-   fixing" asks again at the next return. This replaces the sentence in step 6 that sends scope
-   changes to the owner.
+   fixing" asks again at the next return. In step 6, "a change of scope" stays among what only
+   the owner gives, except for these two answers at a kind's second return. In step 7, "a kind
+   that comes back after its cut stops the patching here. Then redesign, or take the open items to
+   the owner" becomes: at its first return after a cut the host redesigns, and the next fix is a
+   cut, which `--cut` names; at its second return the host asks its manager, as in step 6. Other
+   open items still go to the owner. `references/rationale.md`, in the section on the owner's
+   rule of 2026-10-22, says the same: the manager decides these scope cuts.
 5. Nothing else changes: the rule that wants `--cut` stays as it is, so does the 2026-10-22 rule,
    and so does the owner's decision past round 8.
 
@@ -141,7 +147,8 @@ it did when columns 15 to 17 came; every reader takes a missing field 18 as `-`.
 - **After two weeks,** compare all gates that reach round 4 with the baseline (234 gates, 574
   rounds past round 3, about 2.45 a gate, 46.0M tokens; evidence §4c). Count each due kind once
   per gate and round (seat lines and reruns of a round count once), how many of them had a
-  `--manager-said` answer for that kind, and each answer. If fewer than three quarters had one,
+  `--manager-said` answer for that kind, and each answer. This counts answers recorded, not asks
+  made: a host can pass an answer it never asked for. If fewer than three quarters had one,
   the session that runs the check proposes to the owner, through its manager, that the script
   refuse such a round, as it refuses a missing `--cut`. If rounds past round 3 per gate are not
   lower, it says so, and the owner decides.
