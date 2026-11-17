@@ -314,6 +314,7 @@ while [ $# -gt 0 ]; do
              case "$ms_kind" in
                *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac
+             [ ${#ms_kind} -le 40 ] || { echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2; }
              [ -n "$(printf '%s' "$ms_kind" | tr -d '._-')" ] || { echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2; }
              case "$ms_ans" in *[![:space:]]*) ;; *) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;; esac
              [ ${#1} -le 300 ] || { echo "bad value for --manager-said: ${#1} characters, more than 300" >&2; echo "$USAGE" >&2; exit 2; }

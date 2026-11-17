@@ -261,7 +261,7 @@ gate() {
         na = split($18, es, "; ")
         for (e = 1; e <= na; e++) {
           # An entry answers its kind only with a colon and a non-blank answer after it.
-          c = index(es[e], ":"); if (c == 0 || substr(es[e], c + 1) !~ /[^ ]/) continue
+          c = index(es[e], ":"); if (c == 0 || substr(es[e], c + 1) !~ /[^[:space:]]/) continue
           a = substr(es[e], 1, c - 1); a = tolower(a); gsub(/[._-]/, "", a); ans[r, a] = 1
         }
       }

@@ -29,8 +29,9 @@ Gate 2 (id `20261117T182925Z-15156`), whole PR diff against `origin/main`:
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |-------|------|----------|-----------|-----------------|--------------|
 | 1 | `76efd406` | the whole PR diff | Codex alone (melious out of balance, "Required: 170, Available: 0"); fresh-eyes on `sonnet` (a sub-agent given only the diff and the reviewer brief) | Codex 168 s, 68,016; fresh-eyes 218 s, 161,694 | Codex 2 / 0 / 0; fresh-eyes 0 / 2 / 5 |
+| 2 | `9f2fffbc` | the fixes, `--verify` round 1's findings, `--base 76efd406` | Codex alone (medium); melious out of balance ("Required: 81, Available: 0") | 155 s, 53,758 | 2 / 0 / 0 |
 
-Gate 1 total 110,634 tokens (2 rounds, 1 finding). Gate 2 round 1 total 229,710 tokens, 9 findings.
+Gate 1 total 110,634 tokens (2 rounds, 1 finding). Gate 2 rounds 1 and 2: 283,468 tokens, 11 findings.
 
 ## Round 1 findings
 
@@ -50,7 +51,14 @@ Gate 1 total 110,634 tokens (2 rounds, 1 finding). Gate 2 round 1 total 229,710 
 | N2 | NIT | fresh-eyes | tab and CR refusals untested | fixed: two cases added |
 | N3 | NIT | fresh-eyes | header says the checks warn when the log is off; the ask does not | fixed: header says the ask has no warning of its own |
 | N4 | NIT | fresh-eyes | the "17-column" fixture lines had 16 fields | fixed: the fixture adds the reason column |
-| N5 | NIT | fresh-eyes | `_: x` (empty after normalising) accepted, unused `back_as`, two flags for one kind, no 40-character cap, a round with only an answer is not shown | first two fixed; the rest re-sorted: rare, harmless (two flags for one kind both show; an over-long kind still matches nothing) |
+| N5 | NIT | fresh-eyes | `_: x` (empty after normalising) accepted, unused `back_as`, two flags for one kind, no 40-character cap, a round with only an answer is not shown | `_: x` and `back_as` fixed; the 40-character cap fixed in round 2 (C2); the rest re-sorted: rare, harmless (two flags for one kind both show; a round with only an answer has no kind to ask about) |
+
+## Gate 2, round 2 findings
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| C1 | BUG | B1's fix tested `/[^ ]/`, so a tab-free but vertical-tab or form-feed answer still counted as an answer | fixed: `/[^[:space:]]/`; the gate test now runs the space, vertical-tab and form-feed cases |
+| C2 | BUG | my N5 note said an over-long kind matches nothing; 41 underscores then `k` normalises to `k` and answers it | fixed: `--manager-said` refuses a kind over 40 characters, as `--earned-by` does, with a test; disposition text corrected |
 
 ## Beyond the plan text
 
