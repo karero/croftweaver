@@ -48,10 +48,12 @@ more question in that same round. No extra call and no question to the owner.
    rule…; refusing the one input the last BUG used is a patch") and one demand: a line
    `CUT-CHECK: CUT` or `CUT-CHECK: PATCH — <why>`, judged on the change, not on the claim. A DIFF
    round already sends the change. A PLAN round sends only the current plan, and 45 of the 82
-   gates were plans, so for `--plan` the block also holds the plan file's own diff since the head
-   the previous round logged (cost-log column 4): `git diff <that head> -- <plan file>`, which
-   includes edits not yet committed. Where that cannot be read, the block says "no diff" and the
-   verdict is printed as judged on text alone.
+   gates were plans, so for `--plan` the block also holds the plan's own diff since the previous
+   round. The logged head can't give that diff, because the plan may hold edits not yet committed.
+   So each `--plan --round N` run keeps a copy of the plan it sent, as `plans/<gate id>/round-N.md`
+   beside the cost log, and the block shows the diff from the copy of the highest round below N to
+   the file being sent. Where there is no copy, the
+   block says "no diff" and the verdict is printed as judged on text alone.
 2. The script prints each seat's verdict in its closing lines and in the running-total line the
    owner reads. It also logs the verdict in a new cost-log column 18, `cut_check`, written `-` where
    no verdict was given. A missing or garbled verdict prints "no cut verdict" and never fails the
@@ -69,7 +71,7 @@ more question in that same round. No extra call and no question to the owner.
 before the run: the lastmod fixes of rounds 5, 6 and 7, two from the Antigravity test tool's heredoc
 chain, the lastmod warning, and the ship.sh comment-scanner cut. Codex agreed with all seven labels.
 Only two of the seven were cuts, so a judge that always says PATCH would score 5 of 7. The probe does
-not yet show how often it calls a real cut a patch. Test T1 settles that before anything is built.
+not yet show how often it calls a real cut a patch. Tests T1a and T1b settle that.
 
 ## Scenarios (real gates)
 
@@ -83,7 +85,7 @@ not yet show how often it calls a real cut a patch. Test T1 settles that before 
   on 2026-11-09, and the gate ended at round 7. The existing scope question already works;
   option 3 keeps that path.
 - **S4, a long chain (`fix/move-analytics-gap-035`).** Twelve rounds, 704,651 tokens, 382,952 of
-  them from round 6 on. From round 5 to round 12 each `--cut` narrowed what one config reader reads. T1 measures whether round 5's
+  them from round 6 on. From round 5 to round 12 each `--cut` narrowed what one config reader reads. T1a measures whether round 5's
   verdict would have said PATCH.
 - **S5, a wrong verdict.** Given a seat calls a real cut a patch, the host refutes it in the trail
   with the diff lines that remove or refuse, like any other RISK. Another round runs
@@ -91,21 +93,32 @@ not yet show how often it calls a real cut a patch. Test T1 settles that before 
 
 ## How it is tested
 
-- **T1, backtest, before any build (go/no-go).** Hand-label at least 20 cut rounds from this repo's
-  own gates in the cost log, at least 6 of them real cuts and at least 6 from PLAN gates, with each
-  label written before the run. Send each one as step 1 would: the block's exact text (written into
-  the T1 file first) and the same change a round sends (the delta diff, or for a plan the plan and
-  its diff). Build only if at most one of the real cuts, in all, is called PATCH, and at least 80%
-  of the patches are called PATCH. A missing or garbled verdict counts as a wrong one. Otherwise drop option 3, and the owner chooses
-  between options 1 and 2.
+- **T1a, backtest, before any build (go/no-go).** Hand-label at least 20 cut rounds from this
+  repo's own gates in the cost log, at least 6 of them real cuts and at least 6 from PLAN gates,
+  each label written to a file before the run. Send each one as step 1 would: the block's exact
+  text (written into the T1a file first) and the change a round sends (the delta diff; for a plan,
+  the plan and its diff, rebuilt from git; a case whose plan text git cannot rebuild is replaced).
+  Build only if at most one of the real cuts, in all, is called PATCH, and at least 80% of the
+  patches are called PATCH. A missing or garbled verdict counts as a wrong one. Otherwise drop
+  option 3, and the owner chooses between options 1 and 2. Cost: about 20 Codex calls, near 100k
+  tokens, going by the probe's 38,597 for 7 cases.
+- **T1b, through the built script, before merge.** The block alone is not the whole request a
+  seat gets in a round. Once steps 1 and 2 are built, send 6 of T1a's cases (3 cuts, 3 patches, at
+  least 2 from plans) through `independent_review.sh` itself, in a scratch worktree with
+  `REVIEW_LOG` set to a scratch log, and with each round's own options (`--round`, `--earned-by`,
+  `--cut`, `--verify` with the answered finding, `--plan` for a plan, its earlier round run first
+  so the copy exists). Pass only if no real cut is called PATCH and at most one patch is called
+  CUT; if it fails, the same choice as T1a goes to the owner. Cost: about 6 rounds, near 300k
+  tokens.
 - **T2, through the real entry point.** In `test_round_checks.sh`, run `independent_review.sh
   --round 5 --earned-by k --cut "…"` with a stub seat. Check that the brief holds the cut block,
-  that the block's text is the one T1 used, that a `--plan` run carries the plan's diff, that each
+  that the block's text is the one T1a used, and that a `--plan` run with an edit not yet committed
+  between two rounds shows exactly that edit as its diff (not one against the logged head), that each
   verdict form is printed and logged in column 18, and that a missing verdict prints "no
   cut verdict" with exit 0. A run without `--cut` gets no block.
 - **T3.** `check_prompt_sync.sh` and `make check` pass.
 - **After two weeks,** compare all gates that reach round 4, not only those with a return: rounds
-  past round 3 per gate and their tokens (baseline: 236 gates, 584 rounds, 46.2M tokens), and
+  past round 3 per gate and their tokens (baseline: 236 gates, 577 distinct logged rounds past round 3, 46.2M tokens), and
   apart from that, how many have a return after a cut (baseline: 82 of 236).
 
 ## Questions for the owner (through the manager)
@@ -115,7 +128,7 @@ not yet show how often it calls a real cut a patch. Test T1 settles that before 
    - (a) **No, keep the rule** (recommended). The next round's reviewer says whether the fix was a
      real cut, and a "patch" verdict must be answered by a real cut. You are asked only when that
      cut changes what Users get, as now. New questions: none. Saving: up to 10.7M tokens in 14 days,
-     if test T1 passes.
+     if tests T1a and T1b pass.
    - (b) Yes, the first time it comes back. About 6 questions a day, 31 in 82 of them needless.
      Saving: up to 10.7M tokens.
    - (c) Yes, the second time. About 3 questions a day. Saving: up to 5.4M tokens.

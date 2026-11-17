@@ -107,19 +107,22 @@ for o in sorted(out,key=lambda o:o['g']):
     print(o['g'],repo,o['branch'],o['gate'],o['depth'],'r1',o['r1'],'ret',o['ret'],'last',o['last'],'tok_from_r1',o['toks'],'tok_gate',rt(o['g'],lambda r:True))
 ```
 
-And the baseline for the two-week check (every gate that reached round 4):
+And the baseline for the two-week check (every gate that reached round 4). Round 2's review
+pointed out that the first version counted `max round − 3`, which counts a skipped round number;
+it now counts distinct logged round numbers above 3 (584 became 577):
 
 ```python
 import os,collections
 F=os.path.expanduser('~/.local/state/independent-review/runs.tsv')
-g=collections.defaultdict(lambda:collections.defaultdict(int)); mx=collections.defaultdict(int)
+rs=collections.defaultdict(set); tk=collections.defaultdict(int)
 for line in open(F):
     p=line.rstrip('\n').split('\t')
     if p[0]=='date' or p[0][:10]<'2026-11-03' or p[13] in('','-') or not p[6].isdigit(): continue
-    r=int(p[6]); mx[p[13]]=max(mx[p[13]],r)
-    if p[11].isdigit(): g[p[13]][r]+=int(p[11])
-el=[k for k in mx if mx[k]>=4]
-print('gates reaching round 4:',len(el),' rounds past 3:',sum(mx[k]-3 for k in el),' tokens past round 3:',sum(v for k in el for r,v in g[k].items() if r>3))
+    r=int(p[6]); rs[p[13]].add(r)
+    if r>3 and p[11].isdigit(): tk[p[13]]+=int(p[11])
+el=[k for k in rs if max(rs[k])>=4]
+# distinct logged round numbers above 3, so a skipped number is not counted as a round
+print('gates reaching round 4:',len(el),' rounds past 3:',sum(len([r for r in rs[k] if r>3]) for k in el),' tokens past round 3:',sum(tk[k] for k in el))
 ```
 
 ## 3. Its output (2026-11-03 to 2026-11-17)
@@ -139,7 +142,7 @@ past 8 15
 opt1 ceiling: rounds after r1 122 tokens 10743852
 opt2 ceiling: rounds after r2 61 tokens 5379363
 gates where the returning kind came back again after r1: 42
-gates reaching round 4: 236  rounds past 3: 584  tokens past round 3: 46161657
+gates reaching round 4: 236  rounds past 3: 577  tokens past round 3: 46161657
 ```
 
 The figures in the brief that started this plan were 83 gates, 209 rounds, 20.5M tokens (8%), 49
@@ -163,6 +166,97 @@ fix/move-analytics-gap-035 diff normal r1 6 ret [6, 7, 8, 9, 10, 11, 12] last 12
 fix/ship-commented-site-035 diff normal r1 5 ret [5, 6] last 6 tok_from_r1 127631 tok_gate 453711
 fix/agy-release-test-misreads diff normal r1 5 ret [5, 6, 7] last 7 tok_from_r1 260289 tok_gate 674651
 fix/move-prep-036 diff high r1 6 ret [6, 7] last 9 tok_from_r1 188359 tok_gate 468929
+```
+
+## 4b. All 82 gates, one line each
+
+Gate ids only (they are start times), so the sums can be checked without the log. Columns 6 to 8
+sum to 18,065,017, 10,743,852 and 5,379,363.
+
+```text
+gate_id	type	first_return	returns	last_round	tokens_from_first_return	tokens_after_first_return	tokens_after_second_return
+20261102T190259Z-36585	plan	8	8	8	73485	0	-
+20261104T074523Z-53735	plan	5	5,7	7	308521	199125	0
+20261104T225606Z-2982	plan	5	5,6,7	7	281388	184097	90108
+20261105T100835Z-70190	plan	5	5,6,7,8	8	1102516	659847	409775
+20261105T153850Z-65131	plan	5	5,6	8	414333	313556	214140
+20261105T160524Z-84167	diff	7	7	7	68522	0	-
+20261105T221825Z-32137	plan	5	5,6,7,8	8	286080	230124	170897
+20261106T085517Z-97743	diff	5	5,6	6	150344	81272	0
+20261106T135543Z-62822	diff	6	6,7,8,9	9	313321	223028	171839
+20261106T144654Z-70667	plan	5	5	5	118197	0	-
+20261106T150219Z-11787	plan	5	5,6	6	238425	173088	0
+20261106T220039Z-90198	plan	5	5	6	192074	111956	-
+20261106T220059Z-97865	plan	5	5,6,7,8	8	475428	364108	255509
+20261106T230622Z-11856	plan	5	5	5	41143	0	-
+20261107T142409Z-15102	diff	6	6,7	7	114142	63227	0
+20261107T154202Z-65414	diff	6	6	8	414805	266280	-
+20261107T173246Z-9392	plan	6	6,7	7	255515	108730	0
+20261107T173349Z-13243	plan	5	5,6	6	187015	89207	0
+20261107T213936Z-36981	diff	5	5	5	63933	0	-
+20261108T105552Z-77609	plan	7	7,8,9	9	472433	311429	148867
+20261108T131517Z-32159	diff	5	5	5	37039	0	-
+20261108T132019Z-99059	plan	6	6	6	54118	0	-
+20261108T201342Z-15892	diff	5	5	5	48341	0	-
+20261109T054352Z-87840	plan	5	5,6,7,8,9	12	980517	858052	719908
+20261109T054417Z-94020	diff	5	5,6	6	72053	30697	0
+20261109T091101Z-2336	plan	5	5,6,7	7	283842	206645	122176
+20261109T134544Z-58988	plan	6	6,7,8,9	9	324863	241932	196667
+20261109T152009Z-23233	plan	4	4,5	5	106055	28763	0
+20261109T153934Z-23371	plan	6	6	6	104288	0	-
+20261109T182523Z-40490	plan	5	5	7	247086	132508	-
+20261109T210813Z-33270	diff	6	6,7,8,9,10,11	11	379210	248294	202813
+20261110T082307Z-11743	plan	5	5,6,7,8,9	9	364830	287991	217683
+20261110T083326Z-18084	diff	6	6,7,8,9,10,11,12	12	382952	333243	269860
+20261110T090120Z-44034	diff	5	5	5	42332	0	-
+20261110T110318Z-12502	plan	5	5,6,7	7	381917	258273	122766
+20261110T144651Z-92642	plan	5	5,8	8	303441	229517	0
+20261111T080558Z-62896	diff	5	5,8	8	164582	130394	0
+20261111T085656Z-80060	plan	5	5,6	6	251798	41728	0
+20261111T220604Z-24374	plan	6	6,7,8,9	10	341040	283948	226266
+20261111T220753Z-33476	plan	11	11	11	65733	0	-
+20261111T222244Z-80750	diff	6	6,7	7	81027	38641	0
+20261111T222245Z-81212	diff	5	5	5	30349	0	-
+20261112T081641Z-97213	diff	5	5,6	6	127631	56844	0
+20261112T093514Z-9164	diff	5	5	5	40025	0	-
+20261112T144029Z-11588	plan	5	5,6	6	260830	106217	0
+20261112T144708Z-65488	diff	4	4,5	5	105206	45322	0
+20261113T061509Z-64268	plan	5	5	6	335634	229499	-
+20261113T082208Z-39549	diff	6	6	6	70847	0	-
+20261113T104434Z-57834	diff	5	5	5	97567	0	-
+20261113T113328Z-72680	plan	7	7,8	8	235276	129153	0
+20261113T122303Z-63542	diff	5	5,6,7	7	252655	172540	92926
+20261113T125706Z-81784	diff	7	7	8	185954	89302	-
+20261113T132653Z-29511	diff	5	5,6,8,9,10	10	553465	467243	374422
+20261113T210709Z-95421	diff	5	5	5	48690	0	-
+20261113T212811Z-48548	plan	5	5	5	148622	0	-
+20261113T223547Z-6551	diff	5	5	5	68350	0	-
+20261113T225848Z-37489	diff	5	5	5	59336	0	-
+20261114T011932Z-98288	diff	5	5,6,7	8	359590	258559	159926
+20261114T013310Z-59643	diff	5	5,6	6	146026	81548	0
+20261114T094902Z-75444	diff	7	7	7	45006	0	-
+20261114T131115Z-60591	plan	6	6	6	104801	0	-
+20261114T140233Z-76445	diff	5	5	6	179247	85523	-
+20261114T161942Z-1183	diff	5	5	5	59098	0	-
+20261114T162636Z-49941	diff	5	5,6	6	120506	62161	0
+20261114T170548Z-12407	plan	6	6,7,8	9	356925	277487	191436
+20261114T181821Z-24161	diff	5	5,6,7	7	260289	165579	80698
+20261115T132450Z-57162	plan	5	5,7,8	9	414894	330907	178265
+20261115T135502Z-67017	plan	6	6	6	122160	0	-
+20261115T140512Z-1606	plan	7	7	7	79310	0	-
+20261115T164412Z-53581	plan	5	5,6,7,8,9,10,11,12	12	322212	290380	243540
+20261115T165801Z-85512	plan	8	8	8	105215	0	-
+20261115T184623Z-77781	plan	5	5	5	116283	0	-
+20261115T185800Z-9481	plan	6	6,8	8	428038	217908	0
+20261115T212939Z-28890	diff	5	5	5	70671	0	-
+20261116T061548Z-33385	plan	5	5,7,8	8	393758	276682	82101
+20261116T083203Z-43618	plan	5	5	5	114258	0	-
+20261116T115619Z-30539	plan	7	7,8	8	171521	91361	0
+20261116T134834Z-50369	diff	5	5	5	87733	0	-
+20261116T135222Z-97520	plan	5	5,6,7,9	9	520427	428947	334846
+20261116T230248Z-74626	diff	6	6,7	9	188359	150990	101929
+20261117T062500Z-24029	diff	8	8	8	46218	0	-
+20261117T092624Z-56443	plan	7	7	7	43351	0	-
 ```
 
 ## 5. The lastmod gate, round by round (gate `20261116T230248Z-74626`, branch `fix/move-prep-036`)
@@ -235,6 +329,11 @@ Case E: PATCH — `HEREDOC` still accepts tab-prefixed terminators indiscriminat
 Case F: PATCH — Removing the `return` alternative leaves the heuristic scanner feeding `gaps.push(...)`, and deleting the returning-function test merely drops coverage for a known miss.
 Case G: CUT — Deleting `site_addrs()` removes the comment scanner; `site_count()` counts every regex match, P6/P7 assert that multiple matches trigger no fetch, and P5 retains an ordinary successful verification test.
 ```
+
+File times (`ls -lT` in the probe folder): `brief.md`, written by the same command that wrote the
+labels for A to F, 11:24:52; Codex's answer `out.md`, 11:25:31; label G appended and `brief-g.md`
+written, 11:25:54; `out-g.md`, 11:26:10 (all 2026-11-17, local time). The probe files are kept
+outside the repo; the diffs can be rebuilt with the `git diff` ranges in the labels.
 
 Tokens: 23,715 (A to F) and 14,882 (G), 38,597 in all. All seven verdicts match the labels. Limits:
 seven cases from two gates, one model, one run each. A judge that always says PATCH would score 5
