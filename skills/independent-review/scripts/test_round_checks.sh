@@ -47,6 +47,8 @@ cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
 : >"$STUB_MARKS/codex"
 printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two'
+# With STUB_FRESH set, it also logs a host fresh-eyes line from that repo, as a host would mid-run.
+[ -z "${STUB_FRESH:-}" ] || (cd "$STUB_FRESH" && bash "$STUB_LOG_SH" add --seat fresh-eyes --gate plan --depth normal --round 1 >/dev/null 2>&1)
 printf '%s\n' 'tokens used' '1,234' >&2
 EOF
 chmod +x "$T/bin/"* || { echo "FAIL — could not make the stubs runnable."; exit 1; }
@@ -266,10 +268,10 @@ SCRIPT_RUN="$SCRIPT"
 # 10. review_log.sh round-check, read directly.
 rk() { (cd "$T/repo" && bash "$LOG_SH" round-check "$@"); }
 got="$(rk --round 5 --kinds config-advice)"
-want="$(printf 'gate\tG1\t4\t2\t4\nowed\tconfig-advice\t4\tconfig-advice')"
+want="$(printf 'gate\tG1\t4\t2\t4\nfresh\t1,4\nowed\tconfig-advice\t4\tconfig-advice')"
 [ "$got" = "$want" ] && ok "round-check: the gate record and the owed kind" || fail "round-check: got [$got], want [$want]"
 got="$(rk)"
-[ "$got" = "$(printf 'gate\tG1\t4\t2\t0')" ] && ok "round-check with no --round: the highest round only" || fail "round-check, no --round: [$got]"
+[ "$got" = "$(printf 'gate\tG1\t4\t2\t0\nfresh\t1,4')" ] && ok "round-check with no --round: the highest round only" || fail "round-check, no --round: [$got]"
 case "$(REVIEW_LOG=off rk --round 5)" in '?'*) ok "round-check with the log off answers '?'" ;; *) fail "round-check, log off: [$(REVIEW_LOG=off rk --round 5)]" ;; esac
 
 # 11. review_log.sh gate: the lines, from lines set by hand. G1: 8 runs over rounds 1-4;
@@ -358,6 +360,9 @@ if [ $rc -eq 0 ] && [ -e "$T/marks/codex" ] && [ -n "$id" ] && [[ "$out" == *"ga
   ok "full run, round 1: the running total prints after the reviewers"
 else fail "full run, round 1: exit $rc, gate [$id]. Output: $out"; fi
 [ "$(fields)" = "1:codex:-:-" ] && ok "full run, round 1: no kind, no cut in the log" || fail "full run round 1 log fields: [$(fields)]"
+# The host's fresh-eyes seat, logged after round 1 minted the gate: rounds 2 and up refuse a
+# Normal gate without it (case 15).
+(cd "$T/e2e" && REVIEW_LOG="$E2E_LOG" bash "$LOG_SH" add --seat fresh-eyes --gate plan --depth normal --round 1 --tokens 500 >/dev/null)
 full --round 4 --earned-by config-advice,zip-names
 [ $rc -eq 0 ] && [ "$(fields)" = "4:codex:config-advice,zip-names:-" ] && ok "full run, round 4: --earned-by reaches the log" \
   || fail "full run round 4: exit $rc, log fields [$(fields)]. Output: $out"
@@ -367,7 +372,7 @@ full --round 5 --earned-by zip-names
   || fail "full run round 5 refusal: exit $rc. Output: $out"
 full --round 5 --earned-by zip-names --cut "dropped the zip reader"
 if [ $rc -eq 0 ] && [ "$(fields)" = "5:codex:zip-names:dropped the zip reader" ] \
-   && [[ "$out" == *"gate $id: rounds 1, 4-5, 3 reviewer seat runs, 3,702 tokens logged$NC"* ]] \
+   && [[ "$out" == *"gate $id: rounds 1, 4-5, 4 reviewer seat runs, 4,202 tokens logged$NC"* ]] \
    && [[ "$out" == *"kinds: 4 config-advice,zip-names; 5 zip-names (cut: dropped the zip reader)"* ]]; then
   ok "full run, round 5 with --cut: the cut reaches the log, the closing lines show kinds and cut"
 else fail "full run round 5 with --cut: exit $rc, log fields [$(fields)]. Output: $out"; fi
@@ -378,7 +383,7 @@ if [ $rc -eq 0 ] && [[ "$out" == *"note: no --round, so this run is not a round 
 else fail "full run, no --round: exit $rc. Output: $out"; fi
 full --round 1
 id2="$(sed -n 1p "$(gate_file_of "$T/e2e")" 2>/dev/null)"
-if [ $rc -eq 0 ] && [ "$id2" != "$id" ] && [[ "$out" == *"follows gate $id: rounds 1, 4-5, 4,936 tokens"* ]]; then
+if [ $rc -eq 0 ] && [ "$id2" != "$id" ] && [[ "$out" == *"follows gate $id: rounds 1, 4-5, 5,436 tokens"* ]]; then
   ok "full run, a restart at round 1: the new gate names the old one and its cost"
 else fail "full run restart: exit $rc, gates [$id] [$id2]. Output: $out"; fi
 out_off="$(cd "$T/e2e" && HOME="$T/home2" REVIEW_LOG=off REVIEW_RAW_DIR="$T/raw" bash "$SCRIPT" "$T/plan.md" --seat codex --depth normal 2>&1)"; rc=$?
@@ -394,6 +399,82 @@ n_bare="$(printf '%s\n' "$outs" | grep -v 'outcome="OK"' | grep -vc 'outcome="[^
 if [ "$n_out" -gt 1 ] && [ "$n_bare" -eq 0 ] && [ "$(printf '%s\n' "$outs" | grep -c 'outcome="OK"')" -eq 1 ]; then
   ok "every outcome assignment but OK carries a parenthesised reason ($n_out assignments)"
 else fail "outcome assignments without a parenthesised reason: $n_bare of $n_out: $outs"; fi
+
+# 15. The fresh-eyes seat check: round 2 and up of a Normal or High gate refuse until the host's
+#     fresh-eyes seat is logged for the rounds that owe it (SKILL.md, Review depth). Each case logs
+#     the gate's lines with review_log.sh add, as a host does, on a gate of its own.
+FE_REFUSE="needs the host's fresh-eyes seat logged at round(s)"
+FE_WARN="warning: the fresh-eyes seat check could not run"
+FE_NODEPTH="warning: no --depth, so the fresh-eyes seat check did not run"
+fe_add() {   # fe_add <round> <seat> [add options…]: one host line on the current gate, from the repo
+  local r="$1" s="$2"; shift 2
+  (cd "$T/repo" && bash "$LOG_SH" add --seat "$s" --gate plan --depth normal --round "$r" "$@" >/dev/null 2>&1)
+}
+use_gate FE1; fe_add 1 codex
+run --round 2 --depth normal
+check "fresh-eyes: Normal round 2, round 1 has codex only: refused" 2 "Round 2 of a normal gate needs the host's fresh-eyes seat"
+check "fresh-eyes: ... naming the seat, round 1 and the gate id" 2 "logged at round(s) 1 (SKILL.md, Review depth), and gate FE1 has no such line"
+check "fresh-eyes: ... and the command that settles it" 2 "review_log.sh add --seat fresh-eyes --model <m> --gate <plan|diff> --depth normal --round <r> --gate-id FE1"
+for o in OK NOT-COUNTED FAILED; do
+  use_gate "FE2-$o"; fe_add 1 codex; fe_add 1 fresh-eyes --outcome "$o" --reason "case 2"
+  run --round 2 --depth normal;          check "fresh-eyes: Normal round 2, a $o fresh-eyes line at round 1: runs" $P "" "$FE_REFUSE"
+done
+use_gate FE3; fe_add 1 codex
+(cd "$T" && bash "$LOG_SH" add --seat fresh-eyes --gate plan --depth normal --round 1 --gate-id FE3 >/dev/null 2>&1)
+run --round 2 --depth normal;            check "fresh-eyes: a line logged from another directory with --gate-id: runs" $P "" "$FE_REFUSE"
+use_gate FE4; fe_add 1 codex; fe_add 1 fresh-eyes-final-read
+run --round 2 --depth normal;            check "fresh-eyes: only a fresh-eyes-final-read line: refused" 2 "$FE_REFUSE"
+use_gate FE5; fe_add 1 codex; fe_add 1 fresh-eyes; fe_add 2 codex
+run --round 3 --depth high;              check "fresh-eyes: High round 3, a line at round 1 only: refused, naming round 2" 2 "logged at round(s) 2 (SKILL.md"
+use_gate FE5b; for r in 1 2 3 4; do fe_add "$r" codex; done; for r in 1 2 3; do fe_add "$r" fresh-eyes; done
+run --round 5 --depth high --earned-by test-gap
+check "fresh-eyes: High round 5, lines at rounds 1 to 3: runs (round 4 owes none)" $P "" "$FE_REFUSE"
+use_gate FE6; fe_add 1 codex
+run --round 2 --depth light;             check "fresh-eyes: Light round 2, no fresh-eyes: runs, no warning" $P "" "fresh-eyes"
+run --round 2;                           check "fresh-eyes: no --depth: runs, with the skipped-check warning" $P "$FE_NODEPTH"
+out_off="$(cd "$T/repo" && REVIEW_LOG=off INDEPENDENT_REVIEW_CHECKS_ONLY=1 bash "$SCRIPT_RUN" "$T/plan.md" --round 2 --depth normal 2>&1)"; rc=$?
+out="$out_off"; check "fresh-eyes: REVIEW_LOG=off: runs, with the warning" $P "$FE_WARN"
+cp "$LOG" "$T/ro.tsv"; chmod a-w "$T/ro.tsv"
+out="$(cd "$T/repo" && REVIEW_LOG="$T/ro.tsv" INDEPENDENT_REVIEW_CHECKS_ONLY=1 bash "$SCRIPT_RUN" "$T/plan.md" --round 2 --depth normal 2>&1)"; rc=$?
+check "fresh-eyes: a read-only log: runs, with the warning" $P "$FE_WARN (the review cost log cannot be written"
+use_gate FE8a; fe_add 1 fresh-eyes
+use_gate FE8; fe_add 1 codex
+run --round 2 --depth normal;            check "fresh-eyes: a fresh-eyes line of another gate does not count: refused" 2 "gate FE8 has no such line"
+# A line logged before a --round 1 re-run: new-gate (what --round 1 calls) mints the gate it
+# goes to, so the seat stays with the gate the re-run replaced.
+use_gate FE8b; fe_add 1 codex; fe_add 1 fresh-eyes
+fe_new="$(cd "$T/repo" && bash "$LOG_SH" new-gate)"; fe_add 1 codex
+run --round 2 --depth normal;            check "fresh-eyes: a line logged before a --round 1 re-run: refused" 2 "gate $fe_new has no such line"
+# 9 of the plan: round-check alone.
+use_gate FE9; fe_add 1 fresh-eyes; fe_add 2 codex; fe_add 3 fresh-eyes
+[ "$(rk --round 4 | grep '^fresh')" = "$(printf 'fresh\t1,3')" ] && ok "round-check: fresh lists 1,3" \
+  || fail "round-check fresh 1,3: [$(rk --round 4)]"
+use_gate FE1
+[ "$(rk --round 2 | grep '^fresh')" = "$(printf 'fresh\t-')" ] && ok "round-check: fresh is - with no line" \
+  || fail "round-check fresh -: [$(rk --round 2)]"
+got="$(cd "$T/repo" && REVIEW_LOG="$T/ro.tsv" bash "$LOG_SH" round-check --round 2 | grep '^fresh')"
+[ "$got" = "$(printf 'fresh\t?')" ] && ok "round-check: fresh is ? on a read-only log" || fail "round-check fresh ?: [$got]"
+# 10 of the plan: round 1 of the whole script prints the note when no seat is logged, and not
+# when the stub codex logs one during the run (after new-gate).
+new_repo "$T/e2e3"
+FE_NOTE="fresh-eyes: gate "
+fe_full() {
+  rm -f "$T/marks/"*
+  out="$(cd "$T/e2e3" && HOME="$T/home2" REVIEW_LOG="$T/e2e3.tsv" REVIEW_RAW_DIR="$T/raw" \
+    bash "$SCRIPT" "$T/plan.md" --seat codex --depth normal --round 1 2>&1)"; rc=$?
+}
+fe_full
+fe_id="$(sed -n 1p "$(gate_file_of "$T/e2e3")" 2>/dev/null)"
+if [ $rc -eq 0 ] && [[ "$out" == *"fresh-eyes: gate $fe_id has no fresh-eyes line at round 1 yet"* ]] \
+   && [[ "$out" == *"--round 1 --gate-id $fe_id"* ]]; then
+  ok "full run, Normal round 1, no fresh-eyes line: the note names the gate"
+else fail "full run round 1 fresh-eyes note: exit $rc, gate [$fe_id]. Output: $out"; fi
+export STUB_FRESH="$T/e2e3" STUB_LOG_SH="$LOG_SH"
+fe_full
+unset STUB_FRESH STUB_LOG_SH
+if [ $rc -eq 0 ] && [[ "$out" != *"$FE_NOTE"* ]] && [ "$(awk -F'\t' '$8 == "fresh-eyes"' "$T/e2e3.tsv" | wc -l | tr -d ' ')" = 1 ]; then
+  ok "full run, Normal round 1, the seat logged during the run: no note"
+else fail "full run round 1, seat logged during the run: exit $rc. Output: $out"; fi
 
 echo
 if [ $fails -ne 0 ]; then echo "$fails of $n check(s) FAILED"; exit 1; fi
