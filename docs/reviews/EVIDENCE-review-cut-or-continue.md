@@ -282,8 +282,16 @@ gates 81 rounds from first return 203 tokens 17991532 seat runs no tokens 45 end
 second return 45 | after first return: rounds 122 tokens 10743852 | after second: rounds 61 tokens 5379363
 ```
 
-The baseline (234 gates, 574 rounds, 46.0M tokens) covers gates outside these 81, so the redacted
-file cannot reproduce it.
+The baseline (234 gates, 574 rounds, 46.0M tokens) covers gates outside these 81, so it has its
+own redacted file: `baseline-gates-redacted.tsv`, one line per gate that reached round 4, with the
+gate's start day, its distinct round numbers above 3 and their tokens. It holds every such gate
+started from 2026-11-03 except this plan's own gate, as the log stood on 2026-11-17 at round 5 of
+this gate. `recount_baseline.py` recounts it from that file alone:
+
+```text
+$ python3 -I docs/reviews/evidence-cut-or-continue/recount_baseline.py docs/reviews/evidence-cut-or-continue/baseline-gates-redacted.tsv
+gates reaching round 4: 234  rounds past 3: 574  tokens past round 3: 45976379
+```
 
 ## 5. The lastmod gate, round by round (gate `20261116T230248Z-74626`, branch `fix/move-prep-036`)
 

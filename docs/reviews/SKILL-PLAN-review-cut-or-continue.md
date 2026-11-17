@@ -43,11 +43,12 @@ name starts the other.
 ## Recommendation: option 3, the owner's 2026-10-22 rule unchanged
 
 A round that carries `--cut` already reviews the fix that claims to be a cut. Ask its seats one
-more question in that same round. No extra call, no extra round, and no new question to the owner.
+more question in that same round. No extra call, no extra round, and no new kind of question to
+the owner (how often the existing scope question comes is not measured).
 
-1. `independent_review.sh`: when `--cut` is given, every seat's prompt (all four tiers the script
-   builds: tooled, text-only, Antigravity and portable) gets a labelled block holding the kinds,
-   the `--cut` text, step 6's cut sentence quoted whole (as amended in step 3), and one demand: a
+1. `independent_review.sh`: when `--cut` is given, what every seat is sent (the four `SEND_`
+   values; `--content` mode fills all four with its one prompt) gets a labelled block holding the
+   kinds, the `--cut` text, step 6's cut sentence quoted whole (as amended in step 3), and one demand: a
    line `CUT-CHECK: CUT` or `CUT-CHECK: PATCH — <why>`, judged on the change, not on the claim. A
    DIFF round already sends the change. A PLAN round sends only the current plan, and 44 of the 81
    gates were plans, so for `--plan` the block also holds the plan's own diff since the previous
@@ -119,28 +120,31 @@ not yet show how often it calls a real cut a patch. Tests T1a and T1b settle tha
   least 2 from plans) through `independent_review.sh` itself, in a scratch worktree with
   `REVIEW_LOG` set to a scratch log, and with each round's own options (`--round`, `--earned-by`,
   `--cut`, `--verify` with the answered finding, `--plan` for a plan, its earlier round run first
-  so the copy exists). It runs on the seats and settings the script and the seat rules choose on
-  the day, and it keeps each command and the script's raw output folder. Pass only if every seat
-  gives a valid verdict in every case, no real cut is called PATCH, and at most one patch is called
-  CUT; a missing or garbled verdict fails it. If it fails, the same choice as T1a goes to the
+  so the copy exists). Each case starts with its own `--round 1` in the scratch log, so the gate
+  has an id. It runs on the seats and settings the script and the seat rules choose on the day,
+  and it keeps each command and the script's raw output folder. Pass only if every seat gives a
+  valid verdict in every case, every plan case's sent prompt holds that case's own diff (not "no
+  diff"), no real cut is called PATCH, and at most one patch is called CUT; a missing or garbled
+  verdict fails it. If it fails, the same choice as T1a goes to the
   owner. It does not cover a later change of seat, model or effort. The verdicts logged in column
   18 and the two-week check show how often seats say PATCH and what gates cost, not whether the
-  verdicts are right; after such a change, only a new run of T1b shows that. Cost: at least 8
-  runs (each plan case needs its earlier round first), about 500k tokens at a Codex round's
-  50k to 70k.
+  verdicts are right; after such a change, only a new run of T1b shows that. Cost: at least 14
+  runs (a round 1 for each case, and an earlier round for each plan case), about 0.7M to 1.0M
+  tokens at a Codex round's 50k to 70k.
 - **T2, through the real entry point.** In `test_round_checks.sh`, with a stub seat: run `--round
   1`, so the gate has an id, then `--round 4 --earned-by k` and `--round 5 --earned-by k --cut
-  "…"`. Check that every one of the four tier prompts holds the cut block, and that its text is
-  the one T1a used. For a `--plan` gate: commit the plan, edit it without committing, run round 4,
-  edit it again, run round 5, and check that round 5's block shows only the second edit (a diff
+  "…"`. Check that all four `SEND_` values hold the cut block, with and without `--content`, and
+  that its text is the one T1a used. For a `--plan` gate: commit the plan, edit it without
+  committing, run round 4, edit it again, run round 5, and check that round 5's block shows only the second edit (a diff
   against the logged head would show both). Check that each verdict form is printed and logged in
   column 18, that a missing verdict prints "no cut verdict" with exit 0, and that a round whose
   only output is a PATCH verdict counts no finding. A run without `--cut` gets no block.
 - **T3.** `check_prompt_sync.sh` and `make check` pass.
 - **After two weeks,** compare all gates that reach round 4, not only those with a return: rounds
   past round 3 per gate and their tokens (baseline: 234 gates, 574 rounds past round 3, about 2.45
-  a gate, 46.0M tokens). Apart from that, count how many have a return after a cut (baseline: 81
-  of 234). If rounds past round 3 per gate are not lower, or the hosts refuted a PATCH verdict in
+  a gate, 46.0M tokens; the evidence's `baseline-gates-redacted.tsv` recounts it, and the check
+  counts the new window by the same rule). Apart from that, count how many have a return after a
+  cut (baseline: 81 of 234). If rounds past round 3 per gate are not lower, or the hosts refuted a PATCH verdict in
   more than a quarter of the trails that got one, the session that runs the check tells the owner,
   through its manager, and offers Q1's option (d) or taking the check out. The owner decides.
 
@@ -153,8 +157,8 @@ not yet show how often it calls a real cut a patch. Tests T1a and T1b settle tha
      You get no new kind
      of question. The scope question the skill already asks you ("may this check become a
      warning?") may come more often; how often has not been counted, and question 2 decides who
-     answers it. Saving: not measured; at most 10.7M tokens in 14 days. Testing costs about 1M
-     tokens once (T1a and T1b).
+     answers it. Saving: not measured; at most 10.7M tokens in 14 days. Testing costs about 1.0M
+     to 1.5M tokens once (T1a and T1b).
    - (b) Yes, the first time it comes back. About 6 questions a day, 30 in 81 of them needless.
      Saving: up to 10.7M tokens.
    - (c) Yes, the second time. About 3 questions a day. Saving: up to 5.4M tokens.

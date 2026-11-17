@@ -17,6 +17,7 @@ Checks before round 1: `scripts/check_clean.sh` passed. The change adds three fi
 | 2 | `f4d5e525` | the whole plan, `--verify` round 1's findings | Codex alone; melious out of balance | 194 s, 61,978 | 1 / 2 / 0 |
 | 3 | `327ce368` | the whole plan, `--verify` round 2's findings | Codex alone; melious out of balance | 125 s, 65,347 | 0 / 3 / 0 |
 | 4 | `a715b173` | the whole plan, `--verify` round 3's findings; `--earned-by t1b-verdict-guard,backtest-request,t2-plan-fixture`, `--cut` for `backtest-request` | Codex alone; melious out of balance | 177 s, 67,397 | 0 / 1 / 0 |
+| 5 | `c5f338d9` | the whole plan, `--verify` the final read's findings; `--earned-by cut-check-added-rounds,owner-question-count` | Codex alone; melious out of balance | 191 s, 75,354 | 1 / 3 / 0 |
 
 ## Round 1 findings
 
@@ -100,7 +101,7 @@ design, so the rounds go on: round 5 verifies these fixes (`--earned-by` the BUG
 | E4 | RISK | A PATCH verdict is not a finding line, so (a2) could misread a round | fixed with E1: a verdict alone counts no finding, and T2 checks that |
 | E5 | RISK | T2 checked one prompt; the script builds four tier prompts | fixed: T2 checks all four, and step 1 names them |
 | E6 | RISK | T1a's cost was understated, and T1b needs more runs than cases | fixed: T1a about 300k to 500k; T1b at least 8 runs, about 500k |
-| E7 | RISK | The two-week check had no decision rule | fixed: if rounds past 3 per gate are not lower, or more than a quarter of PATCH verdicts were refuted, the owner is offered Q1(d) or removal. Q1(d) added |
+| E7 | RISK | The two-week check had no decision rule | fixed: if rounds past 3 per gate are not lower, or hosts refuted a PATCH verdict in more than a quarter of the trails that got one, the owner is offered Q1(d) or removal. Q1(d) added |
 | E8 | NIT | T2 needs `--round 1` first, or no gate id exists | fixed |
 | E9 | NIT | "The script already shows renames" overstated it | fixed: it flags a new name only when one name starts the other |
 | E10 | NIT | `recount.py`'s first comment named 82 gates | fixed: 81 |
@@ -109,3 +110,19 @@ design, so the rounds go on: round 5 verifies these fixes (`--earned-by` the BUG
 
 The read also recounted the live baseline: 235 gates, 575 rounds, 46,043,776 tokens. The log has
 grown since the evidence was taken; the plan keeps the evidence's figures.
+
+## Round 5 findings
+
+Round 5 confirmed E1, E3 to E6 and E8 to E12, and reran `recount.py` (203 rounds, 17,991,532
+tokens; ceilings 122 / 10,743,852 and 61 / 5,379,363). It found E2 only half fixed, and three gaps
+in the new text.
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| F1 | BUG | E2's fix missed one promise: the recommendation's opening still said "no new question to the owner" | fixed: "no new kind of question to the owner", and how often the scope question comes is not measured |
+| F2 | RISK | `--content` mode sends every seat one prompt in place of the four tier prompts, so T2 could pass while that mode gets no block | fixed: step 1 and T2 name the four `SEND_` values, what seats are actually sent; T2 checks them with and without `--content` |
+| F3 | RISK | Only `--round 1` makes a gate id, so a T1b plan case could fall back to "no diff" and still pass | fixed: each T1b case starts with its own `--round 1`, and a plan case passes only if its sent prompt holds its own diff; runs and cost raised (14 runs, 0.7M to 1.0M; Q1(a) testing 1.0M to 1.5M) |
+| F4 | RISK | The two-week rule rests on a baseline the committed files cannot reproduce | fixed: `baseline-gates-redacted.tsv` (one line per gate: start day, rounds above 3, their tokens) and `recount_baseline.py`, which gives 234 / 574 / 45,976,379 from that file alone (evidence §4c) |
+
+Round 5 also noted that E7's trail line said "per verdict" while the plan says "per trail"; the
+trail line now matches the plan. Round 6 verifies these fixes: F1 is a BUG, so the rounds go on.
