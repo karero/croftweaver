@@ -119,10 +119,10 @@ the name if one differs.
      domain.
    - Under DNS & Zones, set **Zone** to **Read** and **DNS** to **Edit**.
 5. **Token expiration:** choose **7 days**. The page starts on No expiration.
-6. Choose **Continue to summary**. On the summary page, make sure the token has the four rows,
-   your one account, your one domain and 7 days; if one is missing, go back and fix it. Then
-   create the token and copy it. The summary page and what follows it were not looked at on
-   2026-11-17, so this guide gives no labels for them.
+6. Before you choose **Continue to summary**, look over the form: the four rows, your one
+   account, your one domain, 7 days. Then choose **Continue to summary** and look again on the
+   summary page. Then create the token and copy it. The summary page and what follows it were
+   not looked at on 2026-11-17, so this guide gives no labels for them.
 
 You make it; your assistant puts it where the script reads it (a variable for the session, or
 a `.dev.vars` file that git ignores). It never goes in a file git tracks. Delete it afterwards

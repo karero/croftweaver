@@ -84,7 +84,7 @@ computer, and a second computer would not know the move had begun.
 Make one token with four permissions in two policies, and an end date of 7 days: **Cloudflare
 Pages Edit** and **Workers Scripts Edit** on the User's account, and **Zone Read** and **DNS Edit**
 on the site's one zone. The token page is https://dash.cloudflare.com/profile/api-tokens. If the
-token lacks the Workers permission, the script's error points back to this section.
+token lacks Workers Scripts Edit, the script's error points back to this section.
 
 Walk the User through the page one step at a time. These labels are as seen on 2026-11-17;
 Cloudflare moves things, so search for the name if one differs:
@@ -98,21 +98,21 @@ Cloudflare moves things, so search for the name if one differs:
    she picks **Specific zone**, then her domain. Under DNS & Zones: **Zone** → **Read**,
    **DNS** → **Edit**.
 5. **Token expiration:** **7 days**. The page starts on No expiration.
-6. **Continue to summary**. On the summary page she makes sure the token has the four rows, one
-   account, one domain and 7 days; if one is missing, she goes back and fixes it. Then she creates
-   the token and copies it. The summary page and what follows it were not looked at on
+6. Before **Continue to summary**, she looks over the form: the four rows, one account, one
+   domain, 7 days. Then **Continue to summary**, and the same look at the summary page. Then she
+   creates the token and copies it. The summary page and what follows it were not looked at on
    2026-11-17: give no labels for them.
 
 Say why there are two tokens: the build token has no end date and any package in a build can
 read it, so it must not hold DNS Edit or Pages Edit; the move token holds them for 7 days, and the
 User deletes it once she will not go back (`after` says so).
 
-Say this plainly to the User: Pages Edit and the Workers permission reach every project on her
+Say this plainly to the User: Pages Edit and Workers Scripts Edit reach every project on her
 account. The script reads some lists across the account (her zones, her Pages projects, the DNS
 export) but changes only her site: every change it sends is checked against her hosts, her
 Pages project and her Worker before it goes out, and anything else is refused.
 
-The Workers permission makes every zone of the account show up in the token's zone list; that is
+Workers Scripts Edit makes every zone of the account show up in the token's zone list; that is
 expected. The script finds her zone as the one zone where Cloudflare lists DNS Edit for the
 token; no other permission in any zone counts. It refuses a token with DNS Edit in more than one
 zone or none, one with no end date or an end date more than 8 days out, and one that is not
