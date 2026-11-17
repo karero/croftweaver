@@ -83,6 +83,10 @@
 #   ... --round 6 --earned-by config-advice --cut "dropped the fallback parser"
 #                                                     # a kind that comes back: the fix since the
 #                                                     # last round must be a cut, and says what
+#   ... --round 7 --earned-by config-advice --cut "..." --manager-said "config-advice: keep fixing"
+#                                                     # a kind that came back a second time after
+#                                                     # its first cut: what the host's manager
+#                                                     # answered, one flag per kind (SKILL.md step 6)
 #   git diff <last-reviewed-head>..HEAD | independent_review.sh - --wording-pass --seat codex \
 #     --base <last-reviewed-head>                     # the wording pass (SKILL.md step 6): prose
 #                                                     # only, never with --round
@@ -110,8 +114,12 @@
 # says so; a run without --round on a gate past round 3 says it was not counted as a round; and
 # the closing lines carry the gate's running total, its kinds and cuts round by round, its runs
 # with no round, and the gate it follows after a restart (review_log.sh gate).
+# A kind's second return after its first cut is not refused but asked about: its round starts
+# with a warning naming the kind unless --manager-said "KIND: ANSWER" (one per kind) says what the
+# host's manager answered, and the closing lines of every round that names a kind cut earlier
+# remind the host to ask before the next fix (SKILL.md step 6). The answers go in the cost log.
 # Where the log is off (REVIEW_LOG=off) or cannot answer, the cut and fresh-eyes checks cannot
-# run: one warning line each, and the review goes on. Bookkeeping never fails a review. A run
+# run: one warning line each, and the review goes on; the manager ask has no warning of its own. Bookkeeping never fails a review. A run
 # with no --round (the wording pass, the final full read) needs neither option. Both options are
 # recorded on every cost-log line of the run.
 # BASE CHECK. Before any reviewer starts and before any of it leaves the machine, a diff is
@@ -219,9 +227,9 @@ set -uo pipefail
 
 # --- args: one file (or -), optional --plan/--diff/--first-success/--local-only/--with-antigravity,
 #     --verify <prior-findings file>
-USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND[,KIND...]] [--cut \"TEXT\"] [--seat codex|ollama|melious|agy] [--base <rev>|none] [--wording-pass] [--evidence <file>] [--content]"
+USAGE="usage: independent_review.sh <file|-> [--plan|--diff] [--first-success] [--local-only] [--with-antigravity] [--verify <prior-findings.md>] [--depth light|normal|high] [--round N] [--earned-by KIND[,KIND...]] [--cut \"TEXT\"] [--manager-said \"KIND: ANSWER\"] [--seat codex|ollama|melious|agy] [--base <rev>|none] [--wording-pass] [--evidence <file>] [--content]"
 FILE="" ; TYPE="" ; FIRST_SUCCESS=0 ; LOCAL_ONLY=0 ; WITH_ANTIGRAVITY="${WITH_ANTIGRAVITY:-0}" ; VERIFY_FILE="" ; DEPTH="" ; ROUND="" ; SEAT=""
-EARNED_BY="" ; CUT="" ; BASE="" ; WORDING_PASS=0 ; EVIDENCE_FILE="" ; CONTENT_MODE=0
+EARNED_BY="" ; CUT="" ; MANAGER_SAID="" ; BASE="" ; WORDING_PASS=0 ; EVIDENCE_FILE="" ; CONTENT_MODE=0
 while [ $# -gt 0 ]; do
   a="$1"; shift
   case "$a" in
@@ -293,6 +301,24 @@ while [ $# -gt 0 ]; do
              esac
              [ ${#1} -le 300 ] || { echo "bad value for --cut: ${#1} characters, more than 300" >&2; echo "$USAGE" >&2; exit 2; }
              CUT="$1"; shift ;;
+    --manager-said) # what the host's manager answered at a kind's second return after a cut
+             # (ROUND CHECKS above): "KIND: ANSWER", given once per kind. Checked like --cut, and
+             # the kind like --earned-by's, so it can be matched to the kind it answers.
+             [ $# -gt 0 ] || { echo "--manager-said needs \"KIND: ANSWER\"" >&2; echo "$USAGE" >&2; exit 2; }
+             ms_bad="bad value for --manager-said: \"$1\" (one line of at most 300 characters, no tab and no \"; \", which joins the answers in the log: \"KIND: ANSWER\" with the kind of --earned-by and an answer, e.g. \"config-advice: keep fixing\")"
+             case "$1" in
+               -*|*$'\n'*|*$'\r'*|*$'\t'*|*"; "*|''|:*|*:) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;;
+             esac
+             case "$1" in *:*) ;; *) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;; esac
+             ms_kind="${1%%:*}" ; ms_ans="${1#*:}"
+             case "$ms_kind" in
+               *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-]*) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;;
+             esac
+             [ ${#ms_kind} -le 40 ] || { echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2; }
+             [ -n "$(printf '%s' "$ms_kind" | tr -d '._-')" ] || { echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2; }
+             case "$ms_ans" in *[![:space:]]*) ;; *) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;; esac
+             [ ${#1} -le 300 ] || { echo "bad value for --manager-said: ${#1} characters, more than 300" >&2; echo "$USAGE" >&2; exit 2; }
+             MANAGER_SAID="${MANAGER_SAID:+$MANAGER_SAID; }$1"; shift ;;
     -)       FILE="-" ;;
     -*)      echo "unknown flag: $a" >&2   # a typo'd flag must not silently change gate behavior
              echo "$USAGE" >&2; exit 2 ;;
@@ -330,7 +356,7 @@ if [ -n "$ROUND" ] && [ "$ROUND" -ge 4 ] && [ -z "$EARNED_BY" ]; then
 fi
 # What the log knows about the current gate (review_log.sh round-check). Not for --round 1, which
 # starts a new gate: the old one's rounds do not apply to it.
-rc_gate="" ; rc_max=0 ; rc_maxruns=0 ; rc_below=0 ; rc_why="" ; rc_owed="" ; rc_like="" ; rc_fresh=""
+rc_gate="" ; rc_max=0 ; rc_maxruns=0 ; rc_below=0 ; rc_why="" ; rc_owed="" ; rc_like="" ; rc_back="" ; rc_ask="" ; rc_fresh=""
 if [ "$ROUND" != 1 ]; then
   set -- round-check   # the options are parsed: the positional parameters are free
   [ -n "$ROUND" ] && set -- "$@" --round "$ROUND"
@@ -346,6 +372,8 @@ if [ "$ROUND" != 1 ]; then
       gate) rc_gate="$rc_a"; rc_max="$rc_b"; rc_maxruns="$rc_c"; rc_below="$rc_d" ;;
       owed) rc_owed="$rc_owed$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\n' ;;
       like) rc_like="$rc_like$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\n' ;;
+      back) rc_back="$rc_back$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\n' ;;
+      ask)  rc_ask="$rc_ask$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\t'"$rc_d"$'\n' ;;
       fresh) rc_fresh="$rc_a" ;;
     esac
   done <<<"$rc_out"
@@ -417,6 +445,24 @@ elif [ "$ROUND" -ge 2 ]; then
         exit 2
       fi
     fi
+  fi
+  # A kind at its second return or later after its first cut (SKILL.md step 6): the host asks its
+  # manager and passes the answer, one --manager-said per kind. Not refused: a warning, and the
+  # gate line the owner reads says "manager not asked" for it. Kinds compare normalised.
+  if [ -n "$rc_ask" ]; then
+    while IFS=$'\t' read -r k cut_round rounds logged_as; do
+      [ -n "$k" ] || continue
+      want_k="$(printf '%s' "$k" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -d '._-')"
+      answered=0
+      while IFS= read -r ans_entry; do
+        ans_k="$(printf '%s' "${ans_entry%%:*}" | LC_ALL=C tr 'A-Z' 'a-z' | LC_ALL=C tr -d '._-')"
+        [ "$ans_k" = "$want_k" ] && answered=1
+      done < <(printf '%s\n' "${MANAGER_SAID//; /$'\n'}")
+      [ $answered -eq 0 ] || continue
+      case "$rounds" in *,*) rounds="rounds $rounds" ;; *) rounds="round $rounds" ;; esac
+      [ "$logged_as" = "$k" ] && logged_as="" || logged_as=" (logged as $logged_as)"
+      echo "warning: kind $k$logged_as was cut in round $cut_round and came back in $rounds before this one, and this round names it again. Ask your manager: take it out, make it a warning, or keep fixing? Then pass the answer: --manager-said \"$k: <answer>\" (SKILL.md step 6). Going on; the gate line will say the manager was not asked." >&2
+    done <<<"$rc_ask"
   fi
 fi
 if [ "${INDEPENDENT_REVIEW_CHECKS_ONLY:-}" = 1 ]; then   # tests only (header)
@@ -1883,7 +1929,7 @@ log_seat() {   # <label> <stem> <seconds> <tokens> <outcome>
   esac
   bash "$SCRIPT_DIR/review_log.sh" add --seat "$1" --model "${model:--}" --effort "$effort" \
     --seconds "$3" --tokens "$4" --gate "$TYPE" --depth "$DEPTH" --round "$ROUND" \
-    --outcome "$(printf '%s' "$oc" | tr ' ' '-')" --earned-by "$EARNED_BY" --cut "$CUT" --reason "$reason" >/dev/null
+    --outcome "$(printf '%s' "$oc" | tr ' ' '-')" --earned-by "$EARNED_BY" --cut "$CUT" --reason "$reason" --manager-said "$MANAGER_SAID" >/dev/null
 }
 # attempt <label> <file stem> <run function> — one tier, in the foreground
 attempt() { run_tier "$2" "$3"; report_tier "$1" "$2"; }
@@ -1947,6 +1993,17 @@ report_round() {
   local total=""
   [ -r "$SCRIPT_DIR/review_log.sh" ] && total="$(bash "$SCRIPT_DIR/review_log.sh" gate)"
   if [ -n "$total" ]; then printf '%s\n' "$total"; printf '%s\n' "$total" >&2; fi
+  # A kind cut in an earlier round that this round names again has come back: the host sorts the
+  # findings next, and asks its manager before the next fix if this round found it again
+  # (SKILL.md step 6). Printed whether or not the round found it, since the host reads findings next.
+  local back_k back_round
+  if [ -n "$ROUND" ] && [ -n "$rc_back" ]; then
+    while IFS=$'\t' read -r back_k back_round _; do
+      [ -n "$back_k" ] || continue
+      note="Kind $back_k was cut in round $back_round and came back in round $ROUND. If this round found it again, ask your manager before the next fix: take it out, make it a warning, or keep fixing?"
+      printf '%s\n' "$note"; printf '%s\n' "$note" >&2
+    done <<<"$rc_back"
+  fi
   # Round 1 of a Normal or High gate: if the host's fresh-eyes seat is not logged yet, say that
   # round 2 refuses until it is. The round checks do not query the log at round 1, so this does.
   if [ "$ROUND" = 1 ] && { [ "$DEPTH" = normal ] || [ "$DEPTH" = high ]; } && [ -r "$SCRIPT_DIR/review_log.sh" ]; then
