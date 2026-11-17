@@ -4,7 +4,8 @@
 # override safely, so it is not printed: stderr names it and says it stays on. Names always come
 # from the list: naming a server that is not configured stops Codex.
 # Exit 0 with the lines (none for an empty list); 1, with a reason on stderr, when the file is not
-# a JSON list of objects.
+# a JSON list of objects with a name and an enabled flag (a list this program does not know is not
+# guessed at: the run goes as before).
 use 5.010;
 use strict;
 use warnings;
@@ -19,6 +20,7 @@ my $list = eval { JSON::PP->new->utf8->decode($json) };
 ref $list eq 'ARRAY' or do { print STDERR "codex_mcp_off.pl: not a JSON list\n"; exit 1 };
 for my $s (@$list) {
   ref $s eq 'HASH' && defined $s->{name} && !ref $s->{name} or do { print STDERR "codex_mcp_off.pl: an entry has no name\n"; exit 1 };
+  exists $s->{enabled} or do { print STDERR "codex_mcp_off.pl: an entry has no enabled flag\n"; exit 1 };
   $s->{enabled} or next;
   my $n = $s->{name};
   if ($n =~ /\A[A-Za-z0-9_-]+\z/) { print "mcp_servers.$n.enabled=false\n"; next }

@@ -6,7 +6,8 @@
 # the run as it was, with a note on stderr. No reviewer is contacted.
 #
 # Why it exists: every Codex review started the servers in the user's Codex config (a browser
-# driver, a JavaScript runner) though a review uses none, at about 130 MB and 2.8 s CPU a run and
+# driver, a JavaScript runner) though a review uses none, at about 130 MB and 2.8 s CPU a run (one run each, rough: see
+# docs/reviews/evidence-codex-no-mcp/measurements.md) and
 # beside the reviewed text. Plan: docs/reviews/SKILL-PLAN-review-codex-no-mcp.md (T1).
 # The first case reads a trimmed real capture (fixtures/codex-cli-0.169.0_2026-11-17_mcp-list.json:
 # two enabled servers, one disabled); the expected values below are written by hand.
@@ -35,7 +36,10 @@ if [ "${1:-}" = mcp ]; then
     real)  cat "$STUB_FIXTURE" ;;
     empty) printf '%s\n' '[]' ;;
     dotted) printf '%s\n' '[{"name":"a.b","enabled":true},{"name":"ok-1","enabled":true}]' ;;
-    fail)  echo 'Error: Unknown feature flag: plugins' >&2; exit 1 ;;
+    garbage) printf '%s\n' 'not json' ;;
+    noflag)  printf '%s\n' '[{"name":"ok-1"}]' ;;
+    fail)  # modelled on a real refusal (the capture refused a made-up flag, not this one)
+           echo 'Error: Unknown feature flag: plugins' >&2; exit 1 ;;
     slow)  sleep 60 ;;
   esac
   exit 0
@@ -94,6 +98,15 @@ check "c: only the plain name is passed" \
   [ "$(exec_args dotted)" = "$base[--disable][plugins][-c][mcp_servers.ok-1.enabled=false][-]" ]
 check "c: stderr names the one that stays on" has dotted.err 'codex: MCP server "a.b" stays on'
 check "c: the review section still counts" counted dotted
+
+# (f) the list answers, but not in a form the helper reads: today's argv, and stderr says why.
+run garbage garbage
+check "f: garbage: exec argv exactly as before" [ "$(exec_args garbage)" = "$base[-]" ]
+check "f: garbage: stderr says the servers were left on" has garbage.err "codex: MCP servers left on (its answer was not a readable list)"
+check "f: garbage: the review section still counts" counted garbage
+run noflag noflag
+check "f: an entry with no enabled flag: exec argv exactly as before" [ "$(exec_args noflag)" = "$base[-]" ]
+check "f: an entry with no enabled flag: stderr says the servers were left on" has noflag.err "codex: MCP servers left on (its answer was not a readable list)"
 
 # (e) no servers: plugins off, no -c, no note.
 run empty empty

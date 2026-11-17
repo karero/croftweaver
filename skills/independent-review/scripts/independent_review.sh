@@ -1330,7 +1330,8 @@ looks_like_review() {
 # --ignore-rules, which by its help text also drops the user's own .rules, forbidden
 # commands included — those are guards (R-PROJCTX).
 # --disable plugins and one -c mcp_servers.<name>.enabled=false per enabled server in
-# `codex mcp list --json`: a review uses no MCP server, and each one started costs memory and CPU
+# `codex mcp list --json` whose name is a plain key (stderr names any other, which stays on): a
+# review uses no MCP server, and each one started costs memory and CPU
 # and sits beside the reviewed text (a browser driver, a JavaScript runner). Names come from the
 # list because naming an unconfigured server stops Codex. If the list cannot be had, the run goes
 # as before and says so. Not adopted: --ignore-user-config, which also drops the config's model
