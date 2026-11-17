@@ -300,9 +300,9 @@ while [ $# -gt 0 ]; do
              # (ROUND CHECKS above): "KIND: ANSWER", given once per kind. Checked like --cut, and
              # the kind like --earned-by's, so it can be matched to the kind it answers.
              [ $# -gt 0 ] || { echo "--manager-said needs \"KIND: ANSWER\"" >&2; echo "$USAGE" >&2; exit 2; }
-             ms_bad="bad value for --manager-said: \"$1\" (one line of at most 300 characters, a tab-free \"KIND: ANSWER\" with the kind of --earned-by and an answer, e.g. \"config-advice: keep fixing\")"
+             ms_bad="bad value for --manager-said: \"$1\" (one line of at most 300 characters, no tab and no \"; \", which joins the answers in the log: \"KIND: ANSWER\" with the kind of --earned-by and an answer, e.g. \"config-advice: keep fixing\")"
              case "$1" in
-               -*|*$'\n'*|*$'\r'*|*$'\t'*|''|:*|*:) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;;
+               -*|*$'\n'*|*$'\r'*|*$'\t'*|*"; "*|''|:*|*:) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;;
              esac
              case "$1" in *:*) ;; *) echo "$ms_bad" >&2; echo "$USAGE" >&2; exit 2 ;; esac
              ms_kind="${1%%:*}" ; ms_ans="${1#*:}"

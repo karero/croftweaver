@@ -455,7 +455,7 @@ if [ $rc -eq 0 ] && [[ "$out" != *"warning: kind"* ]] && [[ "$out" != *"Kind k w
   ok "ask: a kind cut once and not named again: nobody is asked"
 else fail "ask: a cut that held: exit $rc. Output: $out"; fi
 # Bad values are refused before anything runs.
-for bad in "" "nocolon" "k:" "k:   " ":x" "--cut" "a b: x" $'k: one\ntwo' "$(printf 'x%.0s' $(seq 301))"; do
+for bad in "" "nocolon" "k:" "k:   " ":x" "--cut" "a b: x" "k: keep fixing; j: " "k: a; j: b" $'k: one\ntwo' "$(printf 'x%.0s' $(seq 301))"; do
   run --round 4 --earned-by k --manager-said "$bad"
   check "--manager-said \"$(printf '%s' "$bad" | tr '\n' 'N' | cut -c1-12)\": a usage error, exit 2" 2 "bad value for --manager-said"
 done
