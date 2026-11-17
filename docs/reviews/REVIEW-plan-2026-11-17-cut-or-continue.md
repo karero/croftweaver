@@ -145,3 +145,23 @@ round 6 read the whole plan again and found nothing, so no second full read was 
 Gate total: 6 rounds, 30 findings (6 BUG, 12 RISK, 0 NIT in the rounds; 2 BUG, 5 RISK, 5 NIT in the
 final read), 407,289 seat tokens logged, plus the final read's about 163k and the
 probe's 38,597. Codex alone in every round: melious had no balance.
+
+# Option (e): the plan rewritten (gate `20261117T134832Z-58593`)
+
+The owner chose option (e) on 2026-11-17. The plan was rewritten for it at d43c914b, and a new
+PLAN gate started at Normal depth. Codex alone in every round: melious had no balance (the
+owner's rule of 2026-10-27, no rerun owed).
+
+## Round 1 (183 s, 88,923 tokens)
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| G1 | RISK | One `--manager-said` covers every kind a round is due for, so an unasked kind passes as answered | fixed: the flag is given once per kind, `"<kind>: <answer>"`; 17 of the 78 asking rounds were due for two or more kinds (evidence §8), so this is ordinary use; T1 adds a two-kind round with one answer |
+| G2 | BUG | The plan said `--cut` is wanted whenever a kind returns; the script wants it only when the kind earned a round since its last cut, and the first round after a cut runs without one (`review_log.sh` round-check, `test_round_checks.sh` section 8) | fixed: What and design 5 describe the rule as it is |
+| G3 | BUG | S6 said no kind had two cuts; one kind was cut in rounds 4 and 5 of that gate | fixed: S6 says round 5's closing lines remind and nobody is asked; the plan and evidence §8 count closing reminders (172 rounds, all 81 gates) apart from asks |
+| G4 | BUG | S2 counted round 7 as saved, though round 7 still reviews what the manager chose | fixed: rounds 8 to 12, 269,860 tokens; the table's figure already left the asking round out (evidence §8) |
+| G5 | BUG | T2 called the old-header test a 17-column log; it is 14 columns and expects a 17-field row, which 18 fields would break | fixed: that test expects 18 fields, and a new 17-column fixture checks that readers take a missing field 18 as `-` |
+
+Also changed: "a seat can't either" now says only what the backtest showed. Still UNVERIFIABLE to
+Codex: the owner's picks (relayed by the manager, not in the repo), the full log the redacted files
+come from, and T1, which is not built yet.

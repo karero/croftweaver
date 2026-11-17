@@ -405,10 +405,16 @@ so two seat lines count as one cut round.
 ```text
 $ python3 -I docs/reviews/evidence-cut-or-continue/recount_per_kind.py docs/reviews/evidence-cut-or-continue/runs-81-gates-redacted.tsv
 gates that would ask: 39  rounds that would ask: 78  rounds after the first ask: 57  tokens: 4989208
+rounds that would ask about two or more kinds: 17  closing reminders: 172  in gates: 81
 ```
+
+A closing reminder is counted after a round whose cut lines name a kind that, this round
+included, has two cut rounds. "Rounds after the first ask" leaves out the asking round itself,
+which still reviews what the manager chose.
 
 S2, gate `20261110T083326Z-18084` (branch `fix/move-analytics-gap-035`), Codex tokens per round
 (the melious seat logged none from round 4): rounds 1 to 3 with both seats 72,862, 69,229,
 64,884; then 63,798, 50,926, 49,709, 63,383, 76,956, 44,118, 46,534, 47,851, 54,401. One kind
 carries `cut=1` from round 5 to round 12, so the first ask comes at the start of round 7, printed
-at the end of round 6. Rounds 7 to 12: 333,243 tokens.
+at the end of round 6. Rounds 7 to 12: 333,243 tokens; rounds 8 to 12, after the round that
+reviews the manager's choice: 269,860.
