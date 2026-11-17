@@ -30,8 +30,9 @@ Gate 2 (id `20261117T182925Z-15156`), whole PR diff against `origin/main`:
 |-------|------|----------|-----------|-----------------|--------------|
 | 1 | `76efd406` | the whole PR diff | Codex alone (melious out of balance, "Required: 170, Available: 0"); fresh-eyes on `sonnet` (a sub-agent given only the diff and the reviewer brief) | Codex 168 s, 68,016; fresh-eyes 218 s, 161,694 | Codex 2 / 0 / 0; fresh-eyes 0 / 2 / 5 |
 | 2 | `9f2fffbc` | the fixes, `--verify` round 1's findings, `--base 76efd406` | Codex alone (medium); melious out of balance ("Required: 81, Available: 0") | 155 s, 53,758 | 2 / 0 / 0 |
+| 3 | `c934c7ae` | the fixes, `--verify` round 2's findings, `--base 9f2fffbc` | Codex alone (medium); melious out of balance ("Required: 67, Available: 0") | 140 s, 35,664 | 0 / 0 / 0 |
 
-Gate 1 total 110,634 tokens (2 rounds, 1 finding). Gate 2 rounds 1 and 2: 283,468 tokens, 11 findings.
+Gate 1 total 110,634 tokens (2 rounds, 1 finding). Gate 2, rounds 1 to 3: 319,132 tokens, 3 rounds, 11 findings (4 BUG, 2 RISK, 5 NIT; all fixed, or refuted or re-sorted where the table says so). Round 3 is clean. Both gates together: 429,766 tokens.
 
 ## Round 1 findings
 
