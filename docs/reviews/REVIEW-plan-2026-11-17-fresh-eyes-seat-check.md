@@ -6,9 +6,9 @@ model family. The fresh-eyes seat (Sonnet, medium) ran in round 1, started befor
 
 | Round | Seats | Found | What changed |
 |---|---|---|---|
-| 1 | Codex (54,709 tokens); fresh-eyes (116,332 tokens) | 3 BUG (two the same), 6 RISK, 2 NIT | The round-1 note calls round-check itself, and its test logs the seat during the run, after the gate is minted; an unwritable log reads as "cannot answer"; the refusal prints the gate id and `--gate-id`, and says a round-1 re-run starts a new gate; a missing `--depth` warns; the first-use cost and what the log cannot say are stated |
+| 1 | Codex (54,709 tokens); fresh-eyes (116,332 tokens) | 3 BUG (two the same), 5 RISK, 2 NIT | The round-1 note calls round-check itself, and its test logs the seat during the run, after the gate is minted; an unwritable log reads as "cannot answer"; the refusal prints the gate id and `--gate-id`, and says a round-1 re-run starts a new gate; a missing `--depth` warns; the first-use cost and what the log cannot say are stated |
 | 2 | Codex (45,546 tokens) | 1 BUG | The gate is minted late in the run, so hosts log with `--gate-id`, from the gate line round 1 prints |
 | 3 | Codex | No BUG/RISK/NIT findings | Nothing |
 
-3 rounds, 12 findings; no BUG open after round 2. The gate's log: 253,925 tokens over 7 seat
+3 rounds, 11 findings; no BUG open after round 2. The gate's log: 253,925 tokens over 7 seat
 runs, 3 of which gave no figure (the failed melious runs).
