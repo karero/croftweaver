@@ -1,26 +1,32 @@
 # Evidence: cut-or-continue plan
 
-For `SKILL-PLAN-review-cut-or-continue.md`. Everything below was run on 2026-11-17, against the
-cost log `~/.local/state/independent-review/runs.tsv` (17 columns; 15 to 17 are `earned_by`, `cut`,
-`reason`) and this repo at `origin/main` `5a0b3010`. The log covers every repo the maintainer
-reviews; only aggregate counts are given for other repos, and only this repo's gates are named.
+For `SKILL-PLAN-review-cut-or-continue.md`. Everything below was run on 2026-11-17 against the
+cost log `~/.local/state/independent-review/runs.tsv` and this repo at `origin/main` `5a0b3010`.
+The log has 17 columns; columns 15 to 17 are `earned_by`, `cut` and `reason`. It covers every repo
+the maintainer reviews. For other repos only counts are given, and only this repo's gates are
+named.
 
-## 1. Definitions, as the script computes them
+## 1. Definitions, as the scripts compute them
 
-- A **round** is one `--round N` of one gate id (all seats of that round together).
-- A **cut** settles only the kinds on the log line that carries it, as `review_log.sh` counts it
-  (another seat's line in the same round may name a kind the cut was not about). Round 1's review
-  pointed out that the first count settled every kind of the round; recounted per line, every figure
-  below came out the same.
-- A **return** is a later round whose `earned_by` names a kind (compared as the script does:
-  lower-cased, without `.`, `_`, `-`) that an earlier cut round named. The `earned_by` of round N
-  names what round N−1 found, so a return at round N means the round reviewing the cut, or a
-  later one, found that kind again.
-- **Rounds from the first return** count the round of the return and every round after it.
-- **The most it can save:** the rounds after the return round. The return round itself still runs,
-  because it reviews whatever the next fix is.
+- **The window:** whole gates whose id (its start time) is on or after 2026-11-03, with every
+  line they logged. Round 3's review found that the first count cut off a gate's lines from before
+  that day. Counting whole gates fixed it: 82 gates became 81.
+- A **round** is one `--round N` of one gate id, all its seats together.
+- A **cut** settles only the kinds on the log line that carries it, as `review_log.sh` counts it.
+  Another seat's line in the same round may name a kind the cut was not about. Round 1's review
+  found that the first count settled every kind of the round. Recounted per line, the figures did
+  not change.
+- A **return** is a later round whose `earned_by` names a kind that a cut settled earlier. Kinds
+  are compared as the script compares them: lower-cased, without `.`, `_` or `-`. The `earned_by`
+  of round N names what round N−1 found. So a return at round N means the round that reviewed the
+  cut, or a later one, found that kind again.
+- **Rounds from the first return** count the return round and every round after it.
+- **The most an option can save** is the rounds after the return round. The return round itself
+  still runs, because it reviews whatever the next fix is.
 
-## 2. The measurement script (as run)
+## 2. The scripts (as run)
+
+`scan2.py` finds the gates and their returns, and writes them to a JSON file:
 
 ```python
 import sys,re,collections
@@ -32,7 +38,8 @@ for line in open(F):
     p+=['-']*(17-len(p)); rows.append(p)
 norm=lambda k: re.sub(r'[._-]','',k.lower())
 since=sys.argv[1]
-win=[p for p in rows if p[0][:10]>=since]
+# whole gates that started on or after the day (the gate id starts with its start time)
+win=[p for p in rows if p[13] not in ('','-') and p[13][:8]>=since.replace('-','')]
 tot=sum(int(p[11]) for p in win if p[11].isdigit())
 gates=collections.defaultdict(list)
 for p in win:
@@ -75,7 +82,7 @@ print('past 8', sum(1 for o in out if o['last']>8))
 import json; json.dump(out,open(sys.argv[2],'w'))
 ```
 
-Then, for the ceilings and this repo's listing (reads the gates `scan2.py` wrote):
+`scan3.py` gives the ceilings and this repo's listing; it reads the JSON `scan2.py` wrote:
 
 ```python
 import json,re,collections
@@ -107,9 +114,9 @@ for o in sorted(out,key=lambda o:o['g']):
     print(o['g'],repo,o['branch'],o['gate'],o['depth'],'r1',o['r1'],'ret',o['ret'],'last',o['last'],'tok_from_r1',o['toks'],'tok_gate',rt(o['g'],lambda r:True))
 ```
 
-And the baseline for the two-week check (every gate that reached round 4). Round 2's review
-pointed out that the first version counted `max round − 3`, which counts a skipped round number;
-it now counts distinct logged round numbers above 3 (584 became 577):
+`base.py` gives the baseline for the two-week check: every gate that reached round 4. It counts
+distinct logged round numbers above 3, so a skipped number is not counted as a round (round 2's
+review found the first version counted `max round − 3`):
 
 ```python
 import os,collections
@@ -117,7 +124,7 @@ F=os.path.expanduser('~/.local/state/independent-review/runs.tsv')
 rs=collections.defaultdict(set); tk=collections.defaultdict(int)
 for line in open(F):
     p=line.rstrip('\n').split('\t')
-    if p[0]=='date' or p[0][:10]<'2026-11-03' or p[13] in('','-') or not p[6].isdigit(): continue
+    if p[0]=='date' or p[13] in('','-') or p[13][:8]<'20261103' or not p[6].isdigit(): continue
     r=int(p[6]); rs[p[13]].add(r)
     if r>3 and p[11].isdigit(): tk[p[13]]+=int(p[11])
 el=[k for k in rs if max(rs[k])>=4]
@@ -125,34 +132,37 @@ el=[k for k in rs if max(rs[k])>=4]
 print('gates reaching round 4:',len(el),' rounds past 3:',sum(len([r for r in rs[k] if r>3]) for k in el),' tokens past round 3:',sum(tk[k] for k in el))
 ```
 
-## 3. Its output (2026-11-03 to 2026-11-17)
+## 3. Their output
 
 ```text
-window from 2026-11-03 logged tokens 286135779
-gates with a return after a cut: 82
- rounds from the first return: 204  tokens 18065017  share 6.3%  seat runs no tokens 45
- ended within one more round (last-r1<=1): 51
- ended at r1 itself: 31
+window from 2026-11-03 logged tokens 257853137
+gates with a return after a cut: 81
+ rounds from the first return: 203  tokens 17991532  share 7.0%  seat runs no tokens 45
+ ended within one more round (last-r1<=1): 50
+ ended at r1 itself: 30
 gates with a second return: 45  rounds from it 106  tokens 9234510
-by gate type Counter({'plan': 45, 'diff': 37})
-by depth Counter({'normal': 42, 'high': 39, '-': 1})
-last round dist [(5, 20), (6, 17), (7, 14), (8, 16), (9, 8), (10, 2), (11, 2), (12, 3)]
-r1 dist [(4, 2), (5, 51), (6, 17), (7, 8), (8, 3), (11, 1)]
+by gate type Counter({'plan': 44, 'diff': 37})
+by depth Counter({'normal': 41, 'high': 39, '-': 1})
+last round dist [(5, 20), (6, 17), (7, 14), (8, 15), (9, 8), (10, 2), (11, 2), (12, 3)]
+r1 dist [(4, 2), (5, 51), (6, 17), (7, 8), (8, 2), (11, 1)]
 past 8 15
 opt1 ceiling: rounds after r1 122 tokens 10743852
 opt2 ceiling: rounds after r2 61 tokens 5379363
 gates where the returning kind came back again after r1: 42
-gates reaching round 4: 236  rounds past 3: 577  tokens past round 3: 46161657
+gates reaching round 4: 234  rounds past 3: 574  tokens past round 3: 45976379
 ```
 
-The figures in the brief that started this plan were 83 gates, 209 rounds, 20.5M tokens (8%), 49
-seat runs with no tokens, and 31 gates that ended within one more round. They came from another
-session's count and differ slightly from these. The plan uses the figures above. The log grows
-while sessions run, so a rerun gives a slightly larger total.
+"Logged tokens" is the sum over every line of the window's gates. Lines with no gate id are left
+out.
+
+The brief that started this plan gave 83 gates, 209 rounds, 20.5M tokens (8%), 49 seat runs with
+no tokens, and 31 gates that ended within one more round. Those came from another session's count.
+The plan uses the figures above. The log grows while sessions run, so a later run may count more.
 
 ## 4. This repo's gates with a return
 
-Branch, gate type, depth, first return, returns, last round, tokens from the first return on, tokens of the whole gate.
+Branch, gate type, depth, first return, returns, last round, tokens from the first return on,
+tokens of the whole gate.
 
 ```text
 main plan high r1 5 ret [5, 6, 7] last 7 tok_from_r1 281388 tok_gate 1083548
@@ -168,14 +178,13 @@ fix/agy-release-test-misreads diff normal r1 5 ret [5, 6, 7] last 7 tok_from_r1 
 fix/move-prep-036 diff high r1 6 ret [6, 7] last 9 tok_from_r1 188359 tok_gate 468929
 ```
 
-## 4b. All 82 gates, one line each
+## 4b. All 81 gates, one line each
 
-Gate ids only (they are start times), so the sums can be checked without the log. Columns 6 to 8
-sum to 18,065,017, 10,743,852 and 5,379,363.
+Gate ids only, since each is just a start time. That way the sums can be checked without the
+log. Columns 6 to 8 sum to 17,991,532, 10,743,852 and 5,379,363.
 
 ```text
 gate_id	type	first_return	returns	last_round	tokens_from_first_return	tokens_after_first_return	tokens_after_second_return
-20261102T190259Z-36585	plan	8	8	8	73485	0	-
 20261104T074523Z-53735	plan	5	5,7	7	308521	199125	0
 20261104T225606Z-2982	plan	5	5,6,7	7	281388	184097	90108
 20261105T100835Z-70190	plan	5	5,6,7,8	8	1102516	659847	409775
@@ -259,9 +268,26 @@ gate_id	type	first_return	returns	last_round	tokens_from_first_return	tokens_aft
 20261117T092624Z-56443	plan	7	7	7	43351	0	-
 ```
 
+## 4c. A redacted copy of those gates' log lines, and a recount from it alone
+
+`evidence-cut-or-continue/runs-81-gates-redacted.tsv` holds every log line of the 81 gates. It
+keeps date, gate type, depth, round, seat, tokens, outcome and gate id. Each kind is replaced by
+the first 8 hex digits of the SHA-1 of its normalised name, and the cut by `1` or `0`. Repo,
+branch, head, model, cut text and reason are dropped. `evidence-cut-or-continue/recount.py` reads
+only that file:
+
+```text
+$ python3 -I docs/reviews/evidence-cut-or-continue/recount.py docs/reviews/evidence-cut-or-continue/runs-81-gates-redacted.tsv
+gates 81 rounds from first return 203 tokens 17991532 seat runs no tokens 45 ended at the return round 30
+second return 45 | after first return: rounds 122 tokens 10743852 | after second: rounds 61 tokens 5379363
+```
+
+The baseline (234 gates, 574 rounds, 46.0M tokens) covers gates outside these 81, so the redacted
+file cannot reproduce it.
+
 ## 5. The lastmod gate, round by round (gate `20261116T230248Z-74626`, branch `fix/move-prep-036`)
 
-Codex lines only; the melious seat failed every round ("out of balance") and logged no tokens.
+Codex lines only. The melious seat failed every round ("out of balance") and logged no tokens.
 
 ```text
 round 1 head 1234683 80375 tokens earned_by=- cut=-
@@ -276,8 +302,8 @@ round 9 head e6d6545 42301 tokens earned_by=advisory-scan-read-failure cut=-
 ```
 
 Rounds 6 and 7: 37,369 + 49,061 = 86,430 tokens. The trail
-(`REVIEW-diff-2026-11-17-move-prep-036.md`, F20 and F21) says the scan became a warning by the
-manager session's decision after round 7, in `0fcce419`, which round 8 reviewed.
+(`REVIEW-diff-2026-11-17-move-prep-036.md`, F20 and F21) says the manager session decided after
+round 7 to make the scan a warning. That change is `0fcce419`, and round 8 reviewed it.
 
 Lines changed outside `docs/` (`git diff --numstat`), for each fix the next round reviewed:
 
@@ -290,35 +316,19 @@ d481229..0fcce41 +33 -25 (round 8; the warning, the real cut)
 
 ## 6. The probe: can a seat tell a cut from a patch?
 
-Seven real fixes. The labels were written to a file before either run:
+The probe used seven real fixes. The files are in `evidence-cut-or-continue/`: `probe-labels.txt`
+(the hand labels), `probe-brief.md` (cases A to F, as sent), `probe-brief-g.md` (case G),
+`probe-out.md` and `probe-out-g.md` (Codex's whole output). Two lines were changed in the outputs
+before committing: the scratch folder's path (`workdir:`) and the `session id:`.
 
-```text
-A PATCH  lastmod round 6 (050042c..c399d0d)
-B CUT    lastmod round 8 (d481229..0fcce41)
-C PATCH  agy round 5 (78e14af..d476e99)
-D PATCH  lastmod round 5 (15342f8..050042c)
-E PATCH  agy round 6 (d476e99..13cad51)
-F PATCH  lastmod round 7 (c399d0d..d481229)
-G CUT    ship.sh comment scanner (5328e7d3^..5328e7d3)
-```
+Each case gave the finding the fix answers, a `--cut` text and the diff (`git diff A..B`, leaving
+out `docs/BUGLOG.md` and `docs/reviews`). Cases A to F went in one blind brief. G went in a second
+one, because the first had only one cut. Case B is the lastmod round 8. That round had no `--cut`,
+since it started a new kind, so its claim was written for the probe from the trail's F21. The
+findings for C and E were taken from their `--cut` texts.
 
-Each case held the finding the fix answers, a `--cut` text and the diff (`git diff A..B`, without
-`docs/BUGLOG.md` and `docs/reviews`). Cases A to F went in one blind brief; G went in a second
-one, because only one cut was in the first. Case B's lastmod round 8 had no `--cut` (it started a
-new kind), so its claim text was written for the probe from the trail's F21. The findings for C
-and E were taken from their `--cut` texts. The prompt's head, as sent:
-
-```text
-You judge fixes made during a code review. For each case below you get: the finding the fix answers, the author's claim (its --cut text) and the diff. The review's rule, quoted:
-
-"Cut, don't patch: where a kind earned an earlier round of the gate too, the fix since then must be a cut, not another patch: take the feature out, or replace it by a strict rule that accepts only the input it names and refuses the rest, with a test that ordinary input still passes. Refusing the one input the last BUG used is a patch."
-
-For each case answer one line: `Case X: CUT` or `Case X: PATCH`, then one sentence why, naming the lines that decide it. Judge the diff, not the claim. Read only what is given; do not run anything.
-
-```
-
-Command: `codex exec -s read-only --skip-git-repo-check -c model_reasoning_effort=medium - < brief.md`.
-Codex's verdict lines, as printed:
+Command: `codex exec -s read-only --skip-git-repo-check -c model_reasoning_effort=medium - < brief.md`
+(Codex CLI 0.169.0, model gpt-6.1-sol). The verdict lines, as printed:
 
 ```text
 Case A: PATCH — The replacement adds `(?<![.\w$])return\s+` and two regression examples, but keeps the heuristic scan and its blocking `gaps.push(...)`.
@@ -330,12 +340,17 @@ Case F: PATCH — Removing the `return` alternative leaves the heuristic scanner
 Case G: CUT — Deleting `site_addrs()` removes the comment scanner; `site_count()` counts every regex match, P6/P7 assert that multiple matches trigger no fetch, and P5 retains an ordinary successful verification test.
 ```
 
-File times (`ls -lT` in the probe folder): `brief.md`, written by the same command that wrote the
-labels for A to F, 11:24:52; Codex's answer `out.md`, 11:25:31; label G appended and `brief-g.md`
-written, 11:25:54; `out-g.md`, 11:26:10 (all 2026-11-17, local time). The probe files are kept
-outside the repo; the diffs can be rebuilt with the `git diff` ranges in the labels.
+File times (`ls -lT` in the probe folder, 2026-11-17, local time):
 
-Tokens: 23,715 (A to F) and 14,882 (G), 38,597 in all. All seven verdicts match the labels. Limits:
-seven cases from two gates, one model, one run each. A judge that always says PATCH would score 5
-of 7, so the probe says little about wrongly calling a real cut a patch. That is what test T1 is
-for.
+- 11:24:52: `brief.md`, written by the same command that wrote the labels for A to F.
+- 11:25:31: Codex's answer, `out.md`.
+- 11:25:54: label G appended, and `brief-g.md` written.
+- 11:26:10: `out-g.md`.
+
+The times show the order of the files. They cannot prove when the labels were decided.
+
+Tokens: 23,715 (A to F) and 14,882 (G), 38,597 in all. All seven verdicts match the labels.
+
+Limits: seven cases from two gates, one model, one run each. A judge that always says PATCH would
+score 5 of 7. So the probe says little about how often a real cut gets called a patch. Tests T1a
+and T1b are for that.

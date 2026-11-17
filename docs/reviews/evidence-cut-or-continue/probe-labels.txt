@@ -1,0 +1,7 @@
+A PATCH  lastmod round 6 (050042c..c399d0d)
+B CUT    lastmod round 8 (d481229..0fcce41)
+C PATCH  agy round 5 (78e14af..d476e99)
+D PATCH  lastmod round 5 (15342f8..050042c)
+E PATCH  agy round 6 (d476e99..13cad51)
+F PATCH  lastmod round 7 (c399d0d..d481229)
+G CUT    ship.sh comment scanner (5328e7d3^..5328e7d3)
