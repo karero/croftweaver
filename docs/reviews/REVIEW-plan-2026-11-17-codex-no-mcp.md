@@ -14,7 +14,7 @@ Checks before round 1: `scripts/check_clean.sh` passed. The change adds files un
 
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |-------|------|----------|-----------|-----------------|--------------|
-| 1 | `5c3c6a2d` | the whole plan | Codex; melious out of balance; fresh-eyes (Sonnet) | Codex 159 s, 63,485; fresh-eyes 57 s, 115,230 | 3 / 6 / 3 |
+| 1 | `dceaba41` | the whole plan | Codex; melious out of balance; fresh-eyes (Sonnet) | Codex 159 s, 63,485; fresh-eyes 57 s, 115,230 | 3 / 6 / 3 |
 
 ## Round 1 findings
 
