@@ -293,9 +293,10 @@ if [ -z "$own_site" ]; then
 else
   live_site site-one "$own_site/build.txt" "LIVE — verified: $own_site is serving build"
 
+# Each case writes its whole `site:` line itself, so none depends on how the site quotes its own.
 # The same address in double quotes, as a formatter may write it: still one address, still checked.
-perl -pi -e 's|^(\s*site:\s*)\x27(https?://[^\x27]+)\x27|$1"$2"|' "$copy/astro.config.mjs"
-if ! git_in diff --quiet; then git_in commit -q -am "site: in double quotes"; fi   # already double-quoted: nothing to rewrite
+ADDR="$own_site" perl -pi -e 's|^\s*site:.*$|  site: "$ENV{ADDR}",|' "$copy/astro.config.mjs"
+if ! git_in diff --quiet; then git_in commit -q -am "site: in double quotes"; fi   # already so: nothing to rewrite
 live_site site-dq "$own_site/build.txt" "LIVE — verified: $own_site is serving build"
 
 # An old address kept in a comment: two matches, so no one address to check.
@@ -304,7 +305,7 @@ git_in commit -q -am "an old address in a comment"
 live_site site-many "" "has more than one site: address"
 
 # Only a comment holds a site: address (the real one is written so that it does not match).
-perl -pi -e 's|^(\s*)site:(\s*)([\x27"]https?://[^\x27"]+[\x27"])|$1\x27site\x27:$2$3|; s|^(\s*)// site: .*$|$1// site: \x27https://old.example.invalid\x27,|' "$copy/astro.config.mjs"
+ADDR="$own_site" perl -pi -e 's|^\s*site:.*$|  \x27site\x27: "$ENV{ADDR}",|' "$copy/astro.config.mjs"
 git_in commit -q -am "the only site: is in a comment"
 live_site site-comment "" "sits in a comment"
 fi
