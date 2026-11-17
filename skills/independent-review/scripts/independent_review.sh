@@ -89,9 +89,10 @@
 #   ... --evidence probe-output.txt                   # evidence for the claims, sent beside the
 #                                                     # artifact as labelled data (EVIDENCE below)
 #
-# ROUND CHECKS (SKILL.md step 6). Two of the step's rules are enforced here rather than left to
-# the prose, which a gate's runner read past in 34 of 45 long gates. Both refuse with exit 2
-# before any reviewer starts and before anything leaves the machine:
+# ROUND CHECKS (SKILL.md steps 3 and 6). Three rules are enforced here rather than left to the
+# prose: step 6's two were read past in 34 of 45 long gates, and step 3's fresh-eyes seat had no
+# line in 362 of 460 Normal gates that reached round 2 (1 to 17 November 2026). All refuse with
+# exit 2 before any reviewer starts and before anything leaves the machine:
 #   - --round 4 or later needs --earned-by KIND[,KIND…]: every kind of finding with a
 #     substantive BUG, or an in-scope RISK whose fix changed what runs or what someone acts on,
 #     in the round before (up to 8; each 1 to 40 letters, digits, '.', '_' or
@@ -99,16 +100,20 @@
 #   - A kind that earned any earlier round of this gate since its last cut needs --cut "TEXT"
 #     (one line, at most 300 characters): what the fix since then removed or refused, not another
 #     patch. Kinds compare lower-cased, without '.', '_' and '-', so a respelling is the same kind.
+#   - Round 2 or later at --depth normal or high needs a line of seat exactly fresh-eyes, any
+#     outcome, at round 1 (normal) or at each round below this one up to 3 (high). Round 1 at
+#     those depths ends with a note while that line is missing. With no --depth, rounds 2 and
+#     later warn that the check did not run.
 # The checks cannot see what the host does not tell them: a host can name another kind, or leave
 # --round off. So the rest is VISIBILITY, in lines the owner reads: a kind whose name starts
 # another earlier one is named beside it; a round number below or equal to one already logged
 # says so; a run without --round on a gate past round 3 says it was not counted as a round; and
 # the closing lines carry the gate's running total, its kinds and cuts round by round, its runs
 # with no round, and the gate it follows after a restart (review_log.sh gate).
-# Where the log is off (REVIEW_LOG=off) or cannot answer, the cut check cannot run: one warning
-# line, and the review goes on. Bookkeeping never fails a review. A run with no --round (the
-# wording pass, the final full read) needs neither option. Both options are recorded on every
-# cost-log line of the run.
+# Where the log is off (REVIEW_LOG=off) or cannot answer, the cut and fresh-eyes checks cannot
+# run: one warning line each, and the review goes on. Bookkeeping never fails a review. A run
+# with no --round (the wording pass, the final full read) needs neither option. Both options are
+# recorded on every cost-log line of the run.
 # BASE CHECK. Before any reviewer starts and before any of it leaves the machine, a diff is
 # checked against git (perl/diff_headers.pl) in two steps. Headers: every mode and id they state
 # must match git's own patch of the same base, read the same way, with the new sides from HEAD,
@@ -325,7 +330,7 @@ if [ -n "$ROUND" ] && [ "$ROUND" -ge 4 ] && [ -z "$EARNED_BY" ]; then
 fi
 # What the log knows about the current gate (review_log.sh round-check). Not for --round 1, which
 # starts a new gate: the old one's rounds do not apply to it.
-rc_gate="" ; rc_max=0 ; rc_maxruns=0 ; rc_below=0 ; rc_why="" ; rc_owed="" ; rc_like=""
+rc_gate="" ; rc_max=0 ; rc_maxruns=0 ; rc_below=0 ; rc_why="" ; rc_owed="" ; rc_like="" ; rc_fresh=""
 if [ "$ROUND" != 1 ]; then
   set -- round-check   # the options are parsed: the positional parameters are free
   [ -n "$ROUND" ] && set -- "$@" --round "$ROUND"
@@ -341,6 +346,7 @@ if [ "$ROUND" != 1 ]; then
       gate) rc_gate="$rc_a"; rc_max="$rc_b"; rc_maxruns="$rc_c"; rc_below="$rc_d" ;;
       owed) rc_owed="$rc_owed$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\n' ;;
       like) rc_like="$rc_like$rc_a"$'\t'"$rc_b"$'\t'"$rc_c"$'\n' ;;
+      fresh) rc_fresh="$rc_a" ;;
     esac
   done <<<"$rc_out"
 fi
@@ -361,6 +367,33 @@ elif [ "$ROUND" -ge 2 ]; then
   elif [ -n "$rc_gate" ] && [ "$ROUND" -eq "$rc_max" ]; then
     echo "note: re-run of round $ROUND: gate $rc_gate already logged $rc_maxruns seat run(s) for it. A new round is $((ROUND + 1))." >&2
   fi
+  # The fresh-eyes check (SKILL.md, Review depth): Normal owes the host's fresh-eyes seat in
+  # round 1, High in rounds 1 to 3. The host logs it, so a log that cannot answer only warns.
+  case "$DEPTH" in
+    normal|high)
+      fe_why=""
+      if [ -z "$rc_gate" ]; then fe_why="${rc_why:-review_log.sh gave no answer}"
+      elif [ "$rc_below" -eq 0 ]; then fe_why="the log holds no round below $ROUND of gate $rc_gate"
+      elif [ "$rc_fresh" = "?" ]; then fe_why="the review cost log cannot be written, so a seat the host logged may be missing"
+      elif [ -z "$rc_fresh" ]; then fe_why="review_log.sh gave no fresh-eyes record"
+      fi
+      if [ -n "$fe_why" ]; then
+        echo "warning: the fresh-eyes seat check could not run ($fe_why); going on." >&2
+      else
+        fe_top=1
+        if [ "$DEPTH" = high ]; then fe_top=$((ROUND - 1)); [ "$fe_top" -gt 3 ] && fe_top=3; fi
+        fe_missing="" ; fe_r=1
+        while [ "$fe_r" -le "$fe_top" ]; do
+          case ",$rc_fresh," in *",$fe_r,"*) ;; *) fe_missing="${fe_missing:+$fe_missing, }$fe_r" ;; esac
+          fe_r=$((fe_r + 1))
+        done
+        if [ -n "$fe_missing" ]; then
+          echo "Round $ROUND of a $DEPTH gate needs the host's fresh-eyes seat logged at round(s) $fe_missing (SKILL.md, Review depth), and gate $rc_gate has no such line. Run the seat (SKILL.md step 3), then log it: review_log.sh add --seat fresh-eyes --model <m> --gate ${TYPE:-<plan|diff>} --depth $DEPTH --round <r> --gate-id $rc_gate. The seat name is exactly fresh-eyes, and any outcome counts: a host that cannot run the seat logs --outcome NOT-COUNTED --reason \"<why>\". A seat logged before a --round 1 re-run belongs to the gate that re-run replaced: log it again." >&2
+          exit 2
+        fi
+      fi ;;
+    "") echo "warning: no --depth, so the fresh-eyes seat check did not run; pass --depth." >&2 ;;
+  esac
   # The cut check. A log that is off, missing or holds no earlier round cannot answer, and a
   # review must not fail for bookkeeping: say so, and go on.
   if [ -n "$EARNED_BY" ] && [ -z "$CUT" ]; then
@@ -1914,6 +1947,19 @@ report_round() {
   local total=""
   [ -r "$SCRIPT_DIR/review_log.sh" ] && total="$(bash "$SCRIPT_DIR/review_log.sh" gate)"
   if [ -n "$total" ]; then printf '%s\n' "$total"; printf '%s\n' "$total" >&2; fi
+  # Round 1 of a Normal or High gate: if the host's fresh-eyes seat is not logged yet, say that
+  # round 2 refuses until it is. The round checks do not query the log at round 1, so this does.
+  if [ "$ROUND" = 1 ] && { [ "$DEPTH" = normal ] || [ "$DEPTH" = high ]; } && [ -r "$SCRIPT_DIR/review_log.sh" ]; then
+    local fe_out fe_gate="" fe_list="" fe_tag fe_a
+    fe_out="$(bash "$SCRIPT_DIR/review_log.sh" round-check --round 2 2>/dev/null)" || fe_out=""
+    while IFS=$'\t' read -r fe_tag fe_a _; do
+      case "$fe_tag" in gate) fe_gate="$fe_a" ;; fresh) fe_list="$fe_a" ;; esac
+    done <<<"$fe_out"
+    if [ -n "$fe_gate" ] && [ "$fe_list" = "-" ]; then
+      note="fresh-eyes: gate $fe_gate has no fresh-eyes line at round 1 yet. A $DEPTH gate owes it (SKILL.md, Review depth), and round 2 refuses until it is logged: review_log.sh add --seat fresh-eyes --model <m> --gate $TYPE --depth $DEPTH --round 1 --gate-id $fe_gate"
+      printf '%s\n' "$note"; printf '%s\n' "$note" >&2
+    fi
+  fi
   # The trail must name the depth (SKILL.md, Review depth), and a run without --depth is where
   # that gets forgotten.
   if [ -z "$DEPTH" ]; then

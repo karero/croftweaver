@@ -41,6 +41,9 @@
 #         gate  <id> <highest round logged> <seat runs at that round> <rounds logged below N>
 #         owed  <kind> <rounds> <kind as logged>   the kind earned those rounds since its last cut
 #         like  <kind> <earlier kind> <its round>  one normalised name starts the other
+#         fresh <rounds>   rounds below N (comma list, "-" for none) with a line of seat exactly
+#                          fresh-eyes, any outcome; "?" when the log cannot be written, since a
+#                          host's add then only warns and its line may be missing
 #       Kinds compare normalised: lower case, without '.', '_' and '-'. A round's kinds are the
 #       union of its lines' kinds; a cut on a round settles the kinds that round named. When it
 #       cannot tell (log off, missing or unreadable, no gate), it prints "?", a tab and why.
@@ -306,13 +309,15 @@ round_check() {
   # Every logged round below N counts, not only N-1: kinds that alternate (A, B, A) are caught,
   # and a skipped or repeated round number does not reset anything. Lines older than the two
   # columns have no field 15 or 16, which reads as no kind and no cut.
-  out="$(awk -F'\t' -v id="$id" -v want="$want" -v kinds="$kinds" '
+  local wr=1; [ -w "$f" ] || wr=0
+  out="$(awk -F'\t' -v id="$id" -v want="$want" -v kinds="$kinds" -v wr="$wr" '
     function norm(s) { s = tolower(s); gsub(/[._-]/, "", s); return s }
     $1 == "date" || $14 != id || $7 !~ /^[0-9]+$/ { next }
     {
       r = $7 + 0
       if (r > max) max = r
       runs[r]++
+      if ($8 == "fresh-eyes" && (want == "" || r < want + 0)) fresh[r] = 1
       if (want == "" || r >= want + 0) next
       below[r] = 1
       # A cut settles only the kinds on the row that carries it: another seat of the same round
@@ -328,6 +333,8 @@ round_check() {
     END {
       nb = 0; for (r in below) nb++
       printf "gate\t%s\t%d\t%d\t%d\n", id, max, (max ? runs[max] : 0), nb
+      fl = ""; for (r = 1; r <= max; r++) if (r in fresh) fl = fl (fl == "" ? "" : ",") r
+      printf "fresh\t%s\n", (wr == 0 ? "?" : (fl == "" ? "-" : fl))
       m = split(kinds, gs, ",")
       for (j = 1; j <= m; j++) {
         g = norm(gs[j]); if (g == "" || (g in done)) continue

@@ -1083,8 +1083,10 @@ G="$T/gaterepo"; mkdir -p "$G"; git -C "$G" init -q
 GL="$T/gates.tsv"
 inrepo() { run "$1" REVIEW_LOG="$GL" sh -c 'cd "$0" && shift && exec "$@"' "$G" "${@:2}"; }
 inrepo gate1a bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 1
+inrepo gate1afe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1   # round 2 refuses without it
 inrepo gate1b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
 inrepo gate2a bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 1
+inrepo gate2afe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1   # round 2 refuses without it
 inrepo gate2b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
 inrepo gate2c bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 3
 inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
