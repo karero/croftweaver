@@ -86,13 +86,11 @@ Do not delete the script's state file,
 
 ## 6. Your token
 
-You make one token for the move, at https://dash.cloudflare.com/profile/api-tokens:
+You make one token for the move, at https://dash.cloudflare.com/profile/api-tokens. It holds four
+permissions, in two groups, and it ends after 7 days:
 
+- **Cloudflare Pages Edit** and **Workers Scripts Edit**, on your account.
 - **Zone Read** and **DNS Edit**, on your one domain.
-- **Cloudflare Pages Edit** and the Workers permission, on your account. The token page showed
-  it as Workers Scripts, set to Edit, in the kit's own moves; Cloudflare's wording may differ,
-  and the script's error says so if the token lacks it.
-- An end date 7 days from today.
 
 Pages Edit and the Workers permission reach every project and Worker on your account; the
 token's zone list also shows every zone, which is expected. The script reads some lists across
@@ -103,6 +101,26 @@ your Pages project and your Worker before it goes out, and anything else is refu
 Why a second token, beside the one Workers Builds uses? That one has no end date, and any package
 in a build can read it, so it must not be able to change your DNS or your Pages project. The move
 token can, so it ends after 7 days, and you delete it once you will not go back (section 10).
+
+**The clicks.** These are the labels as seen on 2026-11-17. Cloudflare moves things, so search for
+the name if one differs.
+
+1. Open https://dash.cloudflare.com/profile/api-tokens (My Profile → API Tokens) and choose
+   **Create Token**.
+2. **Token name:** a name you will know again, such as "move" and your domain.
+3. Under Policies, choose **Start from scratch**, then **Start with an Account policy**.
+   - **Include** says **All accounts**. Change it to your own account, which the list names. Do
+     not leave All accounts: the script does not check this.
+   - In the permissions box, find **Cloudflare Pages** and set it to **Edit**. Find **Workers
+     Scripts** and set it to **Edit**. A row called just **Workers** sits next to it; it is not
+     the one.
+4. Choose **Add new policy**, and make it a Zone policy.
+   - **Include** says **All zones**. Choose **Specific zone**, then your domain.
+   - Under DNS & Zones, set **Zone** to **Read** and **DNS** to **Edit**.
+5. **Token expiration:** choose **7 days**. The page starts on No expiration.
+6. Choose **Continue to summary**. Check the summary page: the four rows, your one account, your
+   one domain, 7 days. Then create the token and copy it, once. The summary page and what
+   follows it were not looked at on 2026-11-17, so this guide gives no labels for them.
 
 You make it; your assistant puts it where the script reads it (a variable for the session, or
 a `.dev.vars` file that git ignores). It never goes in a file git tracks. Delete it afterwards

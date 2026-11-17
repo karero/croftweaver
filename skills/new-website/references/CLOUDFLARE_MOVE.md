@@ -81,11 +81,25 @@ computer, and a second computer would not know the move had begun.
 
 ## The token
 
-Make one token on the site's one zone: **Zone Read** and **DNS Edit** on that zone; **Cloudflare
-Pages Edit** and the Workers permission that custom domains need, both on the account; and an
-end date 7 days from today. The token page is
-https://dash.cloudflare.com/profile/api-tokens. (The Workers permission's exact name is not
-checked yet; the script's error says so if the token lacks it.)
+Make one token with four permissions in two policies, and an end date of 7 days: **Cloudflare
+Pages Edit** and **Workers Scripts Edit** on the User's account, and **Zone Read** and **DNS Edit**
+on the site's one zone. The token page is https://dash.cloudflare.com/profile/api-tokens. The
+script's error names the Workers permission if the token lacks it.
+
+Walk the User through the page one step at a time. These labels are as seen on 2026-11-17;
+Cloudflare moves things, so search for the name if one differs:
+1. My Profile → API Tokens → **Create Token**.
+2. **Token name:** any name she will know again.
+3. **Start from scratch** → **Start with an Account policy**. **Include** says **All accounts**;
+   she picks her own account instead (the script does not check this). In the permissions box:
+   **Cloudflare Pages** → **Edit**, **Workers Scripts** → **Edit**. The row called just
+   **Workers** next to it is the wrong one.
+4. **Add new policy**, a Zone policy. **Include** says **All zones**; she picks **Specific zone**,
+   then her domain. Under DNS & Zones: **Zone** → **Read**, **DNS** → **Edit**.
+5. **Token expiration:** **7 days**. The page starts on No expiration.
+6. **Continue to summary**. She checks the summary page: the four rows, one account, one domain,
+   7 days. Then she creates the token and copies it. The summary page and what follows it were
+   not looked at on 2026-11-17: give no labels for them.
 
 Say why there are two tokens: the build token has no end date and any package in a build can
 read it, so it must not hold DNS Edit or Pages Edit; the move token holds them for 7 days, and the
