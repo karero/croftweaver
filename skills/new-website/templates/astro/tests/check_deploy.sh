@@ -285,11 +285,12 @@ live_site() {
   asked="${asked% }"
   if [ "$rc" = 0 ] && [ "$asked" = "$2" ] && grep -qF -- "$3" "$work/$1.log"; then ok "$1: \"$3\" (asked: ${asked:-nothing})"; else bad "$1: expected exit 0, asking \"$2\" and saying \"$3\"; got exit $rc, asked \"$asked\":"; sed 's/^/  | /' "$work/$1.log"; fi
 }
-# The site's own address, found by a different reader than deploy.sh's: its first plain `site: '…'` line.
-own_site="$(sed -nE "s/^[[:space:]]*site:[[:space:]]*['\"](https?:\/\/[^'\"]+)['\"].*/\1/p" "$copy/astro.config.mjs" | awk 'NR==1')"
+# The site's own address, found by a different reader than deploy.sh's: a `site: '…',` line with nothing
+# else on it, which the cases below may replace whole.
+own_site="$(sed -nE "s/^[[:space:]]*site:[[:space:]]*['\"](https?:\/\/[^'\"]+)['\"],?[[:space:]]*$/\1/p" "$copy/astro.config.mjs" | awk 'NR==1')"
 own_site="${own_site%/}"
 if [ -z "$own_site" ]; then
-  echo "· check_deploy: astro.config.mjs has no line of the form  site: 'https://…',  so the live-check cases were not run."
+  echo "· check_deploy: astro.config.mjs has no line holding only  site: 'https://…',  so the live-check cases were not run."
 else
   live_site site-one "$own_site/build.txt" "LIVE — verified: $own_site is serving build"
 
