@@ -285,9 +285,9 @@ describe('1: the token', () => {
   });
   test('a token that ends more than eight days out is refused; one with no end is too', async () => {
     const far = scenario({ world: { token: { status: 'active', expires_on: new Date(Date.now() + 10 * 86_400_000).toISOString() } } });
-    assert.match((await far.go(['check'])).text, /A week at most/);
+    assert.match((await far.go(['check'])).text, /7 days at most/);
     const none = scenario({ world: { token: { status: 'active' } } });
-    assert.match((await none.go(['check'])).text, /no end date/);
+    assert.match((await none.go(['check'])).text, /no end date.*end date 7 days from today/);
   });
   test('a first move and a first undo refuse with under an hour left; a later run only warns', async () => {
     const soon = { token: { status: 'active', expires_on: new Date(Date.now() + 30 * 60_000).toISOString() } };
@@ -711,7 +711,7 @@ describe('3: move, after and undo', () => {
     // The question: nothing changes, a code is printed, the route commit is written and not pushed.
     const q = await s.go(['move']);
     assert.equal(q.code, 3, q.text);
-    assert.ok(s.w.calls.every((c) => c.method === 'GET' || c.path.endsWith('/dns_records/export')), 'the question changed something');
+    assert.ok(s.w.calls.every((c) => c.method === 'GET'), 'the question sent something other than a read');
     const code = codeOf(q);
     assert.match(code, /^[0-9a-f]{16}$/);
     const route = git(s.site.work, 'rev-parse', 'HEAD');
@@ -3256,5 +3256,239 @@ describe('content-type in _headers: the Worker may drop charset=utf-8, nothing e
     const r = await recordDone(s);
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /unknown: \S+\/ header content-type: text\/html; charset=utf-8 ≠ application\/json/);
+  });
+});
+
+// ---------------------------------------------------------------- release 0.36: the move's preparation
+// (workers-for-new-sites/PLAN-move-prep-036.md, "How it is tested"; expected texts written by hand)
+
+describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
+  const config = (line) => `import sitemap from '@astrojs/sitemap';\nexport default {\n  integrations: [\n    sitemap({\n${line}\n    }),\n  ],\n};\n`;
+  const withLine = (line) => makeSite({ files: { 'astro.config.mjs': config(line) } });
+
+  const WARNING = /Warning: astro\.config\.mjs at [0-9a-f]{7} sets the sitemap's lastmod to the build time \(lastmod: new Date\(\)\)\. Two builds of one commit would then serve two different sitemaps, and record would stop on them\. Remove the line, or give a fixed date\./;
+
+  test('2a: the build-time line is a warning in check, which still passes', async () => {
+    const s = scenario({ site: withLine('      lastmod: new Date(),') });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, WARNING);
+    assert.match(r.text, /Nothing was changed\./);
+  });
+
+  test('2a: when astro.config cannot be read, check says so, still passes and writes no warning', async () => {
+    // A gitlink named astro.config.mjs: ls-tree lists it, git show cannot read it.
+    const site = makeSite();
+    const nested = path.join(site.work, 'astro.config.mjs');
+    mkdirSync(nested);
+    git(nested, 'init', '-q');
+    writeFileSync(path.join(nested, 'a'), 'a');
+    git(nested, 'add', '-A');
+    git(nested, 'commit', '-q', '-m', 'inner');
+    git(site.work, 'add', 'astro.config.mjs');
+    git(site.work, 'commit', '-q', '-m', 'a gitlink');
+    git(site.work, 'push', '-q', 'origin', 'production', 'production:main');
+    site.frozen = git(site.work, 'rev-parse', 'HEAD');
+    const r = await scenario({ site }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, /Could not look for a sitemap lastmod set to the build time in astro\.config: git could not read astro\.config\.mjs at [0-9a-f]{7}\./);
+    assert.doesNotMatch(r.text, /Warning:/);
+  });
+
+  for (const [label, line] of [
+    ['a commented-out line', '      // lastmod: new Date(),'],
+    ['a // comment after other code', '      sitemap(), // lastmod: new Date()'],
+    ['a // comment right after code, no space', '      sitemap(),// lastmod: new Date()'],
+    ['a string that holds the text', "      description: 'lastmod: new Date() is not used',"],
+    ['a fixed date', "      lastmod: new Date('2026-01-01'),"],
+    ['a line inside a block comment', '      /*\n      lastmod: new Date(),\n      */'],
+    ['a comment after a division on a property called return', '      priority: weights.return / 2, // lastmod: new Date()'],
+  ]) {
+    test(`2b: ${label} is no gap`, async () => {
+      const r = await scenario({ site: withLine(line) }).go(['check']);
+      assert.equal(r.code, 0, r.text);
+      assert.doesNotMatch(r.text, /lastmod/);
+    });
+  }
+
+  for (const [label, line] of [
+    ['after a URL on the same line', "      filter: (p) => p !== 'https://x.example/', lastmod: new Date(),"],
+    ['after a regex literal holding //', "      filter: (p) => !/^https?:\\/\\//.test(p), lastmod: new Date(),"],
+    ['after a division', "      priority: 1 / 2, lastmod: new Date(),"],
+    ['after a division on a property called return, with a regex-like // further on', "      priority: weights.return / 2, lastmod: new Date(), exclude: [/x/],"],
+    ['after a division broken over two lines, with a regex literal further down', "      priority: (10\n / 2), lastmod: new Date(), exclude: [/x/],"],
+    ['after a string holding /*, with a block comment further down', "      filter: (p) => !p.includes('/drafts/*'),\n      lastmod: new Date(),\n      /** a later comment */"],
+  ]) {
+    test(`2b: the build-time line ${label} still draws the warning`, async () => {
+      const r = await scenario({ site: withLine(line) }).go(['check']);
+      assert.equal(r.code, 0, r.text);
+      assert.match(r.text, WARNING);
+    });
+  }
+
+  // The real stop (record-stopped-lastmod-2026-11-16): the two sitemap files differ only in their bodies.
+  const sitemapSite = () => makeSite({ files: { 'site/sitemap-index.xml': '<sitemapindex/>', 'site/sitemap-0.xml': '<urlset/>' } });
+  const xml = (body) => ({ status: 200, headers: { 'content-type': 'application/xml' }, body });
+  const sitemaps = (pages, version, worker = pages) => Object.fromEntries(['/sitemap-index.xml', '/sitemap-0.xml'].map((p) => [p, { pages: xml(`${pages}${p}`), version: xml(`${version}${p}`), worker: xml(`${worker}${p}`) }]));
+  const captured = (m) => ({ pages: Object.fromEntries(Object.entries(m).map(([p, v]) => [p, v.pages])), version: Object.fromEntries(Object.entries(m).map(([p, v]) => [p, v.version])), worker: Object.fromEntries(Object.entries(m).map(([p, v]) => [p, v.worker])) });
+  const wwwToApex = { from: HOSTS[1], to: HOSTS[0] };
+  const HINT = 'A sitemap that differs only in its body can be a lastmod set at build time, which makes two builds of one commit differ. Look in astro.config for it.';
+
+  test('2c: record, with the sitemaps differing in their bodies alone, names the likely cause', async () => {
+    const s = scenario({ site: sitemapSite(), world: { wwwRedirect: wwwToApex, captured: captured(sitemaps('built at 10:00', 'built at 10:05')) } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /2 unknown differences/);
+    assert.ok(r.out.includes(HINT), r.text);
+  });
+
+  test('2c: with one more unknown difference, on /index.html, the line is not printed', async () => {
+    const m = sitemaps('built at 10:00', 'built at 10:05');
+    m['/index.html'] = { pages: xml('one'), version: xml('two'), worker: xml('one') };
+    const s = scenario({ site: sitemapSite(), world: { wwwRedirect: wwwToApex, captured: captured(m) } });
+    const r = await recordDone(s);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /3 unknown differences/);
+    assert.ok(!r.text.includes('lastmod'), r.text);
+  });
+
+  test('2d: after, with the live sitemaps differing from the recording in their bodies alone, names it too', async () => {
+    // Recorded alike on Pages and the version URL; the Worker's domain then answers other bodies.
+    const s = scenario({ site: sitemapSite(), world: { wwwRedirect: wwwToApex, captured: captured(sitemaps('one', 'one', 'two')) } });
+    assert.equal((await recordDone(s)).code, 0, s.text());
+    const commit = await moveAll(s);
+    const r = await pushAndAfter(s, commit);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /2 unknown differences between the live site and the recording/);
+    assert.ok(r.out.includes(HINT), r.text);
+  });
+});
+
+describe('0.36 fix 4: the go question in plain words first', () => {
+  const both = `${HOSTS[0]} and ${HOSTS[1]}`;
+  const inOrder = (out, parts) => {
+    let at = -1;
+    for (const p of parts) {
+      const i = out.findIndex((l, n) => n > at && l.includes(p));
+      assert.ok(i > at, `"${p}" is missing or out of order in:\n${out.join('\n')}`);
+      at = i;
+    }
+  };
+
+  test('4: move asks the plain lines first, the technical ones after "For your assistant", and the code still moves the hosts', async () => {
+    const s = await recorded();
+    const q = await s.go(['move']);
+    assert.equal(q.code, 3, q.text);
+    inOrder(q.out, [
+      `Move ${both} to the new hosting now?`,
+      '- Visitors may get an error page for a few seconds while it switches.',
+      '- If anything looks wrong afterwards, I can switch it back. In the tests the site was then down for one to two minutes, and it can take longer.',
+      '- Please say yes within 10 minutes. After 15 minutes I have to ask you again, unless an address is left down, which I finish first.',
+      'Cloudflare has not been changed yet.',
+      'For your assistant, what a yes does:',
+      `  1. Take ${HOSTS[0]}, ${HOSTS[1]} off the Pages project ${REPO}`,
+      '  2. Each host is down from the moment it leaves its platform until the other one serves it: a few seconds.',
+      '  3. Push commit',
+      'To go ahead, run the same command again with: --confirm ',
+    ]);
+    assert.ok(!q.text.includes('about a minute'), q.text);
+    // A wrong code reprints the question, without the 10-minute line: the 15 minutes count from the plain run.
+    const wrong = await s.go(['move', '--confirm', '0'.repeat(16)]);
+    assert.equal(wrong.code, 3);
+    assert.ok(wrong.out.includes(`Move ${both} to the new hosting now?`));
+    assert.doesNotMatch(wrong.text, /say yes within/i, wrong.text);
+    const go = await s.go(['move', '--confirm', codeOf(q)]);
+    assert.equal(go.code, 0, go.text);
+    assert.deepEqual(s.w.workerDomains.map((d) => d.hostname).sort(), HOSTS);
+  });
+
+  test('4u: undo leads with the way back, and says one to two minutes', async () => {
+    const s = await recorded();
+    const commit = await moveAll(s);
+    assert.equal((await pushAndAfter(s, commit)).code, 0, s.text());
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 3, q.text);
+    inOrder(q.out, [
+      `Move ${both} back to the old hosting (Pages) now?`,
+      '- In the tests the site was down for one to two minutes while it switched back, and it can take longer.',
+      '- After this, the site is where it was before the move.',
+      '- Please say yes within 10 minutes. After 15 minutes I have to ask you again',
+      'Cloudflare has not been changed yet.',
+      'For your assistant, what a yes does:',
+      '  2. Each host is down from the moment it leaves its platform until the other one serves it: one to two minutes, 63 to 98 seconds in the tests.',
+    ]);
+    assert.ok(!q.text.includes('about a minute') && !q.text.includes('a few seconds'), q.text);
+  });
+});
+
+describe('0.36 fix 5: check says how each host answers now', () => {
+  const short = (s) => s.site.frozen.slice(0, 7);
+  const apexLine = (s) => `  ${HOSTS[0]}: answers now: 200, build.txt names ${short(s)}, Pages' header is there, so likely Pages; the move moves it.`;
+  const NOT_PROJECT = 'not a domain of the Pages project, so the move does not touch it.';
+  // www is no domain of the Pages project: its Pages domain and its CNAME are gone, and `elsewhere` answers for it.
+  const apexOnly = (elsewhere) => {
+    const s = scenario({ world: { elsewhere } });
+    s.w.project.domains = [SUBDOMAIN, HOSTS[0]];
+    s.w.dns = s.w.dns.filter((r) => r.name !== HOSTS[1]);
+    s.w.dns.push({ id: 'd'.padEnd(32, '1'), type: 'CNAME', name: HOSTS[1], content: HOSTS[0], proxied: true, ttl: 1 });
+    return s;
+  };
+  const noQuery = (s) => s.w.siteCalls.filter((u) => u.includes('build.txt')).every((u) => !u.includes('?'));
+
+  test('5a: the apex and a www that redirects to it, as in the real move', async () => {
+    const s = apexOnly({ [HOSTS[1]]: { status: 301, headers: { location: `https://${HOSTS[0]}/build.txt` } } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(apexLine(s)), r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 301 to https://${HOSTS[0]}/build.txt; the script cannot tell what sends it.`), r.text);
+    assert.ok(s.w.calls.every((c) => c.method === 'GET'), 'check sent a change');
+    assert.ok(noQuery(s));
+  });
+
+  test('5b: a project host that redirects shows its Location, and the request has no probe query', async () => {
+    const s = scenario({ world: { wwwRedirect: { from: HOSTS[1], to: HOSTS[0] } } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: answers now: 301 to https://${HOSTS[0]}/build.txt; the script cannot tell what sends it; the move moves it.`), r.text);
+    assert.ok(s.w.siteCalls.includes(`https://${HOSTS[1]}/build.txt`));
+    assert.ok(noQuery(s));
+  });
+
+  test('5c: a host that cannot be reached says why, with the error code', async () => {
+    const s = apexOnly({ [HOSTS[1]]: new Error('fetch failed', { cause: { code: 'ENOTFOUND' } }) });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} No answer: fetch failed (ENOTFOUND).`), r.text);
+  });
+
+  test('5d: in an open move, the apex on the Worker is said to be answered by it, and nothing says the move moves it', async () => {
+    const s = await recorded();
+    await moveAll(s);
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[0]}: answers now: 200, build.txt names ${short(s)}, no Pages header, so likely the Worker.`), r.text);
+    assert.ok(!r.text.includes('the move moves it'), r.text);
+  });
+
+  test('5e: a page that is no build.txt of this kit names no platform', async () => {
+    const s = apexOnly({ [HOSTS[1]]: { status: 200, headers: { 'content-type': 'text/html' }, body: '<h1>Parked</h1>' } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, not a build.txt this kit writes.`), r.text);
+  });
+
+  test("5f: a build.txt with its own platform line is believed over Pages' header", async () => {
+    const sha = 'a'.repeat(40);
+    const s = apexOnly({ [HOSTS[1]]: { status: 200, headers: { 'access-control-allow-origin': '*' }, body: `${sha}\nplatform=worker\n` } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, build.txt names aaaaaaa, its platform line says the Worker.`), r.text);
+  });
+
+  test('5g: a platform line with another value is quoted, not turned into Pages or the Worker', async () => {
+    const s = apexOnly({ [HOSTS[1]]: { status: 200, headers: {}, body: `${'a'.repeat(40)}\nplatform=staging\n` } });
+    const r = await s.go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, build.txt names aaaaaaa, its platform line says "staging".`), r.text);
   });
 });
