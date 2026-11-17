@@ -295,7 +295,7 @@ else
 
 # The same address in double quotes, as a formatter may write it: still one address, still checked.
 perl -pi -e 's|^(\s*site:\s*)\x27(https?://[^\x27]+)\x27|$1"$2"|' "$copy/astro.config.mjs"
-git_in commit -q -am "site: in double quotes"
+if ! git_in diff --quiet; then git_in commit -q -am "site: in double quotes"; fi   # already double-quoted: nothing to rewrite
 live_site site-dq "$own_site/build.txt" "LIVE — verified: $own_site is serving build"
 
 # An old address kept in a comment: two matches, so no one address to check.
