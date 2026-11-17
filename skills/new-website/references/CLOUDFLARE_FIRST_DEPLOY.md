@@ -539,7 +539,8 @@ npx wrangler pages deploy dist --project-name <project> --branch <production-bra
 > and hands back a `*.workers.dev` URL instead — a real mistake we've seen on an older kit
 > version. If you see `workers.dev` on a site that is meant to stay on Pages, stop: you
 > deployed the wrong project type. Confirm it's the accidental Worker (not a pre-existing one
-> with a similar name), then delete it and re-run `wrangler pages deploy`.
+> with a similar name), then ask the owner to delete it (the starter's settings block `wrangler delete`)
+> and re-run `wrangler pages deploy`.
 
 > **`--force` on `pages project create`, once.** Wrangler decides from environment variables
 > (`CLAUDECODE` and others) whether an AI assistant is running. When one is, and the project does
