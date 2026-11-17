@@ -84,7 +84,9 @@ computer, and a second computer would not know the move had begun.
 Make one token with four permissions in two policies, and an end date of 7 days: **Cloudflare
 Pages Edit** and **Workers Scripts Edit** on the User's account, and **Zone Read** and **DNS Edit**
 on the site's one zone. The token page is https://dash.cloudflare.com/profile/api-tokens. If the
-token lacks Workers Scripts Edit, the script's error points back to this section.
+token has no Workers Scripts permission, the script's error on the Worker domains points back to
+this section. A token with Workers Scripts at Read is not stopped early: check that the row says
+Edit (step 3 below).
 
 Walk the User through the page one step at a time. These labels are as seen on 2026-11-17;
 Cloudflare moves things, so search for the name if one differs:
@@ -107,8 +109,8 @@ Say why there are two tokens: the build token has no end date and any package in
 read it, so it must not hold DNS Edit or Pages Edit; the move token holds them for 7 days, and the
 User deletes it once she will not go back (`after` says so).
 
-Say this plainly to the User: Pages Edit and Workers Scripts Edit reach every project on her
-account. The script reads some lists across the account (her zones, her Pages projects, the DNS
+Say this plainly to the User: Pages Edit and Workers Scripts Edit reach every Pages project and
+every Worker on her account. The script reads some lists across the account (her zones, her Pages projects, the DNS
 export) but changes only her site: every change it sends is checked against her hosts, her
 Pages project and her Worker before it goes out, and anything else is refused.
 

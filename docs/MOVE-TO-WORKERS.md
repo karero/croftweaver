@@ -145,8 +145,8 @@ waiting on the day if it is missed.
 - [ ] **The move token is made** (above): 7 days, one account, one zone. `check` refuses a token that
   is not active, has no end date or one more than 8 days away, or has DNS Edit in no zone or in
   more than one. It does not see whether Pages and Workers Scripts are set to Edit, or which
-  accounts the token reaches, so read the token's summary page before you create it: the four
-  rows, one account, one zone, the end date. A token with Pages or Workers Scripts at Read
+  accounts the token reaches, so look over the form, and then the summary page, before you create
+  it: the four rows, one account, one zone, the end date. A token with Pages or Workers Scripts at Read
   is not refused by `check` (read from the code, not run). With Pages at Read, the move stops
   at its first change and nothing on Cloudflare moves; you make a new token and run it again
   (not run in a test). With Workers Scripts at Read, the script can take a host off Pages before
