@@ -1,0 +1,56 @@
+OpenAI Codex v0.169.0
+--------
+workdir: <scratch folder>
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: <removed>
+--------
+user
+You are a reviewer in one round of a review. Answer only the CUT-CHECK below. Read only what is given; do not run anything.
+
+--- CUT-CHECK ---
+This round reviews a fix that its author calls a cut, for the finding kind(s): impressum-adoption.
+The author's --cut text: "removed the recipe for a site with neither Impressum file: it is set up by hand"
+The rule it must meet (independent-review, step 6): where a kind earned an earlier round too, the
+fix since then must be a cut, not another patch: take the feature out (a check that becomes a
+warning, or a report of what it could not read, counts), or replace it by a strict rule that
+accepts only the input it names and refuses the rest, with a test that ordinary input still
+passes. Refusing the one input the last BUG used is a patch.
+Judge the change below, not the claim. Answer with exactly one line of this form:
+CUT-CHECK: CUT
+or
+CUT-CHECK: PATCH — <why, in one sentence>
+--- END CUT-CHECK ---
+
+--- BEGIN DIFF ---
+diff --git a/skills/new-website/templates/AGENTS.md b/skills/new-website/templates/AGENTS.md
+index 8c871a58..b9709865 100644
+--- a/skills/new-website/templates/AGENTS.md
++++ b/skills/new-website/templates/AGENTS.md
+@@ -283,11 +283,10 @@ For everyone, the owner included:
+     business is based in Germany. If it is, offer the German Impressum as well
+     (`src/pages/_impressum.astro`, whose header has the steps); offer it to no one
+     else. A site made before 0.35 may already route it as `src/pages/impressum.astro`:
+-    then it has the page and there is nothing to offer. A site with neither file,
+-    made before 0.15, copies `_impressum.astro` from
+-    `skills/new-website/templates/astro/src/pages/` in the Croftweaver download into its
+-    own `src/pages/` and follows the header's steps. Its footer links only the privacy
+-    page, so it also adds `<a href="/impressum">Impressum</a>` there.
++    then it has the page and there is nothing to offer. On a site with neither file, do
++    not follow the header's steps: they assume the files a site made from 0.35 on has
++    (`legal-notice.astro`, its footer, its tests). Tell the owner the German page needs
++    setting up by hand there, as a task of its own.
+   - Record the answer first, as a line of its own in the `README.md` in the folder
+     that holds `package.json`: one of the forms below, written bare (no list marker, no
+     backticks) and nothing else on that line, the date as YYYY-MM-DD. Then delete the
+--- END DIFF ---
+
+codex
+CUT-CHECK: CUT
+tokens used
+12,446
+CUT-CHECK: CUT

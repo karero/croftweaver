@@ -362,3 +362,34 @@ Tokens: 23,715 (A to F) and 14,882 (G), 38,597 in all. All seven verdicts match 
 Limits: seven cases from two gates, one model, one run each. A judge that always says PATCH would
 score 5 of 7. So the probe says little about how often a real cut gets called a patch. Tests T1a
 and T1b are for that.
+
+## 7. T1a, the backtest (2026-11-17): FAIL
+
+The owner's go covered T1a only. The 22 cases are in `t1a/cases.tsv`, and their labels in
+`t1a/labels.txt`. Both were committed (e67b8c6d, 14:24 +01:00) before any call ran. There are 9
+plan rounds (5 cuts, 4 patches) and 13 diff rounds (6 cuts, 7 patches), all from this repo's own
+gates. They include S1's round-5 fix (D7) and S4's round-5 fix (D9). D6 is the lastmod warning
+round, which had no `--cut`; its text is the probe's case B.
+
+`t1a/make_briefs.py` builds each brief from git alone: `t1a/block.txt` filled in, then the diff
+(less `docs/BUGLOG.md`, `docs/buglog` and `docs/reviews`), or for a plan the plan at the round's
+head and its diff since the previous round. Each brief was one call:
+`codex exec -s read-only --skip-git-repo-check -c model_reasoning_effort=medium - < <id>.md`
+(Codex CLI 0.169.0, model gpt-6.1-sol), run from an empty folder. Outputs are in `t1a/out/`, with
+the `workdir:` and `session id:` lines replaced. Every case gave a valid verdict. Tokens: 350,196.
+
+```text
+$ python3 -I docs/reviews/evidence-cut-or-continue/t1a/score.py   (last three lines)
+real cuts not called CUT: 3 of 11 ['P2', 'P5', 'D5'] (bar: at most 1)
+patches called PATCH: 8 of 11 = 73% (bar: at least 80%)
+T1a FAIL
+```
+
+Patches called CUT: P7 and P8, two rounds of the plan regex chain (the host had called each a
+strict rule), and D12, the join rewrite in the refusal check.
+
+The labels are one person's judgment, and some of Codex's reasons have weight: D5's reader still
+takes a `url:` line inside a block comment, and P5's `--cut` text covers only one of its two
+kinds. Even with all three disputed cuts relabelled PATCH, the patch bar still fails: 11 of 14,
+79%. Passing would need patches relabelled as cuts, including rounds whose kind came back right
+after.

@@ -1,0 +1,75 @@
+OpenAI Codex v0.169.0
+--------
+workdir: <scratch folder>
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: <removed>
+--------
+user
+You are a reviewer in one round of a review. Answer only the CUT-CHECK below. Read only what is given; do not run anything.
+
+--- CUT-CHECK ---
+This round reviews a fix that its author calls a cut, for the finding kind(s): comment-detection.
+The author's --cut text: "refused CR: every line's trailing CR is dropped before the scan, no CRLF-specific rule"
+The rule it must meet (independent-review, step 6): where a kind earned an earlier round too, the
+fix since then must be a cut, not another patch: take the feature out (a check that becomes a
+warning, or a report of what it could not read, counts), or replace it by a strict rule that
+accepts only the input it names and refuses the rest, with a test that ordinary input still
+passes. Refusing the one input the last BUG used is a patch.
+Judge the change below, not the claim. Answer with exactly one line of this form:
+CUT-CHECK: CUT
+or
+CUT-CHECK: PATCH — <why, in one sentence>
+--- END CUT-CHECK ---
+
+--- BEGIN DIFF ---
+diff --git a/skills/new-website/templates/astro/scripts/ship.sh b/skills/new-website/templates/astro/scripts/ship.sh
+index 59285459..bb09c25d 100755
+--- a/skills/new-website/templates/astro/scripts/ship.sh
++++ b/skills/new-website/templates/astro/scripts/ship.sh
+@@ -169,13 +169,14 @@ site_count() { # <astro.config.mjs text>
+ }
+ 
+ # Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
+-# (a \ at a line's end continues one), // and /* */ comments. A / that opens no comment, a regex
++# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments. A / that opens no comment, a regex
+ # literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
+ # The | ends the text on a character of its own, so a line comment that closed at a final
+ # newline is not reported.
+ js_state() { # <text>
+   printf '%s|' "$1" | awk '
+-    { if (cont) cont = 0; else if (st != "block" && st != "tpl" && st != "slash") st = "code"
++    { sub(/\r$/, "")
++      if (cont) cont = 0; else if (st != "block" && st != "tpl" && st != "slash") st = "code"
+       for (i = 1; i <= length($0) && st != "slash"; i++) {
+         c = substr($0, i, 1); d = substr($0, i, 2)
+         if (st == "code") {
+diff --git a/skills/new-website/templates/astro/tests/check_ship_push.sh b/skills/new-website/templates/astro/tests/check_ship_push.sh
+index 18663abe..17a10d7c 100755
+--- a/skills/new-website/templates/astro/tests/check_ship_push.sh
++++ b/skills/new-website/templates/astro/tests/check_ship_push.sh
+@@ -964,6 +964,13 @@ printf "const re = /'/; /* ' site: 'https://old.example' */\n" > "$work/cwd/astr
+ want_line1="$one_comment"; expect regexquote 1 0 "not for a network reason"
+ printf "const c = 'prefix\\\\\n/*'; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+ want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect continued 1 0 "not for a network reason"
++# The same in double quotes, and over a CRLF line end, where a string the scan wrongly closed
++# would hide the /* and name the commented address.
++mark dqcontinued noorigin; mark crlfcontinued noorigin
++printf "const c = \"prefix\\\\\n/*\"; export default { site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
++want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect dqcontinued 1 0 "not for a network reason"
++printf "const c = 'x\\\\\r\n'; /* ' site: 'https://old.example' */\r\n" > "$work/cwd/astro.config.mjs"
++want_line1="$one_comment"; expect crlfcontinued 1 0 "not for a network reason"
+ rm -f "$work/cwd/astro.config.mjs"
+ 
+ # --- no line in ship.sh may replace its shell --------------------------------------
+--- END DIFF ---
+
+codex
+CUT-CHECK: PATCH — The change normalizes trailing CR to fix one line-ending case while retaining the comment scanner, without replacing it with a strict rule that refuses unsupported input.
+tokens used
+12,867
+CUT-CHECK: PATCH — The change normalizes trailing CR to fix one line-ending case while retaining the comment scanner, without replacing it with a strict rule that refuses unsupported input.

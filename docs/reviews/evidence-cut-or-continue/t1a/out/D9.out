@@ -1,0 +1,220 @@
+OpenAI Codex v0.169.0
+--------
+workdir: <scratch folder>
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: <removed>
+--------
+user
+You are a reviewer in one round of a review. Answer only the CUT-CHECK below. Read only what is given; do not run anything.
+
+--- CUT-CHECK ---
+This round reviews a fix that its author calls a cut, for the finding kind(s): config-reading.
+The author's --cut text: "dropped the let/var form and the gate BUGLOG row"
+The rule it must meet (independent-review, step 6): where a kind earned an earlier round too, the
+fix since then must be a cut, not another patch: take the feature out (a check that becomes a
+warning, or a report of what it could not read, counts), or replace it by a strict rule that
+accepts only the input it names and refuses the rest, with a test that ordinary input still
+passes. Refusing the one input the last BUG used is a patch.
+Judge the change below, not the claim. Answer with exactly one line of this form:
+CUT-CHECK: CUT
+or
+CUT-CHECK: PATCH — <why, in one sentence>
+--- END CUT-CHECK ---
+
+--- BEGIN DIFF ---
+diff --git a/skills/new-website/references/CLOUDFLARE_MOVE.md b/skills/new-website/references/CLOUDFLARE_MOVE.md
+index 627d8883..899eb55f 100644
+--- a/skills/new-website/references/CLOUDFLARE_MOVE.md
++++ b/skills/new-website/references/CLOUDFLARE_MOVE.md
+@@ -72,13 +72,14 @@ account. The script keeps to her site: every request it sends is checked against
+ Pages project and her Worker before it goes out, and anything else is refused.
+ 
+ The Workers permission makes every zone of the account show up in the token's zone list; that is
+-expected. The script finds her zone as the one the token can change the DNS of, and refuses a token
+-whose DNS reaches more than one zone or none, one with no end date or an end date more than 8 days
+-out, and one that is not active. When more than one zone is reached, the refusal shows the DNS
+-and zone-settings permissions Cloudflare lists there: a token made with account permissions only
+-was listed with DNS Edit in every zone of its account (read on 2026-11-08; which permission gave
+-that is not known). When `SITE.url` in `src/config.ts` gives an address, the refusal names it: if
+-no zone the token lists is that domain or a parent of it, the domain may not be on Cloudflare yet;
++expected. The script finds her zone as the one zone where Cloudflare lists DNS Edit for the
++token; no other permission in any zone counts. It refuses a token with DNS Edit in more than one
++zone or none, one with no end date or an end date more than 8 days out, and one that is not
++active. When more than one zone has DNS Edit, the refusal shows the DNS and zone-settings
++permissions Cloudflare lists there: a token made with account permissions only was listed with
++DNS Edit in every zone of its account (read on 2026-11-08; which permission gave that is not
++known). When `SITE.url` in `src/config.ts` gives an address, the refusal names it: if no zone the
++token lists is that domain or a parent of it, the domain may not be on Cloudflare yet;
+ if it is a `pages.dev` or `workers.dev` address, the refusal says to launch first when the site has
+ no domain, and else to put the domain in `SITE.url`. A first `move` and a first `undo` also refuse
+ a token with less than an hour left; any other run only warns. If the token ends mid-move, make
+diff --git a/skills/new-website/scripts/move-to-workers.mjs b/skills/new-website/scripts/move-to-workers.mjs
+index 7f932082..4eb4ba04 100644
+--- a/skills/new-website/scripts/move-to-workers.mjs
++++ b/skills/new-website/scripts/move-to-workers.mjs
+@@ -521,16 +521,18 @@ export const ENABLED_LINE = 'enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRA
+ // src/config.ts at a commit: PROD_BRANCH, the analytics mode, whether analytics is on (read as
+ // tests/check_analytics_gate.sh reads it; null unless USE_ANALYTICS is unnamed, or declared once and
+ // only in its one-line form), whether it is declared, and whether the one enabled: line reading
+-// process.env (the gate counts the same lines) is ENABLED_LINE as it stands.
++// process.env (the gate counts the same lines) is ENABLED_LINE as it stands. Block comments are
++// dropped first, so a line inside one counts for nothing.
+ async function readSiteConfig(git, sha) {
+   const r = await git('show', `${sha}:src/config.ts`);
+   if (r.code !== 0) throw new Stop(1, `src/config.ts is missing at ${short(sha)}: is this a site made with the kit?`);
+   const prodBranch = /^export const PROD_BRANCH = ['"]([^'"]*)['"];?/m.exec(r.stdout)?.[1];
+   if (!prodBranch) throw new Stop(1, `src/config.ts at ${short(sha)} has no line "export const PROD_BRANCH = '…';".`);
+-  const uses = [...r.stdout.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
+-  const declared = (r.stdout.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
+-  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !r.stdout.includes('USE_ANALYTICS') ? true : null;
+-  const enabled = r.stdout.split(/\r?\n/).filter((l) => /^\s*enabled:.*process\.env\./.test(l));
++  const live = r.stdout.replace(/\/\*[\s\S]*?\*\//g, '');
++  const uses = [...live.matchAll(/^export const USE_ANALYTICS = (true|false);?[ \t]*(\/\/.*)?$/gm)];
++  const declared = (live.match(/^\s*export\s+const\s+USE_ANALYTICS\b/gm) ?? []).length;
++  const analyticsOn = uses.length === 1 && declared === 1 ? uses[0][1] === 'true' : uses.length === 0 && !live.includes('USE_ANALYTICS') ? true : null;
++  const enabled = live.split(/\r?\n/).filter((l) => /^\s*enabled:.*process\.env\./.test(l));
+   const enabledLine = enabled.length === 1 && enabled[0].trim() === ENABLED_LINE;
+   return { prodBranch, serverMode: /^\s*mode:\s*['"]server['"]/m.test(r.stdout), analyticsOn, declared: declared > 0, enabledLine };
+ }
+@@ -740,11 +742,11 @@ async function siteAddress(git) {
+   return host && host !== 'example.com' ? { host } : null;
+ }
+ 
+-// A refused token: what was found, the permissions that reach (when more than one zone does), and
++// A refused token: what was found, the permissions listed (when more than one zone has DNS Edit), and
+ // what to make, by the address src/config.ts gives. `reaching` is empty when no zone has DNS Edit.
+ async function zoneRefusal(ctx, zones, reaching) {
+   const lines = reaching.length
+-    ? [`This token can reach the DNS or settings of ${reaching.length} zones (${reaching.map((z) => z.name).join(', ')}).`,
++    ? [`Cloudflare lists DNS Edit for this token in ${reaching.length} zones (${reaching.map((z) => z.name).join(', ')}).`,
+       `Cloudflare lists these permissions in them: ${[...new Set(reaching.flatMap((z) => z.permissions.filter((p) => /^#(dns_records|zone_settings):/.test(p))
+         .map((p) => (/^[a-z0-9_:#.-]+$/.test(p) ? p : '(a permission this script does not show)'))))].join(', ')}.`]
+     : [];
+@@ -762,7 +764,7 @@ async function zoneRefusal(ctx, zones, reaching) {
+   return new Stop(1, ...lines);
+ }
+ 
+-// The token: verified, a week away at most, with DNS reach in one zone. Returns that zone.
++// The token: verified, ending 8 days away at most, with DNS Edit listed in one zone. Returns that zone.
+ async function checkToken(ctx) {
+   const verify = await ctx.api('GET', '/user/tokens/verify');
+   if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
+@@ -775,12 +777,12 @@ async function checkToken(ctx) {
+   const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
+   if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
+   // The Workers permission lists every zone of the account, so the zone count says nothing. The site's
+-  // zone is the one whose `permissions` reach DNS or zone settings; it must be exactly one, with DNS Edit.
++  // zone is the one whose `permissions` list DNS Edit; no other permission counts.
+   for (const z of zones.items) if (!Array.isArray(z.permissions)) throw new Stop(1, `Cloudflare did not say what this token may do in the zone ${z.name}. Make a new token from the link.`);
+-  const reaching = zones.items.filter((z) => z.permissions.some((p) => /^#(dns_records|zone_settings):/.test(p)));
++  const reaching = zones.items.filter((z) => z.permissions.includes('#dns_records:edit'));
+   if (reaching.length > 1) throw await zoneRefusal(ctx, zones.items, reaching);
+   const zone = reaching[0];
+-  if (!zone?.permissions.includes('#dns_records:edit')) throw await zoneRefusal(ctx, zones.items, []);
++  if (!zone) throw await zoneRefusal(ctx, zones.items, []);
+   if (zone.status !== 'active') throw new Stop(1, `The zone ${zone.name} is ${zone.status} on Cloudflare, not active.`);
+   if (!zone.account?.id) throw new Stop(1, 'Cloudflare did not say which account the zone belongs to.');
+   if (!/^[a-z0-9.-]+$/.test(zone.name)) throw new Stop(1, `The zone name "${zone.name}" is not one this script handles.`);
+diff --git a/skills/new-website/scripts/tests/move-to-workers.test.mjs b/skills/new-website/scripts/tests/move-to-workers.test.mjs
+index 5f7a18a7..250f6279 100644
+--- a/skills/new-website/scripts/tests/move-to-workers.test.mjs
++++ b/skills/new-website/scripts/tests/move-to-workers.test.mjs
+@@ -213,11 +213,11 @@ describe('1: the token', () => {
+     assert.ok(r.text.includes("Its link, for the Cloudflare check's --preview: https://abcdef12-lenas-backstube-site.lenas-backstube.workers.dev/\n"), r.text);
+   });
+ 
+-  test('a token whose DNS reaches two zones is refused, and names them', async () => {
++  test('a token with DNS Edit in two zones is refused, and names them', async () => {
+     const s = scenario({ world: { extraZones: 1 } });
+     const r = await s.go(['check']);
+     assert.equal(r.code, 1);
+-    assert.match(r.text, /DNS or settings of 2 zones \(lenas-backstube\.example, extra0\.example\)/);
++    assert.match(r.text, /DNS Edit for this token in 2 zones \(lenas-backstube\.example, extra0\.example\)/);
+     assert.ok(!s.w.calls.some((c) => c.method !== 'GET'));
+   });
+ 
+@@ -248,13 +248,22 @@ describe('1: the token', () => {
+     const r = await s.go(['check']);
+     assert.equal(r.code, 0, r.text);
+   });
+-  test('a second zone with DNS Edit refuses, and so does one with only DNS Read or zone settings', async () => {
+-    for (const extra of [['#dns_records:edit', '#dns_records:read', '#zone:read'], ['#dns_records:read'], ['#zone_settings:read', '#zone:read']]) {
++  test('a second zone with DNS Edit refuses', async () => {
++    const { zones } = tokenZones();
++    zones[0].permissions = [...zones[0].permissions, '#dns_records:edit', '#dns_records:read', '#zone:read'];
++    const r = await scenario({ world: { zones } }).go(['check']);
++    assert.equal(r.code, 1, r.text);
++    assert.match(r.text, /lists DNS Edit for this token in 2 zones \(other-1\.example, lenas-backstube\.example\)/);
++  });
++  test('a second zone with only read or account-level permissions does not count: the DNS Edit zone is the site\'s', async () => {
++    for (const extra of [['#dns_records:read'], ['#zone_settings:read', '#zone:read'], ['#zone_settings:read', '#worker:edit', '#organization:edit', '#zone:read']]) {
+       const { zones } = tokenZones();
+       zones[0].permissions = [...zones[0].permissions, ...extra];
+-      const r = await scenario({ world: { zones } }).go(['check']);
+-      assert.equal(r.code, 1, `${extra}: ${r.text}`);
+-      assert.match(r.text, /DNS or settings of 2 zones \(other-1\.example, lenas-backstube\.example\)/, extra.join());
++      const s = scenario({ world: { zones } });
++      const r = await s.go(['check']);
++      assert.equal(r.code, 0, `${extra}: ${r.text}`);
++      assert.ok(r.text.includes(ZONE.name), `${extra}: names the DNS Edit zone: ${r.text}`);
++      assert.ok(!s.w.calls.some((c) => c.method !== 'GET'));
+     }
+   });
+   test('a token with DNS Edit in no zone refuses and says what to make', async () => {
+@@ -383,7 +392,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
+     const site = recipe().find((z) => z.name === ZONE.name);
+     const r = await run('https://www.lenas-backstube.example', [...accountOnly(), site]);
+     assert.equal(r.code, 1, r.text);
+-    assert.ok(r.text.includes('Stopped: This token can reach the DNS or settings of 4 zones (other-1.example, other-2.example, other-3.example, lenas-backstube.example).\n'), r.text);
++    assert.ok(r.text.includes('Stopped: Cloudflare lists DNS Edit for this token in 4 zones (other-1.example, other-2.example, other-3.example, lenas-backstube.example).\n'), r.text);
+     // By hand from the two captures: the 2026-11-08 zones list DNS Edit and Read, the site zone adds zone settings Read.
+     assert.ok(r.text.includes('\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read, #zone_settings:read.\n'), r.text);
+     assert.ok(r.text.includes('\nMake one limited to lenas-backstube.example (Zone Resources: that one domain).'), r.text);
+@@ -417,7 +426,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
+   test('S7: the 2026-11-08 token alone: three zones, their permissions, and a domain that may not be on Cloudflare', async () => {
+     const r = await run('https://lenas-backstube.example', accountOnly());
+     assert.equal(r.code, 1, r.text);
+-    assert.ok(r.text.includes('Stopped: This token can reach the DNS or settings of 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
++    assert.ok(r.text.includes('Stopped: Cloudflare lists DNS Edit for this token in 3 zones (other-1.example, other-2.example, other-3.example).\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read.\nsrc/config.ts gives the address lenas-backstube.example, and no zone this token lists'), r.text);
+   });
+ });
+ 
+@@ -461,6 +470,17 @@ describe('1b: the analytics enabled: line at stage 1', () => {
+     assert.equal(r.code, 1, r.text);
+     assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
+   });
++  test('an export let USE_ANALYTICS beside a commented const is refused', async () => {
++    const cfg = "export const PROD_BRANCH = 'production';\n/*\nexport const USE_ANALYTICS = false;\n*/\nexport let USE_ANALYTICS = true;\nexport const analytics = {\n  " + OLD + "\n};\n";
++    const r = await scenario({ site: makeSite({ files: { 'src/config.ts': cfg } }) }).go(['check']);
++    assert.equal(r.code, 1, r.text);
++    assert.match(r.text, /names USE_ANALYTICS, but not as exactly one line/);
++  });
++  test('the 0.35 line inside a block comment does not stand in for a live multi-line one', async () => {
++    const r = await scenario({ site: site(true, `/*\n  ${ENABLED_LINE}\n  */\n  enabled: USE_ANALYTICS &&\n    process.env.CF_PAGES_BRANCH === PROD_BRANCH,`) }).go(['check']);
++    assert.equal(r.code, 1, r.text);
++    assert.match(r.text, GAP);
++  });
+   test('another enabled: key that reads no process.env does not hide the 0.35 line', async () => {
+     const r = await scenario({ site: site(true, `${ENABLED_LINE}\n};\nexport const banner = {\n  enabled: true,`) }).go(['check']);
+     assert.equal(r.code, 0, r.text);
+@@ -524,7 +544,7 @@ describe('2: real captures, expected values written by hand', () => {
+ 
+   test('a captured list of one zone and a captured list of eight', async () => {
+     const eight = scenario({ world: { zones: JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-api', 'T2-002-zones-list.json'), 'utf8')).response.result } });
+-    assert.match((await eight.go(['check'])).text, /DNS or settings of 8 zones/);
++    assert.match((await eight.go(['check'])).text, /lists DNS Edit for this token in 8 zones/);
+   });
+ 
+   test('the Worker-domain answers are made from the API reference, not captured', () => {
+--- END DIFF ---
+
+codex
+CUT-CHECK: PATCH — Config reading remains regex-based, with block-comment stripping added for specific failures rather than a strict accepted-input rule that refuses everything else.
+tokens used
+16,197
+CUT-CHECK: PATCH — Config reading remains regex-based, with block-comment stripping added for specific failures rather than a strict accepted-input rule that refuses everything else.

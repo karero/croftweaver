@@ -1,7 +1,7 @@
 # Plan: when a cut turns out to be a patch (independent-review, step 6)
 
-Status: the owner chose option 3 and gave the go for T1a only (2026-11-17); building needs a
-second go. Nothing built. Evidence: `EVIDENCE-review-cut-or-continue.md` (same folder).
+Status: T1a FAILED on 2026-11-17 (evidence §7), so option 3 is dropped, as T1a says. The owner
+chooses again; see "The owner's answers". Nothing built.
 
 ## What
 
@@ -156,6 +156,9 @@ not yet show how often it calls a real cut a patch. Tests T1a and T1b settle tha
   may offer.
 - Q2: "The manager", option (b). Step 3 says so.
 - Go: "Yes, run the test", for T1a only. A build after T1a needs his go again.
+- T1a failed (3 of 11 real cuts called PATCH, and 8 of 11 patches called PATCH, 73%), so the answer
+  to Q1 (a) falls with option 3, and (d) with it, since it relies on the same verdict. Q1 goes
+  back to the owner, through the manager.
 
 ## Questions for the owner (through the manager)
 
