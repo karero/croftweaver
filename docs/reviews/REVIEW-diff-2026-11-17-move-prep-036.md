@@ -59,5 +59,12 @@ Not built, on purpose: the click-by-click token text (fix 3's dashboard part). T
 on 2026-11-17 to ship without it; the BUGLOG row "The move token's set-up" stays open and says the
 clicks follow after a signed-in look and come before 0.36 ships.
 
+Second seat waived: at a High row the second seat is owed, and the melious seat was out of balance in
+every round. On 2026-11-17 the maintainer, relayed by the manager session, said: "Merge it on Codex
+alone". The merge goes ahead on Codex alone by that word.
+
+Round 9 ran past round 8 without the owner's decision. Round 8 found a real bug in the new
+warning's git reads, so the fix changed what runs and needed a check; round 9 had no findings.
+
 Final checks on `e6d65456`: `node --test skills/new-website/scripts/tests/move-to-workers.test.mjs`
 and `make check`; their results are in the PR.
