@@ -397,20 +397,25 @@ after.
 
 ## 8. Option (e), counted per kind (2026-11-17)
 
-`evidence-cut-or-continue/recount_per_kind.py` reads the redacted file of §4c alone. Per gate, it
-keeps for each normalised kind the set of distinct rounds whose lines carry `cut=1` and name that
-kind. A round asks when a kind in its `earned_by` already has two such rounds. Seats share a round,
-so two seat lines count as one cut round.
+`evidence-cut-or-continue/recount_per_kind.py` reads the redacted file of §4c alone. Per gate and
+normalised kind, it finds the first round whose lines carry `cut=1` and name the kind. A round
+asks when it names a kind that an earlier round after that first cut named too, and reminds when
+it names a kind cut in an earlier round. Whether a round names a kind is one yes or no per round,
+so two seat lines count once.
 
 ```text
 $ python3 -I docs/reviews/evidence-cut-or-continue/recount_per_kind.py docs/reviews/evidence-cut-or-continue/runs-81-gates-redacted.tsv
 gates that would ask: 39  rounds that would ask: 78  rounds after the first ask: 57  tokens: 4989208
-rounds that would ask about two or more kinds: 17  closing reminders: 172  in gates: 81
+kinds asked about: 95  rounds asking about two or more: 17  rounds that remind: 174  in gates: 81
 ```
 
-A closing reminder is counted after a round whose cut lines name a kind that, this round
-included, has two cut rounds. "Rounds after the first ask" leaves out the asking round itself,
-which still reviews what the manager chose.
+"Rounds after the first ask" leaves out the asking round itself, which still reviews what the
+manager chose. An earlier count, by two rounds carrying a cut, gave the same first line: in these
+gates only 2 rounds named a kind after its first cut without carrying a cut, and neither changed
+the count.
+
+S1's gate asks at round 7. S6's gate (`20261109T182523Z-40490`) never asks: its kind cut in round 4
+came back in round 5 only.
 
 S2, gate `20261110T083326Z-18084` (branch `fix/move-analytics-gap-035`), Codex tokens per round
 (the melious seat logged none from round 4): rounds 1 to 3 with both seats 72,862, 69,229,

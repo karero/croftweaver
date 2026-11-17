@@ -165,3 +165,12 @@ owner's rule of 2026-10-27, no rerun owed).
 Also changed: "a seat can't either" now says only what the backtest showed. Still UNVERIFIABLE to
 Codex: the owner's picks (relayed by the manager, not in the repo), the full log the redacted files
 come from, and T1, which is not built yet.
+
+## Round 2 (226 s, 79,097 tokens)
+
+Round 2 confirmed G1 to G5 and reran every recount script. Two new findings:
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| H1 | BUG | Two cut rounds are not the second return: with K at 4, a cut at 5 and no cut at 6 (which the script allows), round 7 is the second return but has one cut, so the ask comes late | fixed: a round asks when it names a kind that an earlier round after the kind's first cut named too; the reminder prints at a kind's first return; S7 is now this sequence, and T1 tests it, with mutations for both off-by-one readings; the recount gives the same 39 / 78 / 57 / 4,989,208 (2 such rounds in the data, neither changing it) and 174 reminding rounds |
+| H2 | RISK | The two-week three-quarters rule did not say how a round due for two kinds with one answer counts | fixed: each due kind counts once per gate and round, seats and reruns deduplicated, and needs its own answer |

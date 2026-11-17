@@ -45,98 +45,106 @@ a patch can pass as a cut, round after round. This plan decides who stops that c
 | **(e)** | **the session's manager** | **a kind's second return** | **39 gates, 78 rounds** | **57 rounds, 5.0M tokens** |
 | (f) | nobody | — | none | none |
 
-(b) and (c) count returns per gate, of any kind, as the first version did. (e) counts per kind: a
-round asks when its `--earned-by` names a kind that two earlier rounds of the gate settled with a
-cut. In 39 of the 81 gates a round would ask; 78 rounds would ask in all, since "keep fixing" asks
-again at the next return. `evidence-cut-or-continue/recount_per_kind.py` recounts this from the
-redacted log alone (evidence §8). The closing reminder of design 2 prints more often than that:
-after 172 rounds, in all 81 gates, since a host that passes `--cut` on a kind's first return has
-two cut rounds on it at once. The saving is a ceiling: it assumes every first ask ends the
-kind's chain, which "keep fixing" does not.
+(b) and (c) count returns per gate, of any kind, as the first version did. (e) counts per kind.
+A kind's first cut is the first round run with `--cut` whose `--earned-by` names it. Each later
+round that names the kind is a return. A round asks when it is a kind's second return: it names
+the kind, and so did an earlier round after the first cut. In 39 of the 81 gates a round would
+ask; 78 rounds would ask in all, since "keep fixing" asks again at every later return.
+`evidence-cut-or-continue/recount_per_kind.py` recounts this from the redacted log alone
+(evidence §8). The saving is a ceiling: it leaves out the asking round, which still reviews what
+the manager chose, and assumes every first ask ends the kind's chain, which "keep fixing" does
+not.
 
 ## Design
 
-1. `review_log.sh round-check`: a new record, `ask <kind> <cut rounds> <kind as logged>`, for each
-   kind given with `--kinds` that two or more earlier rounds of this gate settled with a cut. It
-   counts distinct round numbers, not lines: each seat logs its own line, so a round with two
-   seats would otherwise count two cuts. Kinds compare normalised, as `owed` does.
-2. `independent_review.sh`, at the end of a round run with `--cut`, counts the same way, this
-   round included, before the host has read the findings. For each kind with two or more cut rounds it prints, in its closing lines and
-   in the running-total line the owner reads: "Kind K was cut in rounds X and Y. If this round
-   found it again, ask your manager before the next fix: take it out, make it a warning, or keep
-   fixing?" That is when the host sorts the findings, before it writes the next fix.
-3. `independent_review.sh`, at the start of a round: when round-check gives an `ask` record and
-   the run has no `--manager-said "<kind>: <answer>"` for that kind, it prints a warning naming the
-   kind and goes on, and the gate line shows "manager not asked" for it. The flag is given once per
-   kind: in 17 of the 78 rounds that would ask, two or more kinds were due at once. The answers are
-   logged in a new column 18, `manager_said`, joined with "; " (`-` when none), and shown in the
-   gate line.
+1. `review_log.sh round-check`: a new record, `ask <kind> <first cut round> <returns> <kind as
+   logged>`, for each kind given with `--kinds` that is due: a round of this gate before this one
+   carried a cut naming it, and a later round, still before this one, named it again. Whether a
+   round named a kind is a yes or no per round, so two seat lines in one round count once. Kinds
+   compare normalised, as `owed` does.
+2. `independent_review.sh`, at the end of a round that names a kind cut in an earlier round (its
+   first return), prints in its closing lines and in the running-total line the owner reads: "Kind
+   K was cut in round X and came back in round Y. If this round found it again, ask your manager
+   before the next fix: take it out, make it a warning, or keep fixing?" It prints this before the
+   host has read the findings, which is when the host sorts them and before it writes the next
+   fix. It prints more often than a round asks: after 174 rounds, in all 81 gates (evidence §8).
+3. `independent_review.sh`, at the start of a round: for each `ask` record with no `--manager-said
+   "<kind>: <answer>"` for that kind, it prints a warning naming the kind and goes on, and the gate
+   line shows "manager not asked" for it. The flag is given once per kind: 17 of the 78 asking
+   rounds were due for two or more kinds. The answers are logged in a new column 18,
+   `manager_said`, joined with "; " (`-` when none), and shown in the gate line.
    Nothing refuses: the owner prefers notices to refusals in the review process. A notice is also
    what failed before, so the two-week check counts how often hosts ask.
-4. `SKILL.md` step 6, after "Cut, don't patch": when a kind comes back after two cuts, the host
-   asks its manager, the session or person that started it and directs it, "take it out, make it
-   a warning, or keep fixing?", with the kind, the two cut texts and the finding. Where nobody
+4. `SKILL.md` step 6, after "Cut, don't patch": when a kind comes back a second time after a cut,
+   the host asks its manager, the session or person that started it and directs it, "take it out,
+   make it a warning, or keep fixing?", with the kind, the cut texts and the finding. Where nobody
    started the session, it asks the owner. It records the answer in the trail and passes it as
-   `--manager-said "<kind>: <answer>"` on the next round. "Take it out" and "make it a warning" are scope cuts: the
-   manager decides them and tells the owner in the PR's first lines. "Keep fixing" asks again at
-   the next return. This replaces the sentence in step 6 that sends scope changes to the owner.
-5. Nothing else changes: the rule that wants `--cut` stays as it is, so does the 2026-10-22 rule, and so does the owner's decision past round 8.
+   `--manager-said "<kind>: <answer>"` on the next round. "Take it out" and "make it a warning"
+   are scope cuts: the manager decides them and tells the owner in the PR's first lines. "Keep
+   fixing" asks again at the next return. This replaces the sentence in step 6 that sends scope
+   changes to the owner.
+5. Nothing else changes: the rule that wants `--cut` stays as it is, so does the 2026-10-22 rule,
+   and so does the owner's decision past round 8.
 
 The log: `add` takes `--manager-said` and writes 18 fields. An existing log keeps its header, as
 it did when columns 15 to 17 came; every reader takes a missing field 18 as `-`.
 
 ## Scenarios (real gates)
 
-- **S1, lastmod (`fix/move-prep-036`).** Cut rounds 5 and 6. Given round 6 found the regex kind
-  again, when round 6 ends, then its closing lines name the kind and tell the host to ask its
-  manager. The manager says "make it a warning", which is what it chose after round 7, and round 7
-  reviews the warning. If the rest goes as it did, the gate ends one round earlier: round 7's
-  patch review, 49,061 tokens, does not run (evidence §5).
+- **S1, lastmod (`fix/move-prep-036`).** First cut round 5; the regex kind came back in round 6.
+  Given round 6 found it again, when round 6 ends, then its closing lines name the kind and tell
+  the host to ask its manager. The manager says "make it a warning", which is what it chose after
+  round 7, and round 7 reviews the warning. If the rest goes as it did, the gate ends one round
+  earlier: round 7's patch review, 49,061 tokens, does not run (evidence §5).
 - **S2, a long chain (`fix/move-analytics-gap-035`).** Twelve rounds; cuts at rounds 5 to 12 each
-  narrowed what one config reader reads. The ask comes at the end of round 6. Round 7 still reviews
-  whatever the manager chose, so rounds 8 to 12 (269,860 tokens) are the most "take it out" or
-  "make it a warning" there can save; a different round 7 would have cost something else.
+  narrowed what one config reader reads. The ask comes at the end of round 6. Round 7 still
+  reviews whatever the manager chose, so rounds 8 to 12 (269,860 tokens) are the most "take it
+  out" or "make it a warning" there can save; a different round 7 would have cost something else.
 - **S3, a cut that held.** Given a kind cut once whose next round does not find it again, then
-  nothing is printed and nobody is asked. In 42 of the 81 gates no round would ask.
+  nobody is asked. In 42 of the 81 gates no round would ask.
 - **S4, keep fixing.** Given the manager says "keep fixing", then the answer goes in the trail and
-  in column 18, and if the kind comes back after the next cut, the closing lines ask again.
-- **S5, a host that does not ask.** Given round 7 runs with `--earned-by K` after two cuts on K
-  and no `--manager-said`, then it prints a warning and runs, and the gate line the owner reads
-  shows "K: manager not asked". Nothing stops.
-- **S6, a rotating kind (`plan/live-analytics-check`, its plan gate).** One kind was cut in
-  rounds 4 and 5, so round 5's closing lines remind the host; round 6 did not name it, so nobody is
-  asked. Rounds 6 and 7 named new kinds, and the owner cut scope at round 6 himself. (e) does not
-  see a chain whose kinds change names, and the script's rename notice sees only names where one
-  starts the other.
-- **S7, two seats.** Given a round where Codex and the second seat both log the cut for K, then it
-  counts as one cut round, and one earlier cut round plus this one makes the first ask.
+  in column 18, and if the kind comes back again, the next round's start warns until it is asked
+  again.
+- **S5, a host that does not ask.** Given round 7 runs with `--earned-by K` after K's cut at round
+  5 and its return at round 6, and no `--manager-said`, then it prints a warning and runs, and the
+  gate line the owner reads shows "K: manager not asked". Nothing stops.
+- **S6, a rotating kind (`plan/live-analytics-check`, its plan gate).** One kind was cut in round 4
+  and came back in round 5, so round 5's closing lines remind the host; round 6 did not name it,
+  so nobody is asked. Rounds 6 and 7 named new kinds, and the owner cut scope at round 6 himself.
+  (e) does not see a chain whose kinds change names, and the script's rename notice sees only
+  names where one starts the other.
+- **S7, a round without `--cut`.** Given K at round 4, `--cut` at round 5, and round 6 run without
+  one (the script allows the first round after a cut), then round 7 naming K is its second return
+  and asks, though only one round carried a cut.
 
 ## How it is tested
 
 - **T1, through the real entry point.** In `test_round_checks.sh`, with a stub seat and
   `REVIEW_LOG` on a scratch log: `--round 1`; `--round 4 --earned-by k`; `--round 5 --earned-by k
-  --cut a`; `--round 6 --earned-by k --cut b`. Round 5's closing lines hold no ask; round 6's hold
-  the ask for k, naming rounds 5 and 6, in the running-total line too. Then `--round 7 --earned-by
-  K` (case changed) `--cut c` without `--manager-said`: the warning is printed, the run goes on
-  with its usual exit status, and the gate line shows "manager not asked". The same round with
-  `--manager-said "k: keep fixing"`: no warning, column 18 holds the answer, and the gate line
-  shows it. A round due for two kinds with an answer for one warns for the other only. A second
-  fixture logs two seat lines per round: one cut round must not ask. A third: a kind
-  cut once never asks.
-- **T1 can fail.** Count lines instead of rounds, and the two-seat fixture asks after one cut;
-  drop the normalising, and `K` does not match `k`; drop the warning, and the third run's output
-  check fails; key the answer to the round instead of the kind, and the two-kind round gives no
-  warning. Each is tried once by hand before the review, as a mutation check.
+  --cut a`; `--round 6 --earned-by k --cut b`. Round 5's closing lines hold no reminder; round 6's
+  hold it for k, naming rounds 5 and 6, in the running-total line too, and round 6 gives no
+  warning at its start. Then `--round 7 --earned-by K` (case changed) `--cut c` without
+  `--manager-said`: the warning is printed, the run goes on with its usual exit status, and the
+  gate line shows "manager not asked". The same round with `--manager-said "k: keep fixing"`: no
+  warning, column 18 holds the answer, and the gate line shows it. More fixtures: S7's sequence,
+  where round 7 warns; a round due for two kinds with an answer for one, which warns for the other
+  only; a kind cut once and not named again, which never warns.
+- **T1 can fail.** Count the cut round itself as a return, and round 6 warns; count only rounds
+  with `--cut` as returns, and S7's round 7 does not warn; drop the normalising, and `K` does not
+  match `k`; drop the warning, and round 7's output check fails; key the answer to the round
+  instead of the kind, and the two-kind round gives no warning. Each is tried once by hand before
+  the review, as a mutation check.
 - **T2.** `check_prompt_sync.sh` and `make check` pass. The old-header test of
   `test_round_checks.sh` (a 14-column log) now expects `add` to append 18 fields, and a new fixture
   with a 17-column header checks that round-check and the gate line read a missing field 18 as
   `-`.
 - **After two weeks,** compare all gates that reach round 4 with the baseline (234 gates, 574
-  rounds past round 3, about 2.45 a gate, 46.0M tokens; evidence §4c). Count the asks, how many
-  carried `--manager-said`, and each answer. If fewer than three quarters of the asks carried an
-  answer, the session that runs the check proposes to the owner, through its manager, that the
-  script refuse such a round, as it refuses a missing `--cut`. If rounds past round 3 per gate are
-  not lower, it says so, and the owner decides.
+  rounds past round 3, about 2.45 a gate, 46.0M tokens; evidence §4c). Count each due kind once
+  per gate and round (seat lines and reruns of a round count once), how many of them had a
+  `--manager-said` answer for that kind, and each answer. If fewer than three quarters had one,
+  the session that runs the check proposes to the owner, through its manager, that the script
+  refuse such a round, as it refuses a missing `--cut`. If rounds past round 3 per gate are not
+  lower, it says so, and the owner decides.
 
 T1a, the backtest of option 3, ran on 2026-11-17 for 350,196 tokens (evidence §7). Option (e)
 has no model in its loop to test: the script counts, and a manager decides.
