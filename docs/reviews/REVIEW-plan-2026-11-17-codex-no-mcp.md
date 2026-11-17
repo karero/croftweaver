@@ -16,6 +16,7 @@ Checks before round 1: `scripts/check_clean.sh` passed. The change adds files un
 |-------|------|----------|-----------|-----------------|--------------|
 | 1 | `dceaba41` | the whole plan | Codex; melious out of balance; fresh-eyes (Sonnet) | Codex 159 s, 63,485; fresh-eyes 57 s, 115,230 | 3 / 6 / 3 |
 | 2 | `7f5167ef` | the whole plan, `--verify` round 1's findings | Codex alone; melious out of balance | 153 s, 55,771 | 1 / 2 / 0 |
+| 3 | `01d4e71e` | the whole plan, `--verify` round 2's findings | Codex alone; melious out of balance | 109 s, 45,785 | 0 / 0 / 0 |
 
 ## Round 1 findings
 
@@ -48,3 +49,11 @@ rest on files and commands the seat could not reach; the evidence file quotes th
 
 Codex marked F4 (dotted name) UNVERIFIABLE: the evidence had no output for it. Added: a dotted
 name exits 1 with `invalid transport`. The other UNVERIFIABLE groups are unchanged from round 1.
+
+## Round 3 and verdict
+
+Round 3 found nothing and verified every round 1 and 2 fix as a plan correction. Its UNVERIFIABLE
+groups (Codex CLI internals, raw process traces, the wrapper, cost-log sums) are the same as
+before; none is a finding. **Verdict: CLEAN, no BUG open.** 3 rounds, 15 findings (3 BUG, 8 RISK,
+4 NIT), 165,041 Codex tokens logged plus 115,230 for fresh-eyes. Codex alone every round
+(REVIEW-RULES; melious out of balance). Nothing built; building waits for the owner's go.
