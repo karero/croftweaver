@@ -1388,7 +1388,14 @@ async function cmdCheck(ctx, run) {
   say(`The Worker's live version ${v.id.slice(0, 8)} serves ${r.status === 200 ? short(served) : `nothing at https://${v.host}/build.txt (${r.status || r.error})`}: ${served === ctx.tip ? 'the live branch\'s commit.' : 'not the live branch\'s commit; stage 1 of the move section is not finished.'}`);
   say(`Its link, for the Cloudflare check's --preview: https://${v.host}/`);
   note(run, served === ctx.tip, `The Worker's live version serves ${r.status === 200 ? short(served) : 'nothing'}, GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
-  if (!ctx.open) for (const f of await buildTimeLastmodFiles(ctx.git, ctx.tip)) say(`Warning: ${f} at ${short(ctx.tip)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop on them. Remove the line, or give a fixed date.`);
+  if (!ctx.open) { // advice only: a failed read says so and never changes check's result
+    let lastmodFiles = [];
+    try { lastmodFiles = await buildTimeLastmodFiles(ctx.git, ctx.tip); } catch (e) {
+      if (!(e instanceof Stop)) throw e;
+      say(`Could not look for a sitemap lastmod set to the build time in astro.config: ${e.lines.join(' ')}`);
+    }
+    for (const f of lastmodFiles) say(`Warning: ${f} at ${short(ctx.tip)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop on them. Remove the line, or give a fixed date.`);
+  }
   say('Nothing was changed.');
   if (ctx.open) { // an open move waits for after only when every host is where the move ends
     const target = ctx.state.direction === 'to-pages' ? 'pages' : 'worker';

@@ -3276,6 +3276,25 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
     assert.match(r.text, /Nothing was changed\./);
   });
 
+  test('2a: when astro.config cannot be read, check says so, still passes and writes no warning', async () => {
+    // A gitlink named astro.config.mjs: ls-tree lists it, git show cannot read it.
+    const site = makeSite();
+    const nested = path.join(site.work, 'astro.config.mjs');
+    mkdirSync(nested);
+    git(nested, 'init', '-q');
+    writeFileSync(path.join(nested, 'a'), 'a');
+    git(nested, 'add', '-A');
+    git(nested, 'commit', '-q', '-m', 'inner');
+    git(site.work, 'add', 'astro.config.mjs');
+    git(site.work, 'commit', '-q', '-m', 'a gitlink');
+    git(site.work, 'push', '-q', 'origin', 'production', 'production:main');
+    site.frozen = git(site.work, 'rev-parse', 'HEAD');
+    const r = await scenario({ site }).go(['check']);
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, /Could not look for a sitemap lastmod set to the build time in astro\.config: git could not read astro\.config\.mjs at [0-9a-f]{7}\./);
+    assert.doesNotMatch(r.text, /Warning:/);
+  });
+
   for (const [label, line] of [
     ['a commented-out line', '      // lastmod: new Date(),'],
     ['a // comment after other code', '      sitemap(), // lastmod: new Date()'],
