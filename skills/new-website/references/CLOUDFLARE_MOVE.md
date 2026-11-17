@@ -34,11 +34,11 @@ computer, and a second computer would not know the move had begun.
    text is true on both platforms (it names Cloudflare, not Pages); and the site has exactly one
    Workers config (a `.json` or `.jsonc` that holds `assets` and no `pages_build_output_dir`) with
    `workers_dev: false`, `preview_urls: true`, `not_found_handling: "404-page"` and no domain
-   routes, and `astro.config` must not set the sitemap's `lastmod` to the build time
+   routes. `astro.config` should not set the sitemap's `lastmod` to the build time
    (`lastmod: new Date()`): two builds of one commit would serve two sitemaps and `record` would
-   stop on their bodies. Remove the line or give a fixed date; `check` lists that one form, and
-   when `record` stops on sitemap bodies alone, its refusal names this cause (other forms of a
-   build-time date are not caught by `check`). All of it is merged to the live branch. The Worker itself is made as
+   stop on their bodies. Remove the line or give a fixed date. `check` warns about that one form
+   and goes on; it is a guess, so it can miss one or warn needlessly. When `record` stops on
+   sitemap bodies alone, its refusal names this cause. All of it is merged to the live branch. The Worker itself is made as
 `CLOUDFLARE_FIRST_DEPLOY.md` says for a new site: connected to GitHub with Workers Builds
 (B; the setup script, S, says how and reads the Worker once a build has made it), which then builds each push.
 
@@ -130,9 +130,8 @@ never gives it to a program it starts (the build, `git`).
 none found for this repository; a Worker that already has a domain; more than one Workers
 config; a `functions/` folder holding anything but `_middleware.ts`, or a `public/_worker.js`;
 and a site in analytics server mode. Once the Worker's domain is checked, the other gaps (the
-Workers config, `functions/`, `public/_worker.js`, server mode, the analytics lines, and a
-sitemap `lastmod` set to the build time in `astro.config`) are listed together, and after a
-refused token too, so one run shows what stage 1 still lacks. Every run that gets that far reads
+Workers config, `functions/`, `public/_worker.js`, server mode and the analytics lines)
+are listed together, and after a refused token too, so one run shows what stage 1 still lacks. Every run that gets that far reads
 the Workers config; the other checks are for a first move, and while a move is open they are
 lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
 GitHub has a branch `production`; `check` then also shows whether `main` is on the live branch's

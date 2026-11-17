@@ -932,7 +932,7 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 // ---------------------------------------------------------------- the refusals of a first move
 
 // What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
-// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts, with analytics on an enabled: line that reads CF_PAGES_BRANCH only, and a sitemap lastmod set to the build time in astro.config. Read from git only, so a run lists all of them at once.
+// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts, with analytics on an enabled: line that reads CF_PAGES_BRANCH only. Read from git only, so a run lists all of them at once.
 const ASTRO_CONFIGS = ['astro.config.mjs', 'astro.config.js', 'astro.config.cjs', 'astro.config.ts', 'astro.config.mts'];
 // The one literal form of a build-time lastmod; any other form is left to record's refusal.
 const BUILD_TIME_LASTMOD = /lastmod\s*:\s*new Date\(\s*\)/;
@@ -946,13 +946,6 @@ async function stageOneGaps(git, sha) {
   const fns = files.filter((f) => f.startsWith('functions/') && f !== 'functions/_middleware.ts');
   if (fns.length) gaps.push(`${short(sha)} holds ${fns.slice(0, 3).join(', ')}${fns.length > 3 ? ' and more' : ''} in functions/. The Worker would not run that code. Stage 1 of the move section takes functions/go/ out.`);
   if (files.includes('public/_worker.js')) gaps.push(`${short(sha)} holds public/_worker.js: code the Worker would not run.`);
-  for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
-    const r = await git('show', `${sha}:${f}`);
-    if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
-    // Comments and regex literals are cut and each string is blanked in one pass, so a `//` inside a URL, a string or a regex literal is not taken for a comment. A regex literal is read only after `( , : = [ ! & | ? { ;`, or `=>`, so a division is not one. A regex literal after `return` is not read: telling that keyword from a property name needs a real tokenizer, and a miss is the safe side. The scan is a guess, not a parser. A form it misreads is usually a miss, which `record` still stops on, naming the likely cause; a contrived file (a quote inside a regex literal after `return`, then a string that spells the setting) can still give a false gap.
-    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
-    if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l))) gaps.push(`${f} at ${short(sha)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop. Remove the line, or give a fixed date.`);
-  }
   await asLines(async () => {
     const cfg = await readSiteConfig(git, sha);
     if (cfg.serverMode) gaps.push('This site counts visits in analytics server mode, which needs Pages Functions. The script moves script-mode sites only.');
@@ -963,6 +956,22 @@ async function stageOneGaps(git, sha) {
     else if (cfg.analyticsOn && cfg.envNames.length === 1 && cfg.envNames[0] === 'CF_PAGES_BRANCH') gaps.push(`Analytics is on, but the enabled: line in src/config.ts at ${short(sha)} reads only CF_PAGES_BRANCH. Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so the Worker's pages would count nothing. Use the 0.35 line: "${ENABLED_LINE}"${cfg.declared ? '' : ' It names USE_ANALYTICS, so also add the line "export const USE_ANALYTICS = true;" above it.'} A site built some other way can read the variable its own build sets instead.`);
   });
   return gaps;
+}
+// The astro.config files that set the sitemap's lastmod to the build time. A warning in check, never a
+// gap: the scan is a guess, and record's refusal names this cause when it misses.
+async function buildTimeLastmodFiles(git, sha) {
+  const tree = await git('ls-tree', '-r', '--name-only', sha);
+  if (tree.code !== 0) throw new Stop(1, `git could not list ${short(sha)}.`);
+  const files = tree.stdout.split('\n');
+  const found = [];
+  for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
+    const r = await git('show', `${sha}:${f}`);
+    if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
+    // Comments, regex literals and strings are cut in one pass, so a `//` inside a URL or a regex is not a comment. A guess, not a parser: a misread gives a missed or a needless warning, nothing more.
+    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
+    if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l))) found.push(f);
+  }
+  return found;
 }
 // One gap stops as it always has; more are listed under one line.
 const gapsStop = (sha, gaps) => (gaps.length === 1 ? new Stop(1, gaps[0])
@@ -1379,6 +1388,7 @@ async function cmdCheck(ctx, run) {
   say(`The Worker's live version ${v.id.slice(0, 8)} serves ${r.status === 200 ? short(served) : `nothing at https://${v.host}/build.txt (${r.status || r.error})`}: ${served === ctx.tip ? 'the live branch\'s commit.' : 'not the live branch\'s commit; stage 1 of the move section is not finished.'}`);
   say(`Its link, for the Cloudflare check's --preview: https://${v.host}/`);
   note(run, served === ctx.tip, `The Worker's live version serves ${r.status === 200 ? short(served) : 'nothing'}, GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
+  if (!ctx.open) for (const f of await buildTimeLastmodFiles(ctx.git, ctx.tip)) say(`Warning: ${f} at ${short(ctx.tip)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop on them. Remove the line, or give a fixed date.`);
   say('Nothing was changed.');
   if (ctx.open) { // an open move waits for after only when every host is where the move ends
     const target = ctx.state.direction === 'to-pages' ? 'pages' : 'worker';

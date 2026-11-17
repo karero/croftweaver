@@ -3266,15 +3266,14 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
   const config = (line) => `import sitemap from '@astrojs/sitemap';\nexport default {\n  integrations: [\n    sitemap({\n${line}\n    }),\n  ],\n};\n`;
   const withLine = (line) => makeSite({ files: { 'astro.config.mjs': config(line) } });
 
-  test('2a: the build-time line is a gap in check, and record refuses with it and writes no state file', async () => {
+  const WARNING = /Warning: astro\.config\.mjs at [0-9a-f]{7} sets the sitemap's lastmod to the build time \(lastmod: new Date\(\)\)\. Two builds of one commit would then serve two different sitemaps, and record would stop on them\. Remove the line, or give a fixed date\./;
+
+  test('2a: the build-time line is a warning in check, which still passes', async () => {
     const s = scenario({ site: withLine('      lastmod: new Date(),') });
     const r = await s.go(['check']);
-    assert.equal(r.code, 1, r.text);
-    assert.match(r.text, /astro\.config\.mjs at [0-9a-f]{7} sets the sitemap's lastmod to the build time \(lastmod: new Date\(\)\)\. Two builds of one commit would then serve two different sitemaps, and record would stop\. Remove the line, or give a fixed date\./);
-    const rec = await s.go(['record']);
-    assert.equal(rec.code, 1, rec.text);
-    assert.match(rec.text, /astro\.config\.mjs.*lastmod/);
-    assert.ok(!existsSync(s.stateFile()), 'record wrote a state file');
+    assert.equal(r.code, 0, r.text);
+    assert.match(r.text, WARNING);
+    assert.match(r.text, /Nothing was changed\./);
   });
 
   for (const [label, line] of [
@@ -3301,10 +3300,10 @@ describe('0.36 fix 2: a sitemap lastmod set to the build time', () => {
     ['after a division broken over two lines, with a regex literal further down', "      priority: (10\n / 2), lastmod: new Date(), exclude: [/x/],"],
     ['after a string holding /*, with a block comment further down', "      filter: (p) => !p.includes('/drafts/*'),\n      lastmod: new Date(),\n      /** a later comment */"],
   ]) {
-    test(`2b: the build-time line ${label} is still a gap`, async () => {
+    test(`2b: the build-time line ${label} still draws the warning`, async () => {
       const r = await scenario({ site: withLine(line) }).go(['check']);
-      assert.equal(r.code, 1, r.text);
-      assert.match(r.text, /sets the sitemap's lastmod to the build time/);
+      assert.equal(r.code, 0, r.text);
+      assert.match(r.text, WARNING);
     });
   }
 
