@@ -15,6 +15,10 @@
 #   - the build's environment (a build step that prints it): no CF_* or CLOUDFLARE_* variable,
 #     WORKERS_CI=1, WORKERS_CI_BRANCH only for live; a CF_PAGES_COMMIT_SHA from the caller does
 #     not replace HEAD in build.txt.
+#   - a comma before a closing } or ] in wrangler.jsonc is read (Wrangler accepts it), and the live
+#     check, run against a stand-in wrangler, curl and sleep, asks for the address of the one
+#     site: line in code, and for none when two lines or only a comment hold one; deploy.sh's
+#     readers for that line are ship.sh's, word for word.
 # What it does not check: Wrangler, Cloudflare, or that the build works through the link to this
 # folder's node_modules (it is used as it is). A site with no Workers config (a .json or .jsonc
 # holding "assets" and no "pages_build_output_dir") is on Pages, so it skips and says so.
@@ -227,5 +231,65 @@ run toml-live -- deploy:live -- --dry-run
 refused "live with a wrangler.toml beside wrangler.jsonc" "wrangler.jsonc is not alone" toml-live
 run toml-preview -- deploy:preview -- --dry-run
 refused "preview with a wrangler.toml beside wrangler.jsonc" "wrangler.jsonc is not alone" toml-preview
+
+# 5. the config reader and the live check, with a domain route. A comma before a closing } or ] is
+# read as Wrangler reads it (checked on 4.162.0). The live check runs for real, but against a stand-in
+# wrangler, curl and sleep, so nothing leaves this machine: the stand-in curl answers with the copy's HEAD and
+# logs the address it was asked for, which shows what deploy.sh took for the site's address.
+git_in rm -q -f wrangler.toml
+git_in commit -q -m "no second config"
+cp "$work/wrangler.jsonc.good" "$copy/wrangler.jsonc"
+perl -0pi -e 's/\n\}\s*$/,\n  \/\/ the route, with commas Wrangler accepts\n  "routes": [{ "pattern": "check-deploy.example.invalid", "custom_domain": true, },],\n}\n/' "$copy/wrangler.jsonc"
+if grep -q 'custom_domain' "$copy/wrangler.jsonc"; then :; else echo "✗ check_deploy: could not add a route to the copy's wrangler.jsonc."; exit 1; fi
+git_in commit -q -am "a route, and trailing commas"
+run comma-live -- deploy:live -- --dry-run
+if [ "$rc" = 0 ] && grep -qE '(^|[^a-z])wrangler deploy($|[^a-z])' "$work/comma-live.log"; then ok "a trailing comma in wrangler.jsonc is read (the live dry run exits 0)"; else bad "a trailing comma in wrangler.jsonc was refused (exit $rc):"; sed 's/^/  | /' "$work/comma-live.log"; fi
+
+# A node_modules of the copy's own, so its .bin can hold a stand-in wrangler; every package is linked.
+rm "$copy/node_modules"
+mkdir "$copy/node_modules" "$copy/node_modules/.bin"
+for e in "$site"/node_modules/* "$site"/node_modules/.[!.]*; do
+  [ -e "$e" ] || continue
+  [ "$(basename "$e")" = .bin ] || ln -s "$e" "$copy/node_modules/$(basename "$e")"
+done
+for e in "$site"/node_modules/.bin/*; do
+  [ "$(basename "$e")" = wrangler ] || ln -s "$site/node_modules/.bin/$(readlink "$e")" "$copy/node_modules/.bin/$(basename "$e")"
+done
+printf '#!/bin/sh\necho "stand-in wrangler $*"\n' > "$copy/node_modules/.bin/wrangler"
+chmod +x "$copy/node_modules/.bin/wrangler"
+fakebin="$work/fakebin"
+mkdir "$fakebin"
+printf '#!/bin/sh\nexit 0\n' > "$fakebin/sleep"
+printf '#!/bin/sh\nfor a; do u="$a"; done\necho "$u" >> "%s/curl.log"\ngit -C "%s" rev-parse HEAD\n' "$work" "$copy" > "$fakebin/curl"
+chmod +x "$fakebin/sleep" "$fakebin/curl"
+
+# live_site <label> <expected curl log> <message part>: the live check on the copy as it is now.
+live_site() {
+  rm -f "$work/curl.log"
+  run "$1" "PATH=$fakebin:$PATH" -- deploy:live
+  local asked=""
+  [ ! -f "$work/curl.log" ] || asked="$(sed 's/?.*//' "$work/curl.log" | sort -u | tr '\n' ' ')"
+  asked="${asked% }"
+  if [ "$rc" = 0 ] && [ "$asked" = "$2" ] && grep -qF -- "$3" "$work/$1.log"; then ok "$1: \"$3\" (asked: ${asked:-nothing})"; else bad "$1: expected exit 0, asking \"$2\" and saying \"$3\"; got exit $rc, asked \"$asked\":"; sed 's/^/  | /' "$work/$1.log"; fi
+}
+live_site site-one "https://example.com/build.txt" "LIVE — verified: https://example.com is serving build"
+
+# An old address kept in a comment: two matches, so no one address to check.
+perl -pi -e 's|^(\s*site:.*)$|$1\n  // site: \x27https://old.example.invalid\x27,|' "$copy/astro.config.mjs"
+git_in commit -q -am "an old address in a comment"
+live_site site-many "" "has more than one site: address"
+
+# Only a comment holds a site: address (the real one is written so that it does not match).
+perl -pi -e 's|^(\s*)site:\s*\x27https://example.com\x27,|$1\x27site\x27: \x27https://example.com\x27,|; s|^(\s*)// site: .*$|$1// site: \x27https://old.example.invalid\x27,|' "$copy/astro.config.mjs"
+git_in commit -q -am "the only site: is in a comment"
+live_site site-comment "" "sits in a comment"
+
+# deploy.sh's site: readers are the ones in scripts/ship.sh, word for word.
+reader() { awk '/^# The `site:` address in the astro.config.mjs text given/{p=1} p{print} p&&/^js_state\(\)/{j=1} j&&/^}$/{exit}' "$1"; }
+if grep -q '^site_count()' "$site/scripts/ship.sh" && grep -q '^site_count()' "$site/scripts/deploy.sh"; then
+  if [ -n "$(reader "$site/scripts/deploy.sh")" ] && [ "$(reader "$site/scripts/ship.sh")" = "$(reader "$site/scripts/deploy.sh")" ]; then ok "deploy.sh reads site: with the same functions as ship.sh"; else bad "the site: readers in scripts/deploy.sh and scripts/ship.sh differ: copy site_of, site_count and js_state from one to the other."; fi
+else
+  echo "· check_deploy: scripts/deploy.sh or scripts/ship.sh has no site_count(), so their site: readers were not compared."
+fi
 
 if [ "$fail" = 0 ]; then echo "✓ check_deploy: all cases passed"; else echo "✗ check_deploy: failed"; exit 1; fi
