@@ -194,3 +194,17 @@ Round 4 confirmed J1 and J2, reran every recount and S1, S2 and S6's timing. One
 | K1 | RISK | T2 missed three assertions in `test_failed_tier_report.sh` (T6's header and line, T8's line) that require exactly 17 columns; 18 fields would fail them | fixed: T2 names them, moves them to 18 columns with the column-17 reason checks kept and column 18 checked apart. No other script reads the log by its last column (`grep` for `$NF` and `NF ==` outside the tests: none) |
 
 K1 changes what the builder does, so it earns round 5 (kind `log-column-tests`).
+
+## Round 5: clean, and the gate closes (324 s, 96,642 tokens; earned by `log-column-tests`, K1)
+
+Codex confirmed K1, reran all three recounts and S1, S2 and S6's timing, and reproduced the
+lastmod numstats and T1a's score. No BUG, RISK or NIT. Still UNVERIFIABLE to it: the full log the
+redacted files come from, the owner's picks (relayed by the manager), the backtest's labels, and
+T1, which is not built yet.
+
+Every round sent the whole plan, and round 5 read it whole and found nothing, so no separate full
+read was run.
+
+Gate total (`20261117T134832Z-58593`): 5 rounds, 10 findings (5 BUG, 5 RISK, 0 NIT), 425,711
+Codex tokens logged. Codex alone in every round: melious had no balance. The first gate
+(`20261117T103119Z-61696`, option 3) logged 407,289 tokens, plus T1a's 350,196.
