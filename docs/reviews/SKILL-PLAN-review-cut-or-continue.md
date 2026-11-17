@@ -46,7 +46,12 @@ more question in that same round. No extra call and no question to the owner.
 1. `independent_review.sh`: when `--cut` is given, the brief gets a labelled block holding the
    kinds, the `--cut` text, the rule sentence ("take the feature out, or replace it by a strict
    rule…; refusing the one input the last BUG used is a patch") and one demand: a line
-   `CUT-CHECK: CUT` or `CUT-CHECK: PATCH — <why>`, judged on the diff, not on the claim.
+   `CUT-CHECK: CUT` or `CUT-CHECK: PATCH — <why>`, judged on the change, not on the claim. A DIFF
+   round already sends the change. A PLAN round sends only the current plan, and 45 of the 82
+   gates were plans, so for `--plan` the block also holds the plan file's own diff since the head
+   the previous round logged (cost-log column 4): `git diff <that head> -- <plan file>`, which
+   includes edits not yet committed. Where that cannot be read, the block says "no diff" and the
+   verdict is printed as judged on text alone.
 2. The script prints each seat's verdict in its closing lines and in the running-total line the
    owner reads. It also logs the verdict in a new cost-log column 18, `cut_check`, written `-` where
    no verdict was given. A missing or garbled verdict prints "no cut verdict" and never fails the
@@ -70,33 +75,38 @@ not yet show how often it calls a real cut a patch. Test T1 settles that before 
 
 - **S1, lastmod (`fix/move-prep-036`).** Given round 5 reviews the fix "dropped the line-start
   regex-literal case" and finds the regex kind again, when its seat answers the cut question, then
-  it says PATCH (probe case D did). The host must cut before round 6, so the warning could come at
+  it says PATCH (probe case D did; that run was the probe's brief, not the built one). The host must cut before round 6, so the warning could come at
   round 6 instead of round 8, and rounds 6 and 7 would not run.
 - **S2, a real cut (ship.sh comment scanner, `5328e7d3`).** Given the fix deletes the scanner and
-  refuses any second `site:` line, then the seat says CUT (probe case G did), and nothing changes.
+  checks no address when it finds two quoted `site:` http(s) addresses, then the seat says CUT (probe case G did), and nothing changes.
 - **S3, a scope cut (`plan/live-analytics-check`).** At round 6 the owner cut the build proof
   on 2026-11-09, and the gate ended at round 7. The existing scope question already works;
   option 3 keeps that path.
-- **S4, a long chain (`fix/move-analytics-gap-035`).** Twelve rounds and 382,952 tokens. From round
-  5 to round 12 each `--cut` narrowed what one config reader reads. T1 measures whether round 5's
+- **S4, a long chain (`fix/move-analytics-gap-035`).** Twelve rounds, 704,651 tokens, 382,952 of
+  them from round 6 on. From round 5 to round 12 each `--cut` narrowed what one config reader reads. T1 measures whether round 5's
   verdict would have said PATCH.
 - **S5, a wrong verdict.** Given a seat calls a real cut a patch, the host refutes it in the trail
-  with the diff lines that remove or refuse, like any other RISK, and the next round runs.
+  with the diff lines that remove or refuse, like any other RISK. Another round runs
+  only if it is owed or earned for another reason; a refuted RISK earns none.
 
 ## How it is tested
 
 - **T1, backtest, before any build (go/no-go).** Hand-label at least 20 cut rounds from this repo's
-  own gates in the cost log, at least 6 of them real cuts, with each label written before the run.
-  Run step 1's question on each one. Build only if no real cut is called PATCH more than once and
-  at least 80% of the patches are called PATCH. Otherwise drop option 3, and the owner chooses
+  own gates in the cost log, at least 6 of them real cuts and at least 6 from PLAN gates, with each
+  label written before the run. Send each one as step 1 would: the block's exact text (written into
+  the T1 file first) and the same change a round sends (the delta diff, or for a plan the plan and
+  its diff). Build only if at most one of the real cuts, in all, is called PATCH, and at least 80%
+  of the patches are called PATCH. A missing or garbled verdict counts as a wrong one. Otherwise drop option 3, and the owner chooses
   between options 1 and 2.
 - **T2, through the real entry point.** In `test_round_checks.sh`, run `independent_review.sh
   --round 5 --earned-by k --cut "…"` with a stub seat. Check that the brief holds the cut block,
-  that each verdict form is printed and logged in column 18, and that a missing verdict prints "no
+  that the block's text is the one T1 used, that a `--plan` run carries the plan's diff, that each
+  verdict form is printed and logged in column 18, and that a missing verdict prints "no
   cut verdict" with exit 0. A run without `--cut` gets no block.
 - **T3.** `check_prompt_sync.sh` and `make check` pass.
-- **After two weeks,** compare rounds after the first return per gate with this baseline (122
-  rounds over 82 gates, about 1.5 per gate), from the cost log.
+- **After two weeks,** compare all gates that reach round 4, not only those with a return: rounds
+  past round 3 per gate and their tokens (baseline: 236 gates, 584 rounds, 46.2M tokens), and
+  apart from that, how many have a return after a cut (baseline: 82 of 236).
 
 ## Questions for the owner (through the manager)
 

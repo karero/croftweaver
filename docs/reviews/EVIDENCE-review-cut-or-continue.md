@@ -8,8 +8,10 @@ reviews; only aggregate counts are given for other repos, and only this repo's g
 ## 1. Definitions, as the script computes them
 
 - A **round** is one `--round N` of one gate id (all seats of that round together).
-- A **cut round** is a round with a non-empty `cut` on any of its lines; its `earned_by` kinds are
-  the kinds cut.
+- A **cut** settles only the kinds on the log line that carries it, as `review_log.sh` counts it
+  (another seat's line in the same round may name a kind the cut was not about). Round 1's review
+  pointed out that the first count settled every kind of the round; recounted per line, every figure
+  below came out the same.
 - A **return** is a later round whose `earned_by` names a kind (compared as the script does:
   lower-cased, without `.`, `_`, `-`) that an earlier cut round named. The `earned_by` of round N
   names what round N−1 found, so a return at round N means the round reviewing the cut, or a
@@ -45,7 +47,8 @@ for g,ps in gates.items():
     cutk=set(); returns=[]
     for r in sorted(rounds):
         if K(r)&cutk: returns.append(r)
-        if C(r): cutk|=K(r)
+        # a cut settles only the kinds on the row that carries it (review_log.sh does the same)
+        cutk|=set(norm(k) for q in rounds[r] if q[15] not in('','-') for k in q[14].split(',') if k not in('','-'))
     if not returns: continue
     r1=returns[0]; last=max(rounds)
     after=[r for r in rounds if r>=r1]
@@ -72,7 +75,7 @@ print('past 8', sum(1 for o in out if o['last']>8))
 import json; json.dump(out,open(sys.argv[2],'w'))
 ```
 
-Then, for the ceilings (reads the gates `scan2.py` wrote):
+Then, for the ceilings and this repo's listing (reads the gates `scan2.py` wrote):
 
 ```python
 import json,re,collections
@@ -99,13 +102,30 @@ for o in out:
     ks=lambda r:set(re.sub(r'[._-]','',k.lower()) for q in rows[g] if q[6]==str(r) for k in q[14].split(',') if k not in('','-'))
     if o['last']>o['r1'] and any(ks(r)&ks(o['r1']) for r in range(o['r1']+1,o['last']+1)): same+=1
 print('gates where the returning kind came back again after r1:',same)
-# croftweaver-ish (website-builder worktrees) gates
+for o in sorted(out,key=lambda o:o['g']):
+    repo=rows[o['g']][0][1]
+    print(o['g'],repo,o['branch'],o['gate'],o['depth'],'r1',o['r1'],'ret',o['ret'],'last',o['last'],'tok_from_r1',o['toks'],'tok_gate',rt(o['g'],lambda r:True))
+```
+
+And the baseline for the two-week check (every gate that reached round 4):
+
+```python
+import os,collections
+F=os.path.expanduser('~/.local/state/independent-review/runs.tsv')
+g=collections.defaultdict(lambda:collections.defaultdict(int)); mx=collections.defaultdict(int)
+for line in open(F):
+    p=line.rstrip('\n').split('\t')
+    if p[0]=='date' or p[0][:10]<'2026-11-03' or p[13] in('','-') or not p[6].isdigit(): continue
+    r=int(p[6]); mx[p[13]]=max(mx[p[13]],r)
+    if p[11].isdigit(): g[p[13]][r]+=int(p[11])
+el=[k for k in mx if mx[k]>=4]
+print('gates reaching round 4:',len(el),' rounds past 3:',sum(mx[k]-3 for k in el),' tokens past round 3:',sum(v for k in el for r,v in g[k].items() if r>3))
 ```
 
 ## 3. Its output (2026-11-03 to 2026-11-17)
 
 ```text
-window from 2026-11-03 logged tokens 286053614
+window from 2026-11-03 logged tokens 286135779
 gates with a return after a cut: 82
  rounds from the first return: 204  tokens 18065017  share 6.3%  seat runs no tokens 45
  ended within one more round (last-r1<=1): 51
@@ -119,6 +139,7 @@ past 8 15
 opt1 ceiling: rounds after r1 122 tokens 10743852
 opt2 ceiling: rounds after r2 61 tokens 5379363
 gates where the returning kind came back again after r1: 42
+gates reaching round 4: 236  rounds past 3: 584  tokens past round 3: 46161657
 ```
 
 The figures in the brief that started this plan were 83 gates, 209 rounds, 20.5M tokens (8%), 49
@@ -126,20 +147,22 @@ seat runs with no tokens, and 31 gates that ended within one more round. They ca
 session's count and differ slightly from these. The plan uses the figures above. The log grows
 while sessions run, so a rerun gives a slightly larger total.
 
-## 4. This repo's gates with a return (branch, gate, depth, first return, returns, last round, tokens from the first return)
+## 4. This repo's gates with a return
+
+Branch, gate type, depth, first return, returns, last round, tokens from the first return on, tokens of the whole gate.
 
 ```text
-main plan high r1 5 ret [5, 6, 7] last 7 tok 281388
-fix/refusal-check-first-person diff normal r1 7 ret [7] last 7 tok 68522
-plan/glm-marker-and-failed-reason plan normal r1 6 ret [6, 7] last 7 tok 255515
-fix/035-d-whats-new-imports plan normal r1 6 ret [6] last 6 tok 54118
-fix/move-refusal-words-035 diff normal r1 5 ret [5] last 5 tok 48341
-plan/live-analytics-check plan high r1 5 ret [5] last 7 tok 247086
-plan/live-analytics-check diff normal r1 6 ret [6, 7, 8, 9, 10, 11] last 11 tok 379210
-fix/move-analytics-gap-035 diff normal r1 6 ret [6, 7, 8, 9, 10, 11, 12] last 12 tok 382952
-fix/ship-commented-site-035 diff normal r1 5 ret [5, 6] last 6 tok 127631
-fix/agy-release-test-misreads diff normal r1 5 ret [5, 6, 7] last 7 tok 260289
-fix/move-prep-036 diff high r1 6 ret [6, 7] last 9 tok 188359
+main plan high r1 5 ret [5, 6, 7] last 7 tok_from_r1 281388 tok_gate 1083548
+fix/refusal-check-first-person diff normal r1 7 ret [7] last 7 tok_from_r1 68522 tok_gate 548432
+plan/glm-marker-and-failed-reason plan normal r1 6 ret [6, 7] last 7 tok_from_r1 255515 tok_gate 856452
+fix/035-d-whats-new-imports plan normal r1 6 ret [6] last 6 tok_from_r1 54118 tok_gate 477112
+fix/move-refusal-words-035 diff normal r1 5 ret [5] last 5 tok_from_r1 48341 tok_gate 440358
+plan/live-analytics-check plan high r1 5 ret [5] last 7 tok_from_r1 247086 tok_gate 553882
+plan/live-analytics-check diff normal r1 6 ret [6, 7, 8, 9, 10, 11] last 11 tok_from_r1 379210 tok_gate 609285
+fix/move-analytics-gap-035 diff normal r1 6 ret [6, 7, 8, 9, 10, 11, 12] last 12 tok_from_r1 382952 tok_gate 704651
+fix/ship-commented-site-035 diff normal r1 5 ret [5, 6] last 6 tok_from_r1 127631 tok_gate 453711
+fix/agy-release-test-misreads diff normal r1 5 ret [5, 6, 7] last 7 tok_from_r1 260289 tok_gate 674651
+fix/move-prep-036 diff high r1 6 ret [6, 7] last 9 tok_from_r1 188359 tok_gate 468929
 ```
 
 ## 5. The lastmod gate, round by round (gate `20261116T230248Z-74626`, branch `fix/move-prep-036`)
