@@ -63,9 +63,10 @@ new_repo "$T/repo"
 GATE_FILE="$(gate_file_of "$T/repo")"
 LOG="$T/runs.tsv"
 export REVIEW_LOG="$LOG"
-NEW_HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason'
+NEW_HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason\tmanager_said'
+HEADER17=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason'
 OLD_HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id'
-line() {   # line <gate id> <round> <seat> <tokens> <earned_by> [cut]: one log line, 16 fields
+line() {   # line <gate id> <round> <seat> <tokens> <earned_by> [cut]: one log line, 16 fields (no manager_said)
   printf '2026-10-14T10:00:00Z\trepo\tbranch\tabc1234\tdiff\tnormal\t%s\t%s\tmodel\t-\t60\t%s\tOK\t%s\t%s\t%s\n' \
     "$2" "$3" "$4" "$1" "$5" "${6:--}"
 }
@@ -288,7 +289,7 @@ kinds: 4 k"
 want="gate G5: no numbered round, 1 reviewer seat run, 7 tokens logged$NC
 1 run with no round"
 [ "$(gt --id G5)" = "$want" ] && ok "gate: runs with no round are counted apart" || fail "gate --id G5: got [$(gt --id G5)], want [$want]"
-want="kinds: 4 config-advice; 5 test-gap,zip-names; 6 config-advice (cut: advice removed); 7 config-advice"
+want="kinds: 4 config-advice; 5 test-gap,zip-names; 6 config-advice (cut: advice removed); 7 config-advice [config-advice back after the round 6 cut]"
 got="$(gt --id G8 | sed -n 2p)"
 [ "$got" = "$want" ] && ok "gate: the kinds and cuts round by round, a round's kinds as a union" || fail "gate --id G8 kinds: got [$got], want [$want]"
 g_out="$(cd "$T/repo" && bash "$LOG_SH" gate --round 3 2>&1)"; g_rc=$?
@@ -327,14 +328,14 @@ REVIEW_LOG="$OLDLOG" run --round 5 --earned-by config-advice
 check "old log: round 5 after an old round 4 runs, no warning" $P "" "$WARN"
 (cd "$T/repo" && REVIEW_LOG="$OLDLOG" bash "$LOG_SH" add --seat codex --round 5 --tokens 5000 --earned-by config-advice --cut "dropped x")
 if [ "$(sed -n 1p "$OLDLOG")" = "$OLD_HEADER" ] && [ "$(grep -c '^date' "$OLDLOG")" = 1 ] && [ "$(grep -c . "$OLDLOG")" = 6 ] \
-   && [ "$(tail -n 1 "$OLDLOG" | awk -F'\t' '{print NF ":" $14 ":" $15 ":" $16 ":" $17}')" = "17:G3:config-advice:dropped x:-" ]; then
-  ok "old log: add appends a 17-field line and keeps the old header, not rewriting the file"
+   && [ "$(tail -n 1 "$OLDLOG" | awk -F'\t' '{print NF ":" $14 ":" $15 ":" $16 ":" $17 ":" $18}')" = "18:G3:config-advice:dropped x:-:-" ]; then
+  ok "old log: add appends an 18-field line and keeps the old header, not rewriting the file"
 else fail "old log after add: $(cat "$OLDLOG")"; fi
 (cd "$T/repo" && REVIEW_LOG="$OLDLOG" bash "$LOG_SH" add --seat codex --round 6 --tokens 6000 --earned-by config-advice)
 REVIEW_LOG="$OLDLOG" run --round 7 --earned-by config-advice
 check "old log: a kind back after its cut, on new lines below old ones: refused" 2 "Kind config-advice earned round 6"
 want="gate G3: rounds 1-6, 6 reviewer seat runs, 18,000 tokens logged (1 run gave no figure)$NC
-kinds: 5 config-advice (cut: dropped x); 6 config-advice"
+kinds: 5 config-advice (cut: dropped x); 6 config-advice [config-advice back after the round 5 cut]"
 got="$(REVIEW_LOG="$OLDLOG" gt)"
 [ "$got" = "$want" ] && ok "old log: gate reads old lines as no kind and no cut" || fail "old log gate: got [$got], want [$want]"
 use_gate G1
@@ -384,6 +385,98 @@ else fail "full run restart: exit $rc, gates [$id] [$id2]. Output: $out"; fi
 out_off="$(cd "$T/e2e" && HOME="$T/home2" REVIEW_LOG=off REVIEW_RAW_DIR="$T/raw" bash "$SCRIPT" "$T/plan.md" --seat codex --depth normal 2>&1)"; rc=$?
 [ $rc -eq 0 ] && [[ "$out_off" != *"reviewer seat run"* ]] && ok "full run with REVIEW_LOG=off: no running total" \
   || fail "full run with REVIEW_LOG=off: exit $rc. Output: $out_off"
+
+# 15. The manager ask (SKILL.md step 6): a kind at its second return after its first cut starts
+#     its round with a warning unless --manager-said answers it, and every round that names a
+#     kind cut earlier ends with a reminder. Whole runs with the stub codex, as a host makes them.
+#     Gate A: k at round 4, cut at 5, back at 6 (its first return), and round 7 (its second).
+ask_run() {   # ask_run <name> [args…]: a whole run in repo ask-<name>. Sets rc and out.
+  rm -f "$T/marks/"*
+  out="$(cd "$T/ask-$1" && HOME="$T/home2" REVIEW_LOG="$T/ask-$1.tsv" REVIEW_RAW_DIR="$T/raw" \
+    bash "$SCRIPT" "$T/plan.md" --seat codex --depth normal "${@:2}" 2>&1)"; rc=$?
+}
+ask_gate() {   # ask_gate <name> <kinds>: rounds 1 and 4, then 5 with a cut
+  new_repo "$T/ask-$1"
+  ask_run "$1" --round 1
+  ask_run "$1" --round 4 --earned-by "$2"
+  ask_run "$1" --round 5 --earned-by "$2" --cut "a"
+}
+col18() { tail -n 1 "$T/ask-$1.tsv" | awk -F'\t' '{print NF ":" $18}'; }
+REMIND_K56="Kind k was cut in round 5 and came back in round 6. If this round found it again, ask your manager before the next fix: take it out, make it a warning, or keep fixing?"
+ask_gate A k
+if [ $rc -eq 0 ] && [[ "$out" != *"Kind k was cut in round"* ]] && [[ "$out" != *"manager not asked"* ]]; then
+  ok "ask: the round that makes the cut ends with no reminder"
+else fail "ask: round 5 (the cut itself): exit $rc. Output: $out"; fi
+ask_run A --round 6 --earned-by k --cut b
+if [ $rc -eq 0 ] && [[ "$out" == *"$REMIND_K56"* ]] && [[ "$out" == *"[k back after the round 5 cut]"* ]] \
+   && [[ "$out" != *"warning: kind"* ]] && [[ "$out" != *"manager not asked"* ]]; then
+  ok "ask: a kind back after its cut (first return): the reminder names rounds 5 and 6, in the gate line too, and no warning at the start"
+else fail "ask: round 6 (first return): exit $rc. Output: $out"; fi
+ask_run A --round 7 --earned-by K --cut c
+if [ $rc -eq 0 ] && [[ "$out" == *"warning: kind K (logged as k) was cut in round 5 and came back in round 6 before this one"* ]] \
+   && [[ "$out" == *"[K back after the round 5 cut; K: manager not asked]"* ]] && [ "$(col18 A)" = "18:-" ]; then
+  ok "ask: a second return with no --manager-said: the warning (a respelled kind matches), the run goes on, the gate line says 'manager not asked'"
+else fail "ask: round 7 without an answer: exit $rc, log [$(col18 A)]. Output: $out"; fi
+# the same round with the answer, on a gate of its own
+ask_gate B k; ask_run B --round 6 --earned-by k --cut b
+ask_run B --round 7 --earned-by K --cut c --manager-said "k: keep fixing"
+if [ $rc -eq 0 ] && [[ "$out" != *"warning: kind"* ]] && [[ "$out" != *"manager not asked"* ]] \
+   && [[ "$out" == *"manager said: k: keep fixing"* ]] && [ "$(col18 B)" = "18:k: keep fixing" ]; then
+  ok "ask: an answer for the kind: no warning, column 18 holds it, the gate line shows it"
+else fail "ask: round 7 with the answer: exit $rc, log [$(col18 B)]. Output: $out"; fi
+ask_run B --round 8 --earned-by k --cut d
+if [ $rc -eq 0 ] && [[ "$out" == *"warning: kind k was cut in round 5 and came back in rounds 6, 7 before this one"* ]]; then
+  ok "ask: 'keep fixing' asks again at the next return"
+else fail "ask: round 8 after 'keep fixing': exit $rc. Output: $out"; fi
+# S7: a round without --cut between. k at 4, cut at 5, round 6 runs with none, round 7 asks.
+ask_gate C k; ask_run C --round 6 --earned-by k
+if [ $rc -eq 0 ] && [[ "$out" == *"$REMIND_K56"* ]]; then
+  ok "ask: the first round after a cut runs without --cut and still reminds"
+else fail "ask: round 6 without --cut: exit $rc. Output: $out"; fi
+ask_run C --round 7 --earned-by k --cut c
+if [ $rc -eq 0 ] && [[ "$out" == *"warning: kind k was cut in round 5 and came back in round 6 before this one"* ]]; then
+  ok "ask: a second return asks though only one round carried a cut"
+else fail "ask: round 7 after a round without --cut: exit $rc. Output: $out"; fi
+# Two kinds due, an answer for one: the warning is for the other only.
+ask_gate D k,j; ask_run D --round 6 --earned-by k,j --cut b
+ask_run D --round 7 --earned-by k,j --cut c --manager-said "k: make it a warning"
+if [ $rc -eq 0 ] && [[ "$out" == *"warning: kind j was cut"* ]] && [[ "$out" != *"warning: kind k"* ]] \
+   && [[ "$out" == *"j: manager not asked"* ]] && [[ "$out" != *"k: manager not asked"* ]]; then
+  ok "ask: two kinds due, one answered: the warning and the gate line name the other only"
+else fail "ask: two kinds, one answer: exit $rc. Output: $out"; fi
+ask_run D --round 8 --earned-by k,j --cut d --manager-said "k: keep fixing" --manager-said "J: take it out"
+if [ $rc -eq 0 ] && [[ "$out" != *"warning: kind"* ]] && [ "$(col18 D)" = "18:k: keep fixing; J: take it out" ]; then
+  ok "ask: one --manager-said per kind: both answered, column 18 joins them with '; '"
+else fail "ask: round 8, both answered: exit $rc, log [$(col18 D)]. Output: $out"; fi
+# A kind cut once and not named again never warns, and never reminds after its return.
+ask_gate E k; ask_run E --round 6 --earned-by j
+ask_run E --round 7 --earned-by j --cut c
+if [ $rc -eq 0 ] && [[ "$out" != *"warning: kind"* ]] && [[ "$out" != *"Kind k was cut"* ]] && [[ "$out" != *"manager not asked"* ]]; then
+  ok "ask: a kind cut once and not named again: nobody is asked"
+else fail "ask: a cut that held: exit $rc. Output: $out"; fi
+# Bad values are refused before anything runs.
+for bad in "" "nocolon" "k:" "k:   " ":x" "--cut" "a b: x" $'k: one\ntwo' "$(printf 'x%.0s' $(seq 301))"; do
+  run --round 4 --earned-by k --manager-said "$bad"
+  check "--manager-said \"$(printf '%s' "$bad" | tr '\n' 'N' | cut -c1-12)\": a usage error, exit 2" 2 "bad value for --manager-said"
+done
+run --round 4 --earned-by k --manager-said
+check "--manager-said with no value: a usage error" 2 "--manager-said needs"
+
+# 16. A log whose header stops at column 17 (before manager_said): its lines read as no answer.
+L17="$T/l17.tsv"
+{ printf '%s\n' "$HEADER17"
+  line G17 4 codex 1 k; line G17 5 codex 1 k a; line G17 6 codex 1 k b; line G17 7 codex 1 k
+} >"$L17"
+got="$(REVIEW_LOG="$L17" gt --id G17 | sed -n 2p)"
+want="kinds: 4 k; 5 k (cut: a); 6 k (cut: b) [k back after the round 5 cut]; 7 k [k back after the round 5 cut; k: manager not asked]"
+[ "$got" = "$want" ] && ok "17-column log: the gate line reads a missing column 18 as no answer" || fail "17-column log gate: got [$got], want [$want]"
+got="$(cd "$T/repo" && REVIEW_LOG="$L17" bash "$LOG_SH" round-check --id G17 --round 8 --kinds k)"
+want="$(printf 'gate\tG17\t7\t1\t4\nowed\tk\t7\tk\nback\tk\t5\tk\nask\tk\t5\t6, 7\tk')"
+[ "$got" = "$want" ] && ok "17-column log: round-check names the first cut and the returns" || fail "17-column log round-check: got [$got], want [$want]"
+use_gate G17
+REVIEW_LOG="$L17" run --round 8 --earned-by k --cut x
+check "17-column log: the script warns for the unanswered kind and goes on" $P "warning: kind k was cut in round 5 and came back in rounds 6, 7 before this one"
+use_gate G1
 
 # 14. The reason column: log_seat cuts it from the text inside the outcome's parentheses, so every
 #     literal outcome="..." assignment but OK must hold " (". A new branch written that way and
