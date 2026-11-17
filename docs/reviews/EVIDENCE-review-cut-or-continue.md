@@ -394,3 +394,21 @@ takes a `url:` line inside a block comment, and P5's `--cut` text covers only on
 kinds. Even with all three disputed cuts relabelled PATCH, the patch bar still fails: 11 of 14,
 79%. Passing would need patches relabelled as cuts, including rounds whose kind came back right
 after.
+
+## 8. Option (e), counted per kind (2026-11-17)
+
+`evidence-cut-or-continue/recount_per_kind.py` reads the redacted file of §4c alone. Per gate, it
+keeps for each normalised kind the set of distinct rounds whose lines carry `cut=1` and name that
+kind. A round asks when a kind in its `earned_by` already has two such rounds. Seats share a round,
+so two seat lines count as one cut round.
+
+```text
+$ python3 -I docs/reviews/evidence-cut-or-continue/recount_per_kind.py docs/reviews/evidence-cut-or-continue/runs-81-gates-redacted.tsv
+gates that would ask: 39  rounds that would ask: 78  rounds after the first ask: 57  tokens: 4989208
+```
+
+S2, gate `20261110T083326Z-18084` (branch `fix/move-analytics-gap-035`), Codex tokens per round
+(the melious seat logged none from round 4): rounds 1 to 3 with both seats 72,862, 69,229,
+64,884; then 63,798, 50,926, 49,709, 63,383, 76,956, 44,118, 46,534, 47,851, 54,401. One kind
+carries `cut=1` from round 5 to round 12, so the first ask comes at the start of round 7, printed
+at the end of round 6. Rounds 7 to 12: 333,243 tokens.
