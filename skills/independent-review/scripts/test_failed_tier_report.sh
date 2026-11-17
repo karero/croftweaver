@@ -40,6 +40,7 @@ MELIOUS_LIGHT="$(awk '!/^#/ && NF == 2 && $2 == "light" { print $1; exit }' "$HE
 # Stubs are plain sh with printf '%s\n' so they behave the same under dash (CI) and bash.
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
+[ "${1:-}" = mcp ] && { printf '%s\n' '[]'; exit 0; }   # `codex mcp list --json`: no servers
 : >"$STUB_MARKS/codex-ran"
 # The API keys are unset for every seat but their own (#165): codex must never see them.
 [ -n "${MELIOUS_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-melious-key"
@@ -565,7 +566,7 @@ for m in "" stub-override; do
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
   # git=no is what git said from inside the stub itself, so the case cannot pass from
   # inside a repo (round 4, fresh-eyes).
-  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[-] cwd=$NOGIT git=no"
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false][--disable][plugins]${m:+[-c][model=\"$m\"]}[-] cwd=$NOGIT git=no"
   check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
@@ -910,7 +911,7 @@ done
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
 #     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
 #     round and lands after the model override, before the prompt.
-base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]'
+base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false][--disable][plugins]'
 argv_of() { sed -e 's/^argv=//' -e 's/ cwd=.*$//' "$T/$1.marks/codex-args"; }
 run effverify bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: a verify round asks for medium" \

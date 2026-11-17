@@ -310,7 +310,9 @@ Moved here from SKILL.md's Reviewer stack, word for word.
 
 1. **Codex CLI** — `codex exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0
    -c skills.include_instructions=false`, in the caller's cwd so it can check claims against the
-   tree. Model and effort from `~/.codex/config.toml`; `CODEX_MODEL=<tag>` overrides the model for
+   tree. It also passes `--disable plugins` and turns off each MCP server `codex mcp list --json`
+   names, for that run only; if the list fails they stay on and stderr says why. Model and effort
+   from `~/.codex/config.toml`; `CODEX_MODEL=<tag>` overrides the model for
    one run. Sandbox enforcement and project-context leaks are open (R-SANDBOX, R-PROJCTX in
    `docs/reviews/OPEN-FINDINGS-independent-review.md`).
 2. **ollama cloud** — the first `:cloud` tag in `ollama list`, auto-detected; `OLLAMA_MODEL`

@@ -45,6 +45,7 @@ for tool in ollama agy curl; do
 done
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
+[ "${1:-}" = mcp ] && { printf '%s\n' '[]'; exit 0; }   # `codex mcp list --json`: no servers
 : >"$STUB_MARKS/codex"
 printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two'
 # With STUB_FRESH set, it also logs a host fresh-eyes line from that repo, as a host would mid-run.

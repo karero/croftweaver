@@ -50,7 +50,10 @@ the reading code in the artifact, or expect to spend the round refuting.
    -c skills.include_instructions=false`) — may start outside a git repo or trusted
    project; a project's AGENTS.md stays out of its instructions and skills are no longer
    listed there (one live probe each). The user's global AGENTS.md still applies, and an
-   explicit `$name` mention in the reviewed text still loads a skill — R-PROJCTX. Asks the
+   explicit `$name` mention in the reviewed text still loads a skill — R-PROJCTX. Also
+   `--disable plugins` and one `-c mcp_servers.<name>.enabled=false` per enabled server in
+   `codex mcp list --json`: a review uses none, and each costs memory and CPU beside the
+   reviewed text; if the list fails the servers stay on and stderr says why. Asks the
    CLI for a read-only sandbox
    (enforcement untested: R-SANDBOX in the open-findings tracker); model +
    effort from `~/.codex/config.toml` (daily-driver default). Override per-run with
