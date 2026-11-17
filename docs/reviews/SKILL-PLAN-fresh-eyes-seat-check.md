@@ -52,13 +52,17 @@ lists the record.
 
 **C. Round 1, at Normal or High:** at the end of the run (after `new-gate` and the round's
 summary), the script calls `review_log.sh round-check --round 2` itself, since its usual call
-does not run at round 1. If the `fresh` record lacks round 1, one note: the seat is owed, logged
-after this run started (the run minted the gate), and round 2 refuses until it is. The host
+does not run at round 1. If the `fresh` record lacks round 1, one note: the seat is owed, and
+round 2 refuses until it is logged with `--gate-id <id>` (this gate's id, printed in the note).
+The gate is minted late in the run, after the artifact is read (`new-gate` in
+`independent_review.sh`), so the note gives the id rather than "after the run started". The host
 usually runs the seat while the script runs, so this is a reminder, not a fault. A `?` record
 prints nothing.
 
 **D. `SKILL.md`**: in step 3's **Cost log** paragraph: round 2 refuses a Normal or High gate
-whose fresh-eyes seat is not logged; log it after the script's round 1 has started; any outcome
+whose fresh-eyes seat is not logged; log it with `--gate-id`, taking the id from the gate line
+round 1 prints at its end (a line logged before round 1 mints its gate goes to the previous
+one); any outcome
 counts, and NOT-COUNTED with a reason is how a host records that it could not run it. The script
 header's ROUND CHECKS list gets the check.
 
