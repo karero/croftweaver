@@ -210,8 +210,12 @@ Codex's effort for any run.
    gate; every line logged after it from the same worktree carries that gate's id. A Light gate
    that runs no script starts one with `scripts/review_log.sh new-gate`. The script ends each run
    with the gate's running total (rounds, seat runs, tokens); from round 4 on, give it to the
-   owner with the round's update (step 8). The log is local, never committed;
-   `scripts/review_log.sh summary` compares depths and seats across PRs.
+   owner with the round's update (step 8). Round 2 and later of a Normal or High gate refuse
+   until the fresh-eyes seat each earlier round owes (Review depth) is logged under the seat name
+   `fresh-eyes`. Log it with `--gate-id <id>`, the id in the gate line round 1 prints at its end;
+   a line logged before round 1 starts its gate goes to the gate before. Any outcome counts: a
+   host that cannot run the seat logs `--outcome NOT-COUNTED --reason "<why>"`. The log is
+   local, never committed; `scripts/review_log.sh summary` compares depths and seats across PRs.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
    - *refuted* — shown not to be an issue, to step 5's evidence standard; no sign-off.
