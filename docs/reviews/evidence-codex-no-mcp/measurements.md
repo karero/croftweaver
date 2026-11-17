@@ -25,6 +25,7 @@ node_repl       enabled     (config)
 | `--disable plugins -c mcp_servers.node_repl.enabled=false -c mcp_servers.chrome-devtools.enabled=false` | all three left are `False` |
 | `-c mcp_servers.cua_repl.enabled=false` (a plugin's server) | `Error: failed to load bootstrap configuration` / `Caused by: invalid transport` / ``in `mcp_servers.cua_repl` `` |
 | `-c mcp_servers.no_such_server.enabled=false` | the same error, naming `mcp_servers.no_such_server` |
+| `-c mcp_servers.a.b.enabled=false` (a dotted name) | exit 1, the same `invalid transport` error |
 | `--disable no_such_feature` | exit 1, `Error: Unknown feature flag: no_such_feature` |
 
 So a name that is not already a configured server breaks the run. A fixed list of names would

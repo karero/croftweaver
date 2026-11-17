@@ -1,4 +1,4 @@
-# Plan: Codex review runs start no MCP servers (independent-review)
+# Plan: Codex review runs turn off the MCP servers they can name (independent-review)
 
 Status: plan only; nothing built. Building waits for the owner's go.
 Evidence: `evidence-codex-no-mcp/measurements.md` (same folder).
@@ -56,8 +56,8 @@ Not adopted:
 - Codex's shell snapshot (`zsh -lc`), `codex-code-mode-host` and the config's `notify` program are
   not MCP servers and stay as they are.
 
-Not covered: a server defined in a project's own `.codex/config.toml`. Step 1 runs in the same
-folder as `exec`, so it should list one, but no run tested that.
+Not covered: a server defined in a project's own `.codex/config.toml`. Not tested; testing it
+needs a trusted project, and `--trust` writes the User's config.
 
 ## How it is tested
 
@@ -86,9 +86,11 @@ folder as `exec`, so it should list one, but no run tested that.
 - **Mutations:** with `mutation-check`, revert each of steps 2–4 in turn (no `--disable plugins`;
   no `-c`; no name filter; no fallback); a T1 case must fail for each.
 - **Live check, before merge:** one real `--seat codex` review with the process tree sampled
-  every 0.5 s (the sampler behind the evidence file): no `node_repl`, `npx` or
-  `chrome-devtools-mcp` child, and the review section counts. Quoted in the PR. A server that
-  lives less than half a second between samples would escape it.
+  every 0.5 s (the sampler behind the evidence file): the review section counts, and the PR
+  lists every child process seen, by command. Expected: none of `node_repl`, `npx`,
+  `chrome-devtools-mcp`, and nothing else beyond Codex's own shell snapshot, code-mode host and
+  the commands the reviewer runs. This shows what ran at sample times on this machine's config,
+  no more: a process that lives less than half a second would escape it.
 - `make check` before each review round and after the last edit.
 
 ## Review and record

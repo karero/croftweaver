@@ -15,6 +15,7 @@ Checks before round 1: `scripts/check_clean.sh` passed. The change adds files un
 | Round | Head | Artifact | Reviewers | seconds, tokens | BUG/RISK/NIT |
 |-------|------|----------|-----------|-----------------|--------------|
 | 1 | `dceaba41` | the whole plan | Codex; melious out of balance; fresh-eyes (Sonnet) | Codex 159 s, 63,485; fresh-eyes 57 s, 115,230 | 3 / 6 / 3 |
+| 2 | `7f5167ef` | the whole plan, `--verify` round 1's findings | Codex alone; melious out of balance | 153 s, 55,771 | 1 / 2 / 0 |
 
 ## Round 1 findings
 
@@ -36,3 +37,14 @@ Checks before round 1: `scripts/check_clean.sh` passed. The change adds files un
 Codex also marked the npx network claim UNVERIFIABLE: the plan now says it was not measured. Its
 other UNVERIFIABLE groups (Codex CLI behaviour, the wrapper's option lists, cost-log figures)
 rest on files and commands the seat could not reach; the evidence file quotes the outputs.
+
+## Round 2 findings
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| B1 | BUG | The title still promised no servers at all (A1 fixed the body only) | fixed: "turn off the MCP servers they can name" |
+| B2 | RISK | "same folder, so it should list one" (a project config's server) had no support | fixed: the claim is cut; Not covered says untested, and why (`--trust` writes the User's config) |
+| B3 | RISK | The live check was credited with showing what `exec` starts, but it looks for three names only | fixed: the PR lists every child seen, and the plan says what the check shows and no more |
+
+Codex marked F4 (dotted name) UNVERIFIABLE: the evidence had no output for it. Added: a dotted
+name exits 1 with `invalid transport`. The other UNVERIFIABLE groups are unchanged from round 1.
