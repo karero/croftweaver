@@ -111,8 +111,9 @@ not yet show how often it calls a real cut a patch. Tests T1a and T1b settle tha
   the day, and it keeps each command and the script's raw output folder. Pass only if every seat
   gives a valid verdict in every case, no real cut is called PATCH, and at most one patch is called
   CUT; a missing or garbled verdict fails it. If it fails, the same choice as T1a goes to the
-  owner. It does not cover a later change of seat, model or effort; the verdicts logged in column
-  18 and the two-week check cover what runs after that. Cost: about 6 rounds, near 300k tokens.
+  owner. It does not cover a later change of seat, model or effort. The verdicts logged in column
+  18 and the two-week check show how often seats say PATCH and what gates cost, not whether the
+  verdicts are right; after such a change, only a new run of T1b shows that. Cost: about 6 rounds, near 300k tokens.
 - **T2, through the real entry point.** In `test_round_checks.sh`, run `independent_review.sh
   --round 5 --earned-by k --cut "…"` with a stub seat. Check that the brief holds the cut block,
   and that the block's text is the one T1a used. For a `--plan` gate: commit the plan, edit it

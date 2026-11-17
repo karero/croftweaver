@@ -16,6 +16,7 @@ Checks before round 1: `scripts/check_clean.sh` passed. The change adds three fi
 | 1 | `b82f1f99` | the whole plan | Codex alone; melious out of balance | 279 s, 82,165 | 4 / 3 / 0 |
 | 2 | `f4d5e525` | the whole plan, `--verify` round 1's findings | Codex alone; melious out of balance | 194 s, 61,978 | 1 / 2 / 0 |
 | 3 | `327ce368` | the whole plan, `--verify` round 2's findings | Codex alone; melious out of balance | 125 s, 65,347 | 0 / 3 / 0 |
+| 4 | `a715b173` | the whole plan, `--verify` round 3's findings; `--earned-by t1b-verdict-guard,backtest-request,t2-plan-fixture`, `--cut` for `backtest-request` | Codex alone; melious out of balance | 177 s, 67,397 | 0 / 1 / 0 |
 
 ## Round 1 findings
 
@@ -68,3 +69,20 @@ gates, 574 rounds and 46.0M tokens. The ceilings, 10.7M and 5.4M, did not change
 
 The trail file was written during round 3, while Codex read the checkout. It was the only change
 in the tree, and Codex noted it as untracked.
+
+## Round 4 findings
+
+Round 4 confirmed C1 and C3. It ran `recount.py` on the redacted copy and rebuilt every row of
+§4b; all 81 matched. It also rebuilt the seven probe diffs from git and matched them with the
+committed briefs.
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| D1 | RISK | C2's fix said the logged verdicts and the two-week check "cover" later changes of seat or model; they show counts and costs, not whether verdicts are right | fixed as wording (`locally_verified`, closing edit not externally re-verified): T1b now says they show how often seats say PATCH and what gates cost, not whether the verdicts are right, and that only a new run of T1b shows that |
+
+Under step 6 (a2), round 4 ends the rounds: no BUG, and D1's fix narrows a claim without changing
+what anyone builds. Still UNVERIFIABLE to Codex: the 7.0% share's denominator (257,853,137) and
+the two-week baseline (234 gates, 574 rounds, 45,976,379 tokens). They cover gates outside the
+redacted copy. Neither one decides the recommendation: the options are weighed on the 81 gates'
+figures, which Codex recomputed. That the labels came before the answers rests on the file times
+and this session's word.
