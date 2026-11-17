@@ -507,7 +507,9 @@ zones"). An **End date ~1 week out**. Provide it as a session env var, as in A. 
 export CLOUDFLARE_ACCOUNT_ID=<account-id>
 
 # 1. Create the Pages project (direct-upload). <production-branch> is main or production.
-npx wrangler pages project create <project> --production-branch <production-branch>
+#    --force, on this command only: run by an AI assistant, Wrangler 4.162.0 makes a Worker
+#    without it (see the note below the block).
+npx wrangler pages project create <project> --production-branch <production-branch> --force
 
 # 2. Build, then deploy the static output. Both lines take the production branch from step 1.
 #    CF_PAGES_BRANCH: with analytics switched on (USE_ANALYTICS = true in src/config.ts; the
@@ -537,6 +539,20 @@ npx wrangler pages deploy dist --project-name <project> --branch <production-bra
 > version. If you see `workers.dev` on a site that is meant to stay on Pages, stop: you
 > deployed the wrong project type. Confirm it's the accidental Worker (not a pre-existing one
 > with a similar name), then delete it and re-run `wrangler pages deploy`.
+
+> **`--force` on `pages project create`, once.** When an AI assistant runs it, Wrangler 4.162.0
+> prints "Delegating to the latest version of Cloudflare Pages, now part of Cloudflare Workers"
+> and makes a **Worker**, not a Pages project. The next step, `pages deploy … --branch`, then
+> stops with "Pages project does not exist" (seen on 2026-11-17). `--force` is the opt-out
+> Wrangler names for that: the same run makes a real Pages project, and the deploy then
+> works as written. Wrangler prints a "Notice to agents" about it that asks for `--force` only
+> when the user does; here the owner has chosen a Pages site, so this step is that ask. Use it
+> on `project create` and nowhere else: once the project exists, Wrangler leaves later
+> commands on Pages. A person typing the command in their own terminal gets a Pages project
+> with or without it. If a run still prints "Delegating", stop: it made a Worker; confirm it is
+> that accidental Worker, delete it, and fix the command before going on. `--force` is
+> hidden (`--help` does not list it): if a later Wrangler refuses it, stop and read Wrangler's
+> changelog. Making the site a Worker instead is `docs/PAGES-OR-WORKERS.md`.
 
 Ongoing deploys under (A), Pages form: with `CLOUDFLARE_ACCOUNT_ID` set as in step 0, re-run both lines of step 2, `CF_PAGES_BRANCH=` still included —
 `CF_PAGES_BRANCH=<production-branch> npm run build`, then
