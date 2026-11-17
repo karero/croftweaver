@@ -3,7 +3,7 @@
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | written 2026-11-17 | this file |
-| 2 | Plan review gate (Normal; no red team: it touches no server, user data, login, money, deletion or schema) | open | — |
+| 2 | Plan review gate (Normal; no red team: it touches no server, user data, login, money, deletion or schema) | done 2026-11-17: 3 rounds, round 3 clean; Codex alone (melious out of balance) plus fresh-eyes in round 1 | `REVIEW-plan-2026-11-17-fresh-eyes-seat-check.md` |
 | 3 | The change, in one pull request, with its DIFF gate | open | — |
 
 ## What and why
