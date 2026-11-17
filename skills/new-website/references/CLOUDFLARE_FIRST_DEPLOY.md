@@ -540,19 +540,29 @@ npx wrangler pages deploy dist --project-name <project> --branch <production-bra
 > deployed the wrong project type. Confirm it's the accidental Worker (not a pre-existing one
 > with a similar name), then delete it and re-run `wrangler pages deploy`.
 
-> **`--force` on `pages project create`, once.** When an AI assistant runs it, Wrangler 4.162.0
-> prints "Delegating to the latest version of Cloudflare Pages, now part of Cloudflare Workers"
-> and makes a **Worker**, not a Pages project. The next step, `pages deploy … --branch`, then
-> stops with "Pages project does not exist" (seen on 2026-11-17). `--force` is the opt-out
-> Wrangler names for that: the same run makes a real Pages project, and the deploy then
-> works as written. Wrangler prints a "Notice to agents" about it that asks for `--force` only
-> when the user does; here the owner has chosen a Pages site, so this step is that ask. Use it
-> on `project create` and nowhere else: once the project exists, Wrangler leaves later
-> commands on Pages. A person typing the command in their own terminal gets a Pages project
-> with or without it. If a run still prints "Delegating", stop: it made a Worker; confirm it is
-> that accidental Worker, delete it, and fix the command before going on. `--force` is
-> hidden (`--help` does not list it): if a later Wrangler refuses it, stop and read Wrangler's
-> changelog. Making the site a Worker instead is `docs/PAGES-OR-WORKERS.md`.
+> **`--force` on `pages project create`, once.** Wrangler decides from environment variables
+> (`CLAUDECODE` and others) whether an AI assistant is running. When one is, and the project does
+> not exist yet, 4.162.0 prints "Delegating to the latest version of Cloudflare Pages, now part of
+> Cloudflare Workers" and tries to make a **Worker**, not a Pages project. The next step,
+> `pages deploy … --branch`, then stops with "Pages project does not exist" (seen on
+> 2026-11-17). `--force` is the opt-out Wrangler names: the same run makes a real Pages project,
+> and the deploy then works as written. Keep it whoever runs the command. Use it on
+> `project create` and nowhere else: once the project exists, Wrangler leaves later commands on
+> Pages.
+>
+> **Pass it only when the owner has said, in this conversation, that this project stays on
+> Pages.** This section is for such a site; a site not yet launched goes to a Worker (see above).
+> Wrangler's own notices differ on the point: the one printed when delegation fails names
+> `--force` as the way out, and the one printed after it made a Worker asks agents to use
+> `--force` only when the user asks. The owner's word that the site stays on Pages is that ask.
+>
+> If a run still prints "Delegating", stop: Wrangler tried to make a Worker. Look in the
+> account for a Worker with the project's name; if it is the accidental one (not a pre-existing
+> Worker with a similar name), delete it, and delete the `wrangler.jsonc` it wrote into the
+> site folder, then run `project create … --force` again. `--force` is hidden (`--help` does not
+> list it) and an older Wrangler (4.83.0 has no such option, and no delegation) may not know it:
+> if Wrangler refuses it, stop and read Wrangler's changelog. Making the site a Worker instead
+> is `docs/PAGES-OR-WORKERS.md`.
 
 Ongoing deploys under (A), Pages form: with `CLOUDFLARE_ACCOUNT_ID` set as in step 0, re-run both lines of step 2, `CF_PAGES_BRANCH=` still included —
 `CF_PAGES_BRANCH=<production-branch> npm run build`, then
