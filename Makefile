@@ -37,6 +37,7 @@ check-run:  ## internal, use `make check`: run every suite guard: no personal da
 	@bash scripts/check_skill_budgets.sh
 	@bash skills/independent-review/scripts/test_failed_tier_report.sh
 	@bash skills/independent-review/scripts/test_base_check.sh
+	@bash skills/independent-review/scripts/test_codex_mcp_off.sh
 	@bash skills/independent-review/scripts/test_looks_like_review.sh
 	@bash skills/independent-review/scripts/test_round_checks.sh
 	@bash skills/independent-review/scripts/check_prompt_sync.sh

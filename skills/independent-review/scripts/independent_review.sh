@@ -57,7 +57,8 @@
 # start outside a git repo or trusted project; -c project_doc_max_bytes=0 and
 # -c skills.include_instructions=false keep a project's AGENTS.md out of its instructions
 # and stop it listing skills there (one live probe each, not tested; see the notes above
-# codex_bin). Whether
+# codex_bin). --disable plugins and -c mcp_servers.<name>.enabled=false take the MCP servers
+# off the run (see the notes above codex_model). Whether
 # the sandbox blocks writes is not tested here (R-SANDBOX), and project content can still
 # reach codex other ways (R-PROJCTX), both in
 # docs/reviews/OPEN-FINDINGS-independent-review.md. The ollama tier
@@ -1328,6 +1329,13 @@ looks_like_review() {
 # the prompt (R-PROJCTX). Not adopted:
 # --ignore-rules, which by its help text also drops the user's own .rules, forbidden
 # commands included — those are guards (R-PROJCTX).
+# --disable plugins and one -c mcp_servers.<name>.enabled=false per enabled server in
+# `codex mcp list --json` whose name is a plain key (stderr names any other, which stays on): a
+# review uses no MCP server, and each one started costs memory and CPU
+# and sits beside the reviewed text (a browser driver, a JavaScript runner). Names come from the
+# list because naming an unconfigured server stops Codex. If the list cannot be had, the run goes
+# as before and says so. Not adopted: --ignore-user-config, which also drops the config's model
+# and effort. The user's own config file is not touched.
 # The model a codex run uses: CODEX_MODEL, else config.toml's top-level `model = "<name>"` (single
 # quotes and a trailing comment allowed). Empty where the file cannot say which model runs: no
 # such line, a value it cannot read, a top-level `profile` key, which can pick another model, or
@@ -1373,6 +1381,27 @@ run_codex() {
   # /usr/bin/bash, which the `env bash` shebang can resolve to) throws "unbound variable"
   # on "${arr[@]}" for an EMPTY array under `set -u`. The list here is never empty.
   set -- exec -s read-only --skip-git-repo-check -c project_doc_max_bytes=0 -c skills.include_instructions=false
+  # Turn off the MCP servers Codex can name, for this run only (the note above codex_model).
+  # Listed in the folder exec runs in, bounded; any failure leaves them on and says why.
+  # No version probe: a Perl too old or without JSON::PP fails here and takes the same way out.
+  local mcp_why="" mcp_names="" mcp_line mcp_rc
+  perl "$PERL_DIR/run_limited.pl" 20 "$bin" mcp list --json --disable plugins </dev/null >"$RAW_DIR/codex.mcp.json" 2>"$RAW_DIR/codex.mcp.err"
+  mcp_rc=$?
+  case $mcp_rc in
+    0)   mcp_names="$(perl "$PERL_DIR/codex_mcp_off.pl" "$RAW_DIR/codex.mcp.json")" || mcp_why="its answer was not a readable list" ;;
+    142) mcp_why="listing them timed out after 20 seconds" ;;
+    *)   mcp_why="listing them failed (exit $mcp_rc: $(head -n 1 "$RAW_DIR/codex.mcp.err" | tr -cd '[:print:]' | cut -c 1-160))" ;;
+  esac
+  if [ -n "$mcp_why" ]; then
+    echo "codex: MCP servers left on ($mcp_why)" >&2
+  else
+    set -- "$@" --disable plugins
+    while IFS= read -r mcp_line; do
+      [ -n "$mcp_line" ] && set -- "$@" -c "$mcp_line"
+    done <<EOF
+$mcp_names
+EOF
+  fi
   [ -n "${CODEX_MODEL:-}" ] && set -- "$@" -c "model=\"$CODEX_MODEL\""
   [ -n "$CODEX_EFFORT_EFFECTIVE" ] && set -- "$@" -c "model_reasoning_effort=\"$CODEX_EFFORT_EFFECTIVE\""
   # The prompt goes on stdin (`-`): no argv limit. Probe P1 (2026-10-22) recorded a 400,040-byte

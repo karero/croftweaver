@@ -1,0 +1,74 @@
+[
+  {
+    "name": "chrome-devtools",
+    "enabled": true,
+    "disabled_reason": null,
+    "transport": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "chrome-devtools-mcp@latest"
+      ],
+      "env": null,
+      "env_vars": [],
+      "cwd": null
+    },
+    "startup_timeout_sec": null,
+    "tool_timeout_sec": null,
+    "auth_status": "unsupported"
+  },
+  {
+    "name": "computer-use",
+    "enabled": false,
+    "disabled_reason": null,
+    "transport": {
+      "type": "stdio",
+      "command": "./Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient",
+      "args": [
+        "mcp"
+      ],
+      "env": null,
+      "env_vars": [],
+      "cwd": "."
+    },
+    "startup_timeout_sec": null,
+    "tool_timeout_sec": null,
+    "auth_status": "unsupported"
+  },
+  {
+    "name": "node_repl",
+    "enabled": true,
+    "disabled_reason": null,
+    "transport": {
+      "type": "stdio",
+      "command": "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node_repl",
+      "args": [],
+      "env": {
+        "NODE_REPL_TRUSTED_CODE_PATHS": "/srv/example/.codex:/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules",
+        "BROWSER_USE_TINYSKY_ENABLED": "1",
+        "BROWSER_USE_CODEX_APP_VERSION": "26.1111.21308",
+        "NODE_REPL_NODE_MODULE_DIRS": "/Applications/ChatGPT.app/Contents/Resources/cua_node/lib/node_modules",
+        "NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS": "1000",
+        "BROWSER_USE_CODEX_APP_BUILD_FLAVOR": "prod",
+        "CODEX_HOME": "/srv/example/.codex",
+        "NODE_REPL_INSTRUCTIONS_USE_CASE_CHROME": "",
+        "NODE_REPL_INSTRUCTIONS_USE_CASE_BROWSER": "",
+        "NODE_REPL_NODE_PATH": "/Applications/ChatGPT.app/Contents/Resources/cua_node/bin/node",
+        "NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE": "",
+        "NODE_REPL_TRUSTED_SERVICES": "{\"browser\":\"/srv/example/.codex/plugins/cache/openai-bundled/browser/26.1111.21308/scripts/browser-service.mjs\",\"sky\":\"@oai/sky/service\"}",
+        "SKY_CUA_SERVICE_PATH": "/srv/example/.codex/computer-use/Codex Computer Use.app",
+        "CODEX_CLI_PATH": "/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex",
+        "BROWSER_USE_AVAILABLE_BACKENDS": "chrome,iab,mcpapps"
+      },
+      "env_vars": [
+        "BROWSER_USE_ACCESS_EXECUTOR_ID",
+        "BROWSER_USE_ACCESS_PIPE_PATH",
+        "BROWSER_USE_ACCESS_VERIFYING_IDENTITY"
+      ],
+      "cwd": null
+    },
+    "startup_timeout_sec": 120.0,
+    "tool_timeout_sec": null,
+    "auth_status": "unsupported"
+  }
+]
