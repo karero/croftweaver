@@ -1,4 +1,4 @@
-# Recount the plan's figures for the 82 gates from runs-82-gates-redacted.tsv (no other input).
+# Recount the plan's figures for the 81 gates from runs-81-gates-redacted.tsv (no other input).
 import sys,collections
 rounds=collections.defaultdict(lambda:collections.defaultdict(list))
 for i,line in enumerate(open(sys.argv[1])):

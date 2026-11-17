@@ -86,3 +86,26 @@ the two-week baseline (234 gates, 574 rounds, 45,976,379 tokens). They cover gat
 redacted copy. Neither one decides the recommendation: the options are weighed on the 81 gates'
 figures, which Codex recomputed. That the labels came before the answers rests on the file times
 and this session's word.
+
+## Final full read (before closing; Opus subagent, about 163k tokens)
+
+The read found 2 BUGs, 5 RISKs and 5 NITs, none raised in rounds 1 to 4. The two BUGs changed the
+design, so the rounds go on: round 5 verifies these fixes (`--earned-by` the BUG kinds).
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| E1 | BUG | Step 3 made a PATCH verdict an earning RISK, so an otherwise clean round would earn another; option 3 then adds rounds, a cost the plan did not show | fixed: a PATCH verdict earns no round by itself. It binds the next fix only when the same round found the kind again; otherwise it goes in the trail, and the round is clean under (a2). Options row 3 now says it adds no round and its saving is not measured. New S6 |
+| E2 | BUG | Q1(a) said "new questions: none", but step 3 sends scope questions to the owner, and both probe cuts were scope changes | fixed: Q1(a) says no new kind of question, and that the existing scope question may come more often, not counted |
+| E3 | RISK | Two definitions of a cut: the block's and SKILL.md's sentence | fixed: step 3 amends the SKILL.md sentence once (a check that becomes a warning counts); the block quotes it whole |
+| E4 | RISK | A PATCH verdict is not a finding line, so (a2) could misread a round | fixed with E1: a verdict alone counts no finding, and T2 checks that |
+| E5 | RISK | T2 checked one prompt; the script builds four tier prompts | fixed: T2 checks all four, and step 1 names them |
+| E6 | RISK | T1a's cost was understated, and T1b needs more runs than cases | fixed: T1a about 300k to 500k; T1b at least 8 runs, about 500k |
+| E7 | RISK | The two-week check had no decision rule | fixed: if rounds past 3 per gate are not lower, or more than a quarter of PATCH verdicts were refuted, the owner is offered Q1(d) or removal. Q1(d) added |
+| E8 | NIT | T2 needs `--round 1` first, or no gate id exists | fixed |
+| E9 | NIT | "The script already shows renames" overstated it | fixed: it flags a new name only when one name starts the other |
+| E10 | NIT | `recount.py`'s first comment named 82 gates | fixed: 81 |
+| E11 | NIT | S4 said T1a measures its round 5, but T1a did not require that case | fixed: T1a includes S1's and S4's round-5 fixes |
+| E12 | NIT | Plan copies grow without limit | fixed: a new `--round 1` deletes copy folders older than 30 days |
+
+The read also recounted the live baseline: 235 gates, 575 rounds, 46,043,776 tokens. The log has
+grown since the evidence was taken; the plan keeps the evidence's figures.
