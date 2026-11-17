@@ -140,10 +140,12 @@ it did when columns 15 to 17 came; every reader takes a missing field 18 as `-`.
   match `k`; drop the warning, and round 7's output check fails; key the answer to the round
   instead of the kind, and the two-kind round gives no warning. Each is tried once by hand before
   the review, as a mutation check.
-- **T2.** `check_prompt_sync.sh` and `make check` pass. The old-header test of
-  `test_round_checks.sh` (a 14-column log) now expects `add` to append 18 fields, and a new fixture
-  with a 17-column header checks that round-check and the gate line read a missing field 18 as
-  `-`.
+- **T2.** `check_prompt_sync.sh` and `make check` pass. Every test that counts the log's columns
+  moves to 18: the old-header test of `test_round_checks.sh` (a 14-column log) expects `add` to
+  append 18 fields, and in `test_failed_tier_report.sh` T6 (a new log's header ends in `reason`,
+  `manager_said`; the rejected seat's line has 18 fields) and T8 (an OK seat's line has 18 fields)
+  keep their column-17 reason checks and check column 18 apart (`-`). A new fixture with a
+  17-column header checks that round-check and the gate line read a missing field 18 as `-`.
 - **After two weeks,** compare all gates that reach round 4 with the baseline (234 gates, 574
   rounds past round 3, about 2.45 a gate, 46.0M tokens; evidence §4c). Count each due kind once
   per gate and round (seat lines and reruns of a round count once), how many of them had a

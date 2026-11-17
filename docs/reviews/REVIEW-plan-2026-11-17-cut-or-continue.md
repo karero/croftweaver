@@ -184,3 +184,13 @@ Two new findings:
 |----|-----|---------|-------------|
 | J1 | BUG | Design 4 changed only step 6; step 7 still says a kind back after its cut stops the patching and goes to the owner, which contradicts waiting for the second return and the manager's "keep fixing"; `references/rationale.md` says the same | fixed: design 4 names the step 7 sentence and its replacement (first return: redesign, the next fix is a cut; second return: ask the manager), keeps "a change of scope" with the owner except for the two answers, and edits the rationale section on the 2026-10-22 rule |
 | J2 | RISK | The two-week check counts answers the host passes, and a host can pass one it never asked for | fixed: design 3 and the check say they count answers recorded, not asks made |
+
+## Round 4 (265 s, 91,832 tokens; earned by `skill-step-consistency`, J1)
+
+Round 4 confirmed J1 and J2, reran every recount and S1, S2 and S6's timing. One new finding:
+
+| Id | Sev | Finding | Disposition |
+|----|-----|---------|-------------|
+| K1 | RISK | T2 missed three assertions in `test_failed_tier_report.sh` (T6's header and line, T8's line) that require exactly 17 columns; 18 fields would fail them | fixed: T2 names them, moves them to 18 columns with the column-17 reason checks kept and column 18 checked apart. No other script reads the log by its last column (`grep` for `$NF` and `NF ==` outside the tests: none) |
+
+K1 changes what the builder does, so it earns round 5 (kind `log-column-tests`).
