@@ -1,6 +1,7 @@
 # Plan: when a cut turns out to be a patch (independent-review, step 6)
 
-Status: plan only; nothing built. Evidence: `EVIDENCE-review-cut-or-continue.md` (same folder).
+Status: the owner chose option 3 and gave the go for T1a only (2026-11-17); building needs a
+second go. Nothing built. Evidence: `EVIDENCE-review-cut-or-continue.md` (same folder).
 
 ## What
 
@@ -71,7 +72,8 @@ the owner (how often the existing scope question comes is not measured).
    the verdict in the trail with the diff lines that remove or refuse. When the kind did not come
    back, the patch held: the verdict goes in the trail and nothing more, and a round with no
    BUG/RISK line is clean under (a2). If the cut changes what the change does for its Users (a stop
-   becomes a warning, a check goes), it is the change of scope the step already sends to the owner.
+   becomes a warning, a check goes), the session's manager decides it and tells the owner in the
+   PR (the owner's answer to Q2, 2026-11-17).
 4. Nothing else changes. "Don't ask the owner whether to run the next round" stays, and the
    decision past round 8 stays.
 
@@ -147,6 +149,13 @@ not yet show how often it calls a real cut a patch. Tests T1a and T1b settle tha
   cut (baseline: 81 of 234). If rounds past round 3 per gate are not lower, or the hosts refuted a PATCH verdict in
   more than a quarter of the trails that got one, the session that runs the check tells the owner,
   through its manager, and offers Q1's option (d) or taking the check out. The owner decides.
+
+## The owner's answers (2026-11-17, relayed by the manager, his picks word for word)
+
+- Q1: "Keep my rule (Recommended)", option (a). Option (d) stays the fallback the two-week check
+  may offer.
+- Q2: "The manager", option (b). Step 3 says so.
+- Go: "Yes, run the test", for T1a only. A build after T1a needs his go again.
 
 ## Questions for the owner (through the manager)
 
