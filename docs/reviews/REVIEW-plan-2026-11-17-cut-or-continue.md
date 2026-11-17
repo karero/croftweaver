@@ -18,6 +18,7 @@ Checks before round 1: `scripts/check_clean.sh` passed. The change adds three fi
 | 3 | `327ce368` | the whole plan, `--verify` round 2's findings | Codex alone; melious out of balance | 125 s, 65,347 | 0 / 3 / 0 |
 | 4 | `a715b173` | the whole plan, `--verify` round 3's findings; `--earned-by t1b-verdict-guard,backtest-request,t2-plan-fixture`, `--cut` for `backtest-request` | Codex alone; melious out of balance | 177 s, 67,397 | 0 / 1 / 0 |
 | 5 | `c5f338d9` | the whole plan, `--verify` the final read's findings; `--earned-by cut-check-added-rounds,owner-question-count` | Codex alone; melious out of balance | 191 s, 75,354 | 1 / 3 / 0 |
+| 6 | `e7511046` | the whole plan, `--verify` round 5's findings; `--earned-by owner-question-count,content-mode-coverage,t1b-gate-id,baseline-reproducible`, `--cut` for `owner-question-count` | Codex alone; melious out of balance | 130 s, 55,048 | 0 / 0 / 0 |
 
 ## Round 1 findings
 
@@ -126,3 +127,21 @@ in the new text.
 
 Round 5 also noted that E7's trail line said "per verdict" while the plan says "per trail"; the
 trail line now matches the plan. Round 6 verifies these fixes: F1 is a BUG, so the rounds go on.
+
+## Round 6: clean, and the gate closes
+
+F1's kind came back (E2's), so round 6 carried a `--cut`: the claim that option 3 asks the owner
+no new question is gone everywhere, and the plan claims only "no new kind of question".
+
+Codex confirmed F1 to F4 and the E7 trail line. It reran both recount scripts: 234 / 574 /
+45,976,379 for the baseline, and 203 / 17,991,532 with ceilings 122 / 10,743,852 and 61 /
+5,379,363 for the 81 gates. No BUG, RISK or NIT. Still UNVERIFIABLE to it: that the redacted
+baseline file was extracted faithfully from the log (a check against the log itself would settle
+it; the log is not in the repo).
+
+The final full read ran before round 5. Rounds 5 and 6 changed only the lines in F1 to F4, and
+round 6 read the whole plan again and found nothing, so no second full read was run.
+
+Gate total: 6 rounds, 30 findings (6 BUG, 12 RISK, 0 NIT in the rounds; 2 BUG, 5 RISK, 5 NIT in the
+final read), 407,289 seat tokens logged, plus the final read's about 163k and the
+probe's 38,597. Codex alone in every round: melious had no balance.
