@@ -483,7 +483,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    (every `https://example.com` link); the first `npm test` fails while `robots.txt` or
    `llms.txt` still names `example.com`. **Set `SITE.name` there too, then run `node scripts/make-icons.mjs --setup`
    after `npm install`:** it draws the site's first letter on its `--brand` colour into the seven icon files the
-   starter links, and the first `npm test` fails without them. A name that starts with no letter A–Z or digit
+   starter links, and the first `npm test` fails without them (the build also refuses create-astro's own
+   `favicon.svg` and `favicon.ico`, so a site cannot go live with them). A name that starts with no letter A–Z or digit
    needs a letter from the owner: add `--letter X`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
    `astro-i18n-setup`). **`'de'` flips the footer's links to `/datenschutz` and `/impressum`** —

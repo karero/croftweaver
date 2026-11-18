@@ -67,7 +67,7 @@ jobs:
             n=$((n + 1))
             case "$f" in
               # whats-new.sh: verify-windows runs the recovery command it prints.
-              skills/new-website/templates/astro/*|skills/new-website/scripts/tests/make-icons.test.mjs|skills/new-website/scripts/tests/test_og_fonts.py|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-hero-carousel/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|scripts/test_served_build.sh|.github/workflows/template-tests.yml) run=true ;;
+              skills/new-website/templates/astro/*|skills/new-website/scripts/tests/*|skills/website-scorecard/*|skills/website-contact-form/*|skills/website-hero-carousel/*|skills/website-brand-kit/*|skills/website-tagline/*|scripts/whats-new.sh|scripts/test_served_build.sh|.github/workflows/template-tests.yml) run=true ;;
               \"*) run=true ;;
             esac
           done <<EOF
@@ -125,6 +125,11 @@ jobs:
       # stopped at each step of the write. It runs the script as a program in copies of the starter.
       - name: The icon script (skills/new-website/scripts/tests/make-icons.test.mjs)
         run: MAKE_ICONS_NODE_MODULES="$PWD/node_modules" node --test ../../scripts/tests/make-icons.test.mjs
+      # scripts/build-marker.mjs refuses Astro's default icons: as a program on each variant of them,
+      # and through npm run verify, build, deploy:live and Wrangler in a copy of the starter. It
+      # runs after the icon script because it draws icons with it.
+      - name: The favicon guard (skills/new-website/scripts/tests/favicon-guard.test.mjs)
+        run: MAKE_ICONS_NODE_MODULES="$PWD/node_modules" node --test ../../scripts/tests/favicon-guard.test.mjs
       # The template is a subfolder of this repo, the way a site can sit inside a bigger
       # repo. The install's "prepare" script must then leave this repo's git hooks alone:
       # pointed at a scripts/hooks this repo does not have, git runs no hooks at all.
