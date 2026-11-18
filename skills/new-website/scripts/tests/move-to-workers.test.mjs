@@ -3783,13 +3783,24 @@ describe('move on a protected main (P1 to P6)', () => {
     assert.equal(ok.code, 0, ok.text);
     assert.match(ok.text, /back on Pages/);
   }
-  const later = (s, from) => git(s.site.work, 'commit-tree', `${from}^{tree}`, '-p', from, '-m', 'a later change');
+  // A later change that edits a file other than the Workers config: a one-parent commit on `from`, or a two-parent merge of a side commit made on the frozen commit.
+  const later = (s, from, merge = false) => {
+    const w = s.site.work;
+    const back = git(w, 'symbolic-ref', '-q', '--short', 'HEAD') || git(w, 'rev-parse', 'HEAD');
+    const edit = (name, text, msg) => { writeFileSync(path.join(w, name), text); git(w, 'add', name); git(w, 'commit', '-q', '-m', msg); return git(w, 'rev-parse', 'HEAD'); };
+    git(w, 'switch', '-q', '--detach', merge ? s.site.frozen : from);
+    const c = edit('later-note.txt', 'a later change\n', 'a later change');
+    let out = c;
+    if (merge) { git(w, 'switch', '-q', '--detach', from); git(w, 'merge', '-q', '--no-ff', '-m', 'a later merge', c); out = git(w, 'rev-parse', 'HEAD'); }
+    git(w, 'switch', '-q', ...(back.length === 40 ? ['--detach'] : []), back);
+    return out;
+  };
   const pushBoth = (s, sha) => { git(s.site.work, 'push', '-q', 'origin', `${sha}:refs/heads/main`, `${sha}:refs/heads/production`); git(s.site.work, 'fetch', '-q', 'origin'); };
 
   test('T6 (P6): after a merge-commit M and one later merge, undo refuses the old HEAD (a folder main that is merely behind gets the reset line), and from the tip its commit, merged, passes after', async () => {
     const { s, route } = await moved();
     const m = mergeViaPr(s, route, 'merge');
-    const next = later(s, m);
+    const next = later(s, m, true);
     pushBoth(s, next);
     git(s.site.work, 'branch', '-f', 'main', m); // behind main's tip, and neither the frozen commit nor the route commit
     worldAt(s, next);
@@ -3803,6 +3814,17 @@ describe('move on a protected main (P1 to P6)', () => {
     pushBoth(s, next);
     worldAt(s, next);
     await undoFromTip(s, next, (u) => { pushBoth(s, u); return u; });
+  });
+
+  test('T6 (P6): with the route commit pushed directly as main and HEAD still at the frozen commit, undo refuses and prints the folder line', async () => {
+    const { s } = await moved();
+    s.push();
+    git(s.site.work, 'fetch', '-q', 'origin');
+    git(s.site.work, 'switch', '-q', '--detach', s.site.frozen);
+    const r = await s.go(['undo']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /HEAD is [0-9a-f]+, not [0-9a-f]+, the commit that main on GitHub holds/);
+    assert.ok(r.text.includes('git switch'), r.text);
   });
 
   test('T6 (P6): a folder with no branch called main is told how to make one at M', async () => {
