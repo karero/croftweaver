@@ -1338,6 +1338,58 @@ export async function ensureRouteCommit(ctx, want, kind) {
   return { commit: await ctx.gitOut('rev-parse', 'HEAD'), wrote: true };
 }
 
+// ---------------------------------------------------------------- the commit that main holds for a route commit
+
+// Whether `sha` stands in for the route commit `route`: it is that commit, or has its files and its
+// parent (what a pull request's squash or merge commit leaves). Needs the route commit in this folder.
+async function isRouteTip(ctx, sha, route) {
+  if (sha === route) return true;
+  if ((await ctx.git('cat-file', '-e', `${route}^{commit}`)).code !== 0) throw new Stop(1, `The commit ${short(route)} this move waits for is not in this folder, so main on GitHub (${short(sha)}) cannot be compared with it. Run this in the folder the move ran in.`);
+  const rev = async (x) => (await ctx.git('rev-parse', '--verify', '-q', x)).stdout.trim();
+  const [tree, rTree, parent, rParent] = await Promise.all([`${sha}^{tree}`, `${route}^{tree}`, `${sha}^1`, `${route}^1`].map(rev));
+  return Boolean(tree) && tree === rTree && Boolean(parent) && parent === rParent;
+}
+
+// Whether `a` is `b` or one of its ancestors.
+async function isAncestor(ctx, a, b) {
+  const r = await ctx.git('merge-base', '--is-ancestor', a, b);
+  if (r.code > 1) throw new Stop(1, `git could not compare ${short(a)} with ${short(b)}: ${(r.stderr || r.stdout).trim().split('\n')[0]}. Run git fetch origin, then run this again.`);
+  return r.code === 0;
+}
+
+// The steps that put a route commit on GitHub: main first, production only once main has it.
+const MAIN_STEP = 'git push origin HEAD:main';
+const PRODUCTION_STEP = 'git push origin origin/main:production';
+const mainStepLine = (commitWords) => `Push ${commitWords} to main (${MAIN_STEP}). If GitHub refuses it because main is protected, push it to a branch of its own, open a pull request and merge it, then run git fetch origin: after accepts the merged commit.`;
+const productionStepLine = `Then, once main has the commit, run git fetch origin and push it to production (${PRODUCTION_STEP}).`;
+
+// What to do in the owner's folder so its main is M, the commit GitHub's main holds for the route commit.
+// Keyed on the folder's own main; with `head` set (a refusal), a main already at M but a HEAD elsewhere gets git switch main.
+async function folderLines(ctx, st, M, route, head = null) {
+  const local = (await ctx.git('rev-parse', '--verify', '-q', 'refs/heads/main')).stdout.trim();
+  if (local === M) return head && head !== M ? ['This folder is on another branch than main, which is already that commit. Run git switch main, then run this again.'] : [];
+  const parent = (await ctx.git('rev-parse', '--verify', '-q', `${route}^1`)).stdout.trim();
+  if ([st.frozen, route, parent].includes(local)) return [`Bring this folder's main to ${short(M)}: run git fetch origin, git switch main, then git reset --keep ${M}.`];
+  return [`main in this folder (${local ? short(local) : 'none'}) has commits of its own, so it cannot be brought to ${short(M)} with a reset. Ask for help; there is nothing to run here.`];
+}
+
+// move and undo write their commit on the commit GitHub's main holds for the route commit, so a pull
+// request that merges it has that commit as first parent; and they refuse a main that moved past it.
+async function headRule(ctx, st, head, dir) {
+  const route = st.route?.commit;
+  const tip = ctx.mainSha;
+  if (!route || tip === route || tip === st.frozen) return; // main still at the frozen commit: nothing was merged, and a clone may lack the route commit
+  if (await isRouteTip(ctx, tip, route)) {
+    if (head === tip) return;
+    const written = st.asked?.commit; // the commit an earlier plain run wrote on that commit, which the --confirm run now finds at HEAD
+    if (head === written && (await ctx.git('rev-parse', '--verify', '-q', `${head}^1`)).stdout.trim() === tip) return;
+    throw new Stop(1, `HEAD is ${short(head)}, not ${short(tip)}, the commit that main on GitHub holds for the ${st.route.kind} commit ${short(route)}. ${dir} writes its commit on ${short(tip)}, so that a pull request merging it can be accepted.`, ...(await folderLines(ctx, st, tip, route, head)));
+  }
+  if (!(await isAncestor(ctx, tip, route)) && !(await isAncestor(ctx, route, tip))) {
+    throw new Stop(1, `main on GitHub is ${short(tip)}, not the ${st.route.kind} commit ${short(route)} or a merge of it: something else was merged while the move is open. Ask for help.`);
+  }
+}
+
 // ---------------------------------------------------------------- the commands
 
 function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); } // ok_: true, false, or 'wait' (not wrong, not finished)
@@ -1597,6 +1649,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   // Both modes: the working tree, and HEAD's Workers config the frozen one but for its routes.
   await cleanTreeOrStop(ctx);
   const head = await ctx.gitOut('rev-parse', 'HEAD');
+  if (!firstMove) await headRule(ctx, st, head, dir);
   const want = toWorker ? [...ctx.hosts] : [];
   const cfg = await headConfig(ctx);
   const fits = JSON.stringify(cfg.routes) === JSON.stringify([...want].sort());
@@ -1646,7 +1699,9 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
     ? `Take ${ctx.hosts.join(', ')} off the Pages project ${ctx.project.name}, delete each host's CNAME to ${ctx.project.subdomain}, and attach each to the Worker ${ctx.worker} (account ${ctx.account.name}, zone ${ctx.zone.name}).`
     : `Take ${ctx.hosts.join(', ')} off the Worker ${ctx.worker}, add each back to the Pages project ${ctx.project.name} with its CNAME to ${ctx.project.subdomain} (account ${ctx.account.name}, zone ${ctx.zone.name}).`);
   lines.push(`Each host is down from the moment it leaves its platform until the other one serves it: ${toWorker ? 'a few seconds' : 'one to two minutes, 63 to 98 seconds in the tests'}. The target is ${TARGET_MS / 60_000} minutes; past it, the run tells you to go back.`);
-  lines.push(`Push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production' : 'main'} afterwards (you do that, not the script); then run after.`);
+  lines.push(`${mainStepLine(`commit ${short(commit)}`)} You do that, not the script.`);
+  if (ctx.twoStage) lines.push(productionStepLine);
+  lines.push('Then run after.');
   const input = { kind: dir, account: ctx.account.id, zone: ctx.zone.id, repository: ctx.repository.toLowerCase(), project: ctx.project.name, worker: ctx.worker, hosts: [...ctx.hosts].sort(), commit, frozen: st.frozen };
   if (!todo.length && ctx.opts.confirm === null) say(`Every host is already ${toWorker ? 'on the Worker' : 'back on Pages'}.`);
   const names = ctx.hosts.length > 1 ? `${ctx.hosts.slice(0, -1).join(', ')} and ${ctx.hosts.at(-1)}` : ctx.hosts[0];
@@ -1803,7 +1858,9 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   const verb = (one, many) => (ctx.hosts.length > 1 ? many : one); // the host list's verb: "serves" for one host, "serve" for several
   note(run, true, `Both answers in a row: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages'}, ${ago} seconds after the first left its platform`);
   say(`Done: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages again'} (${ago} seconds since the first host left its platform).`);
-  say(`Now push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production (git push origin HEAD:production HEAD:main)' : 'main'}, deploy it if the Worker has no Workers Builds, and run: node move-to-workers.mjs after`);
+  say(mainStepLine(`commit ${short(commit)}`));
+  if (ctx.twoStage) say(productionStepLine);
+  say('Deploy it if the Worker has no Workers Builds, and run: node move-to-workers.mjs after');
   run.next = 'node move-to-workers.mjs after';
   return 0;
 }
@@ -1821,22 +1878,39 @@ async function cmdAfter(ctx, run) {
       st.route = st.asked;
       st.direction = st.asked.kind === 'route' ? 'to-worker' : 'to-pages';
       delete st.asked;
+      delete st.passed;
       saveState(ctx.stateDir, st);
     }
   }
   const toWorker = st.route.kind === 'route'; // the commit waited for says where the hosts belong
-  const expect = st.route.commit;
+  const route = st.route.commit;
   const branches = ctx.twoStage ? [ctx.prodBranch, 'main'] : [ctx.prodBranch];
   const problems = [];
   const tips = {};
   for (const b of branches) tips[b] = await tipOf(ctx, b);
-  for (const b of branches) if (tips[b] !== expect) problems.push(`${b} on GitHub is ${short(tips[b])}, not the ${st.route.kind} commit ${short(expect)}: push it`);
+  for (const b of branches) await ctx.haveCommit(tips[b], b);
+  // main's tip is the route commit or a pull request's merge of it (M); from here on M takes the route commit's place.
+  const mainOk = await isRouteTip(ctx, tips.main, route);
+  const expect = mainOk ? tips.main : route;
+  let steps = [];
+  if (!mainOk) {
+    problems.push(`main on GitHub is ${short(tips.main)}, not the ${st.route.kind} commit ${short(route)} or a merge of it`);
+    steps = [mainStepLine(`the ${st.route.kind} commit ${short(route)}`), ...(ctx.twoStage ? [productionStepLine] : [])];
+    run.next = MAIN_STEP;
+  } else if (ctx.twoStage && tips[ctx.prodBranch] !== expect) {
+    if (!(await isAncestor(ctx, tips[ctx.prodBranch], expect))) {
+      note(run, false, `${ctx.prodBranch} on GitHub is ${short(tips[ctx.prodBranch])}, which is not behind main (${short(expect)})`);
+      throw new Stop(1, `${ctx.prodBranch} on GitHub is ${short(tips[ctx.prodBranch])}, which is not behind main (${short(expect)}), so a push cannot bring it there. Ask for help: ${ctx.prodBranch} has to be pointed at main again, which needs a decision.`);
+    }
+    problems.push(`${ctx.prodBranch} on GitHub is ${short(tips[ctx.prodBranch])}, not main's ${short(expect)}`);
+    steps = [productionStepLine];
+    run.next = `git fetch origin, then ${PRODUCTION_STEP}`;
+  }
   if (problems.length) {
     problems.forEach((p) => note(run, false, p));
-    run.next = `git push origin HEAD:${ctx.prodBranch}${ctx.twoStage ? ' HEAD:main' : ''}`;
-    throw new Stop(1, ...problems, 'Push the commit, then run after again.');
+    throw new Stop(1, ...problems, ...steps, 'If something else was merged into main since, ask for help. Then run after again.');
   }
-  note(run, true, `GitHub's ${branches.join(' and ')} ${branches.length > 1 ? 'are' : 'is'} the ${st.route.kind} commit ${short(expect)}`);
+  note(run, true, `GitHub's ${branches.join(' and ')} ${branches.length > 1 ? 'are' : 'is'} the ${st.route.kind} commit ${short(route)}${expect === route ? '' : ` as ${short(expect)}, which has its files`}`);
   const { list: unfinished } = await unfinishedBuilds(ctx, st.base ?? st.frozen, tips[ctx.prodBranch], { newest: Boolean(st.base), tips: Object.values(tips) });
   if (unfinished.length) {
     note(run, false, `Builds are unfinished: ${unfinished.join('; ')}`);
@@ -1909,12 +1983,15 @@ async function cmdAfter(ctx, run) {
   }
   const when = new Date(ctx.now()).toISOString();
   st.base = expect; // later builds are looked at from here on; it only moves forward
+  st.commits = [...new Set([...(st.commits ?? []), expect])];
+  const folder = await folderLines(ctx, st, expect, route);
   if (toWorker) {
     st.passed = expect; // the stage marker: cleared when a switch starts, so a go-forward onto the same commit is not "passed"
     saveState(ctx.stateDir, st);
     const many = ctx.hosts.length > 1;
     say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'serve' : 'serves'} the Worker and ${many ? 'match' : 'matches'} the recording. The move stays open, so undo works until the Pages project is retired.`);
     say('If you will not undo soon, delete the API token now: https://dash.cloudflare.com/profile/api-tokens. An undo later needs a new token, made the same way.');
+    folder.forEach((l) => say(l));
     run.next = 'Nothing more for this script. Delete the API token now if you will not undo soon (an undo later needs a new one). Keep the Pages project 14 days, then retire it as the move section says.';
     run.done = true;
   } else {
@@ -1924,6 +2001,7 @@ async function cmdAfter(ctx, run) {
     const many = ctx.hosts.length > 1;
     say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'are' : 'is'} back on Pages and ${many ? 'match' : 'matches'} the recording. The move is closed; the next one starts with record.`);
     say('Delete the API token now: https://dash.cloudflare.com/profile/api-tokens.');
+    folder.forEach((l) => say(l));
     run.next = 'The move is closed. To try again: node move-to-workers.mjs record';
     run.closed = true;
   }
@@ -1944,7 +2022,7 @@ function stageOf(st, run) {
   if (run.closed) return 4; // an undo that passed its check
   if (!st) return run.stateRead ? 1 : 0; // a run that stopped before the state was read knows no stage
   if (st.open) {
-    if (st.passed === st.route?.commit && st.route?.kind === 'route') return 5; // after passed for the commit waited for
+    if (st.passed && st.route?.kind === 'route') return 5; // after passed for the commit waited for (or the merge that holds it); a switch clears it
     return run.cmd === 'after' ? 4 : 3;
   }
   return 2;
