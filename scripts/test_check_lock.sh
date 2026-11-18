@@ -12,7 +12,7 @@
 # In the copy the first guard, scripts/check_clean.sh, is a stub that writes a marker file and
 # fails, so no case runs the real guards or recurses into this test.
 #
-# N1 to N7 cover the manager's next-in-line entry (scripts/check_next.sh): a live entry refuses every
+# N1 to N8 cover the manager's next-in-line entry (scripts/check_next.sh): a live entry refuses every
 # session but the named one, expires 10 minutes after the later of its set time and the last run's
 # end, and a damaged or held entry refuses loudly. They go through `make check` too; N5's set, show
 # and clear and N7's `set`, `clear` and `show` call check_next.sh directly. Not tested: that the
@@ -76,6 +76,7 @@ copy() {
     && cat >"$c/scripts/check_clean.sh" <<'STUB' \
     || { echo "FAIL — could not build the copy $1."; exit 1; }
 printf '%s\n' "$(ps -o comm= -p "$PPID" 2>/dev/null)" >"$CHECK_STUB_MARKER"
+[ -z "${CHECK_STUB_ENV:-}" ] || printf '%s\n' "${CROFTWEAVER_CHECK_LOCK-unset}" >"$CHECK_STUB_ENV"
 [ -z "${CHECK_STUB_KILL_PARENT:-}" ] || kill -TERM "$PPID"
 exit 1
 STUB
@@ -268,6 +269,8 @@ mk() {
 }
 ran() { [ -e "$N/marker" ] && [ "$m_rc" = 2 ] && case "$m_out" in *"Error 75"*|*"refused"*) false ;; *) true ;; esac; }
 no_entry() { [ ! -s "$1.next" ]; }
+# emptied <lock> — the entry file exists and is empty: a run empties it in place, never unlinks it.
+emptied() { [ -e "$1.next" ] && [ ! -s "$1.next" ]; }
 snap() { cksum <"$1.next"; }
 # put_entry <lock> <named> <setter> <epoch> — writes an entry by hand, as check_next.sh set would.
 put_entry() { printf '%s\n%s\n%s\n%s\n' "$TAG" "$2" "$3" "$4" >"$1.next"; }
@@ -294,7 +297,7 @@ if wait_holder "$L" "$h"; then
   mk "$L" "$IB"
   b_ref=0; refused && [ ! -e "$N/marker" ] && case "$m_out" in *"next:    $IA"*) b_ref=1 ;; esac
   mk "$L" "$IA"
-  if [ "$set_ok" = 1 ] && [ "$b_ref" = 1 ] && ran && no_entry "$L"; then
+  if [ "$set_ok" = 1 ] && [ "$b_ref" = 1 ] && ran && emptied "$L"; then
     ok "N1 an entry holds off every other session through and after a run; the named session runs and empties it"
   else
     fail "N1 set/show ok=$set_ok, B refused naming A=$b_ref, A ran=$(ran && echo yes || echo no), entry empty=$(no_entry "$L" && echo yes || echo no): $m_out"
@@ -370,6 +373,7 @@ damaged "a malformed setter id" "$TAG\n$IA\nlocal_made_up\n$now\n"
 damaged "a setter that is neither an id nor none" "$TAG\n$IA\nnobody\n$now\n"
 damaged "a time that is not a number" "$TAG\n$IA\n$IM\nsoon\n"
 damaged "no final newline" "$TAG\n$IA\n$IM\n$now"
+damaged "a fifth line with no final newline" "$TAG\n$IA\n$IM\n$now\nX"
 
 # --- N5 (S3, S4): set, replace, clear, show ----------------------------------------------------
 L="$T/n5.lock"
@@ -388,7 +392,7 @@ if [ "$named_a" = 1 ] && [ "$a_ref" = 1 ] && [ "$c_ran" = 1 ] && no_entry "$L"; 
 else fail "N5 replace: named A=$named_a, A refused naming C=$a_ref, C ran=$c_ran"; fi
 nx "$L" "$IM" set "$IA"; nx "$L" "$IM" clear; cl="$n_out"
 mk "$L" "$IB"
-if case "$cl" in *"cleared the entry for $IA"*) true ;; *) false ;; esac && no_entry "$L" && ran; then
+if case "$cl" in *"cleared the entry for $IA"*) true ;; *) false ;; esac && emptied "$L" && ran; then
   ok "N5 clear names the entry it removed, and the next run goes"
 else fail "N5 clear: '$cl', entry empty=$(no_entry "$L" && echo yes || echo no)"; fi
 nx "$L" "$IM" show; s1="$n_out"
@@ -396,7 +400,7 @@ nx "$L" "$IM" clear; s2="$n_out"
 put_entry "$L" "$IA" "$IM" "$((now - 100))"
 printf '1\nsess\nfolder\nsince\nended %s\n' "$((now - 20))" >"$L"
 nx "$L" "$IM" show; s3="$n_out"
-deadpid="$(sh -c 'echo $$')"
+deadpid=99999; while ps -p "$deadpid" >/dev/null 2>&1; do deadpid=$((deadpid - 1)); done
 printf '%s\nsess\nfolder\nsince\n' "$deadpid" >"$L"
 nx "$L" "$IM" show; s4="$n_out"
 if [ "$s1" = "no entry" ] && [ "$s2" = "no entry" ] \
@@ -404,6 +408,17 @@ if [ "$s1" = "no entry" ] && [ "$s2" = "no entry" ] \
    && case "$s4" in *"expires: $(fmt_time $((now + 500)))"*) true ;; *) false ;; esac; then
   ok "N5 show and clear say 'no entry'; show counts expiry from the last run's end, or from the set time when the run left no end"
 else fail "N5 show: [$s1] [$s2] [$s3] [$s4]"; fi
+
+# --- N8: the guards do not inherit the lock path the gate was given --------------------------------
+# With no CROFTWEAVER_CHECK_LOCK set (the lock falls back to HOME), a guard must still see none.
+mkdir -p "$T/home8" || { echo "FAIL — could not make the N8 folder."; exit 1; }
+rm -f "$N/marker" "$N/env"
+run_make "$N" check HOME="$T/home8" CLAUDE_CODE_HOST_SESSION_ID="$IB" CHECK_STUB_MARKER="$N/marker" CHECK_STUB_ENV="$N/env"
+if ran && [ "$(cat "$N/env" 2>/dev/null)" = unset ]; then
+  ok "N8 the guards run with CROFTWEAVER_CHECK_LOCK as the caller left it (unset), not as the gate needed it"
+else
+  fail "N8 the guards saw CROFTWEAVER_CHECK_LOCK='$(cat "$N/env" 2>/dev/null)' (exit $m_rc): $m_out"
+fi
 
 # --- N7: a held entry flock refuses after about 5 s, and changes nothing -------------------------
 # The holder keeps the flock 25 s and is killed after each case, so a slow machine cannot let the
@@ -439,9 +454,9 @@ for what in set clear show named other expired; do
     set|clear|show) [ "$n_rc" = 1 ] && rc_ok=1; out="$n_out" ;;
     *) [ "$m_rc" = 2 ] && [ ! -e "$N/marker" ] && case "$m_out" in *"Error 75"*) rc_ok=1 ;; esac; out="$m_out" ;;
   esac
-  if [ "$rc_ok" = 1 ] && [ "$took" -ge 4 ] && [ "$(snap "$L")" = "$before" ] \
+  if [ "$rc_ok" = 1 ] && [ "$took" -ge 4 ] && [ "$took" -le 15 ] && [ "$(snap "$L")" = "$before" ] \
      && case "$out" in *"$L.next is held by another command"*) true ;; *) false ;; esac; then
-    ok "N7 ($what) a held next-in-line file refuses after about 5 s and is left unchanged"
+    ok "N7 ($what) a held next-in-line file refuses after about 5 s (4 to 15) and is left unchanged"
   else
     fail "N7 ($what): refused=$rc_ok after ${took}s, entry unchanged=$([ "$(snap "$L")" = "$before" ] && echo yes || echo no): $out"
   fi

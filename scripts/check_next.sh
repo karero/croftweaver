@@ -158,7 +158,7 @@ if ($mode eq "set") {
     print STDERR "check_next.sh cannot write $entry: " . ($! || "short write") . "\n"; exit 1;
   }
   print "next make check slot: $id\n";
-  print describe($id, $setter, $now, "10 minutes after the later of now and the end of the current run");
+  print describe($id, $setter, $now, "10 minutes from now, or from the end of the current run if one is running");
   print "Check that id against what that session prints for: echo \$CLAUDE_CODE_HOST_SESSION_ID\n";
   print "This replaced the entry for $old.\n" if $st eq "ok";
   print "This replaced an unreadable entry.\n" if $st eq "bad";

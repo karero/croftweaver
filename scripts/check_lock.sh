@@ -69,14 +69,15 @@ if (!flock($fh, LOCK_EX | LOCK_NB)) {
 }
 # The end time of the last run, for the expiry of a next-in-line entry. The lock is ours, so the
 # details in the file belong to a run that is over.
-my $prev = ""; sysseek($fh, 0, 0); sysread($fh, $prev, 4096);
+my $prev = ""; sysseek($fh, 0, 0); sysread($fh, $prev, 16384);
 my @prev = split /\n/, $prev;
 my $ended = (defined $prev[4] && $prev[4] =~ /^ended ([0-9]{1,15})$/) ? $1 : "";
-$ENV{CROFTWEAVER_CHECK_LOCK} = $lock;
-my $grc = system("bash", $next, "gate", $ended);
+# The gate finds the entry from the lock path; the variable is set for it alone, not for the guards.
+my $grc = do { local $ENV{CROFTWEAVER_CHECK_LOCK} = $lock; system("bash", $next, "gate", $ended) };
 if ($grc != 0) {
   exit 75 if $grc != -1 && !($grc & 127) && ($grc >> 8) == 75;
-  print STDERR "make check cannot check the next-in-line entry ($next failed).\n";
+  # Otherwise the gate said why itself; only a gate that could not run or was killed has not.
+  print STDERR "make check cannot run $next to check the next-in-line entry.\n" if $grc == -1 || ($grc & 127);
   exit 1;
 }
 my $sess = $ENV{CLAUDE_CODE_HOST_SESSION_ID};
