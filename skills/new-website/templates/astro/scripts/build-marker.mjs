@@ -40,8 +40,8 @@ const ASTRO_ICO_HASHES = [
 ];
 
 const isAstroSvg = (buf) => {
-  // Comments are not drawn, so Astro's path inside one is not Astro's icon. CDATA and <?…?> are
-  // kept whole, so a "<!--" inside one cannot swallow a real path that follows.
+  // Comments are not drawn, so Astro's path inside one is not Astro's icon. A closed CDATA section
+  // or <?…?> is kept whole, so a "<!--" inside one cannot swallow a real path that follows.
   const flat = buf.toString('utf8')
     .replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, (m) => (m.startsWith('<!--') ? '' : m))
     .replace(/\s/g, '');

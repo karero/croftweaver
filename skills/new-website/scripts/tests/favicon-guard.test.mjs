@@ -133,9 +133,11 @@ const REFUSED_SVG = [
   ['the 2022 logo as Astro ships it', () => astro('svg2022')],
   ['the 2022 logo with Windows line endings', () => astroText('svg2022').replace(/\n/g, '\r\n')],
   ['the 2022 logo after svgo 4.1.0', () => astro('svgo2022')],
-  // A "<!--" inside CDATA must not hide the real path that follows it.
+  // A "<!--" inside CDATA or <?…?> must not hide the real path that follows it.
   ['the 2023 logo with a "<!--" in CDATA before it and a comment after', () => astroText('svg2023')
     .replace(/(<svg[^>]*>)/, '$1<metadata><![CDATA[<!--]]></metadata>').replace('</svg>', '<!-- end --></svg>')],
+  ['the 2023 logo with a "<!--" in <?…?> before it and a comment after', () => astroText('svg2023')
+    .replace(/(<svg[^>]*>)/, '$1<?note <!-- ?>').replace('</svg>', '<!-- end --></svg>')],
 ];
 const REFUSED_ICO = [
   ['the 2026 icon (a PNG with an .ico name)', () => astro('ico2026')],
