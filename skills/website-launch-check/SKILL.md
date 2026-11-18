@@ -319,6 +319,36 @@ build before. Run it again a minute later before acting on a ✗.** Measured 202
 guide.croftweaver.com (Workers static assets) answers `HIT` for both, so on Workers a fresh query
 is no proof of a fresh page.
 
+**The favicon on the live host.** The build refuses Astro's default icon, but a site made before
+the guard, or one whose build ran without it, may still serve it, so read the live files. Download
+`https://<live address>/favicon.svg` and `https://<live address>/favicon.ico` into a temp folder, one
+`curl -fsSL -o` each (`-L`: a host that redirects, such as the bare domain to `www`, is read at the
+end of the redirect), and read each exit code. Every run of the script below has the temp folder as
+its working folder, so an old copy writes nothing into the site. Then:
+
+- `curl` fails (404 or no answer): 🔴 with the URL. The starter's `Base.astro` links both files, so a
+  missing one is a broken icon on a kit site; the build passes an absent file only because the
+  starter, and the kit's own CI, build before any icon exists.
+- `node <site>/scripts/build-marker.mjs --check` with no file must exit 2 and print its usage; the
+  current script does. Any other answer means a copy from before 0.36 (it reads no arguments, so it
+  exits 0, or 1 on the missing `dist/`): 🔴 "take `scripts/build-marker.mjs` from whats-new, then run
+  this again". It cannot tell, so it does not pass.
+- `node <site>/scripts/build-marker.mjs --check <svg> <ico>` exits 1: 🔴 with the script's own
+  output. When it says "Astro's default icon", the fix is the message's, then publish again. Google may keep the old icon for some weeks.
+  `--check` first looks for Astro's icon (outline or hash), and says so. Only then does it look at
+  how the body starts, so an ordinary HTML page from a redirect or a catch-all route is not passed:
+  an SVG's first element must be `<svg`, after an optional BOM, whitespace, processing instructions
+  (`<?…?>`), comments and one `<!DOCTYPE svg …>`; an ICO starts with the bytes `00 00 01 00`. Anything
+  else exits 1 with "not an icon" and the file: 🔴. This checks how the body starts, not that it is a
+  working icon: a page that opens with an inline `<svg>` sprite, or a truncated file, gets past it.
+  The build's `icons.spec.ts` decodes the icons; this only rules out Astro's and the common wrong
+  answer. The starter's Worker answers a missing file with a real 404 (`not_found_handling:
+  "404-page"`), so a host set up otherwise needs a look by hand.
+- It exits 0: ✅. Any other exit code: 🔴 with its output.
+
+A cached answer right after a publish: run it again a minute later, as for the analytics tag.
+Pre-launch runs need nothing new on a site with the 0.36 `build-marker.mjs`: §2 runs the build, which refuses Astro's icon. An older copy refuses nothing, and the live check above finds it only after the publish.
+
 ## 9. Committing
 
 The reports are the site's records: commit them the way the site's `AGENTS.md` says (a branch

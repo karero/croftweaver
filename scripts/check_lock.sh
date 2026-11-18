@@ -14,6 +14,12 @@
 # so the guards the command starts do not inherit the lock; a TERM or HUP sent to this process alone
 # is passed on to the command, and the lock is held until the command ends.
 #
+# Next in line: the manager can name the session whose turn is next (scripts/check_next.sh). With
+# the lock taken, `check_next.sh gate` reads that entry: the named session runs and empties it, an
+# expired one is emptied, any other session is refused (75) while it is live. The entry lasts until
+# 10 minutes after the later of its set time and the end of the last run, so after its command ends
+# the holder adds an `ended <epoch>` line to the lock file (a holder killed with kill -9 writes none).
+#
 # CROFTWEAVER_CHECK_LOCK overrides the file's path, for the tests.
 set -u
 
@@ -27,13 +33,17 @@ if [ -z "$lock" ]; then
 fi
 dir="$(dirname -- "$lock")"
 mkdir -p -- "$dir" || { echo "make check cannot create the lock folder $dir" >&2; exit 1; }
+here="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)" \
+  || { echo "make check cannot find the folder of $0" >&2; exit 1; }
+next="$here/check_next.sh"
+[ -f "$next" ] || { echo "make check cannot find $next, which checks the next-in-line entry." >&2; exit 1; }
 
 exec perl -e '
 use strict; use warnings; no warnings "exec";
 use Fcntl qw(:flock O_RDWR O_CREAT F_SETFD FD_CLOEXEC);
 use POSIX qw(strftime);
 use Cwd qw(getcwd);
-my ($lock, @cmd) = @ARGV;
+my ($lock, $next, @cmd) = @ARGV;
 $| = 1;
 sysopen(my $fh, $lock, O_RDWR | O_CREAT, 0600)
   or do { print STDERR "make check cannot open its lock file $lock: $!\n"; exit 1 };
@@ -56,6 +66,19 @@ if (!flock($fh, LOCK_EX | LOCK_NB)) {
     "Wait for that run to end. If a manager session hands out make check slots, ask it for one.\n",
     "Do not start another run yourself, and do not retry in a loop.\n";
   exit 75;
+}
+# The end time of the last run, for the expiry of a next-in-line entry. The lock is ours, so the
+# details in the file belong to a run that is over.
+my $prev = ""; sysseek($fh, 0, 0); sysread($fh, $prev, 16384);
+my @prev = split /\n/, $prev;
+my $ended = (defined $prev[4] && $prev[4] =~ /^ended ([0-9]{1,15})$/) ? $1 : "";
+# The gate finds the entry from the lock path; the variable is set for it alone, not for the guards.
+my $grc = do { local $ENV{CROFTWEAVER_CHECK_LOCK} = $lock; system("bash", $next, "gate", $ended) };
+if ($grc != 0) {
+  exit 75 if $grc != -1 && !($grc & 127) && ($grc >> 8) == 75;
+  # A gate that exits 1 said why itself; any other end (cannot run, killed, an odd code) has not.
+  print STDERR "make check cannot run $next to check the next-in-line entry.\n" if $grc == -1 || ($grc & 127) || ($grc >> 8) != 1;
+  exit 1;
 }
 my $sess = $ENV{CLAUDE_CODE_HOST_SESSION_ID};
 $sess = "none (CLAUDE_CODE_HOST_SESSION_ID not set)" if !defined $sess || $sess eq "";
@@ -90,6 +113,9 @@ POSIX::sigprocmask(POSIX::SIG_SETMASK(), $old);
 my $w;
 do { $w = waitpid($kid, 0) } while ($w == -1 && $!{EINTR});
 my $rc = $?;
+# Written while the lock is still held; a refused or unwritable line only loses the end time.
+sysseek($fh, length $info, 0);
+syswrite($fh, "ended " . time . "\n");
 exit(128 + ($rc & 127)) if $rc & 127;
 exit($rc >> 8);
-' -- "$lock" "$@"
+' -- "$lock" "$next" "$@"
