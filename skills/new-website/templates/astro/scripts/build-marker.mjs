@@ -40,8 +40,11 @@ const ASTRO_ICO_HASHES = [
 ];
 
 const isAstroSvg = (buf) => {
-  // Comments are not drawn, so Astro's path inside one is not Astro's icon.
-  const flat = buf.toString('utf8').replace(/<!--[\s\S]*?-->/g, '').replace(/\s/g, '');
+  // Comments are not drawn, so Astro's path inside one is not Astro's icon. CDATA and <?…?> are
+  // kept whole, so a "<!--" inside one cannot swallow a real path that follows.
+  const flat = buf.toString('utf8')
+    .replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, (m) => (m.startsWith('<!--') ? '' : m))
+    .replace(/\s/g, '');
   return ASTRO_SVG_OPENINGS.some((opening) => flat.includes(opening));
 };
 const isAstroIco = (buf) => ASTRO_ICO_HASHES.includes(createHash('sha256').update(buf).digest('hex'));
