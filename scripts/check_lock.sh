@@ -76,8 +76,8 @@ my $ended = (defined $prev[4] && $prev[4] =~ /^ended ([0-9]{1,15})$/) ? $1 : "";
 my $grc = do { local $ENV{CROFTWEAVER_CHECK_LOCK} = $lock; system("bash", $next, "gate", $ended) };
 if ($grc != 0) {
   exit 75 if $grc != -1 && !($grc & 127) && ($grc >> 8) == 75;
-  # Otherwise the gate said why itself; only a gate that could not run or was killed has not.
-  print STDERR "make check cannot run $next to check the next-in-line entry.\n" if $grc == -1 || ($grc & 127);
+  # A gate that exits 1 said why itself; any other end (cannot run, killed, an odd code) has not.
+  print STDERR "make check cannot run $next to check the next-in-line entry.\n" if $grc == -1 || ($grc & 127) || ($grc >> 8) != 1;
   exit 1;
 }
 my $sess = $ENV{CLAUDE_CODE_HOST_SESSION_ID};

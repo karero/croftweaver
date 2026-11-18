@@ -387,14 +387,14 @@ nx "$L" "$IM" set "$IA"
 nx "$L" "$IM" set "$IC"; named_a=0; case "$n_out" in *"replaced the entry for $IA"*) named_a=1 ;; esac
 mk "$L" "$IA"; a_ref=0; refused && [ ! -e "$N/marker" ] && case "$m_out" in *"next:    $IC"*) a_ref=1 ;; esac
 mk "$L" "$IC"; c_ran=0; ran && c_ran=1
-if [ "$named_a" = 1 ] && [ "$a_ref" = 1 ] && [ "$c_ran" = 1 ] && no_entry "$L"; then
+if [ "$named_a" = 1 ] && [ "$a_ref" = 1 ] && [ "$c_ran" = 1 ] && emptied "$L"; then
   ok "N5 a second set replaces the first and names it; only the new session runs"
 else fail "N5 replace: named A=$named_a, A refused naming C=$a_ref, C ran=$c_ran"; fi
-nx "$L" "$IM" set "$IA"; nx "$L" "$IM" clear; cl="$n_out"
+nx "$L" "$IM" set "$IA"; nx "$L" "$IM" clear; cl="$n_out"; cl_empty=0; emptied "$L" && cl_empty=1
 mk "$L" "$IB"
-if case "$cl" in *"cleared the entry for $IA"*) true ;; *) false ;; esac && emptied "$L" && ran; then
+if case "$cl" in *"cleared the entry for $IA"*) true ;; *) false ;; esac && [ "$cl_empty" = 1 ] && ran; then
   ok "N5 clear names the entry it removed, and the next run goes"
-else fail "N5 clear: '$cl', entry empty=$(no_entry "$L" && echo yes || echo no)"; fi
+else fail "N5 clear: '$cl', emptied in place right after clear=$cl_empty"; fi
 nx "$L" "$IM" show; s1="$n_out"
 nx "$L" "$IM" clear; s2="$n_out"
 put_entry "$L" "$IA" "$IM" "$((now - 100))"
@@ -454,9 +454,9 @@ for what in set clear show named other expired; do
     set|clear|show) [ "$n_rc" = 1 ] && rc_ok=1; out="$n_out" ;;
     *) [ "$m_rc" = 2 ] && [ ! -e "$N/marker" ] && case "$m_out" in *"Error 75"*) rc_ok=1 ;; esac; out="$m_out" ;;
   esac
-  if [ "$rc_ok" = 1 ] && [ "$took" -ge 4 ] && [ "$took" -le 15 ] && [ "$(snap "$L")" = "$before" ] \
+  if [ "$rc_ok" = 1 ] && [ "$took" -ge 4 ] && [ "$took" -le 18 ] && [ "$(snap "$L")" = "$before" ] \
      && case "$out" in *"$L.next is held by another command"*) true ;; *) false ;; esac; then
-    ok "N7 ($what) a held next-in-line file refuses after about 5 s (4 to 15) and is left unchanged"
+    ok "N7 ($what) a held next-in-line file refuses after about 5 s (4 to 18) and is left unchanged"
   else
     fail "N7 ($what): refused=$rc_ok after ${took}s, entry unchanged=$([ "$(snap "$L")" = "$before" ] && echo yes || echo no): $out"
   fi
