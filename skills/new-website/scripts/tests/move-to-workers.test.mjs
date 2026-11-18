@@ -662,8 +662,9 @@ describe('3: check and record', () => {
     assert.equal(first.code, 4, first.text);
     const dir = path.join(s.site.work, 'move-run', 'build', s.site.frozen.slice(0, 12));
     const exit = path.join(dir, 'exit.txt');
-    for (let i = 0; i < 240 && !existsSync(exit); i++) await wait(250);
-    assert.ok(existsSync(exit), 'the build wrote its exit file');
+    const written = () => existsSync(exit) && readFileSync(exit, 'utf8').trim() !== '';
+    for (let i = 0; i < 240 && !written(); i++) await wait(250);
+    assert.ok(written(), 'the real build finished and wrote its code, so it cannot write again');
     // The moment a plain write leaves open: the file exists, empty, while the builder still runs.
     writeFileSync(exit, '');
     writeFileSync(path.join(dir, 'pid.txt'), String(process.pid));
@@ -671,7 +672,13 @@ describe('3: check and record', () => {
     assert.equal(caught.code, 4, caught.text);
     assert.match(caught.text, /The build is not finished/);
     assert.doesNotMatch(caught.text, /failed/);
-    writeFileSync(exit, '0');
+    // A builder that died inside that moment: the empty file does not wait forever, the build starts again.
+    const gone = spawnSync(process.execPath, ['-e', '']).pid;
+    writeFileSync(exit, '');
+    writeFileSync(path.join(dir, 'pid.txt'), String(gone));
+    const again = await s.go(['record']);
+    assert.equal(again.code, 4, again.text);
+    assert.notEqual(readFileSync(path.join(dir, 'pid.txt'), 'utf8'), String(gone), 'a new build was started');
     const done = await recordDone(s);
     assert.equal(done.code, 0, done.text);
   });
