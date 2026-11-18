@@ -210,7 +210,7 @@ an "Email Tap" event there, as a click on an email address does.
   build and tests. For Cloudflare it uses `npm run deploy:preview` and
   `npm run deploy:live` (the site's `scripts/deploy.sh`, which builds the site and runs
   `wrangler preview` or `wrangler deploy`) with a token you make, or `npx wrangler login`. A site still on Pages uses
-  `npx wrangler pages project create` and `npx wrangler pages deploy`. Its
+  `npx wrangler pages project create` (with `--force`, which stops Wrangler making a Worker instead when an AI assistant runs it) and `npx wrangler pages deploy`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
   settings; it needs no token. With `--site` it also reads the Wrangler files in your site's folder. It also sends requests that carry the names of AI crawlers
   (GPTBot, ClaudeBot and others) to your own domain, to see whether Cloudflare lets them in.

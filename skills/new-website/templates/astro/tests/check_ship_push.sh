@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.32   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.33   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -2069,8 +2069,12 @@ export default {};"
   want "production is GitHub's main: the publish went out" eq "$(gh production)" "$m"
   want "a Wrangler file that does not parse is named, and the live check is not made" has "$bad_cfg ${m:0:12}), but wrangler.jsonc: not JSON with comments"
   want "... and the run says what it could not tell" has "cannot tell whether the site has its domain yet"
-  workers_case w5 github '{ "name": "w", "assets": { "directory": "./dist" }, }' SHIP_T_NOSITE=1; exits 1
-  want "a trailing comma ends the check with its own message" has "wrangler.jsonc: not JSON with comments (a trailing comma is not allowed)"
+  # Wrangler reads a comma before a closing } or ] (checked on 4.162.0), so ship reads it too; a
+  # comma and a } inside a string stay text.
+  workers_case w5 github '{ "name": "w,}", "assets": { "directory": "./dist", }, }' SHIP_T_NOSITE=1; exits 0
+  want "a trailing comma is read like Wrangler reads it" last_starts "$sent"
+  workers_case w5b github '{ "name": "w", "assets": { "directory": "./dist", } "x": 1 }' SHIP_T_NOSITE=1; exits 1
+  want "a missing comma is still not JSON" has "wrangler.jsonc: not JSON with comments"
   live="✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch (${m:0:12})"
   workers_case w6 github '{ "name": "w", "assets": { "directory": "./dist" },
   "routes": [{ "pattern": "ship-test.example.invalid", "custom_domain": true }] }'; exits 0

@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.32
+# template-version: 0.33
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -66,8 +66,8 @@ config_text() { # <folder>
 # a .json or .jsonc file in the root that holds `assets` and no `pages_build_output_dir` (as the
 # move tools find it). Prints `none` (no such file: a Pages site), `route` (a custom_domain
 # route in its root `routes`), `noroute`, or `error <file>: <why>` for a Wrangler file that is
-# not JSON with comments (a trailing comma is one). Comments are dropped outside strings, then
-# JSON.parse.
+# not JSON with comments. Comments are dropped outside strings, then a comma before a closing
+# } or ] (Wrangler accepts one), then JSON.parse.
 workers_state() { # <folder>
   CDPATH= cd -- "$1" 2>/dev/null && node -e '
     const fs = require("fs");
@@ -90,9 +90,19 @@ workers_state() { # <folder>
             i = j + 2;
           } else { s += c; i++; }
         }
-        conf = JSON.parse(s);
+        let u = "", k = 0;
+        while (k < s.length) {
+          const c = s[k];
+          if (c === "\"") {
+            let m = k + 1;
+            while (m < s.length && s[m] !== "\"") m += s[m] === "\\" ? 2 : 1;
+            u += s.slice(k, m + 1); k = m + 1;
+          } else if (c === "," && /^\s*[}\]]/.test(s.slice(k + 1))) { k++; }
+          else { u += c; k++; }
+        }
+        conf = JSON.parse(u);
       } catch (e) {
-        if (f.startsWith("wrangler.")) { console.log("error " + f + ": not JSON with comments (a trailing comma is not allowed): " + String(e.message).split("\n")[0]); process.exit(0); }
+        if (f.startsWith("wrangler.")) { console.log("error " + f + ": not JSON with comments: " + String(e.message).split("\n")[0]); process.exit(0); }
         continue;
       }
       if (!conf || typeof conf !== "object" || !("assets" in conf) || "pages_build_output_dir" in conf) continue;
