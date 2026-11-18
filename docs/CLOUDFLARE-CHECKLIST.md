@@ -501,14 +501,20 @@ look but not change anything):
 
 **What it writes.** For the settings above, these are the fields and values the assistant
 sends, and reads back afterwards. Each zone setting is its own call. The Bot Management fields
-go in one call, which sends nine fields (`fight_mode`, `enable_js`, the four AI policies,
-`crawler_protection`, `content_bots_protection` and `cf_robots_variant`), each as it read them
-unless it changes them, plus `bot_preference_sync_enabled` unless the AI lines are left as they
-are. It leaves every other field out, `is_robots_txt_managed` among them (Cloudflare refused it
-as `true` beside `cf_robots_variant` `policy_only`, code 10400). In the trial,
-`bot_preference_sync_enabled`, left out, kept its value. Leaving out `is_robots_txt_managed` has
-not been tried yet: the first real site shows it, and if it moves, the read-back stops the run
-with that line marked "by hand".
+go in one call, which sends only the fields it changes, each only when it differs from what the
+run read: `fight_mode`, the AI policies, `crawler_protection`, `content_bots_protection` and
+`bot_preference_sync_enabled`, and, under `ai_agents`, each agent that is not yet `disabled`
+(Cloudflare merges that map per agent). It leaves every other field out, `is_robots_txt_managed`
+among them (Cloudflare refused it as `true` beside `cf_robots_variant` `policy_only`, code
+10400). Cloudflare's docs show PUTs of one or two fields as valid. No capture shows
+a top-level field left out of a PUT keeping a value that differs from the zone's starting value:
+`bot_preference_sync_enabled` (`true`, T2-061) and `is_robots_txt_managed` (`false`, T4-002) were
+left out holding the values the zone already had before any write, which a reset would also give
+(only the `ai_agents` map is captured as merged per agent). So for `enable_js`,
+`cf_robots_variant` and the fields a run does not change, keeping is not yet shown on a zone.
+The read-back compares each field with what the run first read, so a reset of a field that held a
+non-default value marks the Bot Management lines it wrote "by hand", names the field and ends the
+run with status 1; a reset of a field that held its default shows nothing.
 
 | Setting | API field | Value |
 |---|---|---|

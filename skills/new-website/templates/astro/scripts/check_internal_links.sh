@@ -3,7 +3,7 @@
 # which pages are ORPHANED (no internal link points at them — invisible to crawlers and
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
 # contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
-# only a broken auto-build exits non-zero, since it can't audit a missing/partial dist/.
+# only a broken auto-build (it can't audit a missing/partial dist/) or a failed mktemp exits non-zero.
 # It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
@@ -67,8 +67,11 @@ normalize() {
   echo "$h"
 }
 
-LINKS=$(mktemp); PAGESF=$(mktemp)
+# A failed mktemp must stop the run: with no file the audit would print "0 pages" and exit 0.
+LINKS=""; PAGESF=""
 trap 'rm -f "$LINKS" "$PAGESF"' EXIT
+LINKS=$(mktemp) || { echo "✗ mktemp failed — cannot audit links without a temporary file." >&2; exit 1; }
+PAGESF=$(mktemp) || { echo "✗ mktemp failed — cannot audit links without a temporary file." >&2; exit 1; }
 
 # One pass over the built HTML: record every page, and every "target<TAB>source" edge.
 for f in $(find dist -name '*.html' 2>/dev/null); do

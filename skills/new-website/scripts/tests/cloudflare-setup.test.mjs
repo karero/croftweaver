@@ -457,24 +457,18 @@ test('12: two proxied hosts: every setting line names both; --skip tls leaves TL
   });
 });
 
-test('13: Bot Fight Mode on and training blocked: one PUT sets the checklist\'s values; with --skip ai the AI fields go as read', async () => {
-  // enable_js and cf_robots_variant are no line of the checklist: they go as read, whatever they are.
+test('13: Bot Fight Mode on and training blocked: one PUT sends the fields that differ from the checklist and no others; with --skip ai only Bot Fight Mode', async () => {
+  // enable_js and cf_robots_variant are no line of the checklist, and ai_search and the rest already match: none is sent.
   const blocked = () => Object.assign(freshState().bot, { fight_mode: true, enable_js: true, cf_robots_variant: 'off', ai_training: botOf(AI.block).ai_training, bot_preference_sync_enabled: true, crawler_protection: 'enabled' });
   await scenario(freshState({ bot: blocked() }), async ({ api, go }) => {
     await go(['--confirm', codeOf(await go())]);
     const put = api.writes().find((e) => e.method === 'PUT');
-    assert.deepEqual(put.body, {
-      fight_mode: false, enable_js: true, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
-      crawler_protection: 'disabled', content_bots_protection: 'disabled', cf_robots_variant: 'off', bot_preference_sync_enabled: false,
-    });
+    assert.deepEqual(put.body, { fight_mode: false, ai_training: 'disabled', crawler_protection: 'disabled', bot_preference_sync_enabled: false });
   });
   await scenario(freshState({ bot: blocked() }), async ({ api, go }) => {
     await go(['--skip', 'ai', '--confirm', codeOf(await go(['--skip', 'ai']))]);
     const put = api.writes().find((e) => e.method === 'PUT');
-    assert.deepEqual(put.body, {
-      fight_mode: false, enable_js: true, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'block',
-      crawler_protection: 'enabled', content_bots_protection: 'disabled', cf_robots_variant: 'off',
-    });
+    assert.deepEqual(put.body, { fight_mode: false });
   });
 });
 
@@ -548,8 +542,9 @@ test('S1 and S3: Training on Block: the ask warns that Google, Bing and Apple go
   const [a, b] = await twoCodes(botOf(AI.block), botOf(AI.searchBlock));
   assert.equal(a, b);
   assert.equal(blocked.ask.code, plain.ask.code);
-  assert.equal(blocked.put.body.ai_training, 'disabled');
-  assert.deepEqual({ ...blocked.put.body, ai_training: 'x' }, { ...plain.put.body, ai_training: 'x' });
+  // Each PUT is the one field that differs in its capture (T3-002 Training, T3-008 Search), read by hand.
+  assert.deepEqual(blocked.put.body, { ai_training: 'disabled' });
+  assert.deepEqual(plain.put.body, { ai_search: 'disabled' });
   assert.match(blocked.done.out, /Training was Block and is now Allow \(do not block\)\. Cloudflare's way to refuse AI training and stay in Google, Bing and Apple search/);
   assert.doesNotMatch(blocked.done.out, /Training is set to/);
   assert.equal(blocked.done.code, plain.done.code);
@@ -562,7 +557,8 @@ test('S2: Training on Block on pages with ads: the same warning, for pages that 
   assert.equal(a, b);
   assert.equal(r.ask.code, plain.ask.code);
   assert.equal(r.done.code, plain.done.code);
-  assert.deepEqual(r.put.body, plain.put.body);
+  assert.deepEqual(r.put.body, { ai_training: 'disabled' }); // T3-003 differs from the checklist in Training only
+  assert.deepEqual(plain.put.body, { ai_search: 'disabled' });
   assert.match(r.ask.out, /Training is set to Block on pages with ads\. Cloudflare says Block on pages with ads also keeps Googlebot, Bingbot and Applebot out on pages that show ads, which affects search\. If you say yes/);
   assert.match(r.done.out, /Training was Block on pages with ads and is now Allow/);
 });
@@ -616,7 +612,8 @@ test('S6: Training on Disallow: the ask says the yes lets training crawlers in, 
   assert.equal(a, b);
   assert.equal(r.ask.code, plain.ask.code);
   assert.equal(r.done.code, plain.done.code);
-  assert.deepEqual(r.put.body, plain.put.body);
+  assert.deepEqual(r.put.body, { ai_training: 'disabled' }); // T3-007 differs from the checklist in Training only
+  assert.deepEqual(plain.put.body, { ai_search: 'disabled' });
   assert.match(r.ask.out, /Training is set to Disallow\. If you say yes, it becomes Allow \(do not block\), and AI training crawlers are let in\. To keep Disallow, run this with --skip ai\./);
   assert.match(r.done.out, /Training was Disallow and is now Allow \(do not block\)\./);
 });
@@ -771,13 +768,8 @@ const agentBot = (agents = {}, over = {}) => {
   b.ai_agents = { ...b.ai_agents, ...agents };
   return Object.assign(b, over);
 };
-// What setup sends for T4-003 with the ai line changed and nothing else: the fields as read, the
-// ai line's own, and only the agent that changes.
-const PUT_ONE_AGENT = {
-  fight_mode: false, enable_js: false, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
-  crawler_protection: 'disabled', content_bots_protection: 'disabled', cf_robots_variant: 'policy_only', bot_preference_sync_enabled: false,
-  ai_agents: { anthropic_agent: 'disabled' },
-};
+// What setup sends for T4-003 with the ai line changed and nothing else: only the agent that changes.
+const PUT_ONE_AGENT = { ai_agents: { anthropic_agent: 'disabled' } };
 // The ask, then the yes, for a zone holding `bot`: both outputs, every PUT, and the stub.
 const agentsRun = (bot, args = [], { before } = {}) => scenario(freshState({ bot }), async ({ api, go, state }) => {
   const ask = await go(args);
@@ -816,12 +808,9 @@ test('B: the blocked agent with --skip ai: no ai_agents in the PUT, the agent st
   for (const out of [r.ask.out, r.done.out]) assert.match(out, /Personal agent anthropic_agent read block at the start of this run, and this run leaves it as it is\. Section 4 of the Cloudflare checklist/);
 });
 
-test('C: a zone whose Bot Management has no ai_agents: the PUT is the one test 13 pins, with none, and the line reads back done', async () => {
+test('C: a zone whose Bot Management has no ai_agents: the PUT is the one field that differs, with no ai_agents, and the line reads back done', async () => {
   const r = await aiRun(botOf(AI.block));
-  assert.deepEqual(r.put.body, {
-    fight_mode: false, enable_js: false, ai_bots_protection: 'disabled', ai_search: 'disabled', ai_user: 'disabled', ai_training: 'disabled',
-    crawler_protection: 'disabled', content_bots_protection: 'disabled', cf_robots_variant: 'policy_only', bot_preference_sync_enabled: false,
-  });
+  assert.deepEqual(r.put.body, { ai_training: 'disabled' }); // T3-002 differs from the checklist in Training only
   assert.match(r.done.out, /done\s+AI crawlers: allow\. Read back/);
   assert.doesNotMatch(r.done.out, /personal agent|Personal agent|by hand/);
 });
@@ -937,6 +926,20 @@ test('K: the owner blocks another agent between the run\'s read and its PUT: the
     assert.equal(state.bot.ai_agents.google_agent, 'block');
     assert.equal(r.code, 1, r.out);
     assert.match(r.out, /by hand\s+AI crawlers: allow: Cloudflare accepted the change, but ai_agents reads \{"anthropic_agent":"disabled","google_agent":"block"/);
+  }));
+
+test('R: the owner changes enable_js between the run\'s read and its PUT: the PUT leaves it out, nothing overwrites it, and the line is "by hand"', () =>
+  scenario(freshState({ bot: Object.assign(freshState().bot, { fight_mode: true, bot_preference_sync_enabled: false }) }), async ({ api, go, state }) => {
+    const code = codeOf(await go());
+    let hit = false;
+    state.after = (e) => { if (!hit && e.method === 'GET' && /bot_management/.test(e.path)) { hit = true; state.bot.enable_js = true; } };
+    const r = await go(['--confirm', code]);
+    // Written out by hand: Bot Fight Mode is the one thing this run changes, so it is the one thing sent.
+    assert.deepEqual(api.writes().find((e) => e.method === 'PUT').body, { fight_mode: false });
+    assert.equal(state.bot.enable_js, true, 'the owner\'s change survives');
+    assert.equal(state.bot.fight_mode, false);
+    assert.equal(r.code, 1, r.out);
+    assert.match(r.out, /by hand\s+Bot Fight Mode: Off: Cloudflare accepted the change, but enable_js reads true, not false/);
   }));
 
 test('L: no ai_agents in the first read, but one agent blocked in the read-back: the ai line is "by hand" and names it', async () => {
