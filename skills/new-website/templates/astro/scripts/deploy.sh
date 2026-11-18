@@ -7,8 +7,8 @@
 #
 # The build runs as Workers Builds runs it: WORKERS_CI=1, and for `live` WORKERS_CI_BRANCH set
 # to PROD_BRANCH (src/config.ts), which is what switches analytics on. Every CF_* and
-# CLOUDFLARE_* variable is removed first, so no build package can read a token from them, and
-# build-marker.mjs takes the commit from git. Wrangler itself runs with your own environment.
+# CLOUDFLARE_* variable and WORKERS_CI_COMMIT_SHA is removed first, so no build package can read
+# a token from them, and build-marker.mjs takes the commit from git. Wrangler itself runs with your own environment.
 #
 # The body is the function `deploy`, called on the last line: bash reads a script as it runs
 # it, and an edit saved mid-deploy would otherwise run. Nothing here may replace the shell with
@@ -182,7 +182,7 @@ deploy() {
   local -a unset_args=()
   local v
   for v in $(env | sed -n -E 's/^((CF|CLOUDFLARE)_[A-Za-z0-9_]*)=.*/\1/p'); do unset_args+=(-u "$v"); done
-  unset_args+=(-u WORKERS_CI_BRANCH)
+  unset_args+=(-u WORKERS_CI_BRANCH -u WORKERS_CI_COMMIT_SHA)
   local -a set_args=(WORKERS_CI=1)
   [ "$mode" != live ] || set_args+=("WORKERS_CI_BRANCH=$prod")
   echo "→ Building ($mode)…"

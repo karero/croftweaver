@@ -13,8 +13,8 @@
 #     still runs on PROD_BRANCH when a tag has its name), the
 #     placeholder Worker name (both), a wrangler.toml beside wrangler.jsonc.
 #   - the build's environment (a build step that prints it): no CF_* or CLOUDFLARE_* variable,
-#     WORKERS_CI=1, WORKERS_CI_BRANCH only for live; a CF_PAGES_COMMIT_SHA from the caller does
-#     not replace HEAD in build.txt.
+#     WORKERS_CI=1, WORKERS_CI_BRANCH only for live; a CF_PAGES_COMMIT_SHA or
+#     WORKERS_CI_COMMIT_SHA from the caller does not replace HEAD in build.txt.
 #   - a comma before a closing } or ] in wrangler.jsonc is read (Wrangler accepts it), and the live
 #     check, run against a stand-in wrangler, curl and sleep, asks for the address of the one
 #     site: line in code, and for none when two lines or only a comment hold one; deploy.sh's
@@ -137,7 +137,7 @@ run() {
   rc=0
   rm -rf "$copy/dist" "$envlog"
   # The caller's own Workers/Pages variables never leak into a case that does not set them.
-  (cd "$copy" && env -u CF_PAGES_BRANCH -u CF_PAGES_COMMIT_SHA -u WORKERS_CI -u WORKERS_CI_BRANCH -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN \
+  (cd "$copy" && env -u CF_PAGES_BRANCH -u CF_PAGES_COMMIT_SHA -u WORKERS_CI -u WORKERS_CI_BRANCH -u WORKERS_CI_COMMIT_SHA -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN \
      ${envs[@]+"${envs[@]}"} npm run "$@" >"$work/$log.log" 2>&1) || rc=$?
 }
 
@@ -177,7 +177,7 @@ tagged no "deploy:preview (caller's shell has WORKERS_CI_BRANCH and CF_PAGES_BRA
 if grep -q 'wrangler preview' "$work/preview-dry.log" && ! grep -qE 'wrangler deploy' "$work/preview-dry.log"; then ok "the command printed is wrangler preview"; else bad "deploy:preview --dry-run did not print wrangler preview."; fi
 
 # 3. the build's environment
-run env-live CLOUDFLARE_API_TOKEN=dummy CF_API_TOKEN=dummy CF_ACCOUNT_ID=dummy "CF_PAGES_COMMIT_SHA=0000000000000000000000000000000000000000" -- deploy:live -- --dry-run
+run env-live CLOUDFLARE_API_TOKEN=dummy CF_API_TOKEN=dummy CF_ACCOUNT_ID=dummy "CF_PAGES_COMMIT_SHA=0000000000000000000000000000000000000000" "WORKERS_CI_COMMIT_SHA=1111111111111111111111111111111111111111" -- deploy:live -- --dry-run
 if [ "$rc" != 0 ]; then
   bad "deploy:live --dry-run with dummy tokens exited $rc:"; sed 's/^/  | /' "$work/env-live.log"
 elif [ ! -s "$envlog" ]; then
@@ -185,12 +185,35 @@ elif [ ! -s "$envlog" ]; then
 else
   if grep -qE '^(CF_|CLOUDFLARE_)' "$envlog"; then bad "the live build still sees: $(grep -oE '^(CF_|CLOUDFLARE_)[A-Za-z0-9_]*' "$envlog" | tr '\n' ' ')"; else ok "the live build sees no CF_* or CLOUDFLARE_* variable"; fi
   if grep -qx 'WORKERS_CI=1' "$envlog" && grep -qx "WORKERS_CI_BRANCH=$prod" "$envlog"; then ok "the live build has WORKERS_CI=1 and WORKERS_CI_BRANCH=$prod"; else bad "the live build lacks WORKERS_CI=1 or WORKERS_CI_BRANCH=$prod."; fi
-  if [ "$(tr -d '[:space:]' < "$copy/dist/build.txt")" = "$head_sha" ]; then ok "a caller's CF_PAGES_COMMIT_SHA does not replace HEAD in build.txt"; else bad "build.txt did not name HEAD with CF_PAGES_COMMIT_SHA set by the caller."; fi
+  if [ "$(tr -d '[:space:]' < "$copy/dist/build.txt")" = "$head_sha" ]; then ok "a caller's CF_PAGES_COMMIT_SHA and WORKERS_CI_COMMIT_SHA do not replace HEAD in build.txt"; else bad "build.txt did not name HEAD with CF_PAGES_COMMIT_SHA and WORKERS_CI_COMMIT_SHA set by the caller."; fi
 fi
 run env-preview "WORKERS_CI_BRANCH=$prod" -- deploy:preview -- --dry-run
 if [ "$rc" != 0 ]; then
   bad "deploy:preview --dry-run exited $rc (environment case):"; sed 's/^/  | /' "$work/env-preview.log"
 elif grep -qx 'WORKERS_CI=1' "$envlog" && ! grep -q '^WORKERS_CI_BRANCH=' "$envlog"; then ok "the preview build has WORKERS_CI=1 and no WORKERS_CI_BRANCH"; else bad "the preview build lacks WORKERS_CI=1, or still has WORKERS_CI_BRANCH."; fi
+
+# 3b. build-marker.mjs, the last step of `npm run build`, run as Cloudflare would call it: which
+# commit it writes to build.txt. The two values are the ones a real Workers Builds production build
+# saw (tests/fixtures/workers-builds-2026-11-08.txt); the expected ids are typed by hand.
+fx="$site/tests/fixtures/workers-builds-2026-11-08.txt"
+real_sha="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\([0-9a-f]\{40\}\)$/\1/p' "$fx" | head -1)"
+connect_val="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\(production\)$/\1/p' "$fx" | head -1)"
+if [ "$real_sha" != bc20f2050172151fa9f19fe6cb1151c882fcf479 ] || [ "$connect_val" != production ]; then
+  bad "the Workers Builds capture no longer holds the two values these cases read."
+fi
+pages_sha=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+# marker <want> <label> [VAR=value…]: build.txt after one run of the marker with only these variables
+marker() {
+  local want="$1" label="$2" got; shift 2
+  mkdir -p "$copy/dist"; rm -f "$copy/dist/build.txt"
+  (cd "$copy" && env -u CF_PAGES_COMMIT_SHA -u WORKERS_CI_COMMIT_SHA "$@" node scripts/build-marker.mjs >/dev/null 2>&1) || { bad "build-marker.mjs failed ($label)."; return; }
+  got="$(tr -d '[:space:]' < "$copy/dist/build.txt")"
+  if [ "$got" = "$want" ]; then ok "build.txt: $label"; else bad "build.txt: $label: wrote '$got', expected '$want'."; fi
+}
+marker "$head_sha" "no Cloudflare variable: the commit of git" CI=
+marker bc20f2050172151fa9f19fe6cb1151c882fcf479 "a Workers Builds production build: WORKERS_CI_COMMIT_SHA" "WORKERS_CI_COMMIT_SHA=$real_sha"
+marker "$head_sha" "Workers Builds' first build after connecting (the variable holds the branch name): the commit of git" "WORKERS_CI_COMMIT_SHA=$connect_val"
+marker "$pages_sha" "a Pages build keeps CF_PAGES_COMMIT_SHA, whatever the Workers variable says" "CF_PAGES_COMMIT_SHA=$pages_sha" "WORKERS_CI_COMMIT_SHA=$real_sha"
 
 # refused <label> <message part> <log name>: the run (already made) failed, said this, and built nothing
 refused() {

@@ -69,6 +69,12 @@ new version (every build stamps its id into `/build.txt`; ship polls for it, abo
 "✓ LIVE — verified" means it's truly online; a warning means the new build isn't live yet:
 it may still be running, or Cloudflare didn't build — the message tells you what to check.
 Never assume a push went live without that check.
+If about 3 minutes after the upload the live site still serves the old build, and ship runs in a
+terminal window, it asks once, "Ship again?". Cloudflare sometimes starts no build for a push
+(seen once; why is not known). Type y and ship makes one empty commit on `main`, uploads it to
+`main` and `production`, and waits again; anything else keeps waiting. It never does this
+without your y, and only once. If `main` does not accept direct uploads, it says so and tells
+you what to check in Cloudflare.
 
 Before your site has its own domain, `npm run ship` has nothing live to check: it says the
 change was sent, and that it is checked when the site launches. Look at the Preview link instead.
@@ -124,8 +130,11 @@ see the box "You need a custom domain" below). Simple, but there's no safety net
 > happened in production: green pushes, no deploy). After an important upload, confirm the
 > change is really online — `curl https://your-site/build.txt` shows which build is serving
 > (compare with `git rev-parse HEAD`). If it's stale: Cloudflare dashboard → your Worker →
-> Builds (retry the failed build). If your site is still on Pages: your project → Deployments
-> (retry the failed build, or re-connect GitHub under Settings → Builds).
+> Builds (retry the failed build of the branch `production`, never one of `main`: a `main` build
+> is the preview, built without analytics). If your site is still on Pages: your project →
+> Deployments (retry the failed one for `production`, or re-connect GitHub under Settings → Builds).
+> If Cloudflare started no build for the push at all, make a small new commit on `main` (a blank line
+> in `README.md`) and publish again.
 
 > **You need a custom domain for Google to see the site.** A new site has no public address
 > of its own: the site's live `workers.dev` address is switched off (Preview links also end in

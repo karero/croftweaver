@@ -17,6 +17,11 @@
 # on every exit. The pre-push gate then tests exactly the commit that goes live, and nothing
 # in this folder is built, tested, published or changed: its unsaved files are only listed.
 #
+# If the live site still serves another build about 3 minutes after the push, a run on a terminal
+# asks once whether to "ship again": one empty commit, pushed to `main` and `production` through
+# the same gate, then a second wait. Cloudflare sometimes starts no production build (seen once;
+# the cause is unknown). Never without a y, never a second time, no token and no API.
+#
 # Two rules hold for the whole file, in both modes:
 #  - The body is the function `ship`, called on the last line together with `exit`. bash reads
 #    a script as it runs it, so an edit another session saves to this file mid-publish would
@@ -452,9 +457,9 @@ push_once() {
     # gate runs whatever the clone's shared core.hooksPath says: another session may have set it
     # its own way, or change it while this runs. SHIP_KEEP_HOOKS_PATH reaches the gate's own
     # install too, whose scripts/wire-hooks.mjs then leaves that shared setting alone.
-    SHIP_KEEP_HOOKS_PATH=1 git -C "$wt" -c core.hooksPath=scripts/hooks push origin "$id:refs/heads/production"
+    SHIP_KEEP_HOOKS_PATH=1 git -C "$wt" -c core.hooksPath=scripts/hooks push ${again_main:+--atomic} origin ${again_main:+"$again_main"} "$id:refs/heads/production"
   else
-    git push origin "$id:refs/heads/production"
+    git push ${again_main:+--atomic} origin ${again_main:+"$again_main"} "$id:refs/heads/production"
   fi
 }
 
@@ -519,9 +524,9 @@ on_exit() {
     echo "$final_line"
   elif [ "$from_github" = 1 ] && [ -n "$id" ]; then
     if [ "$not_published" -gt 0 ]; then
-      echo "  (GitHub's main as of the fetch: ${id:0:12}. $not_published not published from this folder, listed above.)"
+      echo "  ($main_what: ${id:0:12}. $not_published not published from this folder, listed above.)"
     else
-      echo "  (GitHub's main as of the fetch: ${id:0:12}.)"
+      echo "  ($main_what: ${id:0:12}.)"
     fi
   fi
   exit "$status"
@@ -560,6 +565,8 @@ if [ "$from_github" = 1 ]; then here="this folder was not touched"; else here="y
 # All the EXIT trap may clean up, empty until this run makes it.
 git_log="" push_status="" wt="" wt_added=0 lock="" lock_taken=0 list="" my_line="" my_start=""
 my_host="" push_started=0 stop_asked=0 stop_said=0 final_line="" id="" short="" not_published=0
+# The one "ship again" (see the live-site check): asked at most once, and what it changes.
+again_asked=0 again=0 again_main="" first_id="" main_what="GitHub's main as of the fetch"
 # A stop (Ctrl-C, or a terminate signal) is only NOTED, and bash runs the note once the step in
 # the foreground ends. The script kills nothing itself: a Ctrl-C still reaches git and the gate
 # exactly as it always did, and a terminate sent to the script alone lets the current step
@@ -885,6 +892,9 @@ fi
 # temp filesystem) turn a push that went out into "nothing was published". An empty or missing
 # status (an interrupt ended the step before it wrote one, or the disk is full) is never read as
 # a success, nor as "nothing was published".
+# The push, with its checks and what it says when it fails. A function so the one "ship again"
+# (below) goes through exactly the same steps; it exits the script on any failure.
+push_and_report() {
 stop_point "Nothing was published and $here."   # the last look before anything leaves this computer
 push_tries=2
 kind=""
@@ -981,6 +991,29 @@ if [ "$stop_asked" = 1 ]; then
 fi
 if [ "$kind" = unknown ]; then kind=maybe; fi
 
+if [ "$kind" != ok ] && [ "$again" = 1 ]; then
+  # The retry's own push failed, after a first publish that went out: the messages below say
+  # "nothing was published", which is not true now. The push is atomic, so a refusal moved
+  # neither branch; only a push that was cut short may have landed.
+  echo ""
+  case "$kind" in
+    dropped | maybe)
+      echo "✗ The 'ship again' push was cut short, so it may or may not have landed (git's own output is above)."
+      echo "  This folder keeps its 'ship again' commit (${id:0:12}): run npm run ship again, and it says where things stand." ;;
+    *)
+      echo "✗ The 'ship again' push did not go out (git's own error is printed above; a protected 'main'"
+      echo "  that refuses direct pushes ends here). Neither 'main' nor 'production' was changed by it."
+      # Folder mode: take the empty commit off 'main' again, if 'main' is still on it.
+      if [ "$from_github" = 0 ] && git update-ref refs/heads/main "$first_id" "$id" 2>/dev/null; then
+        echo "  The 'ship again' commit is taken off 'main' again: you're still safely on 'main'."
+      fi ;;
+  esac
+  echo "  The first publish did go out (GitHub's production is ${first_id:0:12}), but the live site"
+  echo "  still serves another build. In the Cloudflare dashboard → Workers & Pages → your project →"
+  echo "  Deployments → View build history: 'Retry build' on the row for the branch 'production',"
+  echo "  never on a row for 'main': a build of 'main' is the preview, built without analytics."
+  exit 1
+fi
 if [ "$kind" != ok ]; then
   # EVERY message below says two things, and a new arm must say both: what went wrong,
   # and WHAT STATE YOU ARE IN NOW. The cause alone is only half an answer — someone who
@@ -1067,6 +1100,8 @@ if [ "$stop_asked" = 1 ]; then
   echo "  it yet. In a few minutes, $build_txt should show $id."
   exit 1
 fi
+}
+push_and_report
 if [ "$live_n" = 0 ]; then
   echo "✓ Nothing to push: 'production' already has this commit."
 else
@@ -1122,6 +1157,28 @@ if [ -z "$site" ]; then
   fi
   exit 0
 fi
+# The one "ship again": an empty commit on main, which the push below sends to main and to
+# production. Folder mode makes it on `main` and only if the folder is as the checks at the start
+# left it; worktree mode makes it in the temporary copy. Hooks do not run for the commit: the
+# pre-push gate runs for the push. Says why and returns 1 when the commit cannot be made.
+ship_again() {
+  local msg="ship again: an empty commit, so Cloudflare builds this site again" new
+  if [ "$from_github" = 1 ]; then
+    git -c core.hooksPath="$push_status/no-hooks" -C "$wt" commit -q --allow-empty --no-verify -m "$msg" || return 1
+    new="$(git -C "$wt" rev-parse HEAD)" || return 1
+  else
+    if [ "$(git rev-parse --abbrev-ref HEAD)" != main ] || [ -n "$(git status --porcelain)" ] || [ "$(git rev-parse @)" != "$id" ]; then
+      echo "✗ Not shipping again: this folder changed while ship waited (it is not on 'main', has unsaved changes or has a new commit)."
+      return 1
+    fi
+    git commit -q --allow-empty --no-verify -m "$msg" || return 1
+    new="$(git rev-parse HEAD)" || return 1
+  fi
+  first_id="$id"; id="$new"; short="${id:0:12}"
+  again=1; again_main="$id:refs/heads/main"
+  main_what="GitHub's main with the 'ship again' commit"
+  live_n=1
+}
 # Checks 10 s apart; the slowest Workers build seen took about 300 s, so wait about 6 minutes.
 wait_min=6
 echo "→ Verifying the live site serves this exact build (about $wait_min min)…"
@@ -1131,7 +1188,10 @@ echo "→ Verifying the live site serves this exact build (about $wait_min min)�
 # last points at Cloudflare. The status decides whether the site answered, not curl's exit: a
 # reply that broke off or timed out after its status line is still an answer.
 last_look="" last_code="" last_crc=0 ever_reached=0
-for i in $(seq 1 $((wait_min * 6))); do
+# The wait ends after `limit` looks. "ship again" restarts it from the look it was made at (i0).
+i=0 i0=0 limit=$((wait_min * 6))
+while [ "$i" -lt "$limit" ]; do
+  i=$((i + 1))
   # A Ctrl-C ends the wait (or the request), not the script, so the note is read.
   sleep 10 || true
   stop_live=0; [ "$stop_asked" = 1 ] && stop_live=1
@@ -1177,11 +1237,43 @@ for i in $(seq 1 $((wait_min * 6))); do
         echo "  two builds the live site ends on depends on Cloudflare, which this script does"
         echo "  not check: $build_txt shows the commit it serves."
       fi
-      finish "$ok_line $site is serving GitHub's main as of the fetch ($short), after $((i*10))s.$ok_note"
+      finish "$ok_line $site is serving $main_what ($short), after $(((i - i0) * 10))s.$ok_note"
     else
-      finish "$ok_line $site is serving build ${id:0:12} (after $((i*10))s).$ok_note"
+      finish "$ok_line $site is serving build ${id:0:12} (after $(((i - i0) * 10))s).$ok_note"
     fi
     exit 0
+  fi
+  # About 3 minutes in, with the live site still on another build: ask once whether to try
+  # again. Only where input and output are a terminal, as for the first question. A build can be
+  # slow, so a no (or no terminal) leaves the wait as it was. A yes makes one commit, never more.
+  if [ "$i" -ge 18 ] && [ "$again_asked" = 0 ] && [ "$last_look" = other ] && [ -t 0 ] && [ -t 1 ]; then
+    again_asked=1
+    echo ""
+    echo "⚠ About 3 minutes after the push, the live site still serves another build (${live:0:12}). Cloudflare may"
+    echo "  not have started a production build for this commit (the cause is not known), or it is slow."
+    echo "  'ship again' makes one empty commit on 'main', pushes it to 'main' and 'production' (the"
+    echo "  pre-push gate runs again) and waits again. No leaves the wait as it is."
+    trap 'stop_asked=1; stop_point "The publish went out (GitHub'"'"'s production is now ${id:0:12}); nothing more was done. In a few minutes, $build_txt should show $id."' INT TERM HUP QUIT
+    stop_point "The publish went out (GitHub's production is now ${id:0:12}); nothing more was done. In a few minutes, $build_txt should show $id."
+    printf 'Ship again? Type y and press Enter to ship again, anything else keeps waiting: '
+    if read -r answer; then :; else answer=""; fi
+    trap 'stop_asked=1' INT TERM HUP QUIT
+    case "$answer" in
+      [yY]|[yY][eE][sS])
+        now="$(curl -sL -m 8 "$site/build.txt?cb=$RANDOM" 2>/dev/null | tr -d '[:space:]')" || now=""
+        if [ "$now" = "$id" ]; then
+          echo "→ The build arrived while you answered: no need to ship again."
+        elif ship_again; then
+          echo ""
+          echo "→ Shipping again: 'main' and 'production' get the empty commit ${id:0:12}."
+          push_and_report
+          echo "✓ Pushed again. Cloudflare is building the live site now."
+          i0=$i; limit=$((i + wait_min * 6)); last_look="" live=""
+        else
+          echo "  Waiting on without it."
+        fi ;;
+      *) echo "→ Not shipping again: waiting on." ;;
+    esac
   fi
 done
 echo ""
@@ -1246,9 +1338,19 @@ echo "  Cloudflare dashboard → Workers & Pages → your project:"
 echo "    • On Pages, Deployments: a failed deployment for ${id:0:12} → open its log, then"
 echo "      'Retry deployment'. NO deployment for it → Settings → Builds: unpause /"
 echo "      re-connect the GitHub integration, then 'Create deployment' from 'production'."
-echo "    • On a Worker, Deployments → View build history: a failed build → 'Retry build'."
+echo "    • On a Worker, Deployments → View build history: a failed build for the branch"
+echo "      'production' → 'Retry build' on that row, never on a row for 'main': a build of 'main'"
+echo "      is the preview, built without analytics."
 echo "      NO build for it → Settings → Build: the Git repository and its branch control."
 echo "      A Worker deployed by command builds nothing on a push: run its deploy command."
+if [ "$again" = 1 ]; then
+  echo "  'ship again' was done once already (the empty commit ${id:0:12}) and the live site still serves another"
+  echo "  build, so ship asks no more: look at the build history above first."
+else
+  echo "  Cloudflare may not have started a production build for this commit because it already built"
+  echo "  it as the preview of main (seen once, 2026-11-17; the cause is not known). The way out: make a"
+  echo "  small new commit on main (a blank line in README.md will do), then run npm run ship again."
+fi
 echo "  (Brand-new site whose domain isn't connected yet? Then this is expected — verify via"
 echo "  the project's *.pages.dev URL, or a Worker's *.workers.dev URL if it has one, instead.)"
 exit 1
