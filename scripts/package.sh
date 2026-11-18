@@ -95,7 +95,9 @@ REQUIRED=(
   scripts/publish_directory.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
   skills/independent-review/scripts/test_base_check.sh
+  skills/independent-review/scripts/test_codex_mcp_off.sh
   skills/independent-review/scripts/check_perl_minimum.sh
+  skills/independent-review/scripts/perl/codex_mcp_off.pl
   skills/independent-review/scripts/perl/melious_key.pl
   skills/independent-review/scripts/perl/melious_request.pl
   skills/independent-review/scripts/perl/melious_stream.pl

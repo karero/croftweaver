@@ -1,0 +1,18 @@
+OpenAI Codex v0.169.0
+--------
+workdir: <scratch folder>
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: <removed>
+--------
+user
+[the prompt is removed here; make_briefs.py rebuilds it from git]
+codex
+CUT-CHECK: CUT
+tokens used
+4,760
+CUT-CHECK: CUT

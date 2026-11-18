@@ -50,7 +50,11 @@ the reading code in the artifact, or expect to spend the round refuting.
    -c skills.include_instructions=false`) — may start outside a git repo or trusted
    project; a project's AGENTS.md stays out of its instructions and skills are no longer
    listed there (one live probe each). The user's global AGENTS.md still applies, and an
-   explicit `$name` mention in the reviewed text still loads a skill — R-PROJCTX. Asks the
+   explicit `$name` mention in the reviewed text still loads a skill — R-PROJCTX. Also
+   `--disable plugins` and one `-c mcp_servers.<name>.enabled=false` per enabled server in
+   `codex mcp list --json` whose name is a plain key (letters, digits, `_`, `-`; stderr names any
+   other, which stays on): a review uses none, and each costs memory and CPU beside the
+   reviewed text; if the list fails the servers stay on and stderr says why. Asks the
    CLI for a read-only sandbox
    (enforcement untested: R-SANDBOX in the open-findings tracker); model +
    effort from `~/.codex/config.toml` (daily-driver default). Override per-run with
@@ -575,6 +579,18 @@ waive. Now an in-scope RISK whose fix changed what runs or what someone acts on 
 is fixed and earns the next round, under the same `--earned-by` kind and the same cut rule; the
 owner is asked only for a RISK waiver, a BUG deferral, a change of scope, and the decision past
 round 8, which stays (the owner's choice, asked the same day).
+
+**When a cut turns out to be a patch (the owner's choice, 2026-11-17).** The cut rule rests on the
+host's own text: it writes `--cut` and grades it, and a patch can pass as a cut round after round.
+On one gate the lastmod scan's kind earned rounds 4 to 7, and the cut texts at rounds 5, 6 and 7
+were patches; the real cut came after round 7. No line count or reviewer verdict told them apart
+(a backtest of a seat's cut verdict failed, so it was dropped). The owner kept his rule of
+2026-10-22 and chose to ask no one new: at a kind's second return after its first cut, the host
+asks its manager, who decides the two scope cuts, "take it out" and "make it a warning", and tells
+the owner in the PR; "keep fixing" asks again at the next return. The script counts and reminds;
+it does not refuse, since the owner prefers notices to refusals in the review process. A notice is
+also what failed before, so the cost log records the answers (`manager_said`) and a later check
+counts how often hosts gave one. It cannot tell an answer the manager gave from one the host wrote.
 
 Why this was not done before: on 2026-09-26 RISK counts per round never reached zero while each
 round re-read the whole change ("Step 6 — why verification rounds are scoped and capped", above). What limits it now, and how

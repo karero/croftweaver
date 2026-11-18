@@ -6,7 +6,7 @@
 #
 #   review_log.sh add --seat <name> [--model M] [--effort E] [--seconds S] [--tokens T]
 #                     [--gate plan|diff|content] [--depth light|normal|high] [--round N] [--outcome O]
-#                     [--earned-by KIND] [--cut TEXT] [--reason TEXT]
+#                     [--earned-by KIND] [--cut TEXT] [--reason TEXT] [--manager-said TEXT]
 #       Append one line. independent_review.sh calls this for codex, ollama, melious and agy; the host
 #       calls it for the seats it runs itself (fresh-eyes, code-review, double-knuth, owner).
 #       Repo, branch and head come from the current directory's git checkout, if any.
@@ -20,6 +20,8 @@
 #       and --cut says what the fix since the last round removed or refused (SKILL.md step 6);
 #       independent_review.sh checks both before a round runs. --reason is the text inside the
 #       outcome's outer parentheses, word for word as the round's summary line shows it.
+#       --manager-said is what the host's manager answered at a kind's second return after a cut
+#       ("kind: answer", one per kind, joined with "; "; SKILL.md step 6).
 #   review_log.sh new-gate
 #       Start a gate: mint an id and keep it in this worktree's git dir. independent_review.sh
 #       calls it for --round 1; every later line (its own seats and the host's) carries that id
@@ -41,20 +43,26 @@
 #         gate  <id> <highest round logged> <seat runs at that round> <rounds logged below N>
 #         owed  <kind> <rounds> <kind as logged>   the kind earned those rounds since its last cut
 #         like  <kind> <earlier kind> <its round>  one normalised name starts the other
+#         back  <kind> <cut round> <kind as logged>  a round before N cut the kind (its first cut)
+#         ask   <kind> <cut round> <returns> <kind as logged>  and later rounds before N named it
+#                                                again: <returns> lists those rounds
+#         fresh <rounds>   rounds below N (comma list, "-" for none) with a line of seat exactly
+#                          fresh-eyes, any outcome; "?" when the log cannot be written, since a
+#                          host's add then only warns and its line may be missing
 #       Kinds compare normalised: lower case, without '.', '_' and '-'. A round's kinds are the
 #       union of its lines' kinds; a cut on a round settles the kinds that round named. When it
 #       cannot tell (log off, missing or unreadable, no gate), it prints "?", a tab and why.
 #
-# Columns 15 to 17 (earned_by, cut, reason) came after the log existed: an older line has fewer
-# fields, and an older log keeps the header it was started with (lines are appended, the file is
-# never rewritten). Every reader takes a missing field as "-". To count why seats failed:
+# Columns 15 to 18 (earned_by, cut, reason, manager_said) came after the log existed: an older
+# line has fewer fields, and an older log keeps the header it was started with (lines are
+# appended, the file is never rewritten). Every reader takes a missing field as "-". To count why seats failed:
 #   awk -F'\t' '$13=="FAILED"{print ($17=="" ? "-" : $17)}' runs.tsv | sort | uniq -c
 #
 # Log file: $REVIEW_LOG, else ${XDG_STATE_HOME:-$HOME/.local/state}/independent-review/runs.tsv.
 # REVIEW_LOG=off turns logging off. A bad value in `add` exits 2 and writes nothing; a failure to
 # write the log warns and exits 0: bookkeeping never fails a review.
 set -u
-HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason'
+HEADER=$'date\trepo\tbranch\thead\tgate\tdepth\tround\tseat\tmodel\teffort\tseconds\ttokens\toutcome\tgate_id\tearned_by\tcut\treason\tmanager_said'
 log_path() {   # empty when logging is off
   if [ "${REVIEW_LOG:-}" = off ]; then return 0
   elif [ -n "${REVIEW_LOG:-}" ]; then printf '%s' "$REVIEW_LOG"
@@ -87,10 +95,10 @@ new_gate() {
 
 add() {
   local seat="" model="" effort="" seconds="" tokens="" gate="" depth="" round="" outcome="OK" gate_id=""
-  local earned_by="" cut="" reason=""
+  local earned_by="" cut="" reason="" manager_said=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --seat|--model|--effort|--seconds|--tokens|--gate|--depth|--round|--outcome|--gate-id|--earned-by|--cut|--reason)
+      --seat|--model|--effort|--seconds|--tokens|--gate|--depth|--round|--outcome|--gate-id|--earned-by|--cut|--reason|--manager-said)
         [ $# -ge 2 ] || { echo "review_log.sh: $1 needs a value" >&2; return 2; }
         case "$2" in
           --*) echo "review_log.sh add: $1 got the value \"$2\", which looks like the next flag; nothing was logged. A shell variable was probably empty, or (in zsh) not split into words." >&2
@@ -131,11 +139,11 @@ add() {
   # which summary skips as it skips the first (by its content).
   { mkdir -p -- "$(dirname -- "$f")" &&
     { [ -s "$f" ] || printf '%s\n' "$HEADER" >>"$f"; } &&
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
       "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(clean "$repo")" "$(clean "$branch")" "$(clean "$head")" \
       "$(clean "$gate")" "$(clean "$depth")" "$(clean "$round")" "$(clean "$seat")" \
       "$(clean "$model")" "$(clean "$effort")" "$(clean "$seconds")" "$(clean "$tokens")" \
-      "$(clean "$outcome")" "$(clean "$gate_id")" "$(clean "$earned_by")" "$(clean "$cut")" "$(clean "$reason")" >>"$f"; } 2>/dev/null \
+      "$(clean "$outcome")" "$(clean "$gate_id")" "$(clean "$earned_by")" "$(clean "$cut")" "$(clean "$reason")" "$(clean "$manager_said")" >>"$f"; } 2>/dev/null \
     || { echo "note: could not write the review cost log ($f) — the review itself is unaffected." >&2; return 0; }
   echo "logged: round $(clean "$round"), $(clean "$seat"), $(clean "$seconds") s, $(clean "$tokens") tokens, $(clean "$outcome"), gate $(clean "$gate_id")"
   return 0
@@ -244,7 +252,18 @@ gate() {
       for (i = 1; i <= m; i++) {
         k = tolower(ks[i]); gsub(/[._-]/, "", k)
         if (k == "" || ((r, k) in has)) continue
-        has[r, k] = 1; nk[r]++; kl[r] = kl[r] (kl[r] == "" ? "" : ",") ks[i]
+        has[r, k] = 1; nk[r]++; kn[r, nk[r]] = k; dn[r, k] = ks[i]
+        kl[r] = kl[r] (kl[r] == "" ? "" : ",") ks[i]
+      }
+      # What the manager answered, once per distinct text of the round, and the kinds answered.
+      if ($18 != "" && $18 != "-" && !((r, $18) in mseen)) {
+        mseen[r, $18] = 1; ms[r] = ms[r] (ms[r] == "" ? "" : "; ") $18
+        na = split($18, es, "; ")
+        for (e = 1; e <= na; e++) {
+          # An entry answers its kind only with a colon and a non-blank answer after it.
+          c = index(es[e], ":"); if (c == 0 || substr(es[e], c + 1) !~ /[^[:space:]]/) continue
+          a = substr(es[e], 1, c - 1); a = tolower(a); gsub(/[._-]/, "", a); ans[r, a] = 1
+        }
       }
       # Every distinct cut of the round, each with the kinds of the rows that carry it: a round
       # whose seats logged two cuts shows both, and which kind each settled.
@@ -256,6 +275,7 @@ gate() {
         k = tolower(ks[i]); gsub(/[._-]/, "", k)
         if (k == "" || ((r, ci, k) in ck)) continue
         ck[r, ci, k] = 1; ckn[r, ci]++; ckl[r, ci] = ckl[r, ci] (ckl[r, ci] == "" ? "" : ",") ks[i]
+        if (!(k in fc) || r < fc[k]) fc[k] = r
       }
     }
     END {
@@ -273,6 +293,18 @@ gate() {
             cs = cs (c == 1 ? " (" : "; ") "cut" (ckl[i, c] != "" ? " " ckl[i, c] : "") ": " ctext[i, c]
           cs = cs ")"
         }
+        # A kind named after its first cut is back; one named again after an earlier return is
+        # due an answer from the host manager (SKILL.md step 6). The answers follow.
+        nt = ""
+        for (q = 1; q <= nk[i]; q++) {
+          k = kn[i, q]
+          if (!(k in fc) || fc[k] >= i) continue
+          nt = nt (nt == "" ? "" : "; ") dn[i, k] " back after the round " fc[k] " cut"
+          ret = 0; for (j = fc[k] + 1; j < i; j++) if ((j, k) in has) ret = 1
+          if (ret && !((i, k) in ans)) nt = nt "; " dn[i, k] ": manager not asked"
+        }
+        if (ms[i] != "") nt = nt (nt == "" ? "" : "; ") "manager said: " ms[i]
+        if (nt != "") cs = cs " [" nt "]"
         s = s (s == "" ? "" : "; ") i " " ((i in kl) ? kl[i] : "no kind") cs
       }
       if (s != "") s = "kinds: " s
@@ -306,13 +338,15 @@ round_check() {
   # Every logged round below N counts, not only N-1: kinds that alternate (A, B, A) are caught,
   # and a skipped or repeated round number does not reset anything. Lines older than the two
   # columns have no field 15 or 16, which reads as no kind and no cut.
-  out="$(awk -F'\t' -v id="$id" -v want="$want" -v kinds="$kinds" '
+  local wr=1; [ -w "$f" ] || wr=0
+  out="$(awk -F'\t' -v id="$id" -v want="$want" -v kinds="$kinds" -v wr="$wr" '
     function norm(s) { s = tolower(s); gsub(/[._-]/, "", s); return s }
     $1 == "date" || $14 != id || $7 !~ /^[0-9]+$/ { next }
     {
       r = $7 + 0
       if (r > max) max = r
       runs[r]++
+      if ($8 == "fresh-eyes" && (want == "" || r < want + 0)) fresh[r] = 1
       if (want == "" || r >= want + 0) next
       below[r] = 1
       # A cut settles only the kinds on the row that carries it: another seat of the same round
@@ -328,6 +362,8 @@ round_check() {
     END {
       nb = 0; for (r in below) nb++
       printf "gate\t%s\t%d\t%d\t%d\n", id, max, (max ? runs[max] : 0), nb
+      fl = ""; for (r = 1; r <= max; r++) if (r in fresh) fl = fl (fl == "" ? "" : ",") r
+      printf "fresh\t%s\n", (wr == 0 ? "?" : (fl == "" ? "-" : fl))
       m = split(kinds, gs, ",")
       for (j = 1; j <= m; j++) {
         g = norm(gs[j]); if (g == "" || (g in done)) continue
@@ -342,6 +378,14 @@ round_check() {
           lr = 0; for (r = 1; r < want + 0; r++) if ((r, k) in has) lr = r
           printf "like\t%s\t%s\t%d\n", gs[j], disp[k], lr
         }
+        # The first cut of the kind, and the rounds after it that named it again (SKILL.md step 6).
+        first = 0
+        for (r = 1; r < want + 0 && !first; r++) if ((r, g) in cutr) first = r
+        if (!first) continue
+        printf "back\t%s\t%d\t%s\n", gs[j], first, disp[g]
+        rs = ""
+        for (r = first + 1; r < want + 0; r++) if ((r, g) in has) rs = rs (rs == "" ? "" : ", ") r
+        if (rs != "") printf "ask\t%s\t%d\t%s\t%s\n", gs[j], first, rs, disp[g]
       }
     }' "$f")" || { printf '?\t%s\n' "cannot read the review cost log at $f"; return 0; }
   printf '%s\n' "$out"

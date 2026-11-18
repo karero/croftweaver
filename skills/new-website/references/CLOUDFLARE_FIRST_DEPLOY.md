@@ -207,7 +207,9 @@ time and no GitHub connection.
 - `npx wrangler login` opens the owner's browser, and she approves Wrangler there. No token
   to make or to delete. (Wrangler's own flow; not checked on this kit's version.)
 - Or a token the owner makes, for an assistant that cannot open a browser:
-  1. Dashboard → **My Profile → API Tokens → Create Token → Create Custom Token**.
+  1. Dashboard → **My Profile → API Tokens → Create Token**, then **Start from scratch** →
+     **Start with an Account policy**, and **Add new policy** for a Zone policy where the rows
+     below name zone rows (as seen on 2026-11-17; the old Create Custom Token step is gone).
   2. **Permissions:** **Account → Workers Scripts → Edit**, which uploads the Worker and
      makes it the first time (the permission's name as the checklist's section 6 gives it;
      whether `wrangler deploy` needs more rows is not checked). On
@@ -486,7 +488,9 @@ against current Cloudflare docs, June 2026):
 assumes. A direct-upload project and a Git-connected project are *different Pages project
 types*.
 
-**The token:** dashboard → **My Profile → API Tokens → Create Token → Create Custom Token**.
+**The token:** dashboard → **My Profile → API Tokens → Create Token**, then **Start from scratch** →
+**Start with an Account policy**, and **Add new policy** for a Zone policy where the rows below
+name zone rows (as seen on 2026-11-17; the old Create Custom Token step is gone).
 Permissions, only what the steps need: **Account › Cloudflare Pages › Edit** (a.k.a.
 `Pages Write`) to create the project, deploy, **and** attach a custom domain via the Pages REST
 API (`POST /accounts/{id}/pages/projects/{name}/domains`); **Zone › DNS › Edit**, scoped to

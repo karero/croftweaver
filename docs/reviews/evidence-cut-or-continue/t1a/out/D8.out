@@ -1,0 +1,18 @@
+OpenAI Codex v0.169.0
+--------
+workdir: <scratch folder>
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: <removed>
+--------
+user
+[the prompt is removed here; make_briefs.py rebuilds it from git]
+codex
+CUT-CHECK: PATCH — It adds a property-name exception to the existing heuristic scanner without removing the feature or enforcing a strict accepted-input rule that refuses all other input.
+tokens used
+2,698
+CUT-CHECK: PATCH — It adds a property-name exception to the existing heuristic scanner without removing the feature or enforcing a strict accepted-input rule that refuses all other input.

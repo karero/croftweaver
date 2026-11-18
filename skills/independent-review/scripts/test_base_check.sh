@@ -26,6 +26,7 @@ mkdir -p "$T/bin" "$T/u/.codex" "$T/marks" "$T/notrepo"
 printf 'model = "stub-codex"\n' >"$T/u/.codex/config.toml"
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
+[ "${1:-}" = mcp ] && { printf '%s\n' '[]'; exit 0; }   # `codex mcp list --json`: no servers
 : >"$STUB_MARKS/codex-ran"
 printf '%s\n' '- BUG: stub finding one' '- NIT: stub finding two'
 EOF

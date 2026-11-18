@@ -1,0 +1,13 @@
+--- CUT-CHECK ---
+This round reviews a fix that its author calls a cut, for the finding kind(s): {kinds}.
+The author's --cut text: "{cut}"
+The rule it must meet (independent-review, step 6): where a kind earned an earlier round too, the
+fix since then must be a cut, not another patch: take the feature out (a check that becomes a
+warning, or a report of what it could not read, counts), or replace it by a strict rule that
+accepts only the input it names and refuses the rest, with a test that ordinary input still
+passes. Refusing the one input the last BUG used is a patch.
+Judge the change below, not the claim. Answer with exactly one line of this form:
+CUT-CHECK: CUT
+or
+CUT-CHECK: PATCH — <why, in one sentence>
+--- END CUT-CHECK ---

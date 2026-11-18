@@ -1,0 +1,18 @@
+OpenAI Codex v0.169.0
+--------
+workdir: <scratch folder>
+model: gpt-6.1-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: medium
+reasoning summaries: none
+session id: <removed>
+--------
+user
+[the prompt is removed here; make_briefs.py rebuilds it from git]
+codex
+CUT-CHECK: PATCH — The reader still accepts loosely parsed JavaScript and adds comma and template heuristics instead of enforcing a named input grammar and refusing everything else.
+tokens used
+15,112
+CUT-CHECK: PATCH — The reader still accepts loosely parsed JavaScript and adds comma and template heuristics instead of enforcing a named input grammar and refusing everything else.

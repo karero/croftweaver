@@ -215,6 +215,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Check a failed reviewer is reported, not hidden behind exit 0
         run: bash skills/independent-review/scripts/test_failed_tier_report.sh
+      - name: Check a Codex review run turns off the MCP servers it can name, and says so when it cannot
+        run: bash skills/independent-review/scripts/test_codex_mcp_off.sh
       - name: Check the round checks refuse a round past 3 with no kind, and a kind earning two rounds running with no cut
         run: bash skills/independent-review/scripts/test_round_checks.sh
   review-validator:

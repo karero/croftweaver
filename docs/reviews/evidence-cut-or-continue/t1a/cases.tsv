@@ -1,0 +1,23 @@
+id	type	branch	round	prev	head	plan_file	kinds	cut
+P1	plan	docs/cloudflare-setup-plan-v2	5	7397465	a0f9466	docs/reviews/SKILL-PLAN-cloudflare-setup.md	skip-status	the zone-read inference of skipped settings removed; launch counts only the --skip ids it is given (strict rule), tested by scenario 41
+P2	plan	docs/cloudflare-plan-second-trial	4	98a73bf	33aa45c	docs/reviews/SKILL-PLAN-cloudflare-setup.md	ruleset-create	the read-back after the creating PUT and its detection claim removed; the replacement is named as unseen
+P3	plan	feat/launch-check-zone-settings	5	9021b20	50f81cc	docs/reviews/SKILL-PLAN-launch-check-zone-settings.md	content-bots-read	content bots taken out of the check entirely
+P4	plan	plan/live-analytics-check	6	19a19de	29ea02d	docs/reviews/SKILL-PLAN-live-analytics-check.md	scope-narrowed	build proof (the stamp, the build.txt re-reads, --config) and the ship.sh integration, cut by the owner 2026-11-09
+P5	plan	plan/review-input-base-and-size	5	ea30cd2	caaf7b6	docs/reviews/SKILL-PLAN-review-input-base-and-size.md	header-names,test-spec	mnemonic prefixes no longer accepted: only a/ and b/, stripped only on diff --git, --- and +++ lines
+P6	plan	plan/cloudflare-training-warning	8	2404688	ae7663c	docs/reviews/SKILL-PLAN-cloudflare-training-warning.md	capture-fit	stop rule now compares every pair of choices whose notes differ, in all the note function takes
+P7	plan	plan/glm-marker-and-failed-reason	5	c30648c	e32d69a	docs/reviews/SKILL-PLAN-glm-marker-twice-and-failed-reason.md	finding-regex	line 112's copy of the review check's grep replaced by a strict ASCII-only rule that counts only lines the grep counts
+P8	plan	plan/glm-marker-and-failed-reason	6	e32d69a	5430cc7	docs/reviews/SKILL-PLAN-glm-marker-twice-and-failed-reason.md	finding-regex	case folding removed: the labels are spelled with explicit ASCII letter pairs, no /i
+P9	plan	plan/live-analytics-check	4	eff6aa9	3bdb989	docs/reviews/SKILL-PLAN-live-analytics-check.md	server-mode-tags,page-freshness,stop-handling	the second build.txt read, replaced by the build stamp: only a page stamped with the pushed id is judged
+D1	diff	fix/ship-site-live-check-035	4	d7958f2	5328e7d		site-comment-scan	removed the comment scanner: any second site: match, commented or not, means the live check checks none and says so
+D2	diff	fix/config-lines-and-verify-deploy	4	02d73de	0f2464e		deploy-script-match	removed the deploy-script parser: verify takes only the starter's two lines
+D3	diff	fix/legal-pages-message	4	065874b	2e2e687		impressum-adoption	removed the recipe for a site with neither Impressum file: it is set up by hand
+D4	diff	fix/unchecked-ai-advice	5	8a8fcba	c37635c		copilot-inference	removed the claim that Bing rankings are a rough pointer to Copilot visibility from the skill, scripts, eval and reference; the Bing add-on now reports Bing stats only and points Copilot questions to the AI Performance report
+D5	diff	fix/move-refusal-words-035	5	07cb8a8	1c3d367		site-address-read	replaced the SITE read by a strict rule: a block holding any other brace gives the old words
+D6	diff	fix/move-prep-036	8	d481229	0fcce41		lastmod-scan-regex-literal	the lastmod scan becomes a warning in check, not a gap that stops the move
+D7	diff	fix/move-prep-036	5	15342f8	050042c		lastmod-scan-regex-literal	dropped the line-start regex-literal case from the lookbehind
+D8	diff	fix/move-prep-036	6	050042c	c399d0d		lastmod-scan-regex-literal	return counts as a keyword only when not a property name
+D9	diff	fix/move-analytics-gap-035	5	9cbe517	ffabf9c		config-reading	dropped the let/var form and the gate BUGLOG row
+D10	diff	fix/move-analytics-gap-035	9	de25f2f	9c5559f		config-reading	enabled: ends at its comma; templates keep ${…}; multi-line templates refused
+D11	diff	fix/agy-release-test-misreads	6	d476e99	13cad51		command-text	the heredoc terminator that took leading and trailing blanks or a same-line close is gone, and so is the last-letter rule for option clusters
+D12	diff	fix/refusal-check-first-person	6	965846e	48a04f6		refusal-join-false-accept	the list-item exception to the line-alone check: every line is now checked alone and joined
+D13	diff	fix/ship-commented-site-035	6	90b73a0	e5a3e17		comment-detection	refused CR: every line's trailing CR is dropped before the scan, no CRLF-specific rule
