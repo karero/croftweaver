@@ -4,7 +4,7 @@
 // Run it again after a colour change; a letter or colour once given with --letter/--colour is kept.
 // The brand kit replaces these files when the owner has a logo.
 //
-//   --setup          also replace the scaffold's favicon.svg and favicon.ico, on a new site only
+//   --setup          also replace the scaffold's Astro-logo favicon.svg and favicon.ico, on a new site only
 //   --letter X       draw this letter or digit (A-Z, 0-9) instead of the name's first
 //   --colour '#rrggbb'  the tile colour instead of --brand in src/styles/global.css (quote the #)
 //   --replace        also replace icons this script did not make (only on the owner's yes)
@@ -30,6 +30,12 @@ export const FILES = [
   'public/icon-maskable-512.png',
   'public/images/logo.png',
 ];
+// The Astro logo create-astro writes as public/favicon.svg and favicon.ico (the hashes the brand
+// kit's _site.py holds too; a test keeps the two lists equal). --setup replaces only these.
+export const SCAFFOLD_FAVICONS = {
+  'public/favicon.svg': ['2d7a310283d6f9cc753210d83224cd6db6348cb82a5536348884e5831d46203f'],
+  'public/favicon.ico': ['09d2ac08d8cca9b6e1f90221f345a8c4dd0371c64a0dc52b6f96fc589b1e3d67'],
+};
 const BRAND_KIT_START = '<!-- Installed by the website-brand-kit skill';
 const BOM = String.fromCharCode(0xfeff);
 
@@ -275,8 +281,9 @@ function checkOwnership(root, { setup, replace }) {
   const svgPath = path.join(root, 'public/favicon.svg');
   const svgText = existsSync(svgPath) ? readFileSync(svgPath, 'utf8') : '';
   const brandKit = svgText.startsWith(BOM) ? svgText.slice(1).startsWith(BRAND_KIT_START) : svgText.startsWith(BRAND_KIT_START);
-  if (setup && foreign.every((rel) => rel === 'public/favicon.svg' || rel === 'public/favicon.ico')) {
-    const others = FILES.filter((rel) => rel !== 'public/favicon.svg' && rel !== 'public/favicon.ico');
+  // --setup may replace the scaffold's own two favicons, and only when each is the Astro logo.
+  if (setup && foreign.every((rel) => SCAFFOLD_FAVICONS[rel]?.includes(sha(readFileSync(path.join(root, rel)))))) {
+    const others = FILES.filter((rel) => !SCAFFOLD_FAVICONS[rel]);
     const fresh = existsSync(svgPath) && !brandKit && !others.some((rel) => existsSync(path.join(root, rel)));
     if (fresh) return;
   }

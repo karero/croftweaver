@@ -346,7 +346,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `.claude/hooks/git-stand.mjs`) are **frozen one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
-> fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
+> fall back to the `SUITE-VERSION` baseline; a site with neither stamp is told how to pick one); merge those changes by hand, then
 > `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. Before stamping, add a line
 > `left_out: <path> — <why>` to `tests/TESTS-VERSION` for each file you reviewed and did not
 > take (`kept: <path> — <why>` for one the starter dropped and the site keeps), the path as the

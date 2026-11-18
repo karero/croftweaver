@@ -46,7 +46,12 @@ const svgSize = (page: Page, bytes: Buffer) =>
     }
   }, bytes.toString('base64'));
 
-const pathOf = (href: string, base: string) => new URL(href, base).pathname;
+// A link's address as this test compares it: its path when it is on this site (the server under test
+// or SITE.url), its whole address when it is on another host, so it matches none of our files.
+const sitePath = (href: string, base: string, ...own: string[]) => {
+  const url = new URL(href, base);
+  return [base, ...own].some((o) => new URL(o).origin === url.origin) ? url.pathname : url.href;
+};
 
 // Every logo the JSON-LD gives as a URL, at any depth and on a node of any type (Organization, a
 // subtype such as LocalBusiness, or an array of types): a URL string, or the string url of an object
@@ -63,6 +68,15 @@ const logosIn = (node: unknown): string[] => {
   return Object.entries(node).flatMap(([key, value]) => [...(key === 'logo' ? logoUrls(value) : []), ...logosIn(value)]);
 };
 
+test('icons — a link on another host is not one of this site\'s files', () => {
+  const [home, live] = ['http://localhost:4400/', 'https://example.com'];
+  expect(sitePath('/favicon.svg', home, live), 'a path').toBe('/favicon.svg');
+  expect(sitePath('https://example.com/favicon.svg', home, live), 'the live address of this site').toBe('/favicon.svg');
+  expect(sitePath('http://localhost:4400/favicon.svg', home, live), 'the server under test').toBe('/favicon.svg');
+  expect(sitePath('https://cdn.example.net/favicon.svg', home, live), 'another host').toBe('https://cdn.example.net/favicon.svg');
+  expect(sitePath('//cdn.example.net/favicon.svg', home, live), 'another host, no scheme').toBe('http://cdn.example.net/favicon.svg');
+});
+
 test('icons — the logo reader finds every logo the structured data names, and only those', () => {
   expect(logosIn({ '@type': 'Organization', logo: '/a.png' }), 'a URL').toEqual(['/a.png']);
   expect(logosIn({ '@type': ['Organization', 'LocalBusiness'], logo: { '@type': 'ImageObject', url: '/a.png' } }), 'an ImageObject on a node of two types').toEqual(['/a.png']);
@@ -78,23 +92,23 @@ for (const icon of ICONS) {
   test(`icons — ${icon.path} is linked and is ${icon.kind === 'png' ? `a ${icon.size} px PNG` : icon.kind === 'ico' ? 'an ICO with a 32 px frame' : 'an SVG'}`, async ({ page, request }) => {
     await page.goto('/');
     const home = page.url();
+    const live = SITE.url;
     let linked: string[];
     if (icon.linkedBy === 'icon') {
-      linked = (await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => pathOf(h, home));
+      linked = (await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, live));
     } else if (icon.linkedBy === 'apple') {
-      linked = (await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => pathOf(h, home));
+      linked = (await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, live));
     } else if (icon.linkedBy === 'manifest') {
       const hrefs = await page.locator('link[rel="manifest"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
       expect(hrefs, 'the home page links one manifest').toHaveLength(1);
       const manifest = new URL(hrefs[0], home).href;
       const res = await request.get(manifest);
       expect(res.ok(), `${manifest} is served`).toBe(true);
-      linked = ((await res.json()).icons as { src: string }[]).map((i) => pathOf(i.src, manifest));
+      linked = ((await res.json()).icons as { src: string }[]).map((i) => sitePath(i.src, manifest, live));
     } else {
       // The logo the page's structured data names. It must be on the site's own origin: a logo on
       // another host is not this file, so it shows here as its whole address and fails.
       const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
-      const origin = new URL(SITE.url).origin;
       linked = blocks
         .flatMap((text, i) => {
           try {
@@ -103,8 +117,7 @@ for (const icon of ICONS) {
             throw new Error(`the home page's structured data block ${i + 1} is not valid JSON: ${(err as Error).message}`);
           }
         })
-        .map((logo) => new URL(logo, origin))
-        .map((url) => (url.origin === origin ? url.pathname : url.href));
+        .map((logo) => sitePath(logo, live));
     }
     expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : "a logo in the page's structured data"})`).toContain(icon.path);
 
