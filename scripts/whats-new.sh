@@ -720,7 +720,7 @@ if [ -z "$STAMPS" ]; then
     echo "error: $PROJECT/tests exists, but no SUITE-VERSION or tests/TESTS-VERSION stamp says" >&2
     echo "which suite commit the tests came from, so there is no baseline to compare with." >&2
     echo "Pick one: a suite commit from before the site was made. Take an older one when" >&2
-    echo "unsure (it lists more changes, hides none). The suite's commits, newest first:" >&2
+    echo "unsure (it lists more of the suite's changes). The suite's commits, newest first:" >&2
     echo "  git -C \"$REPO_DIR\" log --format='%H %cs %s'" >&2
     echo "Write it into the tests stamp, then run this again:" >&2
     echo "  printf 'suite_commit: %s\\n' <that commit> > \"$PROJECT/tests/TESTS-VERSION\"" >&2
