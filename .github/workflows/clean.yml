@@ -41,8 +41,8 @@ name: clean
 # whats-new marks a frozen template file the site lacks as MISSING (scripts/test_whats_new.sh), that
 # each script listed in scripts/test_mktemp_guard.sh stops with an error when mktemp fails and leaves
 # the folder it ran from alone, with a new script that calls mktemp forced onto its list or its
-# exemptions, that a second make check is refused while one runs and a killed run fails
-# (scripts/test_check_lock.sh), and
+# exemptions, that a second make check is refused while one runs, a killed run fails and the
+# manager's next-in-line entry is honoured (scripts/test_check_lock.sh), and
 # that every text file checks out LF even where Git converts to CRLF
 # (scripts/check_lf_checkout.sh), simulated on Ubuntu and checked for real on a Windows runner
 # for the shell scripts, the site hook and the Makefile. And it runs the
