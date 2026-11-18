@@ -191,7 +191,7 @@ expect "11 package.json holding an array: red" "$c" fail "package.json: not a JS
 # -- scenario 12: files and phrases ------------------------------------------------------------------
 fresh; rm "$c/$SETUP"
 expect "12 a listed file is missing: red, names it" "$c" fail "SETUP.md: cannot read the file"
-pairs="$README|the starter needs >=|the starter wants >=|the starter needs >=$V22 (Cloudflare Pages reads it)
+pairs="$README|the starter needs >=|the starter wants >=|the starter needs >=$V22 (Cloudflare's build reads it)
 $SETUP|current security fixes are in|current fixes are in|> current security fixes are in **$V22, $V24 and $V26**
 $SKILL|This starter needs Node|This starter wants Node|**This starter needs Node ≥$V22**, and Node's current security fixes are in $V22, $V24 and $V26
 $UPG|or newer on Node 24|or newer on Node 25|must be $V22 or newer on Node 22, $V24 or newer on Node 24, or $V26 or newer"
