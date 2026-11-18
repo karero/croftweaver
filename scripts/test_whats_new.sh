@@ -101,6 +101,22 @@ report "$S" "$P" "a site with no TESTS-VERSION"
 has   "the SUITE-VERSION fallback marks MISSING too"          "    MISSING: the site has no scripts/verify.mjs"
 stamp "$P/tests/TESTS-VERSION" "$BASE"
 
+# A site with template-test copies and no stamp of either kind (no skills folder either) used to
+# end in "not a site scaffolded by new-website?". It now says how to pick a baseline; following
+# that, the report lists what the site lacks (BUGLOG 2026-11-16).
+Q="$T/unstamped"; mkdir -p "$Q/tests"; echo v1 > "$Q/tests/a.spec.ts"
+bash "$S/scripts/whats-new.sh" "$Q" > "$T/out" 2>&1; rc=$?
+if [ "$rc" -ne 0 ]; then printf 'ok   %s\n' "unstamped copies: exits non-zero"; else printf 'FAIL %s\n' "unstamped copies: exits non-zero"; fails=$((fails+1)); fi
+hasnt "unstamped copies: is not called a non-site"             "not a site scaffolded"
+has   "unstamped copies: says there is no baseline"            "which suite commit the tests came from, so there is no baseline to compare with."
+if grep -qF -- "\" log --format='%H %cs %s'" "$T/out"; then printf 'ok   %s\n' "unstamped copies: prints the command that lists the suite's commits"; else printf 'FAIL %s\n' "unstamped copies: prints the command that lists the suite's commits"; fails=$((fails+1)); fi
+pick="$(grep -F "tests/TESTS-VERSION\"" "$T/out" | grep -F "<that commit>")"
+if [ -n "$pick" ]; then printf 'ok   %s\n' "unstamped copies: prints the command that writes the stamp"; else printf 'FAIL %s\n' "unstamped copies: prints the command that writes the stamp"; fails=$((fails+1)); fi
+eval "${pick//<that commit>/$BASE}"
+report "$S" "$Q" "the site after the stamp is written as told"
+has   "unstamped copies: then the report lists what is MISSING" "    MISSING: the site has no tests/b.spec.ts"
+has   "unstamped copies: and says the skills were not compared" "note: no SUITE-VERSION stamp and no .claude/skills or .agents/skills dir found under $Q, so the bundled skills were not compared."
+
 # Once the site has every file, nothing is MISSING, though the drift report still runs.
 echo v1 > "$P/scripts/verify.mjs"; echo v1 > "$P/tests/b.spec.ts"
 mkdir -p "$P/.claude/hooks" && echo v1 > "$P/.claude/hooks/git-stand.mjs"

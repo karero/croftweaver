@@ -29,7 +29,8 @@ const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 
 // ---- a site to run the script in ---------------------------------------------------------
 
-// The scaffold's own favicons are stood in for by bytes of no meaning: the script must not need to know them.
+// The scaffold's own favicons are stood in for by bytes of no meaning, and the site's copy of the
+// script is told their hashes (the real Astro logo's bytes are not in the repository).
 // name null leaves the starter's "Example".
 function makeSite({ name = 'Krume', brand, modules = true, scaffold = true } = {}) {
   const site = mkdtempSync(path.join(tmpdir(), 'make-icons-'));
@@ -42,6 +43,9 @@ function makeSite({ name = 'Krume', brand, modules = true, scaffold = true } = {
   if (scaffold) {
     writeFileSync(path.join(site, 'public/favicon.svg'), '<svg xmlns="http://www.w3.org/2000/svg"><!-- scaffold stand-in --></svg>\n');
     writeFileSync(path.join(site, 'public/favicon.ico'), Buffer.from('scaffold stand-in'));
+    for (const rel of ['public/favicon.svg', 'public/favicon.ico']) {
+      edit(site, 'scripts/make-icons.mjs', script.SCAFFOLD_FAVICONS[rel][0], sha(read(site, rel)));
+    }
   }
   return site;
 }
@@ -284,6 +288,37 @@ for (const [form, line] of [['MARK', MARK], ['MARK_CURRENT', MARK_CURRENT], ['MA
     }
   });
 }
+
+// A site with favicons of its own and no other icon file is not a new site: --setup must not take
+// them, as it took anything that was not the brand kit's (BUGLOG 2026-11-16, 2026-11-09).
+for (const [what, handMade] of [
+  ['both favicons', ['public/favicon.svg', 'public/favicon.ico']],
+  ['the favicon.svg alone', ['public/favicon.svg']],
+  ['the favicon.ico alone', ['public/favicon.ico']],
+]) {
+  test(`S8: --setup does not replace hand-made favicons (${what}); --replace does`, () => {
+    const site = makeSite();
+    for (const rel of handMade) writeFileSync(path.join(site, rel), `made by hand: ${rel}`);
+    const r = run(site, '--setup');
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /--setup is for a new site/);
+    for (const rel of handMade) assert.match(r.stderr, new RegExp(rel.replace('.', '\\.')));
+    assert.match(r.stderr, /--replace/);
+    for (const rel of handMade) assert.equal(read(site, rel).toString(), `made by hand: ${rel}`, `${rel} untouched`);
+    assert.deepEqual(have(site), ['public/favicon.svg', 'public/favicon.ico']);
+    assert.equal(run(site, '--setup', '--replace').status, 0, 'the owner\'s yes still works');
+    assert.match(read(site, 'public/favicon.svg').toString(), /^<!-- Made by scripts\/make-icons\.mjs: /);
+  });
+}
+
+// The script keeps its own copy of the Astro logo's hashes; the brand kit holds the same two.
+test('S8: the script\'s scaffold hashes are the brand kit\'s', () => {
+  const py = readFileSync(path.resolve(HERE, '..', '..', '..', 'website-brand-kit', 'scripts', '_site.py'), 'utf8');
+  for (const [rel, hashes] of Object.entries(script.SCAFFOLD_FAVICONS)) {
+    const block = py.match(new RegExp(`"${rel}": \\{([^}]*)\\}`))?.[1] ?? '';
+    assert.deepEqual([...block.matchAll(/"([0-9a-f]{64})"/g)].map((m) => m[1]).sort(), [...hashes].sort(), rel);
+  }
+});
 
 test('S8: --setup refuses a site where one of the other five files already exists', () => {
   const site = makeSite();

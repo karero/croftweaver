@@ -466,7 +466,13 @@ process_dir() {  # $1 = path to a SUITE-VERSION stamp
         echo "error: could not replace the site's copy of $s, which may now be partly removed (restore it from the site's git history; the new one is in $new); the stamp is not advanced." >&2
         return 1
       fi
-      case "$LEFT_BEHIND" in "$s"/*) rm -rf "${skills_dir:?}/$LEFT_BEHIND" ;; esac
+      case "$LEFT_BEHIND" in "$s"/*)
+        rm -rf "${skills_dir:?}/$LEFT_BEHIND"
+        if [ -e "$skills_dir/$LEFT_BEHIND" ] || [ -L "$skills_dir/$LEFT_BEHIND" ]; then
+          echo "error: could not remove $skills_dir/$LEFT_BEHIND from the refreshed $s (a site never takes it); delete that folder by hand, commit the site's changes under $skills_dir, then run --refresh again; the stamp is not advanced." >&2
+          return 1
+        fi ;;
+      esac
       find "$skills_dir/$s" -name .DS_Store -delete 2>/dev/null || true
       echo "refreshed $s"
     else
@@ -698,7 +704,8 @@ if [ -z "$STAMPS" ]; then
   # report the tests channel before erroring on the skills side.
   if [ -f "$PROJECT/tests/TESTS-VERSION" ]; then
     TB="$(sed -n 's/^suite_commit: //p' "$PROJECT/tests/TESTS-VERSION")"
-    process_tests_stamp "$PROJECT/tests" "$TB" "tests/TESTS-VERSION" || true
+    TESTS_ALONE=0
+    process_tests_stamp "$PROJECT/tests" "$TB" "tests/TESTS-VERSION" || TESTS_ALONE=$?
     echo
   fi
   for d in "$PROJECT/.claude/skills" "$PROJECT/.agents/skills"; do
@@ -709,6 +716,21 @@ if [ -z "$STAMPS" ]; then
     echo "  scripts/whats-new.sh --stamp $d" >&2
     exit 1
   done
+  if [ -d "$PROJECT/tests" ] && [ ! -f "$PROJECT/tests/TESTS-VERSION" ]; then
+    echo "error: $PROJECT/tests exists, but no SUITE-VERSION or tests/TESTS-VERSION stamp says" >&2
+    echo "which suite commit the tests came from, so there is no baseline to compare with." >&2
+    echo "Pick one: a suite commit from before the site was made. The suite's commits, newest first:" >&2
+    echo "  git -C \"$REPO_DIR\" log --format='%H %cs %s'" >&2
+    echo "Write it into the tests stamp, then run this again:" >&2
+    echo "  printf 'suite_commit: %s\\n' <that commit> > \"$PROJECT/tests/TESTS-VERSION\"" >&2
+    exit 1
+  fi
+  if [ "${TESTS_ALONE-}" ]; then
+    # The tests channel was reported above; stale tests (status 2) are a report, not a failure.
+    echo "note: no SUITE-VERSION stamp and no .claude/skills or .agents/skills dir found under $PROJECT, so the bundled skills were not compared."
+    [ "$TESTS_ALONE" = 1 ] && exit 1
+    exit 0
+  fi
   echo "error: no SUITE-VERSION stamp (and no .claude/skills or .agents/skills dir)" >&2
   echo "found under $PROJECT — not a site scaffolded by new-website?" >&2
   exit 1

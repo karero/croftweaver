@@ -251,6 +251,27 @@ check "git refusing the exclude: the report fails"              test "$rc" -ne 0
 check "git refusing the exclude: says git could not list"       has "$out" "git could not list"
 check "git refusing the exclude: never says up to date"         lacks "$out" "Up to date"
 
+# A refresh whose removal of that folder fails (a wrapper that refuses just that path stands in)
+# must stop before the stamp moves, not leave the folder in the refreshed skill and say nothing.
+printf '# brand kit, edited a third time\n' > "$SB/$BK/SKILL.md"
+$git -C "$SB" add -A && $git -C "$SB" commit -q -m "brand kit skill a third time"
+B2="$($git -C "$SB" rev-parse HEAD)"
+before="$(stamp "$S9")"
+mkdir -p "$T/norm"
+printf '#!/bin/sh\nfor a; do case "$a" in */scripts/tests) exit 1 ;; esac; done\nexec "%s" "$@"\n' "$(command -v rm)" > "$T/norm/rm"
+chmod +x "$T/norm/rm"
+out="$(PATH="$T/norm:$PATH" bash "$SB/scripts/whats-new.sh" --refresh "$S9" 2>&1)"; rc=$?
+check "folder not removed: the refresh fails"                   test "$rc" -ne 0
+check "folder not removed: says which folder is left"           has "$out" "/.claude/skills/website-brand-kit/scripts/tests from the refreshed website-brand-kit"
+check "folder not removed: the stamp does not move"             test "$(stamp "$S9")" = "$before"
+check "folder not removed: the folder is still there"           test -e "$S9/.claude/$BK/scripts/tests"
+# What the message tells the owner to do: delete the folder, commit, run again.
+rm -rf "$S9/.claude/$BK/scripts/tests" && $git -C "$S9" add -A && $git -C "$S9" commit -q -m "half refreshed"
+out="$(bash "$SB/scripts/whats-new.sh" --refresh "$S9" 2>&1)"; rc=$?
+check "folder not removed: running again as told finishes it"   test "$rc" -eq 0
+check "folder not removed: that run moves the stamp"           test "$(stamp "$S9")" = "$B2"
+check "folder not removed: that run leaves no scripts/tests"   test ! -e "$S9/.claude/$BK/scripts/tests"
+
 # --- 10. new-website's copy step, run as SKILL.md writes it, against this checkout's skills
 LEFT="$(sed -n "s/^LEFT_BEHIND='\(.*\)'\$/\1/p" "$HERE/whats-new.sh")"
 check "scaffold: whats-new.sh names the folder left behind"     test -n "$LEFT"

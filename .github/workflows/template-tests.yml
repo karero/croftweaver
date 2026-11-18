@@ -235,6 +235,18 @@ jobs:
           printf '\nlegal pages: own texts (2026-11-02)\n' >> README.md
           CI= npx playwright test tests/placeholders.spec.ts -g "$t" --reporter=line || { echo "::error::a recorded answer did not turn the test green"; exit 1; }
           git checkout -- src/pages/privacy.astro README.md
+      # tests/icons.spec.ts reads each icon link's address; a link moved to another host must not
+      # pass against the local file of the same name. Put the favicon.svg link on another host: the
+      # test for that file must go red. The file is put back afterwards.
+      - name: The icons spec fails on a favicon link on another host
+        run: |
+          perl -pi -e 's|href="/favicon.svg"|href="https://cdn.example.net/favicon.svg"|' src/layouts/Base.astro
+          if ! grep -q 'cdn.example.net/favicon.svg' src/layouts/Base.astro; then echo "::error::the edit of Base.astro did not apply"; exit 1; fi
+          if out="$(CI= npx playwright test tests/icons.spec.ts -g 'favicon.svg is linked' --reporter=line 2>&1)"; then
+            printf '%s\n' "$out" | tail -n 6; echo "::error::the test stayed green with the link on another host"; exit 1
+          fi
+          printf '%s\n' "$out" | grep -Fq 'https://cdn.example.net/favicon.svg' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the test failed, but not on the moved link"; exit 1; }
+          git checkout -- src/layouts/Base.astro
       # The served-build spec in fixed setups: it must fail when the server sends another
       # build's id (dist/ only names the cause), which a normal run never shows.
       - name: The served-build spec fails on another build's id (scripts/test_served_build.sh)
