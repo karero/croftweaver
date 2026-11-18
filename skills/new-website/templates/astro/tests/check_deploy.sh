@@ -196,8 +196,8 @@ elif grep -qx 'WORKERS_CI=1' "$envlog" && ! grep -q '^WORKERS_CI_BRANCH=' "$envl
 # commit it writes to build.txt. The two values are the ones a real Workers Builds production build
 # saw (tests/fixtures/workers-builds-2026-11-08.txt); the expected ids are typed by hand.
 fx="$site/tests/fixtures/workers-builds-2026-11-08.txt"
-real_sha="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\([0-9a-f]\{40\}\)$/\1/p' "$fx" | head -1)"
-connect_val="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\(production\)$/\1/p' "$fx" | head -1)"
+real_sha="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\([0-9a-f]\{40\}\)$/\1/p' "$fx" | awk 'NR==1')"
+connect_val="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\(production\)$/\1/p' "$fx" | awk 'NR==1')"
 if [ "$real_sha" != bc20f2050172151fa9f19fe6cb1151c882fcf479 ] || [ "$connect_val" != production ]; then
   bad "the Workers Builds capture no longer holds the two values these cases read."
 fi
