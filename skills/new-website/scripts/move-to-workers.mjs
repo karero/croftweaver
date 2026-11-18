@@ -1368,9 +1368,9 @@ const productionStepLine = `Then, once main has the commit, run git fetch origin
 async function folderLines(ctx, st, M, route, head = null) {
   const local = (await ctx.git('rev-parse', '--verify', '-q', 'refs/heads/main')).stdout.trim();
   if (local === M) return head && head !== M ? ['This folder is on another branch than main, which is already that commit. Run git switch main, then run this again.'] : [];
-  const parent = (await ctx.git('rev-parse', '--verify', '-q', `${route}^1`)).stdout.trim();
-  if ([st.frozen, route, parent].includes(local)) return [`Bring this folder's main to ${short(M)}: run git fetch origin, git switch main, then git reset --keep ${M}.`];
-  return [`main in this folder (${local ? short(local) : 'none'}) has commits of its own, so it cannot be brought to ${short(M)} with a reset. Ask for help; there is nothing to run here.`];
+  if (!local) return [`This folder has no branch called main. Run git fetch origin, then git switch -c main ${M}.`];
+  if (local === route || await isAncestor(ctx, local, M)) return [`Bring this folder's main to ${short(M)}: run git fetch origin, git switch main, then git reset --keep ${M}.`];
+  return [`main in this folder (${short(local)}) has commits of its own, so it cannot be brought to ${short(M)} with a reset. Ask for help; there is nothing to run here.`];
 }
 
 // move and undo write their commit on the commit GitHub's main holds for the route commit, so a pull
@@ -1379,13 +1379,16 @@ async function headRule(ctx, st, head, dir) {
   const route = st.route?.commit;
   const tip = ctx.mainSha;
   if (!route || tip === route || tip === st.frozen) return; // main still at the frozen commit: nothing was merged, and a clone may lack the route commit
-  if (await isRouteTip(ctx, tip, route)) {
+  const merged = await isRouteTip(ctx, tip, route);
+  if (merged || await isAncestor(ctx, route, tip)) { // M, or a main that moved on from the route commit: the commit is written on main's tip
     if (head === tip) return;
     const written = st.asked?.commit; // the commit an earlier plain run wrote on that commit, which the --confirm run now finds at HEAD
     if (head === written && (await ctx.git('rev-parse', '--verify', '-q', `${head}^1`)).stdout.trim() === tip) return;
-    throw new Stop(1, `HEAD is ${short(head)}, not ${short(tip)}, the commit that main on GitHub holds for the ${st.route.kind} commit ${short(route)}. ${dir} writes its commit on ${short(tip)}, so that a pull request merging it can be accepted.`, ...(await folderLines(ctx, st, tip, route, head)));
+    throw new Stop(1, merged
+      ? `HEAD is ${short(head)}, not ${short(tip)}, the commit that main on GitHub holds for the ${st.route.kind} commit ${short(route)}. ${dir} writes its commit on ${short(tip)}, so that a pull request merging it can be accepted.`
+      : `HEAD is ${short(head)}, not ${short(tip)}, where main on GitHub is now. ${dir} writes its commit on main's commit, so that pushing it or merging it through a pull request can be accepted.`, ...(await folderLines(ctx, st, tip, route, head)));
   }
-  if (!(await isAncestor(ctx, tip, route)) && !(await isAncestor(ctx, route, tip))) {
+  if (!(await isAncestor(ctx, tip, route))) {
     throw new Stop(1, `main on GitHub is ${short(tip)}, not the ${st.route.kind} commit ${short(route)} or a merge of it: something else was merged while the move is open. Ask for help.`);
   }
 }
@@ -1908,7 +1911,7 @@ async function cmdAfter(ctx, run) {
   }
   if (problems.length) {
     problems.forEach((p) => note(run, false, p));
-    throw new Stop(1, ...problems, ...steps, 'If something else was merged into main since, ask for help. Then run after again.');
+    throw new Stop(1, ...problems, ...steps, ...(mainOk ? [] : ['If something else was merged into main since, ask for help.']), 'Then run after again.');
   }
   note(run, true, `GitHub's ${branches.join(' and ')} ${branches.length > 1 ? 'are' : 'is'} the ${st.route.kind} commit ${short(route)}${expect === route ? '' : ` as ${short(expect)}, which has its files`}`);
   const { list: unfinished } = await unfinishedBuilds(ctx, st.base ?? st.frozen, tips[ctx.prodBranch], { newest: Boolean(st.base), tips: Object.values(tips) });

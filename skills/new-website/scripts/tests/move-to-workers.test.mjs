@@ -3651,6 +3651,7 @@ describe('move on a protected main (P1 to P6)', () => {
     worldAt(s, other);
     const a = await s.go(['after']);
     assert.equal(a.code, 1, a.text);
+    assert.match(a.text, /not the route commit/);
     const onOther = git(s.site.work, 'commit-tree', `${route}^{tree}`, '-p', other, '-m', 'route files, another parent');
     git(s.site.work, 'push', '-q', 'origin', `${onOther}:refs/heads/main`);
     worldAt(s, onOther);
@@ -3727,7 +3728,56 @@ describe('move on a protected main (P1 to P6)', () => {
     assert.equal(past.code, 1, past.text);
     assert.match(past.text, /something else was merged/);
     assert.match(past.text, /not the route commit/);
-    void route;
+  });
+
+  // A main that moved on from the route commit (a merge commit M and a later merge, or a directly pushed route commit and a later ship):
+  // undo still runs, but only from main's tip, so its commit can be accepted.
+  async function undoFromTip(s, tip, landUndo) {
+    const refused = await s.go(['undo']);
+    assert.equal(refused.code, 1, refused.text);
+    assert.match(refused.text, /where main on GitHub is now/);
+    assert.ok(refused.text.includes(`git reset --keep ${tip}`), `the folder line names main's tip:\n${refused.text}`);
+    noTwoRefPush(printed(s, refused));
+    git(s.site.work, 'switch', '-q', '-C', 'main', tip);
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 3, q.text);
+    const undoCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    const g = await s.go(['undo', '--confirm', codeOf(q)]);
+    assert.equal(g.code, 0, g.text);
+    const landed = landUndo(undoCommit);
+    worldAt(s, landed);
+    const ok = await s.go(['after']);
+    assert.equal(ok.code, 0, ok.text);
+    assert.match(ok.text, /back on Pages/);
+  }
+  const later = (s, from) => git(s.site.work, 'commit-tree', `${from}^{tree}`, '-p', from, '-m', 'a later change');
+  const pushBoth = (s, sha) => { git(s.site.work, 'push', '-q', 'origin', `${sha}:refs/heads/main`, `${sha}:refs/heads/production`); git(s.site.work, 'fetch', '-q', 'origin'); };
+
+  test('T6 (P6): after a merge-commit M and one later merge, undo refuses the old HEAD (a folder main that is merely behind gets the reset line), and from the tip its commit, merged, passes after', async () => {
+    const { s, route } = await moved();
+    const m = mergeViaPr(s, route, 'merge');
+    const next = later(s, m);
+    pushBoth(s, next);
+    git(s.site.work, 'branch', '-f', 'main', m); // behind main's tip, and neither the frozen commit nor the route commit
+    worldAt(s, next);
+    await undoFromTip(s, next, (u) => { const m2 = mergeViaPr(s, u, 'squash'); git(s.site.work, 'push', '-q', 'origin', `${m2}:refs/heads/production`); return m2; });
+  });
+
+  test('T6 (P6): after a directly pushed route commit and one later commit on main, undo refuses the old HEAD, and from the tip its pushed commit passes after', async () => {
+    const { s, route } = await moved();
+    s.push();
+    const next = later(s, route);
+    pushBoth(s, next);
+    worldAt(s, next);
+    await undoFromTip(s, next, (u) => { pushBoth(s, u); return u; });
+  });
+
+  test('T6 (P6): a folder with no branch called main is told how to make one at M', async () => {
+    const { s, m } = await passedWithM(false);
+    git(s.site.work, 'branch', '-D', 'main');
+    const r = await s.go(['undo']);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes(`This folder has no branch called main. Run git fetch origin, then git switch -c main ${m}.`), r.text);
   });
 
   test('T6 (P6): with the folder\'s main at M and HEAD on the route branch, undo and move --confirm refuse and print git switch main', async () => {
@@ -3760,6 +3810,7 @@ describe('move on a protected main (P1 to P6)', () => {
     });
   }
 
+  // Shows the git premise only; the guard against it is the test where undo refuses HEAD = the route commit.
   test('T6 (P6): on the old way of working, a squash of an undo commit built on the route commit leaves the routes in place', () => {
     const s = makeSite();
     const { work } = s;
