@@ -157,8 +157,10 @@ commit, and `record` refuses until it is. `check` first verifies the token and r
 comes first, and it names a private repository (and, when `gh` is missing, says where to get it); while a move is open it says which commit `after` waits for
 and, when a host is not where the move ends, the command that carries it on.
 
-**`record` takes minutes.** The build runs apart from the command. While it runs, `record`
-exits 4: run the same command again until it finishes.
+**`record` takes minutes.** The build runs apart from the command. The first run for a commit
+starts that build and exits 4, "The build is not finished. Run the same command again in a
+minute.", and so does every run while it builds. The finished build is kept
+(under `move-run/build/`), so the next run for the same commit goes straight on to the recording.
 
 **The question (`move`) is the User's to answer.** Read her the plain lines at the top, word for
 word, not a summary; the lines under "For your assistant" are for you, and you read them to her
