@@ -22,12 +22,19 @@ const BASE = `http://localhost:${PORT}`;
 
 // Claude Code cloud sessions ship one Chromium build under /opt/pw-browsers, and it is not always
 // the build this Playwright version expects; then every browser test failed there with "Executable
-// doesn't exist". Only when the expected build is missing, launch the cloud's own build: its
-// headless shell first, which is what Playwright runs headless (the full browser also fetches the
-// favicon on its own). CI and anyone who ran `npx playwright install chromium` keep the pinned one.
+// doesn't exist". A headless run launches the headless shell, not chromium.executablePath() (the
+// full browser), so the shell is the build to look for: it sits beside the full one as
+// chromium_headless_shell-<revision>. Only when the expected shell is missing, launch the cloud's
+// own build: its headless shell first (the full browser also fetches the favicon on its own). CI
+// and anyone who ran `npx playwright install chromium` keep the pinned one.
 const CLOUD_BROWSERS = '/opt/pw-browsers';
+function expectedHeadlessBuild(): string {
+  const full = chromium.executablePath();
+  const m = /^(.*[\\/])chromium-(\d+)[\\/]/.exec(full);
+  return m ? `${m[1]}chromium_headless_shell-${m[2]}` : full;
+}
 function cloudChromium(): string | undefined {
-  if (existsSync(chromium.executablePath()) || !existsSync(CLOUD_BROWSERS)) return undefined;
+  if (existsSync(expectedHeadlessBuild()) || !existsSync(CLOUD_BROWSERS)) return undefined;
   const shell = readdirSync(CLOUD_BROWSERS).filter((name) => name.startsWith('chromium_headless_shell-')).sort().pop();
   return [
     ...(shell ? [join(CLOUD_BROWSERS, shell, 'chrome-headless-shell-linux64', 'chrome-headless-shell')] : []),
