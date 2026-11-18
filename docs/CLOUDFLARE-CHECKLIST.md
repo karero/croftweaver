@@ -512,8 +512,9 @@ a top-level field left out of a PUT keeping a value that differs from the zone's
 left out holding the values the zone already had before any write, which a reset would also give
 (only the `ai_agents` map is captured as merged per agent). So for `enable_js`,
 `cf_robots_variant` and the fields a run does not change, keeping is not yet shown on a zone.
-The first real site shows it: if anything moves, the read-back marks the Bot Management lines it
-wrote "by hand", names the field that moved, and the run ends with status 1.
+The read-back compares each field with what the run first read, so a reset of a field that held a
+non-default value marks the Bot Management lines it wrote "by hand", names the field and ends the
+run with status 1; a reset of a field that held its default shows nothing.
 
 | Setting | API field | Value |
 |---|---|---|
