@@ -40,6 +40,7 @@ MELIOUS_LIGHT="$(awk '!/^#/ && NF == 2 && $2 == "light" { print $1; exit }' "$HE
 # Stubs are plain sh with printf '%s\n' so they behave the same under dash (CI) and bash.
 cat >"$T/bin/codex" <<'EOF'
 #!/bin/sh
+[ "${1:-}" = mcp ] && { printf '%s\n' '[]'; exit 0; }   # `codex mcp list --json`: no servers
 : >"$STUB_MARKS/codex-ran"
 # The API keys are unset for every seat but their own (#165): codex must never see them.
 [ -n "${MELIOUS_API_KEY:-}" ] && : >"$STUB_MARKS/codex-saw-melious-key"
@@ -565,7 +566,7 @@ for m in "" stub-override; do
   check "$name: codex counted, not FAILED" has "$name.out" "reviewers: codex OK, ollama-cloud OK"
   # git=no is what git said from inside the stub itself, so the case cannot pass from
   # inside a repo (round 4, fresh-eyes).
-  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]${m:+[-c][model=\"$m\"]}[-] cwd=$NOGIT git=no"
+  want="argv=[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false][--disable][plugins]${m:+[-c][model=\"$m\"]}[-] cwd=$NOGIT git=no"
   check "$name: exact argv (read-only, nothing looser), caller's cwd, outside git" \
     grep -qxF -- "$want" "$T/$name.marks/codex-args"
 done
@@ -910,7 +911,7 @@ done
 # 26. Codex reasoning effort (review depth, 2026-09-26): a --verify round drops to medium unless
 #     CODEX_EFFORT says otherwise; "config" keeps config.toml's; an explicit value applies to any
 #     round and lands after the model override, before the prompt.
-base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false]'
+base='[exec][-s][read-only][--skip-git-repo-check][-c][project_doc_max_bytes=0][-c][skills.include_instructions=false][--disable][plugins]'
 argv_of() { sed -e 's/^argv=//' -e 's/ cwd=.*$//' "$T/$1.marks/codex-args"; }
 run effverify bash "$SCRIPT" "$T/change.diff" --base none --verify "$T/prior.md"
 check "effort: a verify round asks for medium" \
@@ -1083,8 +1084,10 @@ G="$T/gaterepo"; mkdir -p "$G"; git -C "$G" init -q
 GL="$T/gates.tsv"
 inrepo() { run "$1" REVIEW_LOG="$GL" sh -c 'cd "$0" && shift && exec "$@"' "$G" "${@:2}"; }
 inrepo gate1a bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 1
+inrepo gate1afe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1   # round 2 refuses without it
 inrepo gate1b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
 inrepo gate2a bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 1
+inrepo gate2afe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1   # round 2 refuses without it
 inrepo gate2b bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 2
 inrepo gate2c bash "$SCRIPT" "$T/change.diff" --base none --depth normal --round 3
 inrepo gatefe bash "$HERE/review_log.sh" add --seat fresh-eyes --gate diff --depth normal --round 1
@@ -2407,10 +2410,10 @@ dm dmplus '+ BUG: see above'
 dm dmnul '- BUG\000x: see above'
 # T6-T8: the reason column.
 run t6 REVIEW_LOG="$T/t6.tsv" OLLAMA_STUB=notreview bash "$SCRIPT" "$T/change.diff" --base none
-check "T6: a new log's header ends in cut, reason" \
-  sh -c '[ "$(sed -n 1p "$1" | awk -F"\t" "{print NF \":\" \$(NF-1) \":\" \$NF}")" = "17:cut:reason" ]' _ "$T/t6.tsv"
-check "T6: the rejected seat: FAILED in column 13, its reason in column 17" \
-  awk -F'\t' '$8=="ollama-cloud" && NF==17 && $13=="FAILED" && $17=="output is not a review" {f=1} END {exit !f}' "$T/t6.tsv"
+check "T6: a new log's header ends in reason, manager_said" \
+  sh -c '[ "$(sed -n 1p "$1" | awk -F"\t" "{print NF \":\" \$(NF-1) \":\" \$NF}")" = "18:reason:manager_said" ]' _ "$T/t6.tsv"
+check "T6: the rejected seat: FAILED in column 13, its reason in column 17, nothing in column 18" \
+  awk -F'\t' '$8=="ollama-cloud" && NF==18 && $13=="FAILED" && $17=="output is not a review" && $18=="-" {f=1} END {exit !f}' "$T/t6.tsv"
 check "T7: the 429 seat's reason is what the summary line shows, spaces kept" \
   awk -F'\t' '$8=="ollama-cloud" && $13=="FAILED" && $17=="exit 1; quota/rate limit: wait or add credits" {f=1} END {exit !f}' "$T/costs2.tsv"
 limitcase t7size "codex stub-codex takes:150000$REF
@@ -2418,8 +2421,8 @@ ollama-cli $STUB_TAG refuses$REF
 " "$T/big200.diff" REVIEW_LOG="$T/t7size.tsv" --
 check "T7: a seat over its size limit: the whole reason, inner parentheses and \"nothing was sent\" kept" \
   sh -c 'r="$(awk -F"\t" "\$8==\"codex\" && \$13==\"FAILED\" {print \$17}" "$1")"; case "$r" in "a prompt of "*" bytes, over the 150000 this seat took whole (seat_limits.txt); nothing was sent") exit 0 ;; *) echo "got [$r]" >&2; exit 1 ;; esac' _ "$T/t7size.tsv"
-check "T8: an OK seat: column 17 is -" \
-  awk -F'\t' '$8=="codex" && $13=="OK" && NF==17 && $17=="-" {f=1} END {exit !f}' "$LOGT"
+check "T8: an OK seat: columns 17 and 18 are -" \
+  awk -F'\t' '$8=="codex" && $13=="OK" && NF==18 && $17=="-" && $18=="-" {f=1} END {exit !f}' "$LOGT"
 # T10-T12: codex_tokens, the function as production has it, on the trimmed captures.
 CT_R3="$FX/codex-cli-0.167.0_2026-11-07_quoted-tokens-used-then-footer.txt"
 CT_F5="$FX/codex-cli-0.167.0_2026-11-07_footer-then-rollout-error.txt"

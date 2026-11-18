@@ -53,6 +53,7 @@ SCRIPTS=(
   scripts/test_check_lock.sh
   skills/independent-review/scripts/check_prompt_sync.sh
   skills/independent-review/scripts/test_base_check.sh
+  skills/independent-review/scripts/test_codex_mcp_off.sh
   skills/independent-review/scripts/test_failed_tier_report.sh
   skills/independent-review/scripts/test_round_checks.sh
   skills/independent-review/scripts/test_sweep_claims.sh

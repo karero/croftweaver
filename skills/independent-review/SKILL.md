@@ -210,8 +210,12 @@ Codex's effort for any run.
    gate; every line logged after it from the same worktree carries that gate's id. A Light gate
    that runs no script starts one with `scripts/review_log.sh new-gate`. The script ends each run
    with the gate's running total (rounds, seat runs, tokens); from round 4 on, give it to the
-   owner with the round's update (step 8). The log is local, never committed;
-   `scripts/review_log.sh summary` compares depths and seats across PRs.
+   owner with the round's update (step 8). Round 2 and later of a Normal or High gate refuse
+   until the fresh-eyes seat each earlier round owes (Review depth) is logged under the seat name
+   `fresh-eyes`. Log it with `--gate-id <id>`, the id in the gate line round 1 prints at its end;
+   a line logged before round 1 starts its gate goes to the gate before. Any outcome counts: a
+   host that cannot run the seat logs `--outcome NOT-COUNTED --reason "<why>"`. The log is
+   local, never committed; `scripts/review_log.sh summary` compares depths and seats across PRs.
 4. **Consolidate.** Dedup across reviewers. Per finding: a stable id, severity (BUG/RISK/NIT),
    source(s), location, and status — **open, fixed, refuted, waived, deferred, follow-up**:
    - *refuted* — shown not to be an issue, to step 5's evidence standard; no sign-off.
@@ -333,14 +337,27 @@ Codex's effort for any run.
    the input it names and refuses the rest, with a test that ordinary input still passes.
    Refusing the one input the last BUG used is a patch. Where the cost log can tell, the script
    refuses that round without `--cut "<what was removed or replaced>"`, and logs it; where it
-   cannot, it warns. The owner sees the kinds and cuts in the script's running-total line. A RISK
+   cannot, it warns. The owner sees the kinds and cuts in the script's running-total line.
+   **When a cut turns out to be a patch.** The script cannot tell a cut from a patch: the host
+   writes the cut text and grades it. So at a kind's second return after its first cut (the round
+   names the kind, and so did an earlier round after that cut), the host asks its manager, the
+   session or person that started it and directs it: "take it out, make it a warning, or keep
+   fixing?", with the kind, the cut texts and the finding. Where nobody started the session, it
+   asks the owner. The script reminds the host in the closing lines of any round that names a kind
+   cut earlier, before the host sorts the findings, and warns at the start of a round for each kind
+   due an answer that has none. Pass the answer as `--manager-said "<kind>: <answer>"`, one flag per
+   kind, and record it in the trail. Nothing is refused: a round with no answer runs, and the gate
+   line says "manager not asked". "Take it out" and "make it a warning" are scope cuts: the manager
+   decides them and tells the owner in the PR's first lines. "Keep fixing" asks again at the next
+   return; the `--cut` check above still applies to those rounds. A RISK
    whose fix leaves the meaning unchanged is wording: fix it like a NIT under (a2). Past round 3, a
    round with neither a substantive BUG nor an earning RISK ends the rounds: fix or refute its NITs without
    another round ((a2)), and the remaining wording goes to the wording pass or, where no round had
    a substantive BUG, to the prose-only re-gate (step 2). Aim to finish by round 5. **Don't ask the
    owner whether to run the next round** (the owner's rule, 2026-10-22); when a round ends, ask
    about its findings and the rounds only for what the owner alone gives: a RISK or NIT waiver (for one the host would leave unfixed
-   and cannot refute), a BUG deferral (step 5), a change of scope, and past round 8 the decision below.
+   and cannot refute), a BUG deferral (step 5), a change of scope (except the manager's "take it out" or "make it a warning" at a kind's
+   second return, above), and past round 8 the decision below.
    **Past round 8** the open items go to the owner as one decision instead of another round:
    grant further rounds (one at a time), redesign (a new artifact), defer a BUG under step 5, or
    hold the change — an open BUG is never waived. The same holds whenever the rounds end with a
@@ -387,9 +404,10 @@ Codex's effort for any run.
    re-breaks something an earlier round fixed (even once); or when MOST of a round's findings
    re-cover ground a prior pass reported clean, or re-raise a dispositioned finding (fixed,
    refuted, waived, deferred, or open on a missing prerequisite) without new evidence; or when the
-   count plateaus two rounds on mostly such findings. Step 6's cut comes first; a kind that comes
-   back after its cut stops the patching here. Then redesign, or take the open items to the
-   owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
+   count plateaus two rounds on mostly such findings. Step 6's cut comes first. A kind that comes
+   back after its cut stops the patching here: at its first return the host redesigns, and the next
+   fix is a cut, which `--cut` names; at its second return the host asks its manager, as in
+   step 6. Other open items go to the owner — who can postpone, re-scope or reject the release, but cannot waive an open BUG (defer
    only under step 5). "Stopped: not converging" goes in the trail. Long form:
    `references/rationale.md`.
 8. **Keep the owner in the loop.** Between rounds, and before the gate closes: what was found,

@@ -207,7 +207,9 @@ time and no GitHub connection.
 - `npx wrangler login` opens the owner's browser, and she approves Wrangler there. No token
   to make or to delete. (Wrangler's own flow; not checked on this kit's version.)
 - Or a token the owner makes, for an assistant that cannot open a browser:
-  1. Dashboard → **My Profile → API Tokens → Create Token → Create Custom Token**.
+  1. Dashboard → **My Profile → API Tokens → Create Token**, then **Start from scratch** →
+     **Start with an Account policy**, and **Add new policy** for a Zone policy where the rows
+     below name zone rows (as seen on 2026-11-17; the old Create Custom Token step is gone).
   2. **Permissions:** **Account → Workers Scripts → Edit**, which uploads the Worker and
      makes it the first time (the permission's name as the checklist's section 6 gives it;
      whether `wrangler deploy` needs more rows is not checked). On
@@ -486,7 +488,9 @@ against current Cloudflare docs, June 2026):
 assumes. A direct-upload project and a Git-connected project are *different Pages project
 types*.
 
-**The token:** dashboard → **My Profile → API Tokens → Create Token → Create Custom Token**.
+**The token:** dashboard → **My Profile → API Tokens → Create Token**, then **Start from scratch** →
+**Start with an Account policy**, and **Add new policy** for a Zone policy where the rows below
+name zone rows (as seen on 2026-11-17; the old Create Custom Token step is gone).
 Permissions, only what the steps need: **Account › Cloudflare Pages › Edit** (a.k.a.
 `Pages Write`) to create the project, deploy, **and** attach a custom domain via the Pages REST
 API (`POST /accounts/{id}/pages/projects/{name}/domains`); **Zone › DNS › Edit**, scoped to
@@ -507,7 +511,10 @@ zones"). An **End date ~1 week out**. Provide it as a session env var, as in A. 
 export CLOUDFLARE_ACCOUNT_ID=<account-id>
 
 # 1. Create the Pages project (direct-upload). <production-branch> is main or production.
-npx wrangler pages project create <project> --production-branch <production-branch>
+#    --force, on this command only, and only on the owner's word that the site stays on Pages:
+#    run by an AI assistant, Wrangler 4.162.0 tries to make a Worker without it (see the note
+#    below the block).
+npx wrangler pages project create <project> --production-branch <production-branch> --force
 
 # 2. Build, then deploy the static output. Both lines take the production branch from step 1.
 #    CF_PAGES_BRANCH: with analytics switched on (USE_ANALYTICS = true in src/config.ts; the
@@ -536,7 +543,36 @@ npx wrangler pages deploy dist --project-name <project> --branch <production-bra
 > and hands back a `*.workers.dev` URL instead — a real mistake we've seen on an older kit
 > version. If you see `workers.dev` on a site that is meant to stay on Pages, stop: you
 > deployed the wrong project type. Confirm it's the accidental Worker (not a pre-existing one
-> with a similar name), then delete it and re-run `wrangler pages deploy`.
+> with a similar name), then ask the owner to delete it (the starter's settings block `wrangler delete`)
+> and re-run `wrangler pages deploy`.
+
+> **`--force` on `pages project create`, once.** Wrangler decides from environment variables
+> (`CLAUDECODE` and others) whether an AI assistant is running. When one is, and the project does
+> not exist yet, 4.162.0 prints "Delegating to the latest version of Cloudflare Pages, now part of
+> Cloudflare Workers" and tries to make a **Worker**, not a Pages project. The next step,
+> `pages deploy … --branch`, then stops with "Pages project does not exist" (seen on
+> 2026-11-17). `--force` is the opt-out Wrangler names: the same run makes a real Pages project,
+> and the deploy then works as written. Use it on `project create` and nowhere else: once the
+> project exists, Wrangler leaves later commands on Pages. The command keeps the flag whoever
+> types it; it is harmless when no assistant is detected.
+>
+> **An assistant runs this step only when the owner has said, in this conversation, that this
+> project stays on Pages.** This section is for such a site; a site not yet launched goes to a
+> Worker (see above). Without the owner's word, do not run it: ask.
+> Wrangler's own notices differ on the point: the one printed when delegation fails names
+> `--force` as the way out, and the one printed after it made a Worker asks agents to use
+> `--force` only when the user asks. The owner's word that the site stays on Pages is that ask.
+>
+> If a run still prints "Delegating", stop: Wrangler tried to make a Worker. That setup can
+> also change the site's files (it adds `wrangler.jsonc` and, from its code, may edit
+> `package.json` and add configuration). Run `git status` and `git diff`, show the owner, and put
+> back what changed. Then look in the account for a Worker with the project's name; if it is the
+> accidental one (not a pre-existing Worker with a similar name), ask the owner to delete it (the
+> starter's settings block `wrangler delete` for the assistant), then run
+> `project create … --force` again. `--force` is hidden (`--help` does not
+> list it) and an older Wrangler (4.83.0 has no such option, and no delegation) may not know it:
+> if Wrangler refuses it, stop and read Wrangler's changelog. Making the site a Worker instead
+> is `docs/PAGES-OR-WORKERS.md`.
 
 Ongoing deploys under (A), Pages form: with `CLOUDFLARE_ACCOUNT_ID` set as in step 0, re-run both lines of step 2, `CF_PAGES_BRANCH=` still included —
 `CF_PAGES_BRANCH=<production-branch> npm run build`, then
