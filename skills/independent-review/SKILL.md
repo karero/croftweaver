@@ -166,7 +166,8 @@ Codex's effort for any run.
    gives the search that found every caller, over every repository a caller can live in.
    A READ of a web page quotes each passage a claim rests on as the page gives it, from a
    command that returns the page's own text (`curl -sSL <URL>`, or a browser for a page built
-   by JavaScript); an answer a tool or agent writes about a page is a summary, not a READ.
+   by JavaScript), and gives any step that strips its markup as a command too; an answer a
+   tool or agent writes about a page is a summary, not a READ.
    Before round 1 of a gate that runs the script, a claim in the artifact about what a system
    does when it runs (a timeout firing, a killed client, a lock held, what a migration
    rewrites) gets a run on a throwaway or test instance, never production, sent in that file
