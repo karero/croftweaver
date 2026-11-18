@@ -23,8 +23,8 @@
     "prepare": "node scripts/wire-hooks.mjs"
   },
   "dependencies": {
-    "@astrojs/sitemap": "^3.7.5",
-    "astro": "^7.4.12",
+    "@astrojs/sitemap": "^3.7.6",
+    "astro": "^7.4.13",
     "node-html-parser": "^9.0.7"
   },
   "devDependencies": {
@@ -33,7 +33,7 @@
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "typescript": "^6.0.3",
-    "wrangler": "4.162.0"
+    "wrangler": "4.164.0"
   },
   "allowScripts": {
     "fsevents@2.3.3": true,
