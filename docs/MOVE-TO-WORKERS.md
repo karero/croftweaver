@@ -161,7 +161,10 @@ waiting on the day if it is missed.
 1. **Freeze.** Make no change to the site from the recording until the last check passes. Tell
    anyone else who edits it.
 2. **Record.** Your assistant runs `record`, more than once (`check` ran before the freeze, in the
-   list at the end of section 6).
+   list at the end of section 6). The first run starts building your site and stops with "The build
+   is not finished. Run the same command again in a minute." That is expected. It may stop like
+   that a few times, and once more if some addresses did not answer; each time, your assistant
+   runs it again.
 3. **The question.** Your assistant reads you the question word for word, and a code. Say yes
    only if it is what you want. Your yes must come within 10 minutes of the question (the script
    allows 15; your assistant's own turn takes some), or your assistant asks again before it
