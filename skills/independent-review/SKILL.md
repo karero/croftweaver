@@ -164,6 +164,9 @@ Codex's effort for any run.
    replaced with made-up values. A READ of code quotes each function a claim rests on whole,
    with its repository's commit, not a line range; a claim that no caller does something also
    gives the search that found every caller, over every repository a caller can live in.
+   A READ of a web page quotes each passage a claim rests on from the page itself, fetched by
+   a command such as `curl -sL <URL>`; a fetch tool's or agent's answer about a page is a
+   summary, not a READ.
    Before round 1 of a gate that runs the script, a claim in the artifact about what a system
    does when it runs (a timeout firing, a killed client, a lock held, what a migration
    rewrites) gets a run on a throwaway or test instance, never production, sent in that file
