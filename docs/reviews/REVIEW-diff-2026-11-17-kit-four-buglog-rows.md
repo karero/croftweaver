@@ -42,4 +42,4 @@ Re-sorted: none. Kind `site-quote-fixture` earned rounds 4 and 5; the fixes were
 
 Mutations (new tests against the old code): old ship.sh fails W5 (trailing comma in a string and an object); old deploy.sh site reader fails site-comment (curl asked the commented address); old spec fails the trailing-comma test (a spec run with the comma pass cut); old discovery prints "Skipped".
 
-Checks: `make check` passed (exit 0) on the head after the round 1 fixes; the final head's run is below.
+Checks: `make check` passed (exit 0) on the head after the round 1 fixes, and again on `4d7f70b2`, the last head with code or BUGLOG changes (2026-11-18). That run skipped only the Linux-only `unshare` cases and the Perl minimum-version check (`Perl::MinimumVersion` is not installed); neither touches this change. The commit that adds this line changes only this file; the quick guards ran on it.
