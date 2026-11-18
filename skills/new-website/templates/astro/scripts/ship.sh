@@ -912,13 +912,13 @@ restore_again_file() { # <commit the folder was on>
 # The push, with its checks and what it says when it fails. A function so the one "ship again"
 # (below) goes through exactly the same steps; it exits the script on any failure.
 push_and_report() {
-# The last look before anything leaves this computer. On the "ship again" push the first publish
-# is already out, and folder mode has the commit on 'main': take it off again.
+# The last look before anything leaves this computer. On the "ship again" push the first run is
+# over, and folder mode has the commit on 'main': take it off again.
 if [ "$again" = 1 ]; then
   if [ "$stop_asked" = 1 ]; then
     again_note=""
     if undo_again; then again_note=" The 'ship again' commit is taken off 'main' again."
-    elif [ "$from_github" = 0 ]; then again_note=" The 'ship again' commit is still on 'main' here, not pushed; the next npm run ship says what to do."; fi
+    elif [ "$from_github" = 0 ]; then again_note=" The 'ship again' commit is still on 'main' here, not pushed."; fi
     id="$first_id"; short="${id:0:12}"
     if [ "$first_n" = 0 ]; then
       stop_point "The first run pushed nothing ('production' already had $short); the 'ship again' push was not made.$again_note"
@@ -1024,7 +1024,7 @@ fi
 if [ "$kind" = unknown ]; then kind=maybe; fi
 
 if [ "$kind" != ok ] && [ "$again" = 1 ]; then
-  # The retry's own push failed, after a first publish that went out: the messages below say
+  # The retry's own push failed, after a first run that may have published: the messages below say
   # "nothing was published", which is not true now. The push is atomic, so a refusal moved
   # neither branch; only a push that was cut short may have landed.
   echo ""
@@ -1046,7 +1046,7 @@ if [ "$kind" != ok ] && [ "$again" = 1 ]; then
       if undo_again; then
         echo "  The 'ship again' commit is taken off 'main' again: you're still safely on 'main'."
       elif [ "$from_github" = 0 ]; then
-        echo "  The 'ship again' commit is still on 'main' here, not pushed; the next npm run ship says what to do."
+        echo "  The 'ship again' commit is still on 'main' here, not pushed."
       fi ;;
   esac
   if [ "$first_n" = 0 ]; then
@@ -1239,7 +1239,11 @@ Only $again_file changes. Build watch paths that do not list that file skip this
     echo "✗ Not shipping again: the commit could not be made."
     return 1
   fi
-  new="$(git -C "$dir" rev-parse HEAD)" || return 1
+  if ! new="$(git -C "$dir" rev-parse HEAD)"; then
+    echo "✗ Not shipping again: could not read the new commit's id."
+    [ "$from_github" = 1 ] || echo "  The commit is on 'main' here, not pushed; 'git log -1' shows it."
+    return 1
+  fi
   first_id="$id"; id="$new"; again_id="$new"; short="${id:0:12}"
   again=1; again_main="$id:refs/heads/main"
   first_n="$live_n"; live_n=1

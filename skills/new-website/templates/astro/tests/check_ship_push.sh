@@ -2184,13 +2184,13 @@ export default {};"
   # SHIP_TEST_TTY is not set, never depends on it. The cases find the question by its text.
   case "${SHIP_GATE_SKIP_WORDING:-}" in ''|0|false|no) t_wording=1 ;; *) t_wording=0 ;; esac
   if [ -z "${SHIP_TEST_TTY:-}" ]; then
-    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T19 skipped: SHIP_TEST_TTY is not set"
-    echo "  note: T1 to T19 (the question, on a fake terminal) are skipped: SHIP_TEST_TTY is not set."
+    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T20 skipped: SHIP_TEST_TTY is not set"
+    echo "  note: T1 to T20 (the question, on a fake terminal) are skipped: SHIP_TEST_TTY is not set."
   elif ! command -v script >/dev/null 2>&1; then
-    echo "✗ ship push gate, real git: T1 to T19 did not run: SHIP_TEST_TTY is set but 'script' is not here."; fail=1
+    echo "✗ ship push gate, real git: T1 to T20 did not run: SHIP_TEST_TTY is set but 'script' is not here."; fail=1
   elif [ "$t_wording" = 0 ]; then
-    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T19 skipped: SHIP_GATE_SKIP_WORDING is set"
-    echo "  note: T1 to T19 are skipped: they find the question by its text, and SHIP_GATE_SKIP_WORDING is set."
+    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T20 skipped: SHIP_GATE_SKIP_WORDING is set"
+    echo "  note: T1 to T20 are skipped: they find the question by its text, and SHIP_GATE_SKIP_WORDING is set."
   else
     t_ran=1
     # The refusals: T2, T3 and T4 differ only in how the answer is not a yes.
@@ -2258,7 +2258,7 @@ export default {};"
     want "production is GitHub's main" eq "$(gh production)" "$m"
     want "no question" lacks "Publish to "
     want "the no-terminal line is printed" has "No terminal to answer a question here"
-    # T10–T19: "ship again". About 3 minutes after the push the live site still serves the old
+    # T10–T20: "ship again". About 3 minutes after the push the live site still serves the old
     # build (SHIP_T_STALE_AT: stale while production sits on the commit ship pushed), and ship
     # asks once; the sleep stub makes the minutes instant. All of them answer the first question
     # y and the second as named.
@@ -2314,10 +2314,10 @@ export default {};"
     # A prepare-commit-msg hook that fails must not stop the retry's commit: no hook runs for it.
     # It sits where this clone's core.hooksPath points, kept out of "unsaved files" by an exclude.
     hook_f="$C/scripts/hooks/prepare-commit-msg"
-    printf '#!/bin/sh\nexit 1\n' > "$hook_f"; chmod +x "$hook_f"
+    printf '#!/bin/sh\ntouch "%s"\nexit 1\n' "$G/t13-hook-ran" > "$hook_f"; chmod +x "$hook_f"
     printf 'scripts/hooks/prepare-commit-msg\n' >> "$C/.git/info/exclude"
     probe_rc=0; git -C "$C" -c user.name=t -c user.email=t@t commit -q --allow-empty -m probe >/dev/null 2>&1 || probe_rc=$?
-    want "git runs that hook in this clone: an ordinary commit is refused (exit $probe_rc)" test "$probe_rc" -ne 0
+    want "git runs that hook in this clone: an ordinary commit is refused, and it was that hook (exit $probe_rc)" test "$probe_rc" -ne 0 -a -e "$G/t13-hook-ran"
     run_tty t13 y --then y --folder-moves SHIP_T_STALE_AT="$m"
     want "exits 0 (got $rc)" eq "$rc" 0
     want "production is one 'ship again' commit past the old main" one_ahead "$m"
@@ -2404,6 +2404,43 @@ export default {};"
     want "the owner's file is untouched" eq "$(cat "$C/SHIP-AGAIN.txt")" "mine"
     want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
     want "this folder's main is level with GitHub's" eq "$(git -C "$C" rev-parse main)" "$m"
+    # T14d: folder mode, SHIP-AGAIN.txt is a tracked link to a file outside the site: ship will not write through it.
+    fixture t14d
+    printf 'outside\n' > "$D/outside.txt"; ln -s "$D/outside.txt" "$S/SHIP-AGAIN.txt"
+    git -C "$S" add SHIP-AGAIN.txt && git -C "$S" commit -qm "link" && git -C "$S" push -q origin main main:production
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    run_tty t14d y --then y --folder-moves SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says it did not write the file" has "✗ Not shipping again: SHIP-AGAIN.txt is a link, or this site's git ignores it"
+    want "the file the link points at is untouched" eq "$(cat "$D/outside.txt")" "outside"
+    want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
+    want "this folder's main is level with GitHub's" eq "$(git -C "$C" rev-parse main)" "$m"
+    # T14e: worktree mode, the site's own .gitignore lists SHIP-AGAIN.txt: the retry is refused there too.
+    fixture t14e
+    printf 'SHIP-AGAIN.txt\n' > "$S/.gitignore"
+    git -C "$S" add .gitignore && git -C "$S" commit -qm "ignore" && git -C "$S" push -q origin main main:production
+    m="$(gh main)"
+    run_tty t14e y --then y SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says it did not write the file" has "✗ Not shipping again: SHIP-AGAIN.txt is a link, or this site's git ignores it"
+    want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
+    # T20: folder mode, the first run pushed nothing ('production' already had the commit), and a stop
+    # arrives after the yes: the retry is not made, and the text says the first run pushed nothing.
+    fixture t20
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    run_tty t20 y --then y --folder-moves SHIP_T_STALE_AT="$m" SHIP_T_TERM_ON_DATE=1 SHIP_T_PIDF="$G/t20.pid"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says the first run pushed nothing and the retry was not made" has "The first run pushed nothing ('production' already had ${m:0:12}); the 'ship again' push was not made. The 'ship again' commit is taken off 'main' again."
+    want "... and not that a first publish went out" lacks "The first publish went out"
+    want "production and main are unchanged" eq "$(gh production)$(gh main)" "$m$m"
+    want "this folder's main is level with GitHub's" eq "$(git -C "$C" rev-parse main)" "$m"
+    want "SHIP-AGAIN.txt is gone again" test ! -e "$C/SHIP-AGAIN.txt"
     # T17: worktree mode, a stop (terminate) arrives while the retry's push runs, and the push still lands.
     # The last line must say GitHub's main holds the retry commit, not "as of the fetch".
     fixture t17; advance 1; m="$(gh main)"
