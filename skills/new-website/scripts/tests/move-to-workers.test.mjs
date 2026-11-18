@@ -662,14 +662,14 @@ describe('3: check and record', () => {
     assert.equal(first.code, 4, first.text);
     const dir = path.join(s.site.work, 'move-run', 'build', s.site.frozen.slice(0, 12));
     const exit = path.join(dir, 'exit.txt');
-    const written = () => { try { return readFileSync(exit, 'utf8').trim() !== ''; } catch { return false; } };
+    const written = () => { try { return readFileSync(exit, 'utf8').trim() !== ''; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } };
     for (let i = 0; i < 240 && !written(); i++) await wait(250);
     assert.ok(written(), 'the real build wrote its code');
     const builder = Number(readFileSync(path.join(dir, 'pid.txt'), 'utf8'));
     const ended = () => { try { process.kill(builder, 0); return false; } catch (e) { return e.code === 'ESRCH'; } };
     for (let i = 0; i < 40 && !ended(); i++) await wait(250);
     assert.ok(ended(), 'the real builder has ended, so nothing writes the exit file but this test');
-    // The moment a plain write leaves open: the file exists, empty, while the builder still runs.
+    // Recreate the moment a plain write leaves open: an empty exit file and a live pid (this test's own).
     writeFileSync(exit, '');
     writeFileSync(path.join(dir, 'pid.txt'), String(process.pid));
     const caught = await s.go(['record']);
