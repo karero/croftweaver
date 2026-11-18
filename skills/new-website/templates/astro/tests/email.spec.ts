@@ -125,7 +125,8 @@ test('email — with no tracker, a broken one or one that throws, the click stil
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(path);
   const link = page.locator('a.email-link').first();
-  // No tracker. A default build ships none, and says so here. A build with analytics on has Base.astro's
+  // No tracker. A default build ships none, and says so here (a stub shipped by mistake is caught by
+  // tests/check_analytics_gate.sh in the toolkit's CI, not here). A build with analytics on has Base.astro's
   // stub by now, so take it away once the page's scripts have run (an init script runs too early: the
   // stub makes it again) before clicking.
   if (!(await page.content()).includes('plausible.init')) {

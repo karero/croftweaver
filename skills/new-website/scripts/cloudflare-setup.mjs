@@ -63,8 +63,9 @@ export const SETTINGS = [
     visitor: "the visitor's browser is no longer asked to send error reports to Cloudflare (if the header stays, launch day adds a rule)" },
 ];
 // Two lines of one call, Bot Management's update. The PUT sends only the fields a line changes, so a
-// change made since the first read to any other field is not overwritten (the read-back reports it);
-// a field the run itself changes is still sent. It never sends is_robots_txt_managed: Cloudflare
+// change made since the first read to any other field should not be overwritten, if Cloudflare keeps a
+// field a PUT leaves out (see the note at the PUT; the read-back reports it); a field the run itself
+// changes is still sent. It never sends is_robots_txt_managed: Cloudflare
 // refused it as true (code 10400).
 export const BOT_LINES = [
   { id: 'bot', title: 'Bot Fight Mode: Off', fields: { fight_mode: false },
@@ -806,7 +807,7 @@ async function setupStage(opts, io) {
   if (botLines.length) {
     const body = {};
     for (const l of botLines) {
-      // Only the fields that change, as the agents below. That a left-out field keeps its value is captured
+      // Only the fields that change, as the agents below. That a left-out field keeps a non-default value is captured
       // only for bot_preference_sync_enabled, true staying true (T2-061); for the rest it rests on
       // Cloudflare's docs and on the read-back, which marks the line "by hand" if anything moved.
       for (const [k, v] of Object.entries(l.def.fields)) if (!isDeepStrictEqual(bot[k], v)) body[k] = v;

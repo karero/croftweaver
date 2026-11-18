@@ -501,14 +501,17 @@ look but not change anything):
 
 **What it writes.** For the settings above, these are the fields and values the assistant
 sends, and reads back afterwards. Each zone setting is its own call. The Bot Management fields
-go in one call, which sends only the fields it changes: `fight_mode`, the AI policies,
-`crawler_protection` and `content_bots_protection`, plus `bot_preference_sync_enabled` when the
-AI lines run. It leaves every other field out, `is_robots_txt_managed` among them (Cloudflare
-refused it as `true` beside `cf_robots_variant` `policy_only`, code 10400). In the trial,
-`bot_preference_sync_enabled`, left out, kept its value (`true` stayed `true`). Leaving out the
-others (`enable_js`, `cf_robots_variant` and the fields a run does not change) is what
-Cloudflare's docs describe, but it has not been tried on a zone: the first real site shows
-it, and if anything moves, the read-back stops the run with that line marked "by hand".
+go in one call, which sends only the fields it changes, each only when it differs from what the
+run read: `fight_mode`, the AI policies, `crawler_protection`, `content_bots_protection` and
+`bot_preference_sync_enabled`, and, under `ai_agents`, each agent that is not yet `disabled`
+(Cloudflare merges that map per agent). It leaves every other field out, `is_robots_txt_managed`
+among them (Cloudflare refused it as `true` beside `cf_robots_variant` `policy_only`, code
+10400). Cloudflare's docs show PUTs of one or two fields as valid. That a field left out keeps a
+value other than its default has been tried only for `bot_preference_sync_enabled` (`true` stayed
+`true`); for `enable_js`, `cf_robots_variant` and the fields a run does not change it has not
+been tried on a zone, and `is_robots_txt_managed` was left out only with its default (`false`),
+which a reset would also give. The first real site shows it: if anything moves, the read-back
+marks that line "by hand" and the run ends with status 1.
 
 | Setting | API field | Value |
 |---|---|---|
