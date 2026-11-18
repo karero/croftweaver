@@ -45,7 +45,10 @@ method; the gap was not traced.)
    and the lock's check below. So no read can see half an entry, and a run that empties the entry
    cannot wipe one the manager set in the same moment. That short flock waits up to 5 s, then the
    command refuses loudly: `check_lock.sh` exits 75, so `make check` fails with `Error 75` and
-   exit 2 as for a busy lock (callers need no change); `check_next.sh` exits 1. The `make check` lock itself stays non-waiting.
+   exit 2 as for a busy lock (callers need no change); `check_next.sh` exits 1. Its message is its
+   own, not the busy text: "the next-in-line file … is held by another command; try again, or ask
+   the manager", naming the `.next` path, since no run holds the lock. The `make check` lock
+   itself stays non-waiting.
 2. **The manager's command.** A new `scripts/check_next.sh`, Perl inside as `check_lock.sh` has:
    - `set <session>` writes the entry and prints the id back, to be checked against the
      session's own. It refuses an id that is not `local_` and a lowercase UUID (8-4-4-4-12 hex
@@ -56,7 +59,9 @@ method; the gap was not traced.)
      the lock does. Replacing a live entry is allowed and prints the session replaced.
    - `show` prints the entry and when it expires: a time, or "10 minutes after the current run
      ends" while a run holds the lock (the lock file names a live pid and has no `ended` line).
-     With no entry, "no entry".
+     With a dead pid and no `ended` line (a killed run), it counts from the set time. With no
+     entry, "no entry". `show` reads the lock file without the `make check` flock, so its expiry
+     line is advisory; only the lock's own check decides.
    - `clear` empties any entry, a damaged one included, and prints whose entry it was, or "an
      unreadable entry was removed".
    It never takes the `make check` lock, so the manager can name the next session while a run goes.
@@ -77,7 +82,7 @@ method; the gap was not traced.)
      exit 75; the exit releases both flocks;
    - entry has expired: empties it, prints one line ("an expired next-in-line entry for X was
      removed"), runs;
-   - entry cannot be read (a first line that is not the fixed tag, a malformed named id, a setter line that is neither an id
+   - entry cannot be read (fewer or more than four lines, a first line that is not the fixed tag, a malformed named id, a setter line that is neither an id
      nor `none`, a time that is not a number): refuses, exit 75, and says to ask the manager to clear it. A run never guesses at a
      damaged entry.
    Reading under the `make check` flock means two runs that start together cannot both pass.
@@ -149,17 +154,18 @@ entry is live, the owner in his own terminal included (no session id: refused). 
 New cases in `scripts/test_check_lock.sh`, entering through `make check` in a copy of the real
 Makefile, as T1 does. The copy gains `check_next.sh`. Ids are made up, in the app's format.
 
-- **N1** (S1): holder runs; `check_next.sh set A`; holder ends; `make check` as B is refused with
-  Error 75 and the stub guard never runs; `make check` as A runs, and the entry is empty.
+- **N1** (S1): holder runs; `check_next.sh set A`; holder ends; `make check` as B is refused (exit
+  2 with `Error 75`) and the stub guard never runs; `make check` as A runs, and the entry is empty.
 - **N2** (S2): an entry set 11 minutes ago (the test writes the epoch into the file) and a lock
   file whose `ended` line is 11 minutes old: B runs, its output has the expiry line, the entry is
   empty. With the `ended` line 2 minutes old instead, B is refused: the grace counts from the end
   of the run, not from the set time.
 - **N3**: a live entry and no `CLAUDE_CODE_HOST_SESSION_ID`: refused. And `set A` with no session
   id (the owner's terminal): the setter line is `none`, B is refused, A runs.
-- **N4**: damaged entries, one at a time (no tag line; a wrong tag line that is a valid id; a malformed named id; a malformed setter id;
-  a setter line that is neither an id nor `none`; a time that is not a number): each refused, and
-  the output says to ask the manager to clear it; then `clear` empties it and says so.
+- **N4**: damaged entries, one at a time (no tag line; a wrong tag line that is a valid id; tag
+  and named id only; a fifth line; a malformed named id; a malformed setter id;
+  a setter line that is neither an id nor `none`; a time that is not a number): each refused (`make check` exit 2
+  with `Error 75`), and the output says to ask the manager to clear it; then `clear` empties it and says so.
 - **N5** (S3, S4): `set` with the caller's own id, and with a malformed id: refused, the entry
   unchanged. `set A`, then `set C`: the output names A; `make check` as A is then refused and the
   refusal names C; then `make check` as C runs. Then `set A` again, `clear`: the output names A,
@@ -186,7 +192,7 @@ runs on macOS by hand and on Linux in the `check-lock` CI job, as today; the mac
 ## Cost and risk
 
 Code that other runs depend on, so the DIFF gate runs at Normal with Codex and GLM 5.3, as the lock
-itself had (5 rounds, 513,199 tokens on 14 Nov; a smaller change, so likely fewer). Worst cases:
+itself had (5 rounds, 513,199 tokens on 14 Nov, by `REVIEW-make-check-lock-2026-11-14.md`; a smaller change, so likely fewer). Worst cases:
 `make check` refused when it should run (the owner runs `check_next.sh clear`, or empties the
 `.next` file; the lock itself is untouched), or, for a checkout cut before the merge, the race as
 today.
