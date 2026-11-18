@@ -11,7 +11,8 @@ it. The named session runs, and its run empties the entry. An entry the named se
 use expires 10 minutes after the later of the time it was set and the end of the last run, and
 the next run empties it and says so.
 
-The `make check` lock still never waits for another run. Sessions never write the entry. A session that only runs
+The `make check` lock still never waits for another run. A `make check` run never sets an entry, only empties one; setting goes through `check_next.sh`,
+which only the manager is meant to run (see "Left as it is"). A session that only runs
 `make check` sees nothing new unless the manager has named someone else.
 
 ## Why
@@ -43,8 +44,8 @@ method; the gap was not traced.)
    moment only (microseconds), across the whole read, decision and write: `set`, `clear`, `show`
    and the lock's check below. So no read can see half an entry, and a run that empties the entry
    cannot wipe one the manager set in the same moment. That short flock waits up to 5 s, then the
-   command refuses loudly: `make check` with exit 75 (so callers need no change), `check_next.sh`
-   with exit 1. The `make check` lock itself stays non-waiting.
+   command refuses loudly: `check_lock.sh` exits 75, so `make check` fails with `Error 75` and
+   exit 2 as for a busy lock (callers need no change); `check_next.sh` exits 1. The `make check` lock itself stays non-waiting.
 2. **The manager's command.** A new `scripts/check_next.sh`, Perl inside as `check_lock.sh` has:
    - `set <session>` writes the entry and prints the id back, to be checked against the
      session's own. It refuses an id that is not `local_` and a lowercase UUID (8-4-4-4-12 hex
@@ -56,7 +57,8 @@ method; the gap was not traced.)
    - `show` prints the entry and when it expires: a time, or "10 minutes after the current run
      ends" while a run holds the lock (the lock file names a live pid and has no `ended` line).
      With no entry, "no entry".
-   - `clear` empties it and prints whose entry it was.
+   - `clear` empties any entry, a damaged one included, and prints whose entry it was, or "an
+     unreadable entry was removed".
    It never takes the `make check` lock, so the manager can name the next session while a run goes.
 3. **Proof of identity.** The desktop app sets `CLAUDE_CODE_HOST_SESSION_ID` in each session's
    shell, and the lock already writes it as the holder. Checked on 18 Nov: this session's shell
@@ -75,7 +77,7 @@ method; the gap was not traced.)
      exit 75; the exit releases both flocks;
    - entry has expired: empties it, prints one line ("an expired next-in-line entry for X was
      removed"), runs;
-   - entry cannot be read (no tag line, a malformed named id, a setter line that is neither an id
+   - entry cannot be read (a first line that is not the fixed tag, a malformed named id, a setter line that is neither an id
      nor `none`, a time that is not a number): refuses, exit 75, and says to ask the manager to clear it. A run never guesses at a
      damaged entry.
    Reading under the `make check` flock means two runs that start together cannot both pass.
@@ -155,9 +157,9 @@ Makefile, as T1 does. The copy gains `check_next.sh`. Ids are made up, in the ap
   of the run, not from the set time.
 - **N3**: a live entry and no `CLAUDE_CODE_HOST_SESSION_ID`: refused. And `set A` with no session
   id (the owner's terminal): the setter line is `none`, B is refused, A runs.
-- **N4**: damaged entries, one at a time (no tag line; a malformed named id; a malformed setter id;
+- **N4**: damaged entries, one at a time (no tag line; a wrong tag line that is a valid id; a malformed named id; a malformed setter id;
   a setter line that is neither an id nor `none`; a time that is not a number): each refused, and
-  the output says to ask the manager to clear it.
+  the output says to ask the manager to clear it; then `clear` empties it and says so.
 - **N5** (S3, S4): `set` with the caller's own id, and with a malformed id: refused, the entry
   unchanged. `set A`, then `set C`: the output names A; `make check` as A is then refused and the
   refusal names C; then `make check` as C runs. Then `set A` again, `clear`: the output names A,
@@ -166,8 +168,10 @@ Makefile, as T1 does. The copy gains `check_next.sh`. Ids are made up, in the ap
 - **N6**: after a run ends, the lock file's fifth line is `ended` and an epoch no older than the
   run.
 - **N7**: a holder of the entry's flock (a test process holding it 7 s): `set`, `clear`, `show`,
-  and `make check` as the named session each refuse after about 5 s, loudly, with the exit codes
-  of step 1, and the entry is unchanged afterwards. So the emptying path waits on the flock too.
+  `make check` as the named session, `make check` as another session, and `make check` with an
+  expired entry each refuse after about 5 s, loudly (`check_next.sh` exit 1; `make check` exit 2
+  with `Error 75`), and the entry is unchanged afterwards. So both emptying paths wait on the
+  flock too.
 - T1 to T9 stay as they are and must still pass (S5). Mutations, run by hand before review:
   remove the check from step 4 (N1 must fail); count the grace from the set time only (N2's second
   half must fail); drop the self-name refusal (N5 must fail); drop the `ended` write (N6 must fail;
