@@ -506,12 +506,14 @@ run read: `fight_mode`, the AI policies, `crawler_protection`, `content_bots_pro
 `bot_preference_sync_enabled`, and, under `ai_agents`, each agent that is not yet `disabled`
 (Cloudflare merges that map per agent). It leaves every other field out, `is_robots_txt_managed`
 among them (Cloudflare refused it as `true` beside `cf_robots_variant` `policy_only`, code
-10400). Cloudflare's docs show PUTs of one or two fields as valid. That a field left out keeps a
-value other than its default has been tried only for `bot_preference_sync_enabled` (`true` stayed
-`true`); for `enable_js`, `cf_robots_variant` and the fields a run does not change it has not
-been tried on a zone, and `is_robots_txt_managed` was left out only with its default (`false`),
-which a reset would also give. The first real site shows it: if anything moves, the read-back
-marks that line "by hand" and the run ends with status 1.
+10400). Cloudflare's docs show PUTs of one or two fields as valid. No capture shows
+a top-level field left out of a PUT keeping a value that differs from the zone's starting value:
+`bot_preference_sync_enabled` (`true`, T2-061) and `is_robots_txt_managed` (`false`, T4-002) were
+left out holding the values the zone already had before any write, which a reset would also give
+(only the `ai_agents` map is captured as merged per agent). So for `enable_js`,
+`cf_robots_variant` and the fields a run does not change, keeping is not yet shown on a zone.
+The first real site shows it: if anything moves, the read-back marks the Bot Management lines it
+wrote "by hand", names the field that moved, and the run ends with status 1.
 
 | Setting | API field | Value |
 |---|---|---|

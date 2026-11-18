@@ -807,9 +807,10 @@ async function setupStage(opts, io) {
   if (botLines.length) {
     const body = {};
     for (const l of botLines) {
-      // Only the fields that change, as the agents below. That a left-out field keeps a non-default value is captured
-      // only for bot_preference_sync_enabled, true staying true (T2-061); for the rest it rests on
-      // Cloudflare's docs and on the read-back, which marks the line "by hand" if anything moved.
+      // Only the fields that change, as the agents below. That a left-out top-level field keeps a value that differs
+      // from the zone's starting one is not captured (T2-061 and T4-002 left out fields still holding
+      // their starting values); it rests on Cloudflare's docs and on the read-back, which marks the line
+      // "by hand" if anything moved.
       for (const [k, v] of Object.entries(l.def.fields)) if (!isDeepStrictEqual(bot[k], v)) body[k] = v;
       // Only the agents that change: Cloudflare merges the map per key (T4-008), so the rest are not overwritten.
       const moves = l.want?.ai_agents ? agentsToDisable(l.now.ai_agents) : {};

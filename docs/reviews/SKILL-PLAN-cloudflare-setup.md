@@ -353,7 +353,7 @@ branch of its time, capture 055).
    of `{"value": …}` each, read back; captures 067 to 078); Bot Fight Mode off and the AI
    fields (one PUT to Bot Management with `fight_mode`, `enable_js`, the four AI policies,
    `crawler_protection`, `content_bots_protection` and `cf_robots_variant`, each as read
-   except those it changes, plus `bot_preference_sync_enabled` when the `ai` line is in (since branch `fix/clean-plate-links-bot-email` the PUT sends only the fields that change);
+   except those it changes, plus `bot_preference_sync_enabled` when the `ai` line is in (superseded by branch `fix/clean-plate-links-bot-email`: the PUT now sends only the fields that change, so `enable_js` and `cf_robots_variant` are no longer sent);
    captures 079 to 081, T2-061 to T2-064, T2-073). The AI fields are decision 8's: `ai_bots_protection`, `ai_search`,
    `ai_user` and `ai_training` set to `disabled`, and `crawler_protection`,
    `content_bots_protection` and `bot_preference_sync_enabled` off. Bot Preference Sync is
