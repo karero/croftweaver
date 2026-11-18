@@ -108,7 +108,8 @@ Q="$T/unstamped"; mkdir -p "$Q/tests"; echo v1 > "$Q/tests/a.spec.ts"
 bash "$S/scripts/whats-new.sh" "$Q" > "$T/out" 2>&1; rc=$?
 if [ "$rc" -ne 0 ]; then printf 'ok   %s\n' "unstamped copies: exits non-zero"; else printf 'FAIL %s\n' "unstamped copies: exits non-zero"; fails=$((fails+1)); fi
 hasnt "unstamped copies: is not called a non-site"             "not a site scaffolded"
-has   "unstamped copies: says there is no baseline"            "baseline to compare with. Pick one: the suite commit the site was made from. Take an"
+has   "unstamped copies: says there is no baseline"            "which suite commit the tests came from, so there is no baseline to compare with."
+if grep -qF -- "\" log --format='%H %cs %s'" "$T/out"; then printf 'ok   %s\n' "unstamped copies: prints the command that lists the suite's commits"; else printf 'FAIL %s\n' "unstamped copies: prints the command that lists the suite's commits"; fails=$((fails+1)); fi
 pick="$(grep -F "tests/TESTS-VERSION\"" "$T/out" | grep -F "<that commit>")"
 if [ -n "$pick" ]; then printf 'ok   %s\n' "unstamped copies: prints the command that writes the stamp"; else printf 'FAIL %s\n' "unstamped copies: prints the command that writes the stamp"; fails=$((fails+1)); fi
 eval "${pick//<that commit>/$BASE}"

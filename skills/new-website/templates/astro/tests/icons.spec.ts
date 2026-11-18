@@ -46,11 +46,12 @@ const svgSize = (page: Page, bytes: Buffer) =>
     }
   }, bytes.toString('base64'));
 
-// A link's address as this test compares it: its path when it is on this site (the server under test
-// or SITE.url), its whole address when it is on another host, so it matches none of our files.
-const sitePath = (href: string, base: string, ...own: string[]) => {
+// A link's address as this test compares it: its path when it is on this site, its whole address
+// when it is on another host, so it matches none of our files. `own` lists this site's addresses
+// (the server under test, SITE.url); `base` only resolves a relative link and never makes a host ours.
+const sitePath = (href: string, base: string, own: string[]) => {
   const url = new URL(href, base);
-  return [base, ...own].some((o) => new URL(o).origin === url.origin) ? url.pathname : url.href;
+  return own.some((o) => new URL(o).origin === url.origin) ? url.pathname : url.href;
 };
 
 // Every logo the JSON-LD gives as a URL, at any depth and on a node of any type (Organization, a
@@ -70,11 +71,17 @@ const logosIn = (node: unknown): string[] => {
 
 test('icons — a link on another host is not one of this site\'s files', () => {
   const [home, live] = ['http://localhost:4400/', 'https://example.com'];
-  expect(sitePath('/favicon.svg', home, live), 'a path').toBe('/favicon.svg');
-  expect(sitePath('https://example.com/favicon.svg', home, live), 'the live address of this site').toBe('/favicon.svg');
-  expect(sitePath('http://localhost:4400/favicon.svg', home, live), 'the server under test').toBe('/favicon.svg');
-  expect(sitePath('https://cdn.example.net/favicon.svg', home, live), 'another host').toBe('https://cdn.example.net/favicon.svg');
-  expect(sitePath('//cdn.example.net/favicon.svg', home, live), 'another host, no scheme').toBe('http://cdn.example.net/favicon.svg');
+  const own = [home, live];
+  expect(sitePath('/favicon.svg', home, own), 'a path').toBe('/favicon.svg');
+  expect(sitePath('https://example.com/favicon.svg', home, own), 'the live address of this site').toBe('/favicon.svg');
+  expect(sitePath('http://localhost:4400/favicon.svg', home, own), 'the server under test').toBe('/favicon.svg');
+  expect(sitePath('https://cdn.example.net/favicon.svg', home, own), 'another host').toBe('https://cdn.example.net/favicon.svg');
+  expect(sitePath('//cdn.example.net/favicon.svg', home, own), 'another host, no scheme').toBe('http://cdn.example.net/favicon.svg');
+  // A manifest on another host does not make its icons ours, even when they are given as paths.
+  const cdnManifest = 'https://cdn.example.net/site.webmanifest';
+  expect(sitePath('/icon-192.png', cdnManifest, own), "a path in another host's manifest").toBe('https://cdn.example.net/icon-192.png');
+  expect(sitePath('icon-512.png', cdnManifest, own), "a relative file in another host's manifest").toBe('https://cdn.example.net/icon-512.png');
+  expect(sitePath('/icon-192.png', 'http://localhost:4400/site.webmanifest', own), "a path in this site's manifest").toBe('/icon-192.png');
 });
 
 test('icons — the logo reader finds every logo the structured data names, and only those', () => {
@@ -93,18 +100,19 @@ for (const icon of ICONS) {
     await page.goto('/');
     const home = page.url();
     const live = SITE.url;
+    const own = [home, live];
     let linked: string[];
     if (icon.linkedBy === 'icon') {
-      linked = (await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, live));
+      linked = (await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, own));
     } else if (icon.linkedBy === 'apple') {
-      linked = (await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, live));
+      linked = (await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, own));
     } else if (icon.linkedBy === 'manifest') {
       const hrefs = await page.locator('link[rel="manifest"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
       expect(hrefs, 'the home page links one manifest').toHaveLength(1);
       const manifest = new URL(hrefs[0], home).href;
       const res = await request.get(manifest);
       expect(res.ok(), `${manifest} is served`).toBe(true);
-      linked = ((await res.json()).icons as { src: string }[]).map((i) => sitePath(i.src, manifest, live));
+      linked = ((await res.json()).icons as { src: string }[]).map((i) => sitePath(i.src, manifest, own));
     } else {
       // The logo the page's structured data names. It must be on the site's own origin: a logo on
       // another host is not this file, so it shows here as its whole address and fails.
@@ -117,7 +125,7 @@ for (const icon of ICONS) {
             throw new Error(`the home page's structured data block ${i + 1} is not valid JSON: ${(err as Error).message}`);
           }
         })
-        .map((logo) => sitePath(logo, live));
+        .map((logo) => sitePath(logo, live, [live]));
     }
     expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : "a logo in the page's structured data"})`).toContain(icon.path);
 

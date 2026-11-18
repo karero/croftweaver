@@ -717,12 +717,11 @@ if [ -z "$STAMPS" ]; then
     exit 1
   done
   if [ -d "$PROJECT/tests" ] && [ ! -f "$PROJECT/tests/TESTS-VERSION" ]; then
-    echo "error: $PROJECT/tests holds template-test copies, but no SUITE-VERSION or" >&2
-    echo "tests/TESTS-VERSION stamp says which suite commit they came from, so there is no" >&2
-    echo "baseline to compare with. Pick one: the suite commit the site was made from. Take an" >&2
-    echo "older one when unsure (it lists more changes, hides none). The last suite commit before" >&2
-    echo "the site's first commit is a start:" >&2
-    echo "  git -C \"$REPO_DIR\" log -1 --format=%H --before=\"\$(git -C \"$PROJECT\" log --reverse --format=%cI | head -1)\"" >&2
+    echo "error: $PROJECT/tests exists, but no SUITE-VERSION or tests/TESTS-VERSION stamp says" >&2
+    echo "which suite commit the tests came from, so there is no baseline to compare with." >&2
+    echo "Pick one: a suite commit from before the site was made. Take an older one when" >&2
+    echo "unsure (it lists more changes, hides none). The suite's commits, newest first:" >&2
+    echo "  git -C \"$REPO_DIR\" log --format='%H %cs %s'" >&2
     echo "Write it into the tests stamp, then run this again:" >&2
     echo "  printf 'suite_commit: %s\\n' <that commit> > \"$PROJECT/tests/TESTS-VERSION\"" >&2
     exit 1
