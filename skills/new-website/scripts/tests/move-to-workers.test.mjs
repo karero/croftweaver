@@ -656,6 +656,26 @@ describe('3: check and record', () => {
     assert.ok(!existsSync(path.join(path.dirname(s.stateFile()), 'lock')), 'the lock is gone');
   });
 
+  test('record: an exit file caught before its code is written means the build is still running, not failed', async () => {
+    const s = scenario();
+    const first = await s.go(['record']);
+    assert.equal(first.code, 4, first.text);
+    const dir = path.join(s.site.work, 'move-run', 'build', s.site.frozen.slice(0, 12));
+    const exit = path.join(dir, 'exit.txt');
+    for (let i = 0; i < 240 && !existsSync(exit); i++) await wait(250);
+    assert.ok(existsSync(exit), 'the build wrote its exit file');
+    // The moment a plain write leaves open: the file exists, empty, while the builder still runs.
+    writeFileSync(exit, '');
+    writeFileSync(path.join(dir, 'pid.txt'), String(process.pid));
+    const caught = await s.go(['record']);
+    assert.equal(caught.code, 4, caught.text);
+    assert.match(caught.text, /The build is not finished/);
+    assert.doesNotMatch(caught.text, /failed/);
+    writeFileSync(exit, '0');
+    const done = await recordDone(s);
+    assert.equal(done.code, 0, done.text);
+  });
+
   const refusing = [
     ['a Worker that already has a domain', { world: { workerDomains: [{ id: '00000001-0000-4000-8000-000000000000', hostname: 'x.lenas-backstube.example', service: WORKER, zone_id: ZONE.id }] } }, /already has a domain/],
     ['a Direct Upload project', { world: null, mutate: (w) => { delete w.project.source; } }, /No Pages project is built from|Direct Upload/],
