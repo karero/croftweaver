@@ -77,7 +77,7 @@ const FILES = {
 // G3: one phrase per row. "use" says what the captures must equal: the lowest version of the starter's
 // range, the fixed version of each line (ascending), or the lowest and then each line.
 const PHRASES = [
-  { file: T + '/astro/README.md', rx: /the starter needs >=([0-9.]+) \(Cloudflare Pages reads it\)/, use: 'lowest' },
+  { file: T + '/astro/README.md', rx: /the starter needs >=([0-9.]+) \(Cloudflare's build reads it\)/, use: 'lowest' },
   { file: T + '/astro/README.md', rx: /Requires \*\*Node ≥([0-9.]+)\*\*/, use: 'lowest' },
   { file: T + '/SETUP.md', rx: /\*\*Node ≥([0-9.]+) required\*\*/, use: 'lowest' },
   { file: T + '/SETUP.md', rx: /current security fixes are in \*\*([0-9.]+), ([0-9.]+) and ([0-9.]+)\*\*/, use: 'lines' },
