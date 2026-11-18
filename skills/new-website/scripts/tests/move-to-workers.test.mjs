@@ -662,9 +662,13 @@ describe('3: check and record', () => {
     assert.equal(first.code, 4, first.text);
     const dir = path.join(s.site.work, 'move-run', 'build', s.site.frozen.slice(0, 12));
     const exit = path.join(dir, 'exit.txt');
-    const written = () => existsSync(exit) && readFileSync(exit, 'utf8').trim() !== '';
+    const written = () => { try { return readFileSync(exit, 'utf8').trim() !== ''; } catch { return false; } };
     for (let i = 0; i < 240 && !written(); i++) await wait(250);
-    assert.ok(written(), 'the real build finished and wrote its code, so it cannot write again');
+    assert.ok(written(), 'the real build wrote its code');
+    const builder = Number(readFileSync(path.join(dir, 'pid.txt'), 'utf8'));
+    const ended = () => { try { process.kill(builder, 0); return false; } catch (e) { return e.code === 'ESRCH'; } };
+    for (let i = 0; i < 40 && !ended(); i++) await wait(250);
+    assert.ok(ended(), 'the real builder has ended, so nothing writes the exit file but this test');
     // The moment a plain write leaves open: the file exists, empty, while the builder still runs.
     writeFileSync(exit, '');
     writeFileSync(path.join(dir, 'pid.txt'), String(process.pid));
@@ -673,12 +677,14 @@ describe('3: check and record', () => {
     assert.match(caught.text, /The build is not finished/);
     assert.doesNotMatch(caught.text, /failed/);
     // A builder that died inside that moment: the empty file does not wait forever, the build starts again.
-    const gone = spawnSync(process.execPath, ['-e', '']).pid;
     writeFileSync(exit, '');
-    writeFileSync(path.join(dir, 'pid.txt'), String(gone));
+    writeFileSync(path.join(dir, 'pid.txt'), String(deadPid()));
+    const marker = path.join(dir, 'old-build.txt');
+    writeFileSync(marker, '');
     const again = await s.go(['record']);
     assert.equal(again.code, 4, again.text);
-    assert.notEqual(readFileSync(path.join(dir, 'pid.txt'), 'utf8'), String(gone), 'a new build was started');
+    assert.ok(!existsSync(marker), 'the old build folder was cleared for a new build');
+    assert.ok(existsSync(path.join(dir, 'pid.txt')), 'a new build was started');
     const done = await recordDone(s);
     assert.equal(done.code, 0, done.text);
   });
