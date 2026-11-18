@@ -3,7 +3,7 @@
 Base `f38a8262` (origin/main when the branch was cut) · depth: High (the starter's publish script and its
 tests) · verdict: no BUG and no earning RISK open after round 3; round 3's fixes were not re-verified (see
 Notes) · 3 rounds, 32 findings after dedup · authority used: WORKTREE-WRITE and BRANCH-COMMIT. This
-session was started by the coordinator for Daniel's go "Both in 0.36"; it created the worktree and the branch.
+session was started by the coordinator for the maintainer's go "Both in 0.36"; it created the worktree and the branch.
 
 Artifact: round 1 `git diff f38a8262..53fdd80b`; round 2 the delta `53fdd80b..9b24e21f`; round 3 the delta
 `9b24e21f..45ba2d39`, each `-- . ':(exclude)docs/reviews/'`. Evidence file per round (author's commands
