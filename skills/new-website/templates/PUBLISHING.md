@@ -77,7 +77,7 @@ line of `SHIP-AGAIN.txt` (the time of the retry; the file is not part of the sit
 without your y, and only once. Whether Cloudflare then builds is not certain: no one has seen it
 on a live site yet. If you set build watch paths in Cloudflare, include `SHIP-AGAIN.txt` in them,
 or Cloudflare skips that commit (https://developers.cloudflare.com/workers/ci-cd/builds/build-watch-paths/).
-If `main` does not accept direct uploads, ship says so and tells you what to check in Cloudflare.
+If `main` does not accept direct uploads, ship shows git's error and tells you what to check in Cloudflare.
 
 Before your site has its own domain, `npm run ship` has nothing live to check: it says the
 change was sent, and that it is checked when the site launches. Look at the Preview link instead.

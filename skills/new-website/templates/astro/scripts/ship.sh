@@ -19,8 +19,9 @@
 #
 # If the live site still serves another build about 3 minutes after the push, a run on a terminal
 # asks once whether to "ship again": one commit that changes one line of SHIP-AGAIN.txt, pushed to
-# `main` and `production` through the same gate, then a second wait. Cloudflare sometimes starts no production build (seen once;
-# the cause is unknown). Never without a y, never a second time, no token and no API.
+# `main` and `production` through the same gate, then a second wait. Cloudflare sometimes starts
+# no production build (seen once; the cause is unknown). Never without a y, never a second time,
+# no token and no API.
 #
 # Two rules hold for the whole file, in both modes:
 #  - The body is the function `ship`, called on the last line together with `exit`. bash reads
@@ -566,7 +567,7 @@ if [ "$from_github" = 1 ]; then here="this folder was not touched"; else here="y
 git_log="" push_status="" wt="" wt_added=0 lock="" lock_taken=0 list="" my_line="" my_start=""
 my_host="" push_started=0 stop_asked=0 stop_said=0 final_line="" id="" short="" not_published=0
 # The one "ship again" (see the live-site check): asked at most once, and what it changes.
-again_asked=0 again=0 again_main="" first_id="" again_id="" again_file="SHIP-AGAIN.txt" main_what="GitHub's main as of the fetch"
+again_asked=0 again=0 again_main="" first_id="" first_n=1 again_id="" again_file="SHIP-AGAIN.txt" main_what="GitHub's main as of the fetch"
 # A stop (Ctrl-C, or a terminate signal) is only NOTED, and bash runs the note once the step in
 # the foreground ends. The script kills nothing itself: a Ctrl-C still reaches git and the gate
 # exactly as it always did, and a terminate sent to the script alone lets the current step
@@ -878,20 +879,6 @@ if [ "$from_github" = 1 ]; then
   fi
 fi
 
-# Divergence is settled above, so what remains is either a transport failure or a red
-# pre-push gate — and those don't want the same response. A dead network wants "run it
-# again"; a red gate wants "read the test output"; a connection that dies mid-upload
-# can't honestly be called either way. So read git's own words and say which it was.
-# `tee` keeps every line — including the pre-push build and test output — on screen
-# while capturing it; nothing git says is swallowed either way.
-#
-# git's own exit status is written down by the push step itself, into a scratch file inside
-# the same pipeline, and never read back from the pipeline afterwards: on bash 3.2 (the Mac's
-# own) a stop noted the moment a pipeline ends resets its per-command status, and a failed push
-# then read as a success. Reading the pipeline's status would also let a failed `tee` (a full
-# temp filesystem) turn a push that went out into "nothing was published". An empty or missing
-# status (an interrupt ended the step before it wrote one, or the disk is full) is never read as
-# a success, nor as "nothing was published".
 # Folder mode: take the "ship again" commit off 'main' (only if 'main' is still on it) and put the
 # one file back as it was; true when done. Worktree mode has nothing to take off.
 undo_again() {
@@ -908,6 +895,20 @@ restore_again_file() { # <commit the folder was on>
     rm -f -- "$again_file"
   fi
 }
+# Divergence is settled above, so what remains is either a transport failure or a red
+# pre-push gate — and those don't want the same response. A dead network wants "run it
+# again"; a red gate wants "read the test output"; a connection that dies mid-upload
+# can't honestly be called either way. So read git's own words and say which it was.
+# `tee` keeps every line — including the pre-push build and test output — on screen
+# while capturing it; nothing git says is swallowed either way.
+#
+# git's own exit status is written down by the push step itself, into a scratch file inside
+# the same pipeline, and never read back from the pipeline afterwards: on bash 3.2 (the Mac's
+# own) a stop noted the moment a pipeline ends resets its per-command status, and a failed push
+# then read as a success. Reading the pipeline's status would also let a failed `tee` (a full
+# temp filesystem) turn a push that went out into "nothing was published". An empty or missing
+# status (an interrupt ended the step before it wrote one, or the disk is full) is never read as
+# a success, nor as "nothing was published".
 # The push, with its checks and what it says when it fails. A function so the one "ship again"
 # (below) goes through exactly the same steps; it exits the script on any failure.
 push_and_report() {
@@ -916,8 +917,12 @@ push_and_report() {
 if [ "$again" = 1 ]; then
   if [ "$stop_asked" = 1 ]; then
     again_note=""
-    if undo_again; then again_note=" The 'ship again' commit is taken off 'main' again."; fi
+    if undo_again; then again_note=" The 'ship again' commit is taken off 'main' again."
+    elif [ "$from_github" = 0 ]; then again_note=" The 'ship again' commit is still on 'main' here, not pushed; the next npm run ship says what to do."; fi
     id="$first_id"; short="${id:0:12}"
+    if [ "$first_n" = 0 ]; then
+      stop_point "The first run pushed nothing ('production' already had $short); the 'ship again' push was not made.$again_note"
+    fi
     stop_point "The first publish went out (GitHub's production is now $short); the 'ship again' push was not made.$again_note"
   fi
 else
@@ -1040,9 +1045,15 @@ if [ "$kind" != ok ] && [ "$again" = 1 ]; then
       # Folder mode: take the commit off 'main' again, if 'main' is still on it.
       if undo_again; then
         echo "  The 'ship again' commit is taken off 'main' again: you're still safely on 'main'."
+      elif [ "$from_github" = 0 ]; then
+        echo "  The 'ship again' commit is still on 'main' here, not pushed; the next npm run ship says what to do."
       fi ;;
   esac
-  echo "  The first publish did go out (GitHub's production was ${first_id:0:12} before it), but the live site"
+  if [ "$first_n" = 0 ]; then
+    echo "  The first run pushed nothing ('production' already had ${first_id:0:12}), and the live site"
+  else
+    echo "  The first publish did go out (GitHub's production was ${first_id:0:12} before it), but the live site"
+  fi
   echo "  still serves another build. In the Cloudflare dashboard → Workers & Pages → your project →"
   echo "  Deployments → View build history: 'Retry build' on the row for the branch 'production',"
   echo "  never on a row for 'main': a build of 'main' is the preview, built without analytics."
@@ -1128,6 +1139,8 @@ if [ "$kind" != ok ]; then
   esac
   exit 1
 fi
+# The retry's commit is on GitHub's main now: the last line says so even if a stop ends the run here.
+if [ "$again" = 1 ]; then main_what="GitHub's main with the 'ship again' commit"; fi
 if [ "$stop_asked" = 1 ]; then
   echo "  The publish went out: GitHub's production is now ${id:0:12}."
   echo "  The live-site check was skipped, so nothing has confirmed the live site serves"
@@ -1192,7 +1205,8 @@ if [ -z "$site" ]; then
   exit 0
 fi
 # The one "ship again": a commit that changes one line of $again_file (a kit-owned text file, not
-# part of the build), so a build watch path cannot skip it. The push below sends it to main and to
+# part of the build), so the commit has a changed file for a build to see; build watch paths that
+# do not list that file still skip it (PUBLISHING.md says so). The push below sends it to main and to
 # production. Folder mode makes it on `main` and only if the folder is as the checks at the start
 # left it; worktree mode makes it in the temporary copy. No hook runs for the commit (hooksPath
 # points at nothing): the pre-push gate runs for the push. Says why and returns 1 when the commit
@@ -1202,7 +1216,7 @@ ship_again() {
   msg="ship again: one changed line in $again_file, so Cloudflare builds this site again
 
 Written by npm run ship when the live site still served the old build after about 3 minutes.
-Only $again_file changes, so a build watch path cannot skip this commit."
+Only $again_file changes. Build watch paths that do not list that file skip this commit (see PUBLISHING.md)."
   stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 1
   if [ "$from_github" = 1 ]; then
     dir="$wt"
@@ -1212,6 +1226,11 @@ Only $again_file changes, so a build watch path cannot skip this commit."
       return 1
     fi
     dir="."
+  fi
+  # A link or an ignored file of that name is not ours to overwrite (and a failed commit would delete it).
+  if [ -L "$dir/$again_file" ] || git -C "$dir" check-ignore -q -- "$again_file"; then
+    echo "✗ Not shipping again: $again_file is a link, or this site's git ignores it, so ship will not write it."
+    return 1
   fi
   if ! { printf '%s\n' "Last 'ship again': $stamp (written by npm run ship; see PUBLISHING.md)" > "$dir/$again_file" \
          && git -c core.hooksPath="$push_status/no-hooks" -C "$dir" add -- "$again_file" \
@@ -1223,7 +1242,7 @@ Only $again_file changes, so a build watch path cannot skip this commit."
   new="$(git -C "$dir" rev-parse HEAD)" || return 1
   first_id="$id"; id="$new"; again_id="$new"; short="${id:0:12}"
   again=1; again_main="$id:refs/heads/main"
-  live_n=1
+  first_n="$live_n"; live_n=1
 }
 # Checks 10 s apart; the slowest Workers build seen took about 300 s, so wait about 6 minutes.
 wait_min=6
@@ -1299,8 +1318,13 @@ while [ "$i" -lt "$limit" ]; do
     echo "  not have started a production build for this commit (the cause is not known), or it is slow."
     echo "  'ship again' makes one small commit on 'main' (one line of $again_file changes), pushes it to"
     echo "  'main' and 'production' (the pre-push gate runs again) and waits again. Any other answer leaves the wait as it is."
-    trap 'stop_asked=1; stop_point "The publish went out (GitHub'"'"'s production is now ${id:0:12}); nothing more was done. In a few minutes, $build_txt should show $id."' INT TERM HUP QUIT
-    stop_point "The publish went out (GitHub's production is now ${id:0:12}); nothing more was done. In a few minutes, $build_txt should show $id."
+    if [ "$live_n" = 0 ]; then
+      q_stop="Nothing was pushed ('production' already had ${id:0:12}); nothing more was done."
+    else
+      q_stop="The publish went out (GitHub's production is now ${id:0:12}); nothing more was done. In a few minutes, $build_txt should show $id."
+    fi
+    trap 'stop_asked=1; stop_point "$q_stop"' INT TERM HUP QUIT
+    stop_point "$q_stop"
     printf 'Ship again? Type y and press Enter to ship again, anything else keeps waiting: '
     if read -r answer; then :; else answer=""; fi
     trap 'stop_asked=1' INT TERM HUP QUIT
@@ -1313,7 +1337,6 @@ while [ "$i" -lt "$limit" ]; do
           echo ""
           echo "→ Shipping again: 'main' and 'production' get the commit ${id:0:12}, which changes $again_file."
           push_and_report
-          main_what="GitHub's main with the 'ship again' commit"
           echo "✓ Pushed again. Cloudflare should start a production build now; the wait starts again."
           i0=$i; limit=$((i + wait_min * 6)); last_look="" live=""
         else
@@ -1323,7 +1346,7 @@ while [ "$i" -lt "$limit" ]; do
     esac
   fi
 done
-waited="$wait_min minutes"; [ "$again" = 0 ] || waited="$wait_min minutes since 'ship again'"
+waited="$wait_min minutes"; [ "$again" = 0 ] || waited="$wait_min minutes (counted from 'ship again')"
 echo ""
 if [ "$ever_reached" = 0 ]; then
   # Exit 1, as for the other "published but unverified" ends above (a stop during the check, a

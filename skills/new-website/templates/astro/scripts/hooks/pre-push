@@ -50,7 +50,7 @@ PUSH_LINES
 # reach main only via reviewed PRs (typical when several people or parallel AI
 # agents share the checkout), uncomment the block below to reject direct
 # pushes to main. Ship pushing main:production is unaffected; its one "ship again" push also
-# sends a one-line commit to main, which this block refuses (ship says so). GitHub
+# sends a one-line commit to main, which this block refuses (ship shows git's error). GitHub
 # PR merges happen server-side, so they're unaffected too. Deliberate exception:
 # ALLOW_MAIN_PUSH=1 git push ...
 # (Must stay ABOVE the deletion check and the build/test steps: it reads the hook's
