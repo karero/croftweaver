@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
-  cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync,
+  cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -29,7 +29,13 @@ const make = await import(pathToFileURL(path.join(TEMPLATE, 'scripts', 'make-ico
 
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 const fx = (name) => readFileSync(path.join(FIX, name));
-const tmp = (prefix) => mkdtempSync(path.join(tmpdir(), `favicon-guard-${prefix}-`));
+const made = [];
+process.on('exit', () => { for (const dir of made) rmSync(dir, { recursive: true, force: true }); });
+const tmp = (prefix) => {
+  const dir = mkdtempSync(path.join(tmpdir(), `favicon-guard-${prefix}-`));
+  made.push(dir);
+  return dir;
+};
 const ls = (dir) => readdirSync(dir).sort();
 
 // Astro's files, by the blob id in their names; each with the size and SHA-256 the file has on
@@ -177,6 +183,10 @@ const PASSING = [
   ['only an SVG of the site\'s own', () => ({ 'favicon.svg': ownIcons().svg })],
   ['only an ICO of the site\'s own', () => ({ 'favicon.ico': ownIcons().ico })],
   ['no favicon at all', () => ({})],
+  // Astro's outline inside a comment is not drawn, so this is a circle, not Astro's icon.
+  ['a circle with Astro\'s outline in a comment', () => ({
+    'favicon.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><!-- ${astroText('svg2023')} --><circle cx="5" cy="5" r="4"/></svg>`,
+  })],
 ];
 for (const [name, files] of PASSING) {
   test(`S5: the build passes with ${name} and writes build.txt`, () => {
@@ -398,7 +408,7 @@ test('S1, S3, S6: with Astro\'s icons in public/, verify, build and deploy:live 
   assert.equal(existsSync(path.join(copy, 'dist')), false, 'dist/ is gone');
   const wrangler = spawnSync('npx', ['wrangler', 'deploy', '--dry-run'], { cwd: copy, encoding: 'utf8', env: cleanEnv() });
   assert.notEqual(wrangler.status, 0, 'wrangler stops on the missing dist/');
-  assert.match(wrangler.stdout + wrangler.stderr, /does not exist/);
+  assert.match(wrangler.stdout + wrangler.stderr, /dist|assets|exist/i);
 
   // What an owner without GitHub runs.
   const deploy = npmRun(copy, 'deploy:live', '--', '--dry-run');

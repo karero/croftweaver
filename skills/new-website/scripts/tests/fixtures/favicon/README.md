@@ -13,7 +13,7 @@ test checks each file's SHA-256.
 | `astro-minimal-favicon-578ad458.ico` | a real ICO, from 2021-08-18 |
 | `astro-minimal-favicon-f157bd1c.svgo-4.1.0.svg` | the 2023 logo after `svgo` 4.1.0 (the starter's lockfile version) |
 | `astro-minimal-favicon-0f390629.svgo-4.1.0.svg` | the 2022 logo after the same |
-| `build-marker.pre-0.36.mjs` | `scripts/build-marker.mjs` as of commit `817a63f6`, which reads no arguments |
+| `build-marker.pre-0.36.mjs` | `scripts/build-marker.mjs` as of commit `817a63f6`, which reads no arguments (the next commit, `b91b5bcf`, adds a Workers Builds commit-id line and still reads none) |
 
 `svgo --multipass` gives the same bytes as plain `svgo` on the 2023 logo (blob `53d61c73`), so it
 has no file of its own.

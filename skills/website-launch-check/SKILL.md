@@ -333,8 +333,8 @@ its working folder, so an old copy writes nothing into the site. Then:
   current script does. Any other answer means a copy from before 0.36 (it reads no arguments, so it
   exits 0, or 1 on the missing `dist/`): 🔴 "take `scripts/build-marker.mjs` from whats-new, then run
   this again". It cannot tell, so it does not pass.
-- `node <site>/scripts/build-marker.mjs --check <svg> <ico>` exits 1: 🔴 "Astro's default icon is
-  live", with the message's fix, then publish again. Google may keep the old icon for some weeks.
+- `node <site>/scripts/build-marker.mjs --check <svg> <ico>` exits 1: 🔴 with the script's own
+  output. When it says "Astro's default icon", the fix is the message's, then publish again. Google may keep the old icon for some weeks.
   `--check` first looks for Astro's icon (outline or hash), and says so. Only then does it look at
   how the body starts, so an ordinary HTML page from a redirect or a catch-all route is not passed:
   an SVG's first element must be `<svg`, after an optional BOM, whitespace, processing instructions
@@ -347,7 +347,7 @@ its working folder, so an old copy writes nothing into the site. Then:
 - It exits 0: ✅. Any other exit code: 🔴 with its output.
 
 A cached answer right after a publish: run it again a minute later, as for the analytics tag.
-Pre-launch runs need nothing new: §2 runs the build, which refuses Astro's icon.
+Pre-launch runs need nothing new on a site with the 0.36 `build-marker.mjs`: §2 runs the build, which refuses Astro's icon. An older copy refuses nothing, and the live check above finds it only after the publish.
 
 ## 9. Committing
 

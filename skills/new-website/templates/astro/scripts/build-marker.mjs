@@ -28,7 +28,7 @@ import { execSync } from 'node:child_process';
 // fixtures in the toolkit's tests). An SVG is known by the opening of its outline path with all
 // whitespace dropped, so line endings, re-indenting and svgo do not hide it; an ICO is a
 // bitmap and is known by its SHA-256. The 2023 drawing and the 2022 one; the 2026 ICO (a PNG
-// with an .ico name) and the 2021 one. The toolkit's release runbook (step 1b) checks these
+// with an .ico name) and the 2021 one. The maintainer's release runbook (step 1b) checks these
 // against Astro's examples before each release.
 const ASTRO_SVG_OPENINGS = [
   'M50.478.5a75.175.1000-28.56.9l24.2-65.7c.7-21.9-3.23.4-3.2h29c1.502.71.23.43.2l24.265.7s-11.6-7-28.5-7L6745.5',
@@ -40,7 +40,8 @@ const ASTRO_ICO_HASHES = [
 ];
 
 const isAstroSvg = (buf) => {
-  const flat = buf.toString('utf8').replace(/\s/g, '');
+  // Comments are not drawn, so Astro's path inside one is not Astro's icon.
+  const flat = buf.toString('utf8').replace(/<!--[\s\S]*?-->/g, '').replace(/\s/g, '');
   return ASTRO_SVG_OPENINGS.some((opening) => flat.includes(opening));
 };
 const isAstroIco = (buf) => ASTRO_ICO_HASHES.includes(createHash('sha256').update(buf).digest('hex'));
@@ -82,6 +83,8 @@ function astroMessage(shown, publicName, kind, stopped) {
       ? '  A site must not go live with it. This build was stopped, so nothing from it can be published.'
       : '  A site must not go live with it. Replace it, then publish again.',
     "  New site: node scripts/make-icons.mjs --setup  (draws the site's letter on its colour).",
+    '  If --setup says the icons are not ones it made (an older Astro icon), run it with --replace',
+    '  instead: only for a site with no icons of its own.',
     '  A site with a logo or icons of its own: the website-brand-kit skill, given the logo,',
     `  or replace ${publicName} by hand with ${own} of the site's own.`,
     stopped ? '  Then build again.' : '  Google may keep showing the old icon for some weeks.',
