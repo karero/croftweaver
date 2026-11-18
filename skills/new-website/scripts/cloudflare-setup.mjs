@@ -62,9 +62,9 @@ export const SETTINGS = [
     path: 'Account home → Network → Network Error Logging Monitoring',
     visitor: "the visitor's browser is no longer asked to send error reports to Cloudflare (if the header stays, launch day adds a rule)" },
 ];
-// Two lines of one call, Bot Management's update. The PUT sends BOT_PUT_FIELDS as read, apart from
-// what a line changes, and bot_preference_sync_enabled only when the `ai` line is in. It never sends
-// is_robots_txt_managed: Cloudflare refused it as true (code 10400), so sending it as read could fail.
+// Two lines of one call, Bot Management's update. The PUT sends only the fields a line changes, so a
+// change made since the first read is not overwritten (the read-back reports it). It never sends
+// is_robots_txt_managed: Cloudflare refused it as true (code 10400).
 export const BOT_LINES = [
   { id: 'bot', title: 'Bot Fight Mode: Off', fields: { fight_mode: false },
     path: 'Your domain → Security → Settings → filter by Bot traffic → Bot fight mode',
@@ -152,8 +152,6 @@ function agentNotes(agents, state, where) {
   }
   return notes;
 }
-const BOT_PUT_FIELDS = ['fight_mode', 'enable_js', 'ai_bots_protection', 'ai_search', 'ai_user', 'ai_training',
-  'crawler_protection', 'content_bots_protection', 'cf_robots_variant'];
 export const SKIP_IDS = [...SETTINGS.map((s) => s.id), ...BOT_LINES.map((b) => b.id)];
 export const LAUNCH_SKIP_IDS = ['nel-rule'];
 // Hosts a verification record points AT. A record whose NAME ends in one has name and target swapped.
@@ -805,9 +803,10 @@ async function setupStage(opts, io) {
   }
   const botLines = lines.filter((x) => x.kind === 'bot' && x.state === 'change');
   if (botLines.length) {
-    const body = Object.fromEntries(BOT_PUT_FIELDS.filter((k) => k in bot).map((k) => [k, bot[k]]));
+    const body = {};
     for (const l of botLines) {
-      Object.assign(body, l.def.fields);
+      // Only the fields that change, as the agents below: a field left out keeps its value (T2-061, T4-002).
+      for (const [k, v] of Object.entries(l.def.fields)) if (!isDeepStrictEqual(bot[k], v)) body[k] = v;
       // Only the agents that change: Cloudflare merges the map per key (T4-008), so the rest are not overwritten.
       const moves = l.want?.ai_agents ? agentsToDisable(l.now.ai_agents) : {};
       if (Object.keys(moves).length) body.ai_agents = moves;

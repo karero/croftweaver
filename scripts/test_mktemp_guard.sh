@@ -70,7 +70,7 @@ EXEMPT=(
   "skills/independent-review/scripts/check_perl_minimum.sh|checks mktemp itself"
   "skills/independent-review/scripts/merge_link.sh|set -e ends it on a failed mktemp"
   "skills/independent-review/scripts/independent_review.sh|run_agy does not check mktemp (docs/BUGLOG.md)"
-  "skills/new-website/templates/astro/scripts/check_internal_links.sh|a site template that makes files, not a folder, and does not check mktemp (docs/BUGLOG.md)"
+  "skills/new-website/templates/astro/scripts/check_internal_links.sh|makes files, not a folder, and quits outside a git repo: its own cases are below the SCRIPTS loop"
   "skills/new-website/templates/astro/scripts/ship.sh|the probe here runs outside a git repo, where its first git call whose failure stops the run (git rev-parse --abbrev-ref HEAD) fails, exit 128, before any mktemp; tests/check_ship_push.sh fails each of its mktemp calls in turn (case S15)"
   "skills/new-website/templates/astro/tests/check_analytics_gate.sh|set -e ends it on a failed mktemp"
   "skills/new-website/templates/astro/tests/check_deploy.sh|set -e ends it on a failed mktemp"
@@ -201,6 +201,61 @@ for s in "${SCRIPTS[@]}"; do
     fail "$s: $why"
   fi
 done
+
+# The starter's check_internal_links.sh makes two temp FILES, not a folder, and quits at once
+# outside a git repo, so the probe above cannot test it. It runs here the way a site runs it
+# (bash from the site's repo, built dist/ present). Control: with a working mktemp it finds the
+# 2 pages and 2 links the fixture holds, so the failures below are not a broken fixture. Then
+# mktemp fails on its 1st call, and on its 2nd (the 1st file is made and must be removed):
+# each must exit non-zero with the message last and print no audit, where the old script
+# printed "0 pages, 0 internal links" and exited 0.
+if command -v git >/dev/null 2>&1; then
+  LS="$ROOT/skills/new-website/templates/astro/scripts/check_internal_links.sh"
+  S="$T/links-site"
+  mkdir -p "$S/dist" "$T/links-tmp" \
+    && git init -q "$S" \
+    && printf '<a href="/about">About</a>\n' >"$S/dist/index.html" \
+    && printf '<a href="/">Home</a>\n' >"$S/dist/about.html" \
+    || { echo "FAIL — could not build the internal-links fixture."; exit 1; }
+  cat >"$T/stub/mktemp-nth" <<'STUB'
+#!/bin/sh
+n=$(cat "$STUB_COUNT" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" >"$STUB_COUNT"
+if [ "$n" -ge "$STUB_FAIL_FROM" ]; then echo "mktemp: stub: cannot create a temp file" >&2; exit 1; fi
+exec "$REAL_MKTEMP" "$@"
+STUB
+  mkdir "$T/stub2" && cp "$T/stub/mktemp-nth" "$T/stub2/mktemp" && chmod +x "$T/stub2/mktemp" \
+    || { echo "FAIL — could not build the counting mktemp."; exit 1; }
+  REAL_MK="$(command -v mktemp)"
+  # lprobe <fail-from-call> — runs the script from the fixture; sets l_rc, l_out, l_left.
+  lprobe() {
+    rm -f "$T/count" "$T/links-tmp"/*
+    l_out="$(cd "$S" && REAL_MKTEMP="$REAL_MK" STUB_COUNT="$T/count" STUB_FAIL_FROM="$1" \
+      PATH="$T/stub2:$PATH" TMPDIR="$T/links-tmp" $TO bash "$LS" 2>&1 </dev/null)"; l_rc=$?
+    l_left="$(ls -A "$T/links-tmp")"
+  }
+  lprobe 99
+  case "$l_out" in
+    *"2 pages, 2 internal links"*) [ "$l_rc" -eq 0 ] && [ -z "$l_left" ] \
+      && echo "ok   check_internal_links.sh: finds the fixture's 2 pages and 2 links, leaves no temp file" \
+      || fail "check_internal_links.sh: control run exited $l_rc and left [$l_left]" ;;
+    *) fail "check_internal_links.sh: control run did not find 2 pages and 2 links: $l_out" ;;
+  esac
+  for nth in 1 2; do
+    lprobe "$nth"
+    case "$l_out" in *"0 pages"*|*"# Internal link audit"*) l_audit=yes ;; *) l_audit=no ;; esac
+    if [ "$l_rc" -eq 0 ]; then fail "check_internal_links.sh: mktemp failing from call $nth, it exited 0"
+    elif [ "$l_audit" = yes ]; then fail "check_internal_links.sh: mktemp failing from call $nth, it printed an audit"
+    elif [ -n "$l_left" ]; then fail "check_internal_links.sh: mktemp failing from call $nth, it left [$l_left] behind"
+    else
+      case "${l_out##*$'\n'}" in
+        *"mktemp failed"*) echo "ok   check_internal_links.sh: mktemp failing from call $nth stops it with an error, nothing left behind" ;;
+        *) fail "check_internal_links.sh: mktemp failing from call $nth, its last line is not the 'mktemp failed' message: ${l_out##*$'\n'}" ;;
+      esac
+    fi
+  done
+else
+  skipped=$((skipped+1)); echo "skip check_internal_links.sh: git is not installed"
+fi
 
 if [ "$skipped" -gt 0 ] && [ "${REQUIRE_EVERY_SCRIPT:-}" = 1 ]; then
   fail "$skipped script(s) skipped and REQUIRE_EVERY_SCRIPT=1: install what they need (git, node, python3)"
