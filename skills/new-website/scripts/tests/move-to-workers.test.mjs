@@ -656,6 +656,39 @@ describe('3: check and record', () => {
     assert.ok(!existsSync(path.join(path.dirname(s.stateFile()), 'lock')), 'the lock is gone');
   });
 
+  test('record: an exit file caught before its code is written means the build is still running, not failed', async () => {
+    const s = scenario();
+    const first = await s.go(['record']);
+    assert.equal(first.code, 4, first.text);
+    const dir = path.join(s.site.work, 'move-run', 'build', s.site.frozen.slice(0, 12));
+    const exit = path.join(dir, 'exit.txt');
+    const written = () => { try { return readFileSync(exit, 'utf8').trim() !== ''; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } };
+    for (let i = 0; i < 240 && !written(); i++) await wait(250);
+    assert.ok(written(), 'the real build wrote its code');
+    const builder = Number(readFileSync(path.join(dir, 'pid.txt'), 'utf8'));
+    const ended = () => { try { process.kill(builder, 0); return false; } catch (e) { return e.code === 'ESRCH'; } };
+    for (let i = 0; i < 40 && !ended(); i++) await wait(250);
+    assert.ok(ended(), 'the real builder has ended, so nothing writes the exit file but this test');
+    // Recreate the moment a plain write leaves open: an empty exit file and a live pid (this test's own).
+    writeFileSync(exit, '');
+    writeFileSync(path.join(dir, 'pid.txt'), String(process.pid));
+    const caught = await s.go(['record']);
+    assert.equal(caught.code, 4, caught.text);
+    assert.match(caught.text, /The build is not finished/);
+    assert.doesNotMatch(caught.text, /failed/);
+    // A builder that died inside that moment: the empty file does not wait forever, the build starts again.
+    writeFileSync(exit, '');
+    writeFileSync(path.join(dir, 'pid.txt'), String(deadPid()));
+    const marker = path.join(dir, 'old-build.txt');
+    writeFileSync(marker, '');
+    const again = await s.go(['record']);
+    assert.equal(again.code, 4, again.text);
+    assert.ok(!existsSync(marker), 'the old build folder was cleared for a new build');
+    assert.ok(existsSync(path.join(dir, 'pid.txt')), 'a new build was started');
+    const done = await recordDone(s);
+    assert.equal(done.code, 0, done.text);
+  });
+
   const refusing = [
     ['a Worker that already has a domain', { world: { workerDomains: [{ id: '00000001-0000-4000-8000-000000000000', hostname: 'x.lenas-backstube.example', service: WORKER, zone_id: ZONE.id }] } }, /already has a domain/],
     ['a Direct Upload project', { world: null, mutate: (w) => { delete w.project.source; } }, /No Pages project is built from|Direct Upload/],

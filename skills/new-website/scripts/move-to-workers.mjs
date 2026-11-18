@@ -1413,8 +1413,10 @@ async function ensureBuild(ctx, sha, run) {
   const dir = path.join(ctx.runDir, 'build', sha.slice(0, 12));
   const dist = path.join(dir, 'src', 'dist');
   const exit = path.join(dir, 'exit.txt');
-  if (existsSync(exit)) {
-    const code = readFileSync(exit, 'utf8').trim();
+  // An empty exit file was caught between its creation and its write, so it is judged by the pid, like none.
+  let code = '';
+  try { code = readFileSync(exit, 'utf8').trim(); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  if (code !== '') {
     if (code !== '0') throw new Stop(1, `The build of ${short(sha)} failed (exit ${code}); its log is ${path.join(dir, 'build.log')}. Fix the site, or delete ${dir} to try again.`);
     return dist;
   }
