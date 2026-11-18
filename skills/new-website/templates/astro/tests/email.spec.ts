@@ -125,11 +125,13 @@ test('email — with no tracker, a broken one or one that throws, the click stil
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(path);
   const link = page.locator('a.email-link').first();
-  // No tracker. A build with analytics on has Base.astro's stub by now, so take it away once the
-  // page's scripts have run (an init script runs too early: the stub makes it again), then say so
-  // before clicking.
+  // No tracker. A default build ships none, and says so here. A build with analytics on has Base.astro's
+  // stub by now, so take it away once the page's scripts have run (an init script runs too early: the
+  // stub makes it again) before clicking.
+  if (!(await page.content()).includes('plausible.init')) {
+    expect(await page.evaluate(() => typeof (window as Counted).plausible)).toBe('undefined');
+  }
   await page.evaluate(() => { delete (window as Counted).plausible; });
-  expect(await page.evaluate(() => typeof (window as Counted).plausible)).toBe('undefined');
   await clickAndOpen(page, link);
   await page.evaluate(() => { (window as Counted).plausible = () => { throw new Error('tracker failure'); }; });
   await clickAndOpen(page, link);

@@ -70,7 +70,7 @@ EXEMPT=(
   "skills/independent-review/scripts/check_perl_minimum.sh|checks mktemp itself"
   "skills/independent-review/scripts/merge_link.sh|set -e ends it on a failed mktemp"
   "skills/independent-review/scripts/independent_review.sh|run_agy does not check mktemp (docs/BUGLOG.md)"
-  "skills/new-website/templates/astro/scripts/check_internal_links.sh|makes files, not a folder, and quits outside a git repo: its own cases are below the SCRIPTS loop"
+  "skills/new-website/templates/astro/scripts/check_internal_links.sh|makes files, not a folder, and needs a git site with a built dist/ to run: its own cases are below the SCRIPTS loop"
   "skills/new-website/templates/astro/scripts/ship.sh|the probe here runs outside a git repo, where its first git call whose failure stops the run (git rev-parse --abbrev-ref HEAD) fails, exit 128, before any mktemp; tests/check_ship_push.sh fails each of its mktemp calls in turn (case S15)"
   "skills/new-website/templates/astro/tests/check_analytics_gate.sh|set -e ends it on a failed mktemp"
   "skills/new-website/templates/astro/tests/check_deploy.sh|set -e ends it on a failed mktemp"
@@ -202,8 +202,8 @@ for s in "${SCRIPTS[@]}"; do
   fi
 done
 
-# The starter's check_internal_links.sh makes two temp FILES, not a folder, and quits at once
-# outside a git repo, so the probe above cannot test it. It runs here the way a site runs it
+# The starter's check_internal_links.sh makes two temp FILES, not a folder, and needs a git site
+# with a built dist/, so the probe above cannot test it. It runs here the way a site runs it
 # (bash from the site's repo, built dist/ present). Control: with a working mktemp it finds the
 # 2 pages and 2 links the fixture holds, so the failures below are not a broken fixture. Then
 # mktemp fails on its 1st call, and on its 2nd (the 1st file is made and must be removed):

@@ -63,8 +63,9 @@ export const SETTINGS = [
     visitor: "the visitor's browser is no longer asked to send error reports to Cloudflare (if the header stays, launch day adds a rule)" },
 ];
 // Two lines of one call, Bot Management's update. The PUT sends only the fields a line changes, so a
-// change made since the first read is not overwritten (the read-back reports it). It never sends
-// is_robots_txt_managed: Cloudflare refused it as true (code 10400).
+// change made since the first read to any other field is not overwritten (the read-back reports it);
+// a field the run itself changes is still sent. It never sends is_robots_txt_managed: Cloudflare
+// refused it as true (code 10400).
 export const BOT_LINES = [
   { id: 'bot', title: 'Bot Fight Mode: Off', fields: { fight_mode: false },
     path: 'Your domain → Security → Settings → filter by Bot traffic → Bot fight mode',
@@ -805,7 +806,9 @@ async function setupStage(opts, io) {
   if (botLines.length) {
     const body = {};
     for (const l of botLines) {
-      // Only the fields that change, as the agents below: a field left out keeps its value (T2-061, T4-002).
+      // Only the fields that change, as the agents below. That a left-out field keeps its value is captured
+      // only for bot_preference_sync_enabled, true staying true (T2-061); for the rest it rests on
+      // Cloudflare's docs and on the read-back, which marks the line "by hand" if anything moved.
       for (const [k, v] of Object.entries(l.def.fields)) if (!isDeepStrictEqual(bot[k], v)) body[k] = v;
       // Only the agents that change: Cloudflare merges the map per key (T4-008), so the rest are not overwritten.
       const moves = l.want?.ai_agents ? agentsToDisable(l.now.ai_agents) : {};
