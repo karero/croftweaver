@@ -49,9 +49,9 @@ check_tree() {
 }
 
 # Paths that differ (a blob, a mode, or present in one tree only); `version only` when that is
-# plugin.json, of the same mode and type in both, and its text differs only in the version.
+# plugin.json, of the same mode and type in both, and it differs only in its root `version`.
 compare_trees() {
-  local a=$1 b=$2 changed pa pb la lb rc=0 out ma mb
+  local a=$1 b=$2 changed pa pb la lb rc=0 out ma mb same
   [ "$a" != "$b" ] || { echo same; return; }
   la=$(git ls-tree -r --full-tree "$a") || fail "cannot list $a"
   lb=$(git ls-tree -r --full-tree "$b") || fail "cannot list $b"
@@ -63,8 +63,12 @@ compare_trees() {
   if [ "$changed" = .claude-plugin/plugin.json ] && [ "$ma" = "$mb" ]; then
     pa=$(git cat-file blob "$a:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $a"
     pb=$(git cat-file blob "$b:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $b"
-    local strip='s/("version"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"-"/'
-    if [ "$(sed -E "$strip" <<<"$pa")" = "$(sed -E "$strip" <<<"$pb")" ]; then
+    # Only the root "version" may differ: parse both and drop that one key (a nested "version" counts).
+    same=$(PA=$pa PB=$pb node -e '
+      const d = (s) => { const o = JSON.parse(s); delete o.version; return JSON.stringify(o); };
+      process.stdout.write(d(process.env.PA) === d(process.env.PB) ? "yes" : "no");') \
+      || fail "cannot parse plugin.json in $a or $b"
+    if [ "$same" = yes ]; then
       echo "version only"; return
     fi
   fi

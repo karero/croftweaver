@@ -881,6 +881,14 @@ test('--compare tells a new version number from every other change of the five f
   assert.deepEqual(compare(execNewVersion), ['.claude-plugin/plugin.json']);
   assert.deepEqual(compare(tree({ license: 'MIT 2' })), ['LICENSE']);
   assert.deepEqual(compare(tree({ readme: 'r2', skill: 's2' })), ['README.md', 'skills/get-croftweaver/SKILL.md']);
+  // A "version" key below the root is not the release number: it is a change the trial must see.
+  const nested = (v) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "author": {\n    "name": "a",\n    "version": "${v}"\n  }\n}\n`;
+  const nestedTree = (v) => makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100644', '.claude-plugin/plugin.json', nested(v)],
+    ['100644', 'LICENSE', 'MIT'], ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']]);
+  const nestedBase = nestedTree('1');
+  const nestedCompare = (other) => { const r = script('--compare', nestedBase, other); assert.equal(r.status, 0, r.log); return r.out.split('\n'); };
+  assert.deepEqual(nestedCompare(nestedTree('2')), ['.claude-plugin/plugin.json']);
+  assert.deepEqual(nestedCompare(nestedTree('1')), ['same']);
   // A new number does not hide another change.
   assert.deepEqual(compare(tree({ version: '0.37.0', license: 'MIT 2' })), ['.claude-plugin/plugin.json', 'LICENSE']);
   // A file gone, a file added.
