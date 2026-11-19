@@ -10,10 +10,12 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { after, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { crc32 } = await import(pathToFileURL(path.join(REPO, 'scripts', 'check_directory_files.mjs')).href);
 const VAR = '${CLAUDE_SKILL_DIR}';
 const read = (...parts) => fs.readFileSync(path.join(REPO, ...parts), 'utf8');
 const scratch = [];
@@ -76,8 +78,11 @@ test('the Codex marketplace offers the same plugin from the same place, with the
 // release pushed, and with the tag `stable` was moved to.
 test('the plugin carries the number of the release it is in',
   { skip: process.env.RELEASE_TAG ? false : 'no RELEASE_TAG: this runs when a release tag is pushed or stable moves' }, () => {
-    const plugin = JSON.parse(read('.claude-plugin', 'plugin.json'));
-    assert.equal(`v${plugin.version.replace(/\.0$/, '')}`, process.env.RELEASE_TAG);
+    // The directory branch's pointer carries the number too: the listing shows what it says.
+    for (const file of [['.claude-plugin', 'plugin.json'], ['pointer', 'plugin.json']]) {
+      const plugin = JSON.parse(read(...file));
+      assert.equal(`v${plugin.version.replace(/\.0$/, '')}`, process.env.RELEASE_TAG, file.join('/'));
+    }
   });
 
 test('no file of a skill sends the reader to the home skills folder for a skill\'s files', () => {
@@ -493,13 +498,31 @@ test('the workflow moves stable to a release that is on main, forward only', () 
 });
 
 // --- The branch `directory`, which Anthropic's plugin directory follows ---------------------
-// docs/reviews/SKILL-PLAN-directory-plugin-folder.md. The lists below are written here, not
-// read from scripts/build_directory_tree.sh, so a wrong list in the script fails.
-const DIRECTORY_FILES = ['.claude-plugin/icon.png', '.claude-plugin/plugin.json', '.gitattributes', 'LICENSE', 'README.md', 'SECURITY.md',
-  'THIRD-PARTY-LICENSES.md', 'docs/CLOUDFLARE-CHECKLIST.md', 'docs/MOVE-TO-WORKERS.md', 'docs/PAGES-OR-WORKERS.md', 'docs/WHAT-THE-SKILLS-RUN.md'];
-const DIRECTORY_DROPS = ['skills/independent-review/', 'skills/facts-check/scripts/tests/', 'skills/new-website/scripts/tests/',
-  'skills/search-console-insights/scripts/tests/', 'skills/website-brand-kit/scripts/tests/'];
-const TEST_FOLDERS = DIRECTORY_DROPS.filter((d) => d.endsWith('/scripts/tests/')).map((d) => d.split('/')[1]);
+// The branch holds a pointer plugin of four text files and a PNG icon (pointer/ on main), never the kit's
+// code. The lists below are written here, not read from the scripts, so a wrong list in a
+// script fails.
+const POINTER_MAP = [['pointer/plugin.json', '.claude-plugin/plugin.json'], ['.claude-plugin/icon.png', '.claude-plugin/icon.png'],
+  ['pointer/README.md', 'README.md'], ['LICENSE', 'LICENSE'], ['pointer/get-croftweaver.md', 'skills/get-croftweaver/SKILL.md']];
+const DIRECTORY_FILES = ['.claude-plugin/icon.png', '.claude-plugin/plugin.json', 'LICENSE', 'README.md', 'skills/get-croftweaver/SKILL.md'];
+const PRIVACY_URL = 'https://github.com/karero/croftweaver#what-the-directory-plugin-sends';
+const RELEASES_URL = 'https://github.com/karero/croftweaver/releases/latest';
+// The publish script must keep working under the system bash (3.2 on a Mac).
+const SYSTEM_BASH = fs.existsSync('/bin/bash') ? '/bin/bash' : 'bash';
+const pngChunk = (type, data) => {
+  const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([len, body, crc]);
+};
+// A real 1x1 PNG; the tail goes in a text chunk, so one icon can differ from another.
+const PNG = (tail = '') => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk('tEXt', Buffer.from(`Comment\0${tail}`, 'latin1')),
+  pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))]);
+
+const flipByte = (buf, at) => { const b = Buffer.from(buf); b[at] ^= 0xff; return b; };
+// The 1x1 PNG with its IDAT data replaced.
+const pngWith = (type, data) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk(type, data), pngChunk('IEND', Buffer.alloc(0))]);
 
 const lsTree = (treeish) => execFileSync('git', ['ls-tree', '-r', '-z', treeish], { cwd: REPO, encoding: 'utf8' })
   .split('\0').filter(Boolean).map((entry) => { const [meta, file] = entry.split('\t'); return { meta, file }; });
@@ -509,85 +532,96 @@ function directoryTree() {
   builtTree ??= execFileSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
   return lsTree(builtTree);
 }
-const blobText = (meta) => execFileSync('git', ['cat-file', 'blob', meta.split(' ')[2]], { cwd: REPO, encoding: 'utf8', maxBuffer: 1 << 26 });
 
-test('the directory tree is the plugin, its icon, the nine root files and nothing else, with the commit\'s own blobs', (t) => {
-  const keep = ({ file }) => DIRECTORY_FILES.includes(file) || (file.startsWith('skills/') && !DIRECTORY_DROPS.some((d) => file.startsWith(d)));
-  const expected = lsTree('HEAD').filter(keep).map(({ meta, file }) => `${meta}\t${file}`);
-  const built = directoryTree().map(({ meta, file }) => `${meta}\t${file}`);
-  assert.deepEqual(built, expected);
-  for (const file of DIRECTORY_FILES) assert.ok(built.some((e) => e.endsWith(`\t${file}`)), `${file} is missing from HEAD`);
-  // The checklist's reviewer-hold limits: a warning here, not a failure.
-  const big = directoryTree().filter(({ meta, file }) => !/\.(png|jpe?g|gif|webp|woff2?|ttf|otf)$/i.test(file)
-    && Number(execFileSync('git', ['cat-file', '-s', meta.split(' ')[2]], { cwd: REPO, encoding: 'utf8' })) > 256 * 1024);
-  t.diagnostic(`directory: ${built.length} files (held for review above 512); non-image files over 256 KiB: ${big.map((b) => b.file).join(', ') || 'none'}`);
+test('the directory tree is the five pointer files (four text, one PNG) as plain files, each the commit\'s own blob of its source', () => {
+  const expected = [...POINTER_MAP].sort((x, y) => (x[1] < y[1] ? -1 : 1))
+    .map(([src, dst]) => `100644 blob ${execFileSync('git', ['rev-parse', `HEAD:${src}`], { cwd: REPO, encoding: 'utf8' }).trim()}\t${dst}`);
+  assert.deepEqual(directoryTree().map(({ meta, file }) => `${meta}\t${file}`), expected);
+  assert.deepEqual(directoryTree().map(({ file }) => file), DIRECTORY_FILES);
 });
 
-test('every path a kept SKILL.md builds on the name Claude Code fills in is in the directory tree', () => {
-  const files = directoryTree().map(({ file }) => file);
-  const has = (p) => files.includes(p) || files.some((f) => f.startsWith(`${p}/`));
-  const missing = [];
-  for (const { meta, file } of directoryTree()) {
-    if (!/^skills\/[^/]+\/SKILL\.md$/.test(file)) continue;
-    for (const [, rest] of blobText(meta).matchAll(/\$\{CLAUDE_SKILL_DIR\}([^\s"'`)]*)/g)) {
-      const target = path.posix.normalize(`${path.posix.dirname(file)}/${rest}`).replace(/\/$/, '');
-      if (!has(target)) missing.push(`${file}: ${VAR}${rest}`);
-    }
-  }
-  assert.deepEqual(missing, []);
+test('the real pointer tree passes the publish script\'s check of its five files', () => {
+  directoryTree();
+  const run = spawnSync(SYSTEM_BASH, [path.join(REPO, 'scripts', 'publish_directory.sh'), '--check-tree', builtTree], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
-test('the directory\'s plugin.json declares no components, and no kept .gitattributes holds an attribute the checklist refuses', () => {
-  const entry = directoryTree().find(({ file }) => file === '.claude-plugin/plugin.json');
+test('the content checker checks when run through a symlink, and says ok only for a file it passed', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cw-checker-'));
+  const link = path.join(dir, 'check.mjs');
+  fs.symlinkSync(path.join(REPO, 'scripts', 'check_directory_files.mjs'), link);
+  try {
+    const run = (input) => spawnSync('node', [link, 'README.md'], { input, encoding: 'utf8' });
+    assert.deepEqual([run('#!/bin/sh\n').status, run('#!/bin/sh\n').stdout.trim()], [1, 'starts with #!: the directory takes text, not scripts']);
+    assert.deepEqual([run('plain text\n').status, run('plain text\n').stdout.trim()], [0, 'ok']);
+    // A checker that fails says why on stdout, where publish_directory.sh reads it: here stdin is a folder.
+    const broken = spawnSync('node', [link, 'README.md'], { stdio: [fs.openSync(dir, 'r'), 'pipe', 'pipe'], encoding: 'utf8' });
+    assert.deepEqual([broken.status, /^could not be checked: the checker failed \(.*EISDIR/.test(broken.stdout)], [1, true], broken.stdout + broken.stderr);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the pointer plugin carries the kit\'s name and number, metadata only, and a privacy link to a heading the README has', () => {
+  const kit = JSON.parse(read('.claude-plugin', 'plugin.json'));
+  const pointer = JSON.parse(read('pointer', 'plugin.json'));
   // Metadata only: a component path (commands, hooks, agents…) could point at a file the branch leaves out.
-  const keys = Object.keys(JSON.parse(blobText(entry.meta)));
-  assert.deepEqual(keys.filter((k) => !['name', 'displayName', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'privacyPolicyUrl'].includes(k)), []);
-  // The privacy link points at a heading the README has (GitHub's anchor: lower case, spaces to hyphens).
-  const { privacyPolicyUrl } = JSON.parse(blobText(entry.meta));
-  const anchor = new URL(privacyPolicyUrl).hash.slice(1);
+  assert.deepEqual(Object.keys(pointer).filter((k) => !['name', 'displayName', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'privacyPolicyUrl'].includes(k)), []);
+  assert.equal(pointer.name, kit.name);
+  // A release that raises one number and not the other would show the listing an old version.
+  assert.equal(pointer.version, kit.version);
+  assert.equal(pointer.privacyPolicyUrl, PRIVACY_URL);
+  const anchor = new URL(pointer.privacyPolicyUrl).hash.slice(1);
   const headings = read('README.md').split('\n').filter((l) => l.startsWith('## ')).map((l) => l.slice(3).trim().toLowerCase().replace(/[^a-z0-9 -]/g, '').replace(/ /g, '-'));
   assert.ok(headings.includes(anchor), `README has no heading for #${anchor}`);
-  for (const { meta, file } of directoryTree().filter(({ file }) => path.posix.basename(file) === '.gitattributes')) {
-    assert.doesNotMatch(blobText(meta), /export-ignore|export-subst|filter/, file);
-  }
+  // What the branch will hold is this file, not another.
+  const built = directoryTree().find(({ file }) => file === '.claude-plugin/plugin.json');
+  assert.equal(built.meta.split(' ')[2], execFileSync('git', ['rev-parse', 'HEAD:pointer/plugin.json'], { cwd: REPO, encoding: 'utf8' }).trim());
 });
 
-// Lines of the kept files under skills/ (what an assistant follows) that name `needle`, as [file, line].
-function keptLinesNaming(test) {
-  const hits = [];
-  for (const { meta, file } of directoryTree()) {
-    if (!file.startsWith('skills/')) continue;
-    const text = blobText(meta);
-    if (text.includes('\0')) continue;
-    for (const line of text.split('\n')) if (test(file, line)) hits.push([file, line]);
-  }
-  return hits;
+// The install commands live once, in the README's marked blocks; the pointer repeats them.
+// A command the pointer got wrong would send an owner to a route that does not work.
+function markedCommands() {
+  const blocks = [];
+  let open = null;
+  read('README.md').split('\n').forEach((line, i) => {
+    const start = /^<!-- pointer-commands (\w+) -->$/.exec(line);
+    if (start) { assert.equal(open, null, `README line ${i + 1}: a pointer-commands block inside another`); open = { label: start[1], lines: [] }; return; }
+    if (line === '<!-- /pointer-commands -->') { assert.notEqual(open, null, `README line ${i + 1}: a block end with no start`); blocks.push(open); open = null; return; }
+    if (!open) return;
+    const text = line.trim();
+    if (text === '' || text.startsWith('```')) return;
+    assert.match(text, /^(claude|npm) /, `README line ${i + 1}: a marked block holds only claude and npm command lines`);
+    open.lines.push(text);
+  });
+  assert.equal(open, null, 'README: a pointer-commands block is never closed');
+  return blocks;
 }
 
-test('the kept skills name no toolkit docs or scripts file the directory leaves out, except five known lines', () => {
-  const inTree = new Set(directoryTree().map(({ file }) => file));
-  const rootFiles = lsTree('HEAD').map(({ file }) => file)
-    .filter((f) => (/^docs\/[^/]+\.md$/.test(f) || f.startsWith('scripts/')) && !inTree.has(f));
-  const found = keptLinesNaming((file, line) => rootFiles.some((f) => line.includes(f)));
-  // Each checked by hand: the whats-new lines run only behind an [ -f ] check (the next test
-  // runs them without the script), the other two are comments.
-  assert.deepEqual(found, [
-    ['skills/new-website/SKILL.md', '   # The suite\'s scripts/whats-new.sh is the ONLY writer of the stamp format. Resolve'],
-    ['skills/new-website/SKILL.md', '   if [ -n "$SUITE_REPO" ] && [ -f "$SUITE_REPO/scripts/whats-new.sh" ] \\'],
-    ['skills/new-website/SKILL.md', '     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp "$PROJECT_SKILLS_DIR"'],
-    ['skills/new-website/SKILL.md', '     bash "$SUITE_REPO/scripts/whats-new.sh" --stamp-tests tests'],
-    ['skills/website-contact-form/templates/mail-form-text.ts', '// not measured (docs/BUGLOG.md), so this cap is not tied to any program\'s limit. The'],
-  ]);
+test('the pointer\'s command lines are the README\'s marked ones, exactly, and the routes they name exist', () => {
+  const byLabel = {};
+  for (const { label, lines } of markedCommands()) {
+    assert.ok(lines.length > 0, `an empty ${label} block`);
+    if (byLabel[label]) assert.deepEqual(lines, byLabel[label], `two ${label} blocks in the README differ`);
+    byLabel[label] = lines;
+  }
+  assert.deepEqual(Object.keys(byLabel).sort(), ['claude', 'npm']);
+  const expected = [...new Set(Object.values(byLabel).flat())].sort();
+  for (const file of ['README.md', 'get-croftweaver.md']) {
+    const text = read('pointer', file);
+    const got = [...new Set(text.split('\n').map((l) => l.trim()).filter((l) => /^(claude|npm) /.test(l)))].sort();
+    assert.deepEqual(got, expected, `pointer/${file} and the README's marked blocks differ`);
+    assert.ok(text.includes(RELEASES_URL), `pointer/${file} lacks ${RELEASES_URL}`);
+  }
+  // The flags the npm lines carry are the installer's own.
+  const installer = read('packages', 'create-croftweaver', 'index.mjs');
+  for (const flag of ['--codex', '--antigravity']) assert.ok(installer.includes(`'${flag}'`), `the installer has no ${flag}`);
+  // The checklist blocks a plugin whose README is under 40 words.
+  assert.ok(read('pointer', 'README.md').split(/\s+/).filter(Boolean).length >= 40);
 });
 
-test('the kept skills name none of the left-out test folders, except three known lines', () => {
-  const found = keptLinesNaming((file, line) => TEST_FOLDERS.some((skill) =>
-    line.includes(`${skill}/scripts/tests`) || (file.startsWith(`skills/${skill}/`) && line.includes('scripts/tests'))));
-  assert.deepEqual(found, [
-    ['skills/new-website/SKILL.md', '   # The brand kit\'s scripts/tests is the toolkit\'s own test suite (about 1.7 MB). No site'],
-    ['skills/new-website/SKILL.md', '   rm -rf "$PROJECT_SKILLS_DIR"/website-brand-kit/scripts/tests'],
-    ['skills/search-console-insights/references/geo-check.md', 'Tests: `scripts/tests/test_geo_check.py` (the pieces) and `test_track_entry.py` (the weekly'],
-  ]);
+test('the pointer\'s skill is the one skill, text only, with the name its folder will carry', () => {
+  const skill = read('pointer', 'get-croftweaver.md');
+  assert.match(skill, /^---\nname: get-croftweaver\ndescription: [^\n]+\n---\n/);
+  assert.ok(!skill.startsWith('#!'));
 });
 
 test('without scripts/whats-new.sh beside it, new-website\'s stamp step records an unknown baseline and succeeds', () => {
@@ -620,7 +654,7 @@ test('the workflow publishes to directory last, after stable moved or on a hand-
   assert.match(text, /\n {4}concurrency:\n {6}group: plugin-release\n {6}cancel-in-progress: false\n/);
 });
 
-test('the tree is the same from any folder of the clone, and a commit without the plugin is refused', () => {
+test('the tree is the same from any folder of the clone, and a commit missing any pointer source is refused', () => {
   // A person runs the publish script by hand from wherever their shell is.
   const fromSub = execFileSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD'], { cwd: path.join(REPO, 'skills'), encoding: 'utf8' }).trim();
   directoryTree();
@@ -628,23 +662,20 @@ test('the tree is the same from any folder of the clone, and a commit without th
   // --out, given relative to that folder, gets the whole tree there.
   const rel = path.relative(path.join(REPO, 'skills'), path.join(tmp(), 'out'));
   execFileSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD', '--out', rel], { cwd: path.join(REPO, 'skills') });
-  const unpacked = execFileSync('find', [path.join(REPO, 'skills', rel), '-type', 'f'], { encoding: 'utf8' }).trim().split('\n').length;
-  assert.equal(unpacked, directoryTree().length);
-  const { git, release } = directoryRepo();
-  release('v0.1', { 'README.md': 'no plugin here' });
-  const work = git('rev-parse', '--show-toplevel');
-  const run = spawnSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'v0.1'], { cwd: work, encoding: 'utf8' });
-  assert.equal(run.status, 1);
-  assert.match(run.stderr, /has no \.claude-plugin\/plugin\.json/);
-  // A grep that fails (not one that finds nothing) stops the build instead of leaving an empty tree.
-  const stubs = tmp();
-  fs.writeFileSync(path.join(stubs, 'grep'), '#!/bin/sh\ncat >/dev/null\necho stub grep failed >&2\nexit 2\n', { mode: 0o755 });
-  const broken = spawnSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'HEAD'], { cwd: REPO, encoding: 'utf8',
-    env: { ...process.env, PATH: `${stubs}:${process.env.PATH}` } });
-  // The stub reads all its input first, so the build cannot stop on a broken pipe instead.
-  assert.equal(broken.status, 1, broken.stderr);
-  assert.match(broken.stderr, /stub grep failed/);
-  assert.equal(broken.stdout, '');
+  const unpacked = execFileSync('find', [path.join(REPO, 'skills', rel), '-type', 'f'], { encoding: 'utf8' }).trim().split('\n').map((f) => path.relative(path.join(REPO, 'skills', rel), f)).sort();
+  assert.deepEqual(unpacked, DIRECTORY_FILES);
+  // Each source missing in turn: the build names it and prints no tree.
+  for (const [src] of POINTER_MAP) {
+    const { git, release } = directoryRepo();
+    const files = pointerFiles();
+    delete files[src];
+    release('v0.1', files);
+    const work = git('rev-parse', '--show-toplevel');
+    const run = spawnSync('bash', [path.join(REPO, 'scripts', 'build_directory_tree.sh'), 'v0.1'], { cwd: work, encoding: 'utf8' });
+    assert.equal(run.status, 1, src);
+    assert.ok(run.stderr.includes(`has no ${src}`), `${src}: ${run.stderr}`);
+    assert.equal(run.stdout, '');
+  }
 });
 
 test('the publish script pushes without force', () => {
@@ -654,33 +685,55 @@ test('the publish script pushes without force', () => {
   for (const line of pushes) assert.doesNotMatch(line, /(\s-f\b|--force|\s["']?\+)/, line);
 });
 
-// A throwaway repository with an `origin`, holding a few files the tree keeps and one it drops.
+// A throwaway repository with an `origin`, holding the pointer's sources and files the branch never takes.
 function directoryRepo() {
   const { git, commit: _empty, step: _step, ...rest } = releaseRepo();
   const work = git('rev-parse', '--show-toplevel');
   const origin = path.join(path.dirname(work), 'origin.git');
+  const env = { PATH: process.env.PATH, HOME: path.dirname(work), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
   const write = (file, text) => { fs.mkdirSync(path.dirname(path.join(work, file)), { recursive: true }); fs.writeFileSync(path.join(work, file), text); };
-  const release = (tag, files) => {
+  // `executable` lists files recorded at mode 100755, whatever the platform's file modes are.
+  const release = (tag, files, { executable = [] } = {}) => {
     for (const [file, text] of Object.entries(files)) write(file, text);
     git('add', '-A');
+    for (const file of executable) git('update-index', '--chmod=+x', file);
     git('commit', '-q', '-m', tag);
     git('tag', tag);
     return git('rev-parse', 'HEAD');
   };
-  const publish = (tag) => {
-    const run = spawnSync('bash', [path.join(REPO, 'scripts', 'publish_directory.sh'), tag], { cwd: work, encoding: 'utf8',
-      env: { PATH: process.env.PATH, HOME: path.dirname(work), GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } });
-    return { status: run.status, log: run.stdout + run.stderr };
+  const run = (script, ...args) => spawnSync(SYSTEM_BASH, [script, ...args], { cwd: work, encoding: 'utf8', env });
+  const publish = (tag) => { const r = run(path.join(REPO, 'scripts', 'publish_directory.sh'), tag); return { status: r.status, log: r.stdout + r.stderr }; };
+  const script = (...args) => { const r = run(path.join(REPO, 'scripts', 'publish_directory.sh'), ...args); return { status: r.status, log: r.stdout + r.stderr, out: r.stdout.trim() }; };
+  // A tree of exactly these entries, [mode, path, text or bytes], written into the repository's objects.
+  const makeTree = (entries) => {
+    const index = path.join(path.dirname(work), `index-${Math.random().toString(36).slice(2)}`);
+    const withIndex = { ...env, GIT_INDEX_FILE: index };
+    const lines = entries.map(([mode, file, text]) => `${mode} ${execFileSync('git', ['hash-object', '-w', '--stdin'], { cwd: work, env, input: text, encoding: 'utf8' }).trim()}\t${file}`);
+    execFileSync('git', ['update-index', '--index-info'], { cwd: work, env: withIndex, input: `${lines.join('\n')}\n` });
+    return execFileSync('git', ['write-tree'], { cwd: work, env: withIndex, encoding: 'utf8' }).trim();
+  };
+  // The publish script beside a builder that prints `tree` whatever the commit holds, and the
+  // real content checker or, given `checker`, that text in its place.
+  const publishWithStubBuilder = (tag, tree, checker) => {
+    const dir = tmp();
+    for (const f of ['publish_directory.sh', 'check_directory_files.mjs']) fs.copyFileSync(path.join(REPO, 'scripts', f), path.join(dir, f));
+    if (checker !== undefined) fs.writeFileSync(path.join(dir, 'check_directory_files.mjs'), checker);
+    fs.writeFileSync(path.join(dir, 'build_directory_tree.sh'), `#!/usr/bin/env bash\necho ${tree}\n`, { mode: 0o755 });
+    const r = run(path.join(dir, 'publish_directory.sh'), tag);
+    return { status: r.status, log: r.stdout + r.stderr };
   };
   const remote = (...args) => execFileSync('git', ['--git-dir', origin, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   const directory = () => { try { return remote('rev-parse', '-q', '--verify', 'refs/heads/directory'); } catch { return ''; } };
-  return { git, release, publish, remote, directory, ...rest };
+  return { git, release, publish, script, makeTree, publishWithStubBuilder, remote, directory, ...rest };
 }
 
-test('a release reaches directory as one commit naming its source; a re-run adds nothing', () => {
+// What a release holds: the pointer's five sources, and kit files the branch must never take.
+const pointerFiles = (more = {}) => ({ 'pointer/plugin.json': '{"name":"x","version":"0.1.0"}\n', '.claude-plugin/icon.png': PNG('icon-1'), 'pointer/README.md': 'readme',
+  'LICENSE': 'MIT', 'pointer/get-croftweaver.md': 'the skill', 'skills/a/SKILL.md': 'kit skill', 'scripts/tool.sh': '#!/bin/sh\n', Makefile: 'm', ...more });
+
+test('a release reaches directory as one commit of the five pointer files naming its source; a re-run adds nothing', () => {
   const { git, release, publish, remote, directory } = directoryRepo();
-  const c1 = release('v0.1', { '.claude-plugin/plugin.json': '{"name":"x"}', 'README.md': 'r', 'skills/a/SKILL.md': 'a',
-    'skills/new-website/scripts/tests/t.sh': 't', 'skills/independent-review/SKILL.md': 'i', 'Makefile': 'm' });
+  const c1 = release('v0.1', pointerFiles());
   git('push', '-q', 'origin', 'main', 'v0.1');
   // The first run: no `directory` yet, so a commit with no parent.
   const first = publish('v0.1');
@@ -688,15 +741,16 @@ test('a release reaches directory as one commit naming its source; a re-run adds
   const d1 = directory();
   assert.equal(remote('rev-list', '--parents', '-n', '1', d1), d1);
   assert.equal(remote('log', '-1', '--format=%an%n%B', d1), `github-actions[bot]\nCroftweaver v0.1\n\nSource: ${c1}`);
-  assert.deepEqual(remote('ls-tree', '-r', '--name-only', d1).split('\n'), ['.claude-plugin/plugin.json', 'README.md', 'skills/a/SKILL.md']);
+  assert.deepEqual(remote('ls-tree', '-r', '--name-only', d1).split('\n'), DIRECTORY_FILES);
+  assert.equal(remote('show', `${d1}:skills/get-croftweaver/SKILL.md`), 'the skill');
   // A re-run of the same release: nothing to push.
   const again = publish('v0.1');
   assert.equal(again.status, 0, again.log);
   assert.match(again.log, /already holds v0\.1/);
   assert.equal(directory(), d1);
-  // A newer release whose kept files did not change still advances the source, so an older
+  // A newer release whose pointer files did not change still advances the source, so an older
   // release run late cannot pass as newer.
-  const c2 = release('v0.2', { 'skills/new-website/scripts/tests/t.sh': 't2' });
+  const c2 = release('v0.2', { Makefile: 'm2', 'skills/a/SKILL.md': 'kit skill 2' });
   git('push', '-q', 'origin', 'main', 'v0.2');
   assert.equal(publish('v0.2').status, 0);
   const d2 = directory();
@@ -705,10 +759,140 @@ test('a release reaches directory as one commit naming its source; a re-run adds
   assert.match(remote('log', '-1', '--format=%B', d2), new RegExp(`Source: ${c2}$`));
 });
 
+test('the first release after the pointer replaces the code tree that directory holds, keeping its history', () => {
+  const { git, release, publish, remote, directory } = directoryRepo();
+  // What the October release published: the kit's code tree, with a source line.
+  const c1 = release('v0.1', { '.claude-plugin/plugin.json': '{"name":"kit"}', 'README.md': 'kit readme', 'skills/a/SKILL.md': 'a', 'skills/b/scripts/run.sh': '#!/bin/sh\n' });
+  git('push', '-q', 'origin', 'main', 'v0.1');
+  const old = git('commit-tree', `${c1}^{tree}`, '-m', 'Croftweaver v0.1', '-m', `Source: ${c1}`);
+  git('push', '-q', 'origin', `${old}:refs/heads/directory`);
+  const c2 = release('v0.2', pointerFiles({ 'README.md': 'kit readme 2' }));
+  git('push', '-q', 'origin', 'main', 'v0.2');
+  const run = publish('v0.2');
+  assert.equal(run.status, 0, run.log);
+  const d = directory();
+  assert.equal(remote('rev-parse', `${d}^`), old);
+  assert.deepEqual(remote('ls-tree', '-r', '--name-only', d).split('\n'), DIRECTORY_FILES);
+  assert.equal(remote('show', `${d}:README.md`), 'readme');
+  assert.match(remote('log', '-1', '--format=%B', d), new RegExp(`Source: ${c2}$`));
+});
+
+test('a release that would put anything but the five plain files (four text, one PNG) on directory is refused, and directory stays', () => {
+  const { git, release, publish, script, makeTree, publishWithStubBuilder, remote, directory } = directoryRepo();
+  release('v0.1', pointerFiles());
+  git('push', '-q', 'origin', 'main', 'v0.1');
+  assert.equal(publish('v0.1').status, 0);
+  let held = directory();
+  const refused = (run, message) => { assert.equal(run.status, 1, run.log); assert.match(run.log, message); assert.equal(directory(), held); };
+
+  // Through the real builder: a script as the skill, and a file kept executable.
+  release('v0.2', { 'pointer/get-croftweaver.md': '#!/bin/sh\necho hi\n' });
+  git('push', '-q', 'origin', 'main', 'v0.2');
+  refused(publish('v0.2'), /::error::skills\/get-croftweaver\/SKILL\.md in the directory tree starts with #!/);
+  release('v0.3', { 'pointer/get-croftweaver.md': 'the skill again' }, { executable: ['pointer/get-croftweaver.md'] });
+  git('push', '-q', 'origin', 'main', 'v0.3');
+  refused(publish('v0.3'), /::error::skills\/get-croftweaver\/SKILL\.md in the directory tree has mode 100755/);
+
+  release('v0.4', { 'pointer/get-croftweaver.md': 'fine' });
+  git('push', '-q', 'origin', 'main', 'v0.4');
+  assert.equal(publish('v0.4').status, 0, 'a clean release publishes');
+  held = directory();
+  release('v0.5', { 'pointer/get-croftweaver.md': 'next' });
+  git('push', '-q', 'origin', 'main', 'v0.5');
+  // Past the builder (a builder changed to take more, or the test of its list edited with it):
+  // the script's own list of five still stands. Each stub tree must be a real tree first, so
+  // the refusal below cannot be a broken stub failing later at commit-tree.
+  const five = [['100644', '.claude-plugin/icon.png', PNG('i')], ['100644', '.claude-plugin/plugin.json', '{}'], ['100644', 'LICENSE', 'l'],
+    ['100644', 'README.md', 'r\tcaf\u00e9\r\n'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']];
+  const cases = [
+    ['a sixth path', [...five, ['100644', 'hooks/hooks.json', '{}']], /::error::the directory tree is not exactly the five pointer files: got .*hooks\/hooks\.json/],
+    ['a missing path', five.slice(1), /::error::the directory tree is not exactly the five pointer files/],
+    ['another path in place of one', [...five.slice(1), ['100644', 'commands/go.md', 'x']], /::error::the directory tree is not exactly the five pointer files/],
+    ['an executable file', five.map((e) => (e[1] === 'LICENSE' ? ['100755', e[1], e[2]] : e)), /::error::LICENSE in the directory tree has mode 100755/],
+    ['a symlink', five.map((e) => (e[1] === 'README.md' ? ['120000', e[1], 'LICENSE'] : e)), /::error::README\.md in the directory tree has mode 120000/],
+    ['a script', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], '#!/usr/bin/env node\n'] : e)), /::error::README\.md in the directory tree starts with #!/],
+    ['a binary blob as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x4d, 0x5a, 0x00, 0x01, 0x02])] : e)), /::error::README\.md in the directory tree holds a control character/],
+    ['binary with no NUL as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x01, 0x02, 0x03, 0x04, 0xff, 0xfe])] : e)), /::error::README\.md in the directory tree holds a control character/],
+    ['Latin-1 text as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from('caf\u00e9\n', 'latin1')] : e)), /::error::README\.md in the directory tree is not valid UTF-8/],
+    ['a text file as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], 'not a png'] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: no PNG signature/],
+    ['the PNG signature alone as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG().subarray(0, 8)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: cut short: no IEND chunk/],
+    ['a cut-short icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG('i').subarray(0, 40)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: cut short/],
+    ['UTF-8 above U+10FFFF as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xf4, 0x90, 0x80, 0x80])] : e)), /::error::README\.md in the directory tree is not valid UTF-8/],
+    ['a 5-byte UTF-8 sequence as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xf8, 0x88, 0x80, 0x80, 0x80])] : e)), /::error::README\.md in the directory tree is not valid UTF-8/],
+    ['U+0080 as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xc2, 0x80])] : e)), /::error::README\.md in the directory tree holds a control character/],
+    ['an icon whose IHDR overruns the file', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.from('89504e470d0a1a0a0000000d494844520000000049454e44ae426082', 'hex')] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: /],
+    ['an icon with one checksum byte flipped', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], flipByte(PNG('i'), 8 + 12 + 13 - 1)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the IHDR chunk fails its checksum/],
+    ['an icon with bytes after IEND', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG('i'), Buffer.from('x')])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after IEND/],
+    ['an icon whose image data is not zlib', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.from('not zlib at all'))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data is not valid zlib/],
+    ['an icon whose image data inflates to nothing', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.alloc(0)))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data does not fill its rows/],
+    ['an icon with more image data than its rows', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.alloc(10)))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data is not valid zlib, or too long/],
+    ['an icon with a row filter PNG lacks', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.from([5, 0, 0, 0, 0])))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: a row has a filter PNG does not define/],
+    ['an icon with bytes after its compressed data', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.concat([zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0])), Buffer.from('xx')]))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after the image data/],
+    ['an interlaced icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 1])),
+      pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: interlaced/],
+    ['a palette icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 3, 0, 0, 0])), pngChunk('PLTE', Buffer.from([0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0]))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: not an 8-bit RGB or RGBA image/],
+    ['a 16-bit icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 16, 6, 0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.alloc(9))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: not an 8-bit RGB or RGBA image/],
+    ['an RGBA icon with a PLTE chunk', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk('PLTE', Buffer.from([0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: a PLTE chunk, which the icon may not have/],
+    ['an icon whose IDAT chunks are split by another chunk', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0])).subarray(0, 4)), pngChunk('tEXt', Buffer.from('a\0b', 'latin1')), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0])).subarray(4)), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: its IDAT chunks are not consecutive/],
+  ];
+  for (const [what, entries, message] of cases) {
+    const tree = makeTree(entries);
+    assert.equal(git('cat-file', '-t', tree), 'tree', what);
+    refused(publishWithStubBuilder('v0.5', tree), message);
+    // The same check, alone, as the trial runs it.
+    const alone = script('--check-tree', tree);
+    assert.equal(alone.status, 1, what);
+    assert.match(alone.log, message, what);
+  }
+  assert.deepEqual(remote('ls-tree', '-r', '--name-only', held).split('\n'), DIRECTORY_FILES);
+
+  // A checker that prints nothing, or prints ok and then fails, is not a pass, even for good files.
+  for (const checker of ['', "console.log('ok'); process.exit(7);"]) {
+    refused(publishWithStubBuilder('v0.5', makeTree(five), checker), /::error::\S+ in the directory tree could not be checked: reading it or check_directory_files\.mjs failed, or printed nothing/);
+  }
+
+  // A tree of the five files, UTF-8 text with a tab and CRLF and a whole PNG, passes.
+  const good = script('--check-tree', makeTree(five));
+  assert.deepEqual([good.status, good.out.startsWith('ok:')], [0, true], good.log);
+  // A name that is no tree is refused, not passed.
+  assert.equal(script('--check-tree', 'no-such-thing').status, 1);
+});
+
+test('--compare tells a new version number from every other change of the five files', () => {
+  const { makeTree, script } = directoryRepo();
+  const manifest = (version, description = 'd') => `{\n  "name": "croftweaver",\n  "version": "${version}",\n  "description": "${description}"\n}\n`;
+  const tree = ({ version = '0.36.0', description, icon = PNG('icon'), license = 'MIT', readme = 'r', skill = 's' } = {}) => makeTree([
+    ['100644', '.claude-plugin/icon.png', icon], ['100644', '.claude-plugin/plugin.json', manifest(version, description)],
+    ['100644', 'LICENSE', license], ['100644', 'README.md', readme], ['100644', 'skills/get-croftweaver/SKILL.md', skill]]);
+  const base = tree();
+  const compare = (other) => { const r = script('--compare', base, other); assert.equal(r.status, 0, r.log); return r.out.split('\n'); };
+  assert.deepEqual(compare(tree()), ['same']);
+  assert.deepEqual(compare(tree({ version: '0.37.0' })), ['version only']);
+  // A new description is a change the trial must see, even beside a new number.
+  assert.deepEqual(compare(tree({ description: 'new words' })), ['.claude-plugin/plugin.json']);
+  assert.deepEqual(compare(tree({ version: '0.37.0', description: 'new words' })), ['.claude-plugin/plugin.json']);
+  assert.deepEqual(compare(tree({ icon: PNG('icon, new') })), ['.claude-plugin/icon.png']);
+  // A mode alone is a change the trial must see: no version exception for it.
+  const execManifest = makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100755', '.claude-plugin/plugin.json', manifest('0.36.0')],
+    ['100644', 'LICENSE', 'MIT'], ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']]);
+  assert.deepEqual(compare(execManifest), ['.claude-plugin/plugin.json']);
+  const execNewVersion = makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100755', '.claude-plugin/plugin.json', manifest('0.37.0')],
+    ['100644', 'LICENSE', 'MIT'], ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']]);
+  assert.deepEqual(compare(execNewVersion), ['.claude-plugin/plugin.json']);
+  assert.deepEqual(compare(tree({ license: 'MIT 2' })), ['LICENSE']);
+  assert.deepEqual(compare(tree({ readme: 'r2', skill: 's2' })), ['README.md', 'skills/get-croftweaver/SKILL.md']);
+  // A new number does not hide another change.
+  assert.deepEqual(compare(tree({ version: '0.37.0', license: 'MIT 2' })), ['.claude-plugin/plugin.json', 'LICENSE']);
+  // A file gone, a file added.
+  const without = makeTree([['100644', '.claude-plugin/plugin.json', manifest('0.36.0')], ['100644', 'LICENSE', 'MIT']]);
+  assert.ok(script('--compare', base, without).out.split('\n').includes('README.md'));
+  assert.notEqual(script('--compare', base, 'no-such-thing').status, 0);
+});
+
 test('directory refuses an older release, a tag not on main, and a last commit that names no source', () => {
   const { git, release, publish, directory } = directoryRepo();
-  release('v0.1', { '.claude-plugin/plugin.json': '{}', 'skills/a/SKILL.md': 'a' });
-  release('v0.2', { 'skills/a/SKILL.md': 'b' });
+  release('v0.1', pointerFiles());
+  release('v0.2', { 'pointer/get-croftweaver.md': 'b' });
   git('push', '-q', 'origin', 'main', '--tags');
   assert.equal(publish('v0.2').status, 0);
   const d2 = directory();
@@ -719,7 +903,7 @@ test('directory refuses an older release, a tag not on main, and a last commit t
   assert.equal(directory(), d2);
   // A tag cut from a side branch, on either kind of run.
   git('checkout', '-q', '-b', 'side');
-  release('v0.3', { 'skills/a/SKILL.md': 'side' });
+  release('v0.3', { 'pointer/get-croftweaver.md': 'side' });
   git('push', '-q', 'origin', 'v0.3');
   const side = publish('v0.3');
   assert.equal(side.status, 1);
@@ -729,7 +913,7 @@ test('directory refuses an older release, a tag not on main, and a last commit t
   git('checkout', '-q', 'main');
   const bare = git('commit-tree', `${d2}^{tree}`, '-p', d2, '-m', 'by hand');
   git('push', '-q', 'origin', `${bare}:refs/heads/directory`);
-  release('v0.4', { 'skills/a/SKILL.md': 'c' });
+  release('v0.4', { 'pointer/get-croftweaver.md': 'c' });
   git('push', '-q', 'origin', 'main', 'v0.4');
   const nosource = publish('v0.4');
   assert.equal(nosource.status, 1);

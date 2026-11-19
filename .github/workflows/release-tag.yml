@@ -14,7 +14,7 @@ name: release-tag
 # its number.
 #
 # Last, both runs publish the release to the branch `directory`, which Anthropic's plugin
-# directory follows: the plugin without the toolkit's own tests and review files
+# directory follows: the five-file pointer plugin of pointer/, which holds no code
 # (scripts/publish_directory.sh, which a person can also run by hand).
 on:
   push:

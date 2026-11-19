@@ -9,7 +9,7 @@
 # name reached main that way (2026-09-27). These cases pin that a worktree uses the main
 # checkout's list, that a copy with no git still skips (and says so, on its OK line too),
 # that CI's masked mode (CLEAN_MASK_NAMES=1) fails on a name without printing it,
-# that scripts/ is scanned for names without the list matching itself, that packages/ is
+# that scripts/ is scanned for names without the list matching itself, that packages/ and pointer/ are
 # scanned where there is one and not missed where there is none, and that this repo's
 # own short name in an issue or PR reference is not a leak, under the name it has now and
 # under the one it had before the rename, and that README.md may name the maintainer, as
@@ -109,6 +109,17 @@ printf 'MIT License\n' | tee "$R/LICENSE" >"$R/packages/create-croftweaver/LICEN
 printf 'ran zorblequux\n' >"$R/packages/create-croftweaver/LICENSE:12"
 expect "a listed name in a file named like that copy plus a colon: fails" 1 "create-croftweaver/LICENSE:12:1:" "$R"
 rm -r "$R/packages"; : >"$R/LICENSE"
+# pointer/ (the files the directory plugin publishes) is scanned the same way where it exists:
+# a name or an address in it would reach the directory. The OK line names it, so it fails if
+# pointer/ drops out of the scan.
+mkdir -p "$R/pointer"; printf 'plain notes\n' >"$R/pointer/README.md"
+expect "pointer/, clean: passes, and the OK line names it in both lists" 0 \
+  "docs scripts pointer; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE pointer" "$R"
+printf 'first tried on the zorblequux site\n' >"$R/pointer/README.md"
+expect "a listed name in pointer/README.md: fails" 1 "pointer/README.md" "$R"
+printf 'write to bob@realmail.de\n' >"$R/pointer/README.md"
+expect "an email in pointer/README.md: fails" 1 "✗ email address" "$R"
+rm -r "$R/pointer"
 # The starter's licence notice is the same kind of copy, for every new site: left out by exact
 # path while it equals LICENSE, and scanned like any other file once it has drifted.
 L="skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md"

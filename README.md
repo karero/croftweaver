@@ -23,11 +23,17 @@ or newer, and building a site needs a recent security release of Node, which the
 [setup guide](skills/new-website/templates/SETUP.md) names. One Node that meets the second
 covers both, and your assistant tells you if yours is too old.
 
+<!-- pointer/ repeats the lines of each pointer-commands block, and scripts/plugin.test.mjs fails until
+     they match. Only these marked blocks are checked, not the prose around them. -->
+<!-- pointer-commands npm -->
 ```bash
 npm create croftweaver
+npm create croftweaver -- --codex
+npm create croftweaver -- --antigravity
 ```
+<!-- /pointer-commands -->
 
-It tells you the next step. For Codex add `-- --codex`, for Antigravity `-- --antigravity`.
+Run one line: the first for Claude Code, the second for Codex, the third for Antigravity. It tells you the next step.
 Plugins and other routes: [Manual install](#manual-install--technical-reference).
 
 **Before you choose:** [How it compares](https://croftweaver.com/compare) ·
@@ -224,21 +230,27 @@ Console/API account).
 [setup guide](skills/new-website/templates/SETUP.md) names. The command runs in any
 terminal, on Windows too:
 
+<!-- pointer-commands npm -->
 ```bash
 npm create croftweaver
+npm create croftweaver -- --codex
+npm create croftweaver -- --antigravity
 ```
+<!-- /pointer-commands -->
 
-It copies the skills of the latest release into `~/.claude/skills/` and tells you the next
-step, which is step 3 below. To update, run it again. For Codex add `-- --codex`, for
-Antigravity `-- --antigravity`.
+Run one line: the first for Claude Code, the second for Codex, the third for Antigravity. It
+copies the skills of the latest release into the assistant's skills folder and tells you the
+next step, which is step 3 below. To update, run it again.
 
 **As a Claude Code plugin**, from release 0.32 on. Claude Code installs the suite itself:
 no Node, no script, no folder to keep.
 
+<!-- pointer-commands claude -->
 ```bash
 claude plugin marketplace add https://github.com/karero/croftweaver.git
 claude plugin install croftweaver@croftweaver
 ```
+<!-- /pointer-commands -->
 
 (The address is written out in full so that nothing needs a GitHub key.)
 
@@ -381,7 +393,13 @@ Versions step by **0.01** (0.1 → 0.11 → 0.12 → …). To cut one:
 ```bash
 # Before anything else, look at Node's security releases (the paragraph after this block).
 # First, in a pull request of its own: the release's number in .claude-plugin/plugin.json
-# ("version": "0.11.0"). A changed version is what tells Claude Code there is an update.
+# ("version": "0.11.0") and in pointer/plugin.json, the same number in both (make test-plugin
+# fails otherwise). A changed version is what tells Claude Code there is an update.
+# Before tagging, compare the tree the directory would get with the last one that passed the
+# directory's Validate on the scratch branch (its tree id is in the maintainer's notes):
+#   scripts/publish_directory.sh --compare <that tree> "$(scripts/build_directory_tree.sh HEAD)"
+# `same` or `version only`: tag. Anything else changed one of the five files: run the scratch
+# branch trial and Validate again first, and note the new passing tree.
 make smoke                        # clean-check + build + verify dist/croftweaver.zip,
                                   # then write its checksum to dist/SHA256SUMS
 # The tag takes its name from that number (0.11.0 gives v0.11), so the two cannot differ.
@@ -393,7 +411,8 @@ gh release create "$v" dist/croftweaver.zip dist/SHA256SUMS --title "${v#v}" --l
 # Both files go up in this one command: a release marked immutable takes no files later.
 # The plugin is installed from the branch `stable`. The release-tag workflow, started by
 # the tag, checks the number against it and moves `stable` to the release, then publishes the
-# release to the branch `directory`, which Anthropic's plugin directory follows. After a red
+# release to the branch `directory`, which Anthropic's plugin directory follows: the five-file
+# pointer plugin of pointer/, not the code. After a red
 # run, look first where both point:  git ls-remote origin stable directory
 # If the step that moves `stable` failed and `stable` is not on the release, move it yourself
 # (that push runs the workflow again, `directory` included):
@@ -595,6 +614,9 @@ docs/          (these ship in the zip, except the two marked repo only; docs/rev
 .agents/plugins/ (repo only) marketplace.json: the same plugin for Codex, from the same branch; Codex reads
                    its name and number from .claude-plugin/plugin.json (make test-plugin; with Codex installed,
                    make test-codex-plugin installs the released plugin from GitHub)
+pointer/         (repo only: the zip does not hold it) the files of the pointer plugin that the release
+                   workflow publishes to the branch `directory` (scripts/build_directory_tree.sh maps them);
+                   its install commands repeat the marked blocks of this README (make test-plugin)
 packages/      (repo only: the zip does not hold it)
   create-croftweaver   the `npm create croftweaver` installer: downloads the latest release and copies its skills
                    into the assistant's skills folder. The maintainer publishes it to npm (make test-create)
