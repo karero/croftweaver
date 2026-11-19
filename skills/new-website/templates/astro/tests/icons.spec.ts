@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
-import { COMPANY } from '../src/config';
 import { staleReasons } from '../scripts/make-icons.mjs';
+import { SITE } from '../src/config';
 
 // The seven icon files every site links, with the size each must have. Written out here, not read
 // from scripts/make-icons.mjs, so a change to the script cannot change what this test asks for.
@@ -14,7 +14,7 @@ const ICONS: Icon[] = [
   { path: '/icon-192.png', linkedBy: 'manifest', kind: 'png', size: 192 },
   { path: '/icon-512.png', linkedBy: 'manifest', kind: 'png', size: 512 },
   { path: '/icon-maskable-512.png', linkedBy: 'manifest', kind: 'png', size: 512 },
-  { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // COMPANY.logo, the Organization schema's logo
+  { path: '/images/logo.png', linkedBy: 'logo', kind: 'png', size: 512 },  // the logo the page's structured data names
 ];
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -31,28 +31,103 @@ const decodedSize = (page: Page, bytes: Buffer, type: string) =>
     }
   }, [bytes.toString('base64'), type]);
 
-const pathOf = (href: string, base: string) => new URL(href, base).pathname;
+// An SVG as an <img> shows it (createImageBitmap takes no SVG): its size once decoded, or null when
+// it does not decode, as with a cut-off file. One with no width or height still has a size (Chromium
+// gives a viewBox-only file 150 x 150, an empty <svg> 300 x 150): this checks the file, not the picture.
+const svgSize = (page: Page, bytes: Buffer) =>
+  page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/svg+xml;base64,${b64}`;
+    try {
+      await img.decode();
+      return [img.naturalWidth, img.naturalHeight];
+    } catch {
+      return null;
+    }
+  }, bytes.toString('base64'));
+
+// A link's address as this test compares it: its path when it is on this site, its whole address
+// when it is on another host, so it matches none of our files. `own` lists this site's addresses
+// (the server under test, SITE.url); `base` only resolves a relative link and never makes a host ours.
+const sitePath = (href: string, base: string, own: string[]) => {
+  const url = new URL(href, base);
+  return own.some((o) => new URL(o).origin === url.origin) ? url.pathname : url.href;
+};
+
+// Every logo the JSON-LD gives as a URL, at any depth and on a node of any type (Organization, a
+// subtype such as LocalBusiness, or an array of types): a URL string, or the string url of an object
+// such as an ImageObject. An empty one is skipped, and so is a logo given only as an @id.
+const logoUrls = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.flatMap(logoUrls);
+  if (typeof value === 'string') return value ? [value] : [];
+  const url = value && typeof value === 'object' ? (value as { url?: unknown }).url : undefined;
+  return typeof url === 'string' && url ? [url] : [];
+};
+const logosIn = (node: unknown): string[] => {
+  if (Array.isArray(node)) return node.flatMap(logosIn);
+  if (!node || typeof node !== 'object') return [];
+  return Object.entries(node).flatMap(([key, value]) => [...(key === 'logo' ? logoUrls(value) : []), ...logosIn(value)]);
+};
+
+test('icons — a link on another host is not one of this site\'s files', () => {
+  const [home, live] = ['http://localhost:4400/', 'https://example.com'];
+  const own = [home, live];
+  expect(sitePath('/favicon.svg', home, own), 'a path').toBe('/favicon.svg');
+  expect(sitePath('https://example.com/favicon.svg', home, own), 'the live address of this site').toBe('/favicon.svg');
+  expect(sitePath('http://localhost:4400/favicon.svg', home, own), 'the server under test').toBe('/favicon.svg');
+  expect(sitePath('https://cdn.example.net/favicon.svg', home, own), 'another host').toBe('https://cdn.example.net/favicon.svg');
+  expect(sitePath('//cdn.example.net/favicon.svg', home, own), 'another host, no scheme').toBe('http://cdn.example.net/favicon.svg');
+  // A manifest on another host does not make its icons ours, even when they are given as paths.
+  const cdnManifest = 'https://cdn.example.net/site.webmanifest';
+  expect(sitePath('/icon-192.png', cdnManifest, own), "a path in another host's manifest").toBe('https://cdn.example.net/icon-192.png');
+  expect(sitePath('icon-512.png', cdnManifest, own), "a relative file in another host's manifest").toBe('https://cdn.example.net/icon-512.png');
+  expect(sitePath('/icon-192.png', 'http://localhost:4400/site.webmanifest', own), "a path in this site's manifest").toBe('/icon-192.png');
+});
+
+test('icons — the logo reader finds every logo the structured data names, and only those', () => {
+  expect(logosIn({ '@type': 'Organization', logo: '/a.png' }), 'a URL').toEqual(['/a.png']);
+  expect(logosIn({ '@type': ['Organization', 'LocalBusiness'], logo: { '@type': 'ImageObject', url: '/a.png' } }), 'an ImageObject on a node of two types').toEqual(['/a.png']);
+  expect(logosIn({ '@graph': [{ '@type': 'WebSite', publisher: { '@type': 'Organization', logo: '/a.png' } }] }), 'a node nested in another').toEqual(['/a.png']);
+  expect(logosIn({ logo: { url: '/outer.png', creator: { logo: '/a.png' } } }), "a logo inside a logo's ImageObject").toEqual(['/outer.png', '/a.png']);
+  expect(logosIn({ logo: [['/a.png'], '/b.png'] }), 'arrays of URLs, at any depth').toEqual(['/a.png', '/b.png']);
+  expect(logosIn({ logo: '' }), 'an empty URL is no logo').toEqual([]);
+  expect(logosIn({ logo: { '@type': 'ImageObject' } }), 'nor an ImageObject with no url').toEqual([]);
+  expect(logosIn({ '@type': 'Organization', image: '/a.png', url: 'https://example.com' }), 'nor another property').toEqual([]);
+});
 
 for (const icon of ICONS) {
   test(`icons — ${icon.path} is linked and is ${icon.kind === 'png' ? `a ${icon.size} px PNG` : icon.kind === 'ico' ? 'an ICO with a 32 px frame' : 'an SVG'}`, async ({ page, request }) => {
     await page.goto('/');
     const home = page.url();
+    const live = SITE.url;
+    const own = [home, live];
     let linked: string[];
     if (icon.linkedBy === 'icon') {
-      linked = (await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => pathOf(h, home));
+      linked = (await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, own));
     } else if (icon.linkedBy === 'apple') {
-      linked = (await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => pathOf(h, home));
+      linked = (await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, own));
     } else if (icon.linkedBy === 'manifest') {
       const hrefs = await page.locator('link[rel="manifest"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
       expect(hrefs, 'the home page links one manifest').toHaveLength(1);
       const manifest = new URL(hrefs[0], home).href;
       const res = await request.get(manifest);
       expect(res.ok(), `${manifest} is served`).toBe(true);
-      linked = ((await res.json()).icons as { src: string }[]).map((i) => pathOf(i.src, manifest));
+      linked = ((await res.json()).icons as { src: string }[]).map((i) => sitePath(i.src, manifest, own));
     } else {
-      linked = [pathOf(COMPANY.logo, home)];
+      // The logo the page's structured data names. It must be on the site's own origin: a logo on
+      // another host is not this file, so it shows here as its whole address and fails.
+      const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
+      linked = blocks
+        .flatMap((text, i) => {
+          try {
+            return logosIn(JSON.parse(text));
+          } catch (err) {
+            throw new Error(`the home page's structured data block ${i + 1} is not valid JSON: ${(err as Error).message}`);
+          }
+        })
+        .map((logo) => sitePath(logo, live, [live]));
     }
-    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : 'COMPANY.logo'})`).toContain(icon.path);
+    expect(linked, `${icon.path} is linked (by ${icon.linkedBy === 'icon' ? '<link rel="icon">' : icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : icon.linkedBy === 'manifest' ? "the page's manifest" : "a logo in the page's structured data"})`).toContain(icon.path);
 
     const res = await request.get(icon.path);
     expect(res.ok(), `${icon.path} is served (status ${res.status()})`).toBe(true);
@@ -81,7 +156,8 @@ for (const icon of ICONS) {
       expect(await decodedSize(page, alone, 'image/x-icon'), `${icon.path}: its 32 pixel frame decodes to 32 x 32`).toEqual([icon.size, icon.size]);
     } else {
       expect(type, `${icon.path} content type`).toContain('image/svg+xml');
-      expect(body.toString('utf8'), `${icon.path} is an SVG`).toMatch(/<svg[\s>]/);
+      const size = await svgSize(page, body);
+      expect(size !== null && size[0] > 0 && size[1] > 0, `${icon.path} decodes as an SVG image (size ${JSON.stringify(size)})`).toBe(true);
     }
   });
 }
@@ -109,7 +185,7 @@ test('icons — the sizes declared for favicon.ico are the frames inside it', as
     frames.push(`${w}x${h}`);
   }
   const norm = (list: string[]) => [...new Set(list)].sort();
-  expect(norm(declared!.trim().split(/\s+/)), 'sizes in the tag, against the frames in the file').toEqual(norm(frames));
+  expect(norm(declared!.trim().split(/\s+/)), 'the sizes of the favicon.ico link in src/layouts/Base.astro must list every frame in public/favicon.ico (sizes in the tag, against the frames in the file)').toEqual(norm(frames));
 });
 
 // Warns, never fails: the starter's icons show the colour or letter the site had when they were

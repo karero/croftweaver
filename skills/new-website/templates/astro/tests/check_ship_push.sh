@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.31   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.34   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -1055,11 +1055,24 @@ NPM
 # with no body; SHIP_T_STALE: a 200 with another commit; SHIP_T_CURL_RC: curl itself fails with
 # that exit status, after printing code 000 as curl does when nothing answered, or SHIP_T_CODE
 # when an answer came and curl failed on it; SHIP_T_BODY (may be empty): a 200 with that body.
+# SHIP_T_STALE_AT=<commit>: the stale answer, for as long as origin's production is that commit.
+# SHIP_T_NEW_AT=<n>: the stale answer until the n-th probe (looks are counted in $SHIP_T_MARKS/looks;
+# a request without -w, the recheck after a yes, is one probe too).
 if [ -n "${SHIP_T_CURL_RC:-}" ]; then printf '\n%s' "${SHIP_T_CODE:-000}"; exit "$SHIP_T_CURL_RC"; fi
-case " $* " in *" -w "*) ;; *) echo "STUB: curl without -w: $*" >&2; exit 2 ;; esac
+case " $* " in *" -w "*) ;; *)
+  out="$("$0" -w '%{http_code}' "$@")" || exit $?
+  printf '%s\n' "$out" | sed '$d'; exit 0 ;;
+esac
+echo x >> "$SHIP_T_MARKS/looks"
+if [ -n "${SHIP_T_NEW_AT:-}" ] && [ "$(wc -l < "$SHIP_T_MARKS/looks")" -lt "$SHIP_T_NEW_AT" ]; then
+  printf '0000000000000000000000000000000000000000\n200'; exit 0
+fi
 if [ -n "${SHIP_T_NOSITE:-}" ]; then printf '<html>not found</html>\n404'; exit 0; fi
 if [ -n "${SHIP_T_CODE:-}" ]; then printf '\n%s' "$SHIP_T_CODE"; exit 0; fi
 if [ -n "${SHIP_T_STALE:-}" ]; then printf '0000000000000000000000000000000000000000\n200'; exit 0; fi
+if [ -n "${SHIP_T_STALE_AT:-}" ] && [ "$(git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production)" = "$SHIP_T_STALE_AT" ]; then
+  printf '0000000000000000000000000000000000000000\n200'; exit 0
+fi
 if [ -n "${SHIP_T_BODY+set}" ]; then printf '%s\n200' "$SHIP_T_BODY"; exit 0; fi
 printf '%s\n200' "$(git --git-dir="$SHIP_T_ORIGIN" rev-parse refs/heads/production)"
 CURL
@@ -1100,7 +1113,16 @@ case "\$last" in *"\${SHIP_T_MKTEMP_FAIL:-//none//}"*) echo "mktemp: stub: this 
 case "\$last" in *"\${SHIP_T_MKTEMP_DIR:-//none//}"*) "$(command -v mktemp)" -d "\$last"; exit \$? ;; esac
 "$(command -v mktemp)" "\$@"
 MKTEMP
-  chmod +x "$G/bin/npm" "$G/bin/curl" "$G/bin/sleep" "$G/mk/mktemp"
+  # SHIP_T_TERM_ON_DATE: send the run a terminate once, as ship_again asks for the time (its only use
+  # of date), so a stop lands between the yes and the retry's push.
+  cat > "$G/bin/date" <<'DATE'
+#!/bin/sh
+if [ -n "${SHIP_T_TERM_ON_DATE:-}" ] && [ ! -e "$SHIP_T_MARKS/term-date" ]; then
+  : > "$SHIP_T_MARKS/term-date"; kill -TERM "$(cat "$SHIP_T_PIDF")" 2>/dev/null
+fi
+exec /bin/date "$@"
+DATE
+  chmod +x "$G/bin/npm" "$G/bin/curl" "$G/bin/sleep" "$G/bin/date" "$G/mk/mktemp"
 
   # The tiny gate: the site's committed scripts/hooks/pre-push in these cases.
   cat > "$G/gate" <<'GATE'
@@ -1119,6 +1141,10 @@ if [ -n "${SHIP_T_HOLD:-}" ]; then
     "$SHIP_T_REAL_SLEEP" 0.1
   done
 fi
+if [ -n "${SHIP_T_TERM_2ND:-}" ]; then
+  n=$(( $(cat "$SHIP_T_MARKS/gates" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$SHIP_T_MARKS/gates"
+  [ "$n" != 2 ] || kill -TERM "$(cat "$SHIP_T_PIDF")"
+fi
 if [ -n "${SHIP_T_MOVE:-}" ]; then git -C "$SHIP_T_MOVE" push -q origin HEAD:refs/heads/production; fi
 if [ -e BROKEN ] || [ -e "$SHIP_T_MARKS/fail" ]; then echo "✘ tests: a page is broken"; exit 1; fi
 [ -n "${SHIP_T_SILENT:-}" ] || echo "✓ pre-push gate passed — pushing."
@@ -1130,6 +1156,9 @@ GATE
   # fixture <name>: origin with main and production at one commit, the seed, and the clone
   # with the setting on and its hooks setting as the template's install leaves it.
   fixture() {
+    # A case's setup runs before its run_ship, which is what names the case. Without this, a
+    # setup step that failed was reported under the case before it.
+    cname="$1 (setup)"
     D="$G/$1"; O="$D/origin.git"; C="$D/clone"; S="$D/seed"; M="$D/marks"
     mkdir -p "$D/tmp" "$M"
     # Branches named main without `git init -b` (git 2.28), so an older git still runs these.
@@ -1241,7 +1270,7 @@ GATE
   # The input of a fake terminal: once the question is in the log it writes the answer (or ends,
   # which is the end of input, or sends the run a terminate) and keeps the pipe open until the
   # run is over. Past the limit it stops waiting.
-  tty_feed() { # <what> <limit> <pid file> <done file> <log>
+  tty_feed() { # <what> <limit> <pid file> <done file> <log> [<answer to the "ship again" question>]
     set +e
     local i=0
     if [ "$1" != --none ]; then
@@ -1258,6 +1287,18 @@ GATE
           while kill -0 "$(cat "$3")" 2>/dev/null && [ ! -e "$4" ]; do "$REAL_SLEEP" 0.1; done ;;
         *) printf '%s\n' "$1" ;;
       esac
+      if [ -n "${6:-}" ]; then
+        i=0
+        until grep -qF "Type y and press Enter to ship again" "$5" 2>/dev/null; do
+          i=$((i + 1)); [ "$i" -gt $(($2 * 10)) ] && break
+          [ ! -e "$4" ] || break
+          kill -0 "$(cat "$3" 2>/dev/null)" 2>/dev/null || break
+          "$REAL_SLEEP" 0.1
+        done
+        "$REAL_SLEEP" 0.3
+        # No question came and the program has ended: nothing to answer (a write would hit a closed pipe).
+        if kill -0 "$(cat "$3" 2>/dev/null)" 2>/dev/null; then printf '%s\n' "$6"; fi
+      fi
     fi
     # Hold the input open while the program runs; BSD `script` ends only when its input does.
     i=0
@@ -1266,7 +1307,7 @@ GATE
       "$REAL_SLEEP" 0.1; i=$((i + 1))
     done
   }
-  # run_tty <case> <answer|--eof|--stop|--none> [--prog FILE] [--out FILE] [--stdin-null] [--limit S] [VAR=value…]
+  # run_tty <case> <answer|--eof|--stop|--none> [--then ANSWER] [--prog FILE] [--out FILE] [--stdin-null] [--limit S] [VAR=value…]
   # ship.sh on a fake terminal: BSD's `script -q /dev/null cmd`, or util-linux's `script -qec
   # 'exec cmd' /dev/null` (told apart by `script --version`). A feeder waits until the question is
   # in the log, writes the answer (or ends the input, or sends a terminate) and holds the input
@@ -1276,14 +1317,16 @@ GATE
   # hence the exec).
   run_tty() {
     cname="$1"; L="$G/$1.log"; logged=0
-    local what="$2" prog="scripts/ship.sh" out="" limit=60 name="$1" tty_rc=0 stdin_null=0
-    local pidf="$G/$1.pid" done_f="$G/$1.done" wrap util=0 sp dog oldpwd="$PWD"
+    local what="$2" prog="scripts/ship.sh" out="" limit=60 name="$1" tty_rc=0 stdin_null=0 then_ans=""
+    local pidf="$G/$1.pid" done_f="$G/$1.done" wrap util=0 sp dog oldpwd="$PWD" folder_moves=0
     shift 2
     while [ "$#" -gt 0 ]; do
       case "$1" in
+        --then) then_ans="$2"; shift 2 ;;
         --prog) prog="$2"; shift 2 ;;
         --out) out="$2"; shift 2 ;;
         --stdin-null) stdin_null=1; shift ;;
+        --folder-moves) folder_moves=1; shift ;;
         --limit) limit="$2"; shift 2 ;;
         *) break ;;
       esac
@@ -1299,10 +1342,10 @@ GATE
     # The feeder is the left side of the pipe into `script` (a fifo does not work: BSD script
     # refuses it).
     if [ "$util" = 1 ]; then
-      tty_feed "$what" "$limit" "$pidf" "$done_f" "$L" | env PATH="${EXTRA_PATH:+$EXTRA_PATH:}$G/bin:$PATH" "$@" \
+      tty_feed "$what" "$limit" "$pidf" "$done_f" "$L" "$then_ans" | env PATH="${EXTRA_PATH:+$EXTRA_PATH:}$G/bin:$PATH" "$@" \
         script -qec "exec $(printf '%q ' bash -c "$wrap" "$prog" "$pidf" ${out:+"$out"})" /dev/null > "$L" 2>&1 &
     else
-      tty_feed "$what" "$limit" "$pidf" "$done_f" "$L" | env PATH="${EXTRA_PATH:+$EXTRA_PATH:}$G/bin:$PATH" "$@" \
+      tty_feed "$what" "$limit" "$pidf" "$done_f" "$L" "$then_ans" | env PATH="${EXTRA_PATH:+$EXTRA_PATH:}$G/bin:$PATH" "$@" \
         script -q /dev/null bash -c "$wrap" "$prog" "$pidf" ${out:+"$out"} > "$L" 2>&1 &
     fi
     sp=$!; cd "$oldpwd"; groups="$groups $sp"
@@ -1330,7 +1373,9 @@ GATE
     wait "$dog" 2>/dev/null || true
     rc="$tty_rc"; if [ -e "$G/$name.timeout" ]; then rc=124; fi
     if [ -f "$L" ]; then tr -d '\r' < "$L" > "$L.nocr" && mv "$L.nocr" "$L"; fi
-    want "this folder's branch, status and index are unchanged" eq "$before" "$(snap)"
+    # --folder-moves: a folder-mode "ship again" commits on this folder's main (or takes it back
+    # with a rewritten index); the case itself then checks the branch, the commit and the status.
+    [ "$folder_moves" = 1 ] || want "this folder's branch, status and index are unchanged" eq "$before" "$(snap)"
     want "no lock, worktree or line of its own left behind" leaves_nothing
   }
   gone_soon() { # <pid>: not running within two seconds; an empty pid fails
@@ -1339,9 +1384,24 @@ GATE
     while kill -0 "$1" 2>/dev/null; do i=$((i + 1)); [ "$i" -gt 20 ] && return 1; "$REAL_SLEEP" 0.1; done
   }
   # On this file's way out, every group it started goes too. A setup step that fails stops the
-  # file (set -e) with no word of its own, so say which case it was in.
+  # file (set -e) with no word of its own, so say which case it was in, and where: the ERR trap
+  # keeps the last statement set -e acted on (errtrace carries it into fixture, advance and the
+  # other helpers). It names that statement's last command: a pipeline's tail, not necessarily
+  # the stage that failed; a $(…) that ends nonzero, through the assignment that holds it. A
+  # failure before && in a list does not stop the run and is not named, and one inside a ( … )
+  # subshell is named only as that statement on newer bash, not at all on 3.2. Bash 3.2 (macOS) gives
+  # the wrong line number inside a function.
+  rg_err=""
+  set -E
+  trap 'rg_err="line $LINENO: $BASH_COMMAND"' ERR
   trap 'for g in $groups; do kill -KILL -- "-$g" 2>/dev/null || true; done
-    if [ "$rg_done" != 1 ]; then echo "✗ ship push gate, real git: stopped part-way, in or after case [$cname]; the cases after it did not run."; fi
+    if [ "$rg_done" != 1 ]; then
+      echo "✗ ship push gate, real git: stopped part-way, in or after case [$cname]; the cases after it did not run."
+      if [ -n "$rg_err" ]; then
+        echo "  Stopped at $rg_err"
+        if [ "${BASH_VERSINFO[0]}" -lt 4 ]; then echo "  (bash 3.2 gives the wrong line number here; go by the command.)"; fi
+      fi
+    fi
     rm -rf "$work"' EXIT
 
   # --- S2: a feature branch, an edit and an untracked folder; GitHub's main two ahead -------
@@ -1809,6 +1869,7 @@ GATE
   want "lists no commit" eq "$(listed_count)" 0
   want "the gate still runs" has "▶ pre-push gate"
   want "the push is not announced as one" has "✓ Nothing to push: 'production' already has this commit."
+  want "nothing is said about Cloudflare's builds before the question" lacks "already built it as the preview of main"
   want "... nor a build started" lacks "Cloudflare is building"
   want "the live check passes" last_has "✓ LIVE"
   want "production is unchanged" eq "$(gh production)" "$p0"
@@ -1827,8 +1888,13 @@ GATE
   verdict_lacks() { ! grep -qF -- "$1" <<<"$(after_verify)"; }
   fixture l3c; advance 1; m="$(gh main)"
   run_ship l3c SHIP_T_STALE=1; exits 1
+  want "no terminal: it never asks to ship again" lacks "Ship again?"
   want "a 200 with another commit is another build, named by its id" has "⚠ Pushed OK, but after 6 minutes the live site still serves another build (000000000000), most likely the OLD build."
   want "... and the Cloudflare steps follow" has "Cloudflare dashboard → Workers & Pages"
+  want "... 'Retry build' is for the row of the branch production" has "'production' → 'Retry build' on that row, never on a row for 'main': a build of 'main'"
+  want "... the preview row is named as built without analytics" has "is the preview, built without analytics."
+  want "... may have started no production build for a commit it built as the preview of main" has "Cloudflare may not have started a production build for this commit because it already built"
+  want "... the way out is a small new commit on main, then ship again" has "small new commit on main (a blank line in README.md will do), then run npm run ship again."
   fixture l3d; advance 1; m="$(gh main)"
   run_ship l3d SHIP_T_CURL_RC=6; exits 1
   want "production is GitHub's main: the push landed" eq "$(gh production)" "$m"
@@ -2051,8 +2117,12 @@ export default {};"
   want "production is GitHub's main: the publish went out" eq "$(gh production)" "$m"
   want "a Wrangler file that does not parse is named, and the live check is not made" has "$bad_cfg ${m:0:12}), but wrangler.jsonc: not JSON with comments"
   want "... and the run says what it could not tell" has "cannot tell whether the site has its domain yet"
-  workers_case w5 github '{ "name": "w", "assets": { "directory": "./dist" }, }' SHIP_T_NOSITE=1; exits 1
-  want "a trailing comma ends the check with its own message" has "wrangler.jsonc: not JSON with comments (a trailing comma is not allowed)"
+  # Wrangler reads a comma before a closing } or ] (checked on 4.162.0), so ship reads it too; a
+  # comma and a } inside a string stay text.
+  workers_case w5 github '{ "name": "w,}", "assets": { "directory": "./dist", }, }' SHIP_T_NOSITE=1; exits 0
+  want "a trailing comma is read like Wrangler reads it" last_starts "$sent"
+  workers_case w5b github '{ "name": "w", "assets": { "directory": "./dist", } "x": 1 }' SHIP_T_NOSITE=1; exits 1
+  want "a missing comma is still not JSON" has "wrangler.jsonc: not JSON with comments"
   live="✓ LIVE — verified: https://ship-test.example.invalid is serving GitHub's main as of the fetch (${m:0:12})"
   workers_case w6 github '{ "name": "w", "assets": { "directory": "./dist" },
   "routes": [{ "pattern": "ship-test.example.invalid", "custom_domain": true }] }'; exits 0
@@ -2114,13 +2184,13 @@ export default {};"
   # SHIP_TEST_TTY is not set, never depends on it. The cases find the question by its text.
   case "${SHIP_GATE_SKIP_WORDING:-}" in ''|0|false|no) t_wording=1 ;; *) t_wording=0 ;; esac
   if [ -z "${SHIP_TEST_TTY:-}" ]; then
-    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T8 skipped: SHIP_TEST_TTY is not set"
-    echo "  note: T1 to T8 (the question, on a fake terminal) are skipped: SHIP_TEST_TTY is not set."
+    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T20 skipped: SHIP_TEST_TTY is not set"
+    echo "  note: T1 to T20 (the question, on a fake terminal) are skipped: SHIP_TEST_TTY is not set."
   elif ! command -v script >/dev/null 2>&1; then
-    echo "✗ ship push gate, real git: T1 to T8 did not run: SHIP_TEST_TTY is set but 'script' is not here."; fail=1
+    echo "✗ ship push gate, real git: T1 to T20 did not run: SHIP_TEST_TTY is set but 'script' is not here."; fail=1
   elif [ "$t_wording" = 0 ]; then
-    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T8 skipped: SHIP_GATE_SKIP_WORDING is set"
-    echo "  note: T1 to T8 are skipped: they find the question by its text, and SHIP_GATE_SKIP_WORDING is set."
+    rg_skipped="${rg_skipped:+$rg_skipped; }T1 to T20 skipped: SHIP_GATE_SKIP_WORDING is set"
+    echo "  note: T1 to T20 are skipped: they find the question by its text, and SHIP_GATE_SKIP_WORDING is set."
   else
     t_ran=1
     # The refusals: T2, T3 and T4 differ only in how the answer is not a yes.
@@ -2188,6 +2258,223 @@ export default {};"
     want "production is GitHub's main" eq "$(gh production)" "$m"
     want "no question" lacks "Publish to "
     want "the no-terminal line is printed" has "No terminal to answer a question here"
+    # T10–T20: "ship again". About 3 minutes after the push the live site still serves the old
+    # build (SHIP_T_STALE_AT: stale while production sits on the commit ship pushed), and ship
+    # asks once; the sleep stub makes the minutes instant. All of them answer the first question
+    # y and the second as named.
+    again_count() { grep -cF -- "Ship again? Type y and press Enter to ship again" "$L" || true; }
+    gate_runs() { grep -cF -- "▶ pre-push gate" "$L" || true; }
+    one_ahead() { [ "$(git --git-dir="$O" rev-list --count "$1..refs/heads/production")" = 1 ]; }
+    again_commit() { # the commit production holds changes SHIP-AGAIN.txt past <commit> and nothing else, with a time in it, and says "ship again"
+      [ "$(git --git-dir="$O" diff --name-only "$1" refs/heads/production)" = "SHIP-AGAIN.txt" ] || return 1
+      case "$(git --git-dir="$O" log -1 --format=%s refs/heads/production)" in "ship again"*) ;; *) return 1 ;; esac
+      local line; line="$(git --git-dir="$O" show refs/heads/production:SHIP-AGAIN.txt)"
+      grep -qE "^Last 'ship again': 20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-6][0-9]Z " <<<"$line"
+    }
+    live_line() { case "$(last_line)" in "✓ LIVE"*) true ;; *) false ;; esac; }
+    looks_n() { wc -l < "$M/looks" | tr -d ' '; }
+    # T10: worktree mode, answer y twice; the build arrives for the new commit.
+    fixture t10; advance 1; m="$(gh main)"
+    run_tty t10 y --then y SHIP_T_STALE_AT="$m"
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "production is one 'ship again' commit past GitHub's main" one_ahead "$m"
+    want "... and the commit changes SHIP-AGAIN.txt only, with the time in it" again_commit "$m"
+    want "main on GitHub is that same commit" eq "$(gh main)" "$(gh production)"
+    want "the question is asked once" eq "$(again_count)" 1
+    want "it says it ships again" has "→ Shipping again: 'main' and 'production' get the commit"
+    want "the gate ran for both pushes" eq "$(gate_runs)" 2
+    want "the run ends on the LIVE line" live_line
+    # T11: worktree mode, answer y, then n: it waits on and ends with the warning.
+    fixture t11; advance 1; m="$(gh main)"
+    run_tty t11 y --then n SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "production is GitHub's main, with no new commit" eq "$(gh production)" "$m"
+    want "main is unchanged" eq "$(gh main)" "$m"
+    want "it says it is not shipping again" has "→ Not shipping again: waiting on."
+    want "... and does not" lacks "→ Shipping again"
+    want "the gate ran once" eq "$(gate_runs)" 1
+    want "the warning names the production row, never main" has "'Retry build' on that row, never on a row for 'main'"
+    want "... and says the cause is not known" has "(seen once, 2026-11-17; the cause is not known)"
+    # T12: worktree mode, answer y twice, and the build still does not come: two misses.
+    fixture t12; advance 1; m="$(gh main)"
+    run_tty t12 y --then y SHIP_T_STALE=1
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "one 'ship again' commit went out" one_ahead "$m"
+    want "the question is asked once, never twice" eq "$(again_count)" 1
+    want "the warning says ship again was done once" has "'ship again' was done once already (the commit"
+    want "... names the production row" has "'Retry build' on that row, never on a row for 'main'"
+    want "... and no longer advises a new commit as the way out" lacks "The way out: make a"
+    want "the first wait is 18 looks before the question, the second a full 36, and the recheck one (probes: $(looks_n))" eq "$(looks_n)" 55
+    # T13: folder mode, answer y twice; the commit is made on the folder's main, which ends level with GitHub's.
+    fixture t13; advance 1
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    # A prepare-commit-msg hook that fails must not stop the retry's commit: no hook runs for it.
+    # It sits where this clone's core.hooksPath points, kept out of "unsaved files" by an exclude.
+    hook_f="$C/scripts/hooks/prepare-commit-msg"
+    printf '#!/bin/sh\ntouch "%s"\nexit 1\n' "$G/t13-hook-ran" > "$hook_f"; chmod +x "$hook_f"
+    printf 'scripts/hooks/prepare-commit-msg\n' >> "$C/.git/info/exclude"
+    probe_rc=0; git -C "$C" -c user.name=t -c user.email=t@t commit -q --allow-empty -m probe >/dev/null 2>&1 || probe_rc=$?
+    want "git runs that hook in this clone: an ordinary commit is refused, and it was that hook (exit $probe_rc)" test "$probe_rc" -ne 0 -a -e "$G/t13-hook-ran"
+    run_tty t13 y --then y --folder-moves SHIP_T_STALE_AT="$m"
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "production is one 'ship again' commit past the old main" one_ahead "$m"
+    want "... and the commit changes SHIP-AGAIN.txt only, with the time in it" again_commit "$m"
+    want "main on GitHub is that commit" eq "$(gh main)" "$(gh production)"
+    want "this folder's main is that commit too" eq "$(git -C "$C" rev-parse main)" "$(gh production)"
+    want "SHIP-AGAIN.txt is in this folder's commit" test -n "$(git -C "$C" show main:SHIP-AGAIN.txt)"
+    want "this folder has nothing unsaved" eq "$(git -C "$C" status --porcelain)" ""
+    want "the run ends on the LIVE line" live_line
+    # T14: folder mode, GitHub's main refuses direct pushes (an update hook on the bare repo).
+    fixture t14
+    printf 'old\n' > "$S/SHIP-AGAIN.txt"; git -C "$S" add SHIP-AGAIN.txt; git -C "$S" commit -qm "an earlier ship again"
+    advance 1
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    printf '#!/bin/sh\n[ "$1" = refs/heads/main ] && { echo "protected branch: direct pushes to main are refused" >&2; exit 1; }\nexit 0\n' > "$O/hooks/update"
+    chmod +x "$O/hooks/update"
+    m="$(gh main)"
+    run_tty t14 y --then y --folder-moves SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says the push did not go out" has "✗ The 'ship again' push did not go out"
+    want "production still holds the first publish" eq "$(gh production)" "$m"
+    want "GitHub's main is unchanged" eq "$(gh main)" "$m"
+    want "this folder is still on 'main'" eq "$(git -C "$C" rev-parse --abbrev-ref HEAD)" "main"
+    want "this folder's main is level with GitHub's again" eq "$(git -C "$C" rev-parse main)" "$m"
+    want "SHIP-AGAIN.txt is back as an earlier retry left it" eq "$(cat "$C/SHIP-AGAIN.txt")" "old"
+    want "this folder has nothing unsaved" eq "$(git -C "$C" status --porcelain)" ""
+    want "it does not claim nothing was published" lacks "Nothing was published"
+    want "it names the production row" has "'Retry build' on the row for the branch 'production'"
+    # T14w: the same refusal in worktree mode. The commit lived in the temporary copy only, so the
+    # last line must not say GitHub's main holds it.
+    fixture t14w; advance 1; m="$(gh main)"
+    printf '#!/bin/sh\n[ "$1" = refs/heads/main ] && { echo "protected branch: direct pushes to main are refused" >&2; exit 1; }\nexit 0\n' > "$O/hooks/update"
+    chmod +x "$O/hooks/update"
+    run_tty t14w y --then y SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says the push did not go out" has "✗ The 'ship again' push did not go out"
+    want "production still holds the first publish" eq "$(gh production)" "$m"
+    want "GitHub's main is unchanged" eq "$(gh main)" "$m"
+    want "it does not say GitHub's main holds the 'ship again' commit" lacks "GitHub's main with the 'ship again' commit"
+    want "the last line names GitHub's main as fetched, not the retry commit" eq "$(last_line)" "  (GitHub's main as of the fetch: ${m:0:12}.)"
+    # T15: the build arrives while the question is open: a yes ships nothing (the recheck is a
+    # probe without -w). The 19th probe is the first to serve the real build.
+    fixture t15; advance 1; m="$(gh main)"
+    run_tty t15 y --then y SHIP_T_NEW_AT=19
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "it says the build arrived while the question was open" has "→ The build arrived while you answered: no need to ship again."
+    want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
+    want "the run ends on the LIVE line" live_line
+    # T16: the question comes at the 18th look and not before: a build that arrives at the 18th look
+    # is never asked about, and one that arrives at the 19th is (T15).
+    fixture t16; advance 1; m="$(gh main)"
+    run_tty t16 y --then y SHIP_T_NEW_AT=18
+    want "exits 0 (got $rc)" eq "$rc" 0
+    want "no question was asked" eq "$(again_count)" 0
+    want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
+    want "the run ends on the LIVE line" live_line
+    # T14b: folder mode, the same refusal, and SHIP-AGAIN.txt never existed: the retry's file goes away again.
+    fixture t14b; advance 1
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    printf '#!/bin/sh\n[ "$1" = refs/heads/main ] && { echo "protected branch: direct pushes to main are refused" >&2; exit 1; }\nexit 0\n' > "$O/hooks/update"
+    chmod +x "$O/hooks/update"
+    m="$(gh main)"
+    run_tty t14b y --then y --folder-moves SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says the push did not go out" has "✗ The 'ship again' push did not go out"
+    want "this folder is still on 'main'" eq "$(git -C "$C" rev-parse --abbrev-ref HEAD)" "main"
+    want "this folder's main is level with GitHub's again" eq "$(git -C "$C" rev-parse main)" "$m"
+    want "SHIP-AGAIN.txt is gone again" test ! -e "$C/SHIP-AGAIN.txt"
+    want "this folder has nothing unsaved" eq "$(git -C "$C" status --porcelain)" ""
+    # T14c: folder mode, a SHIP-AGAIN.txt that git ignores (the owner's own file): ship will not write it.
+    fixture t14c; advance 1
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    printf 'SHIP-AGAIN.txt\n' >> "$C/.git/info/exclude"; printf 'mine\n' > "$C/SHIP-AGAIN.txt"
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    run_tty t14c y --then y --folder-moves SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says it did not write the file" has "✗ Not shipping again: SHIP-AGAIN.txt is a link, or this site's git ignores it"
+    want "the owner's file is untouched" eq "$(cat "$C/SHIP-AGAIN.txt")" "mine"
+    want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
+    want "this folder's main is level with GitHub's" eq "$(git -C "$C" rev-parse main)" "$m"
+    # T14d: folder mode, SHIP-AGAIN.txt is a tracked link to a file outside the site: ship will not write through it.
+    fixture t14d
+    printf 'outside\n' > "$D/outside.txt"; ln -s "$D/outside.txt" "$S/SHIP-AGAIN.txt"
+    git -C "$S" add SHIP-AGAIN.txt && git -C "$S" commit -qm "link" && git -C "$S" push -q origin main main:production
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    run_tty t14d y --then y --folder-moves SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says it did not write the file" has "✗ Not shipping again: SHIP-AGAIN.txt is a link, or this site's git ignores it"
+    want "the file the link points at is untouched" eq "$(cat "$D/outside.txt")" "outside"
+    want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
+    want "this folder's main is level with GitHub's" eq "$(git -C "$C" rev-parse main)" "$m"
+    # T14e: worktree mode, the site's own .gitignore lists SHIP-AGAIN.txt: the retry is refused there too.
+    fixture t14e
+    printf 'SHIP-AGAIN.txt\n' > "$S/.gitignore"
+    git -C "$S" add .gitignore && git -C "$S" commit -qm "ignore" && git -C "$S" push -q origin main main:production
+    m="$(gh main)"
+    run_tty t14e y --then y SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says it did not write the file" has "✗ Not shipping again: SHIP-AGAIN.txt is a link, or this site's git ignores it"
+    want "production is GitHub's main: no 'ship again' commit" eq "$(gh production)" "$m"
+    # T20: folder mode, the first run pushed nothing ('production' already had the commit), and a stop
+    # arrives after the yes: the retry is not made, and the text says the first run pushed nothing.
+    fixture t20
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    run_tty t20 y --then y --folder-moves SHIP_T_STALE_AT="$m" SHIP_T_TERM_ON_DATE=1 SHIP_T_PIDF="$G/t20.pid"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says the first run pushed nothing and the retry was not made" has "The first run pushed nothing ('production' already had ${m:0:12}); the 'ship again' push was not made. The 'ship again' commit is taken off 'main' again."
+    want "... and not that a first publish went out" lacks "The first publish went out"
+    want "production and main are unchanged" eq "$(gh production)$(gh main)" "$m$m"
+    want "this folder's main is level with GitHub's" eq "$(git -C "$C" rev-parse main)" "$m"
+    want "SHIP-AGAIN.txt is gone again" test ! -e "$C/SHIP-AGAIN.txt"
+    # T17: worktree mode, a stop (terminate) arrives while the retry's push runs, and the push still lands.
+    # The last line must say GitHub's main holds the retry commit, not "as of the fetch".
+    fixture t17; advance 1; m="$(gh main)"
+    run_tty t17 y --then y SHIP_T_STALE_AT="$m" SHIP_T_TERM_2ND=1 SHIP_T_PIDF="$G/t17.pid"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "production is one 'ship again' commit past GitHub's main" one_ahead "$m"
+    want "main on GitHub is that same commit" eq "$(gh main)" "$(gh production)"
+    want "it says the publish went out" has "The publish went out: GitHub's production is now $(gh production | cut -c1-12)"
+    want "the last line names the retry commit as GitHub's main" eq "$(last_line)" "  (GitHub's main with the 'ship again' commit: $(gh production | cut -c1-12).)"
+    # T18: folder mode, a stop arrives after the yes and before the retry's push: nothing more goes out,
+    # the retry's commit comes off 'main' again, and the message says the first publish went out.
+    fixture t18; advance 1
+    git -C "$C" pull -q --ff-only; git -C "$C" config --unset ship.fromGitHub
+    find "$C" -path "$C/.git" -prune -o -type f -exec touch -t 202001010000 {} +
+    git -C "$C" update-index -q --refresh
+    m="$(gh main)"
+    run_tty t18 y --then y --folder-moves SHIP_T_STALE_AT="$m" SHIP_T_TERM_ON_DATE=1 SHIP_T_PIDF="$G/t18.pid"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says the 'ship again' push was not made" has "the 'ship again' push was not made. The 'ship again' commit is taken off 'main' again."
+    want "production still holds the first publish" eq "$(gh production)" "$m"
+    want "GitHub's main is unchanged" eq "$(gh main)" "$m"
+    want "this folder's main is level with GitHub's again" eq "$(git -C "$C" rev-parse main)" "$m"
+    want "SHIP-AGAIN.txt is gone again" test ! -e "$C/SHIP-AGAIN.txt"
+    want "this folder has nothing unsaved" eq "$(git -C "$C" status --porcelain)" ""
+    # T19: worktree mode, the first run pushed nothing ('production' already had the commit) and the site
+    # serves another build; the retry is refused. The text must not say a publish went out.
+    fixture t19; m="$(gh main)"
+    printf '#!/bin/sh\n[ "$1" = refs/heads/main ] && { echo "protected branch: direct pushes to main are refused" >&2; exit 1; }\nexit 0\n' > "$O/hooks/update"
+    chmod +x "$O/hooks/update"
+    run_tty t19 y --then y SHIP_T_STALE_AT="$m"
+    want "exits 1 (got $rc)" eq "$rc" 1
+    want "it says the first run pushed nothing" has "The first run pushed nothing ('production' already had ${m:0:12})"
+    want "... and not that a first publish went out" lacks "The first publish did go out"
+    want "production is unchanged" eq "$(gh production)" "$m"
     # T8: the watchdog itself, with a stand-in that ignores terminate and hang-up and starts a child.
     fixture t8
     cat > "$G/t8-stand.sh" <<STAND
@@ -2206,6 +2493,7 @@ STAND
     want "... and so is its child" gone_soon "$(cat "$G/t8-child.pid")"
   fi
   rg_done=1
+  trap - ERR; set +E
 }
 
 real_git_cases

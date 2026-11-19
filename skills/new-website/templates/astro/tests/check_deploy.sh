@@ -13,8 +13,12 @@
 #     still runs on PROD_BRANCH when a tag has its name), the
 #     placeholder Worker name (both), a wrangler.toml beside wrangler.jsonc.
 #   - the build's environment (a build step that prints it): no CF_* or CLOUDFLARE_* variable,
-#     WORKERS_CI=1, WORKERS_CI_BRANCH only for live; a CF_PAGES_COMMIT_SHA from the caller does
-#     not replace HEAD in build.txt.
+#     WORKERS_CI=1, WORKERS_CI_BRANCH only for live; a CF_PAGES_COMMIT_SHA or
+#     WORKERS_CI_COMMIT_SHA from the caller does not replace HEAD in build.txt.
+#   - a comma before a closing } or ] in wrangler.jsonc is read (Wrangler accepts it), and the live
+#     check, run against a stand-in wrangler, curl and sleep, asks for the address of the one
+#     site: line in code, and for none when two lines or only a comment hold one; deploy.sh's
+#     readers for that line are ship.sh's, word for word.
 # What it does not check: Wrangler, Cloudflare, or that the build works through the link to this
 # folder's node_modules (it is used as it is). A site with no Workers config (a .json or .jsonc
 # holding "assets" and no "pages_build_output_dir") is on Pages, so it skips and says so.
@@ -40,7 +44,14 @@ has_workers_config="$(node -e '
       else if (t[i] === "/" && t[i + 1] === "*") { const j = t.indexOf("*/", i + 2); i = j < 0 ? t.length : j + 2; }
       else { s += t[i]; i++; }
     }
-    try { const c = JSON.parse(s); if (c && typeof c === "object" && "assets" in c && !("pages_build_output_dir" in c)) { console.log(f); break; } } catch { /* not ours */ }
+    let u = "", k = 0;
+    while (k < s.length) {
+      const c = s[k];
+      if (c === "\"") { let m = k + 1; while (m < s.length && s[m] !== "\"") m += s[m] === "\\" ? 2 : 1; u += s.slice(k, m + 1); k = m + 1; }
+      else if (c === "," && /^\s*[}\]]/.test(s.slice(k + 1))) { k++; }
+      else { u += c; k++; }
+    }
+    try { const c = JSON.parse(u); if (c && typeof c === "object" && "assets" in c && !("pages_build_output_dir" in c)) { console.log(f); break; } } catch { /* not ours */ }
   }
 ')"
 if [ -z "$has_workers_config" ]; then
@@ -60,8 +71,18 @@ prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src
 use="$(sed -nE "s/^export const USE_ANALYTICS = (true|false);?[[:space:]]*(\/\/.*)?$/\1/p" src/config.ts)"
 host="$(sed -nE "s/^[[:space:]]*scriptHost:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" src/config.ts)"
 id="$(sed -nE "s/^[[:space:]]*scriptId:[[:space:]]*['\"]([^'\"]*)['\"].*/\1/p" src/config.ts)"
-if [ -z "$prod" ] || [ -z "$use" ] || [ -z "$host" ] || [ -z "$id" ]; then
-  echo "✗ check_deploy: src/config.ts must have the PROD_BRANCH, USE_ANALYTICS, scriptHost and scriptId lines the analytics gate reads."
+# src/config.ts is the site's own file, so whats-new never lists a line it lacks: name each one.
+missing=""
+[ -n "$prod" ] || missing="$missing
+  export const PROD_BRANCH = 'production';   (the branch Cloudflare builds as Production)"
+[ -n "$use" ] || missing="$missing
+  export const USE_ANALYTICS = true;   (or false; one line, a // comment after it is fine)"
+[ -n "$host" ] || missing="$missing
+  scriptHost: '…',   (inside the ANALYTICS object)"
+[ -n "$id" ] || missing="$missing
+  scriptId: '…',   (inside the ANALYTICS object)"
+if [ -n "$missing" ]; then
+  echo "✗ check_deploy: src/config.ts lacks lines this check and the analytics gate read. Add them as the starter's src/config.ts has them:$missing"
   exit 1
 fi
 script_path="/js/${id}.js"
@@ -116,7 +137,7 @@ run() {
   rc=0
   rm -rf "$copy/dist" "$envlog"
   # The caller's own Workers/Pages variables never leak into a case that does not set them.
-  (cd "$copy" && env -u CF_PAGES_BRANCH -u CF_PAGES_COMMIT_SHA -u WORKERS_CI -u WORKERS_CI_BRANCH -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN \
+  (cd "$copy" && env -u CF_PAGES_BRANCH -u CF_PAGES_COMMIT_SHA -u WORKERS_CI -u WORKERS_CI_BRANCH -u WORKERS_CI_COMMIT_SHA -u CF_API_TOKEN -u CLOUDFLARE_API_TOKEN \
      ${envs[@]+"${envs[@]}"} npm run "$@" >"$work/$log.log" 2>&1) || rc=$?
 }
 
@@ -156,7 +177,7 @@ tagged no "deploy:preview (caller's shell has WORKERS_CI_BRANCH and CF_PAGES_BRA
 if grep -q 'wrangler preview' "$work/preview-dry.log" && ! grep -qE 'wrangler deploy' "$work/preview-dry.log"; then ok "the command printed is wrangler preview"; else bad "deploy:preview --dry-run did not print wrangler preview."; fi
 
 # 3. the build's environment
-run env-live CLOUDFLARE_API_TOKEN=dummy CF_API_TOKEN=dummy CF_ACCOUNT_ID=dummy "CF_PAGES_COMMIT_SHA=0000000000000000000000000000000000000000" -- deploy:live -- --dry-run
+run env-live CLOUDFLARE_API_TOKEN=dummy CF_API_TOKEN=dummy CF_ACCOUNT_ID=dummy "CF_PAGES_COMMIT_SHA=0000000000000000000000000000000000000000" "WORKERS_CI_COMMIT_SHA=1111111111111111111111111111111111111111" -- deploy:live -- --dry-run
 if [ "$rc" != 0 ]; then
   bad "deploy:live --dry-run with dummy tokens exited $rc:"; sed 's/^/  | /' "$work/env-live.log"
 elif [ ! -s "$envlog" ]; then
@@ -164,12 +185,35 @@ elif [ ! -s "$envlog" ]; then
 else
   if grep -qE '^(CF_|CLOUDFLARE_)' "$envlog"; then bad "the live build still sees: $(grep -oE '^(CF_|CLOUDFLARE_)[A-Za-z0-9_]*' "$envlog" | tr '\n' ' ')"; else ok "the live build sees no CF_* or CLOUDFLARE_* variable"; fi
   if grep -qx 'WORKERS_CI=1' "$envlog" && grep -qx "WORKERS_CI_BRANCH=$prod" "$envlog"; then ok "the live build has WORKERS_CI=1 and WORKERS_CI_BRANCH=$prod"; else bad "the live build lacks WORKERS_CI=1 or WORKERS_CI_BRANCH=$prod."; fi
-  if [ "$(tr -d '[:space:]' < "$copy/dist/build.txt")" = "$head_sha" ]; then ok "a caller's CF_PAGES_COMMIT_SHA does not replace HEAD in build.txt"; else bad "build.txt did not name HEAD with CF_PAGES_COMMIT_SHA set by the caller."; fi
+  if [ "$(tr -d '[:space:]' < "$copy/dist/build.txt")" = "$head_sha" ]; then ok "a caller's CF_PAGES_COMMIT_SHA and WORKERS_CI_COMMIT_SHA do not replace HEAD in build.txt"; else bad "build.txt did not name HEAD with CF_PAGES_COMMIT_SHA and WORKERS_CI_COMMIT_SHA set by the caller."; fi
 fi
 run env-preview "WORKERS_CI_BRANCH=$prod" -- deploy:preview -- --dry-run
 if [ "$rc" != 0 ]; then
   bad "deploy:preview --dry-run exited $rc (environment case):"; sed 's/^/  | /' "$work/env-preview.log"
 elif grep -qx 'WORKERS_CI=1' "$envlog" && ! grep -q '^WORKERS_CI_BRANCH=' "$envlog"; then ok "the preview build has WORKERS_CI=1 and no WORKERS_CI_BRANCH"; else bad "the preview build lacks WORKERS_CI=1, or still has WORKERS_CI_BRANCH."; fi
+
+# 3b. build-marker.mjs, the last step of `npm run build`, run as Cloudflare would call it: which
+# commit it writes to build.txt. The two values are the ones a real Workers Builds production build
+# saw (tests/fixtures/workers-builds-2026-11-08.txt); the expected ids are typed by hand.
+fx="$site/tests/fixtures/workers-builds-2026-11-08.txt"
+real_sha="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\([0-9a-f]\{40\}\)$/\1/p' "$fx" | awk 'NR==1')"
+connect_val="$(sed -n 's/^WORKERS_CI_BRANCH=production .*WORKERS_CI_COMMIT_SHA=\(production\)$/\1/p' "$fx" | awk 'NR==1')"
+if [ "$real_sha" != bc20f2050172151fa9f19fe6cb1151c882fcf479 ] || [ "$connect_val" != production ]; then
+  bad "the Workers Builds capture no longer holds the two values these cases read."
+fi
+pages_sha=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+# marker <want> <label> [VAR=value…]: build.txt after one run of the marker with only these variables
+marker() {
+  local want="$1" label="$2" got; shift 2
+  mkdir -p "$copy/dist"; rm -f "$copy/dist/build.txt"
+  (cd "$copy" && env -u CF_PAGES_COMMIT_SHA -u WORKERS_CI_COMMIT_SHA "$@" node scripts/build-marker.mjs >/dev/null 2>&1) || { bad "build-marker.mjs failed ($label)."; return; }
+  got="$(tr -d '[:space:]' < "$copy/dist/build.txt")"
+  if [ "$got" = "$want" ]; then ok "build.txt: $label"; else bad "build.txt: $label: wrote '$got', expected '$want'."; fi
+}
+marker "$head_sha" "no Cloudflare variable: the commit of git" CI=
+marker bc20f2050172151fa9f19fe6cb1151c882fcf479 "a Workers Builds production build: WORKERS_CI_COMMIT_SHA" "WORKERS_CI_COMMIT_SHA=$real_sha"
+marker "$head_sha" "Workers Builds' first build after connecting (the variable holds the branch name): the commit of git" "WORKERS_CI_COMMIT_SHA=$connect_val"
+marker "$pages_sha" "a Pages build keeps CF_PAGES_COMMIT_SHA, whatever the Workers variable says" "CF_PAGES_COMMIT_SHA=$pages_sha" "WORKERS_CI_COMMIT_SHA=$real_sha"
 
 # refused <label> <message part> <log name>: the run (already made) failed, said this, and built nothing
 refused() {
@@ -217,5 +261,91 @@ run toml-live -- deploy:live -- --dry-run
 refused "live with a wrangler.toml beside wrangler.jsonc" "wrangler.jsonc is not alone" toml-live
 run toml-preview -- deploy:preview -- --dry-run
 refused "preview with a wrangler.toml beside wrangler.jsonc" "wrangler.jsonc is not alone" toml-preview
+
+# 5. the config reader and the live check, with a domain route. A comma before a closing } or ] is
+# read as Wrangler reads it (checked on 4.162.0). The live check runs for real, but against a stand-in
+# wrangler, curl and sleep, so nothing leaves this machine: the stand-in curl answers with the copy's HEAD and
+# logs the address it was asked for, which shows what deploy.sh took for the site's address.
+git_in rm -q -f wrangler.toml
+git_in commit -q -m "no second config"
+cp "$work/wrangler.jsonc.good" "$copy/wrangler.jsonc"
+perl -0pi -e 's/\n\}\s*$/,\n  \/\/ the route, with commas Wrangler accepts\n  "routes": [{ "pattern": "check-deploy.example.invalid", "custom_domain": true, },],\n}\n/' "$copy/wrangler.jsonc"
+if grep -q 'custom_domain' "$copy/wrangler.jsonc"; then :; else echo "✗ check_deploy: could not add a route to the copy's wrangler.jsonc."; exit 1; fi
+git_in commit -q -am "a route, and trailing commas"
+run comma-live -- deploy:live -- --dry-run
+if [ "$rc" = 0 ] && grep -qE '(^|[^a-z])wrangler deploy($|[^a-z])' "$work/comma-live.log"; then ok "a trailing comma in wrangler.jsonc is read (the live dry run exits 0)"; else bad "a trailing comma in wrangler.jsonc was refused (exit $rc):"; sed 's/^/  | /' "$work/comma-live.log"; fi
+
+# A node_modules of the copy's own, so its .bin can hold a stand-in wrangler; every package is linked.
+rm "$copy/node_modules"
+mkdir "$copy/node_modules" "$copy/node_modules/.bin"
+for e in "$site"/node_modules/* "$site"/node_modules/.[!.]*; do
+  [ -e "$e" ] || continue
+  [ "$(basename "$e")" = .bin ] || ln -s "$e" "$copy/node_modules/$(basename "$e")"
+done
+for e in "$site"/node_modules/.bin/*; do
+  [ "$(basename "$e")" = wrangler ] && continue
+  target="$e"
+  if [ -L "$e" ]; then
+    target="$(readlink "$e")"
+    case "$target" in /*) ;; *) target="$site/node_modules/.bin/$target" ;; esac
+  fi
+  ln -s "$target" "$copy/node_modules/.bin/$(basename "$e")"
+done
+printf '#!/bin/sh\necho "stand-in wrangler $*"\n' > "$copy/node_modules/.bin/wrangler"
+chmod +x "$copy/node_modules/.bin/wrangler"
+fakebin="$work/fakebin"
+mkdir "$fakebin"
+printf '#!/bin/sh\nexit 0\n' > "$fakebin/sleep"
+printf '#!/bin/sh\nfor a; do u="$a"; done\necho "$u" >> "%s/curl.log"\ngit -C "%s" rev-parse HEAD\n' "$work" "$copy" > "$fakebin/curl"
+chmod +x "$fakebin/sleep" "$fakebin/curl"
+
+# live_site <label> <expected curl log> <message part>: the live check on the copy as it is now.
+live_site() {
+  rm -f "$work/curl.log"
+  run "$1" "PATH=$fakebin:$PATH" -- deploy:live
+  local asked=""
+  [ ! -f "$work/curl.log" ] || asked="$(sed 's/?.*//' "$work/curl.log" | sort -u | tr '\n' ' ')"
+  asked="${asked% }"
+  if [ "$rc" = 0 ] && [ "$asked" = "$2" ] && grep -qF -- "$3" "$work/$1.log"; then ok "$1: \"$3\" (asked: ${asked:-nothing})"; else bad "$1: expected exit 0, asking \"$2\" and saying \"$3\"; got exit $rc, asked \"$asked\":"; sed 's/^/  | /' "$work/$1.log"; fi
+}
+# The site's own address, found by a different reader than deploy.sh's: the one `site: '…',` line with
+# nothing else on it, which the cases below replace whole.
+own_site="$(sed -nE "s/^[[:space:]]*site:[[:space:]]*['\"](https?:\/\/[^'\"]+)['\"],?[[:space:]]*$/\1/p" "$copy/astro.config.mjs" | awk 'NR==1')"
+own_site="${own_site%/}"
+site_lines="$(grep -c '^[[:space:]]*site:' "$copy/astro.config.mjs" || true)"
+if [ -z "$own_site" ] || [ "$site_lines" != 1 ]; then
+  echo "· check_deploy: astro.config.mjs needs exactly one line starting with  site:  and holding only  site: 'https://…',  so the live-check cases were not run."
+else
+  live_site site-one "$own_site/build.txt" "LIVE — verified: $own_site is serving build"
+
+# Each case writes its whole `site:` line itself, so none depends on how the site quotes its own.
+# The same address in double quotes, as a formatter may write it: still one address, still checked.
+ADDR="$own_site" perl -pi -e 's|^\s*site:.*$|  site: "$ENV{ADDR}",|' "$copy/astro.config.mjs"
+if ! git_in diff --quiet; then git_in commit -q -am "site: in double quotes"; fi   # already so: nothing to rewrite
+live_site site-dq "$own_site/build.txt" "LIVE — verified: $own_site is serving build"
+
+# An old address kept in a comment: two matches, so no one address to check.
+perl -pi -e 's|^(\s*site:.*)$|$1\n  // site: \x27https://old.example.invalid\x27,|' "$copy/astro.config.mjs"
+git_in commit -q -am "an old address in a comment"
+live_site site-many "" "has more than one site: address"
+
+# Only a comment holds a site: address (the real one is written so that it does not match).
+ADDR="$own_site" perl -pi -e 's|^\s*site:.*$|  \x27site\x27: "$ENV{ADDR}",|' "$copy/astro.config.mjs"
+git_in commit -q -am "the only site: is in a comment"
+live_site site-comment "" "sits in a comment"
+fi
+
+# deploy.sh's site: readers are the ones in scripts/ship.sh, word for word.
+reader() { awk '/^# The `site:` address in the astro.config.mjs text given/{p=1} p{print} p&&/^js_state\(\)/{j=1} j&&/^}$/{exit}' "$1"; }
+has_ship=0; has_deploy=0
+grep -q '^site_count()' "$site/scripts/ship.sh" && has_ship=1
+grep -q '^site_count()' "$site/scripts/deploy.sh" && has_deploy=1
+if [ "$has_ship" = 1 ] && [ "$has_deploy" = 1 ]; then
+  if [ -n "$(reader "$site/scripts/deploy.sh")" ] && [ "$(reader "$site/scripts/ship.sh")" = "$(reader "$site/scripts/deploy.sh")" ]; then ok "deploy.sh reads site: with the same functions as ship.sh"; else bad "the site: readers in scripts/deploy.sh and scripts/ship.sh differ: copy site_of, site_count and js_state from one to the other."; fi
+elif [ "$has_ship" = 1 ] || [ "$has_deploy" = 1 ]; then
+  bad "only one of scripts/ship.sh and scripts/deploy.sh has site_count(): copy site_of, site_count and js_state from one to the other."
+else
+  echo "· check_deploy: neither scripts/ship.sh nor scripts/deploy.sh has site_count(), so their site: readers were not compared."
+fi
 
 if [ "$fail" = 0 ]; then echo "✓ check_deploy: all cases passed"; else echo "✗ check_deploy: failed"; exit 1; fi

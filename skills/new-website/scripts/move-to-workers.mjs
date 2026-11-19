@@ -190,7 +190,9 @@ export function makeSiteFetch(send, allowed, { clock = null, requestMs = REQUEST
       return { status: r.status, headers: r.headers, body: Buffer.from(await r.arrayBuffer()) };
     } catch (e) {
       if (clock && clock.left() <= 0) throw new Deadline(true, u.hostname, u.pathname);
-      return { status: 0, headers: new Headers(), body: Buffer.alloc(0), error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : String(e?.message ?? e) };
+      // Node's fetch says only "fetch failed"; the reason is the code on `cause`.
+      const code = e?.cause?.code ? ` (${e.cause.code})` : '';
+      return { status: 0, headers: new Headers(), body: Buffer.alloc(0), error: e?.name === 'TimeoutError' || e?.name === 'AbortError' ? 'timed out' : `${String(e?.message ?? e)}${code}` };
     }
   };
 }
@@ -795,8 +797,8 @@ async function checkToken(ctx) {
   if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
   if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
   const ends = Date.parse(verify.body.result.expires_on ?? '');
-  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date a week out, and delete this one.');
-  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. A week at most: make one that ends within the week, and delete this one.`);
+  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date 7 days from today, and delete this one.');
+  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. 7 days at most: make one that ends within 7 days, and delete this one.`);
   ctx.tokenLeftMs = ends - ctx.now();
   if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
   const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
@@ -930,7 +932,10 @@ const WHERE_WORDS = { pages: 'on Pages', worker: 'on the Worker', neither: 'on n
 // ---------------------------------------------------------------- the refusals of a first move
 
 // What stage 1 still lacks at a commit, one line each: the Workers config, functions/, public/_worker.js
-// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts and, with analytics on, an enabled: line that reads CF_PAGES_BRANCH only. Read from git only, so a run lists all of them at once.
+// analytics server mode, a block comment or a USE_ANALYTICS it cannot read in src/config.ts, with analytics on an enabled: line that reads CF_PAGES_BRANCH only. Read from git only, so a run lists all of them at once.
+const ASTRO_CONFIGS = ['astro.config.mjs', 'astro.config.js', 'astro.config.cjs', 'astro.config.ts', 'astro.config.mts'];
+// The one literal form of a build-time lastmod; any other form is left to record's refusal.
+const BUILD_TIME_LASTMOD = /lastmod\s*:\s*new Date\(\s*\)/;
 async function stageOneGaps(git, sha) {
   const gaps = [];
   const asLines = async (fn) => { try { await fn(); } catch (e) { if (!(e instanceof Stop)) throw e; gaps.push(...e.lines); } };
@@ -951,6 +956,22 @@ async function stageOneGaps(git, sha) {
     else if (cfg.analyticsOn && cfg.envNames.length === 1 && cfg.envNames[0] === 'CF_PAGES_BRANCH') gaps.push(`Analytics is on, but the enabled: line in src/config.ts at ${short(sha)} reads only CF_PAGES_BRANCH. Workers Builds sets WORKERS_CI_BRANCH, not CF_PAGES_BRANCH, so the Worker's pages would count nothing. Use the 0.35 line: "${ENABLED_LINE}"${cfg.declared ? '' : ' It names USE_ANALYTICS, so also add the line "export const USE_ANALYTICS = true;" above it.'} A site built some other way can read the variable its own build sets instead.`);
   });
   return gaps;
+}
+// The astro.config files that set the sitemap's lastmod to the build time. A warning in check, never a
+// gap: the scan is a guess, and record's refusal names this cause when it misses.
+async function buildTimeLastmodFiles(git, sha) {
+  const tree = await git('ls-tree', '-r', '--name-only', sha);
+  if (tree.code !== 0) throw new Stop(1, `git could not list ${short(sha)}.`);
+  const files = tree.stdout.split('\n');
+  const found = [];
+  for (const f of ASTRO_CONFIGS.filter((n) => files.includes(n))) {
+    const r = await git('show', `${sha}:${f}`);
+    if (r.code !== 0) throw new Stop(1, `git could not read ${f} at ${short(sha)}.`);
+    // Comments, regex literals and strings are cut in one pass, so a `//` inside a URL or a regex is not a comment. A guess, not a parser: a misread gives a missed or a needless warning, nothing more.
+    const code = r.stdout.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*|(?<=[(,:=\[!&|?{;]\s*|=>\s*)\/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^\/\\\n\[])+\/[a-z]*/gm, (m) => (m[0] === '/' ? '' : '""'));
+    if (code.split('\n').some((l) => BUILD_TIME_LASTMOD.test(l))) found.push(f);
+  }
+  return found;
 }
 // One gap stops as it always has; more are listed under one line.
 const gapsStop = (sha, gaps) => (gaps.length === 1 ? new Stop(1, gaps[0])
@@ -1200,6 +1221,10 @@ export function compare(was, now, { change, onVersion, expect }) {
 
 const unknownOf = (diffs) => diffs.filter((d) => !d.known);
 
+// The line a refusal adds when the only unknown differences are sitemap bodies: a lastmod set at build time can cause them.
+const SITEMAP_HINT = 'A sitemap that differs only in its body can be a lastmod set at build time, which makes two builds of one commit differ. Look in astro.config for it.';
+const sitemapLines = (unknown) => (unknown.length && unknown.every((d) => d.field === 'body' && /^sitemap[^/]*\.xml$/.test(String(d.path).split('/').pop())) ? [SITEMAP_HINT] : []);
+
 // Where a host's build.txt says it is served from: the build's own platform line when it has one,
 // else Pages' access-control-allow-origin header.
 function platformOf(r, text) {
@@ -1270,11 +1295,16 @@ export function confirmCode(input) {
   return createHash('sha256').update(JSON.stringify(input)).digest('hex').slice(0, 16);
 }
 
-function askOrGo(ctx, kind, input, lines, run) {
+// The question: plain words first (`plain`, the lines under its first), then what a yes does, for the assistant.
+// The 10-minute line comes with the plain run only: the 15 minutes of a --confirm run count from the plain run's check.
+function askOrGo(ctx, kind, input, plain, lines, run) {
   const code = confirmCode(input);
   if (ctx.opts.confirm === code) return true;
   if (ctx.opts.confirm) ctx.say('', `The code ${ctx.opts.confirm} does not fit this question: something it covered has changed. Nothing was changed. Here is the question as it stands now.`);
-  ctx.say('', 'Cloudflare has not been changed yet. If you say yes, I will:');
+  const [question, ...rest] = plain;
+  ctx.say('', question, ...rest.map((l) => `- ${l}`));
+  if (ctx.opts.confirm === null) ctx.say(`- Please say yes within ${ANSWER_MIN} minutes. After ${CHECK_MAX_MS / 60_000} minutes I have to ask you again, unless an address is left down, which I finish first.`);
+  ctx.say('Cloudflare has not been changed yet.', '', 'For your assistant, what a yes does:');
   lines.forEach((l, i) => ctx.say(`  ${i + 1}. ${l}`));
   ctx.say('', `To go ahead, run the same command again with: --confirm ${code}`);
   run.next = `node move-to-workers.mjs ${kind} --confirm ${code}`;
@@ -1308,9 +1338,78 @@ export async function ensureRouteCommit(ctx, want, kind) {
   return { commit: await ctx.gitOut('rev-parse', 'HEAD'), wrote: true };
 }
 
+// ---------------------------------------------------------------- the commit that main holds for a route commit
+
+// Whether `sha` stands in for the route commit `route`: it is that commit, or has its files and its
+// parent (what a pull request's squash or merge commit leaves). Needs the route commit in this folder.
+async function isRouteTip(ctx, sha, route) {
+  if (sha === route) return true;
+  if ((await ctx.git('cat-file', '-e', `${route}^{commit}`)).code !== 0) throw new Stop(1, `The commit ${short(route)} this move waits for is not in this folder, so main on GitHub (${short(sha)}) cannot be compared with it. Run this in the folder the move ran in.`);
+  const rev = async (x) => (await ctx.git('rev-parse', '--verify', '-q', x)).stdout.trim();
+  const [tree, rTree, parent, rParent] = await Promise.all([`${sha}^{tree}`, `${route}^{tree}`, `${sha}^1`, `${route}^1`].map(rev));
+  return Boolean(tree) && tree === rTree && Boolean(parent) && parent === rParent;
+}
+
+// Whether `a` is `b` or one of its ancestors.
+async function isAncestor(ctx, a, b) {
+  const r = await ctx.git('merge-base', '--is-ancestor', a, b);
+  if (r.code > 1) throw new Stop(1, `git could not compare ${short(a)} with ${short(b)}: ${(r.stderr || r.stdout).trim().split('\n')[0]}. Run git fetch origin, then run this again.`);
+  return r.code === 0;
+}
+
+// The steps that put a route commit on GitHub: main first, production only once main has it.
+const MAIN_STEP = 'git push origin HEAD:main';
+const PRODUCTION_STEP = 'git push origin origin/main:production';
+const mainStepLine = (commitWords) => `Push ${commitWords} to main (${MAIN_STEP}). If GitHub refuses it because main is protected, push it to a branch of its own, open a pull request and merge it, then run git fetch origin: after accepts the merged commit.`;
+const productionStepLine = `Then, once main has the commit, run git fetch origin and push it to production (${PRODUCTION_STEP}).`;
+
+// What to do in the owner's folder so its main is M, the commit GitHub's main holds for the route commit.
+// Keyed on the folder's own main; with `head` set (a refusal), a main already at M but a HEAD elsewhere gets git switch main.
+async function folderLines(ctx, st, M, route, head = null) {
+  const local = (await ctx.git('rev-parse', '--verify', '-q', 'refs/heads/main')).stdout.trim();
+  if (local === M) return head && head !== M ? ['This folder is on another branch than main, which is already that commit. Run git switch main, then run this again.'] : [];
+  if (!local) return [`This folder has no branch called main. Run git fetch origin, then git switch -c main ${M}.`];
+  if (local === route || await isAncestor(ctx, local, M)) return [`Bring this folder's main to ${short(M)}: run git fetch origin, git switch main, then git reset --keep ${M}.`];
+  return [`main in this folder (${short(local)}) has commits of its own, so it cannot be brought to ${short(M)} with a reset. Ask for help; there is nothing to run here.`];
+}
+
+// Where move and undo may write their commit, judged by GitHub's main and this folder's HEAD.
+async function headRule(ctx, st, head, dir) {
+  const route = st.route?.commit;
+  const tip = ctx.mainSha;
+  if (!route || tip === st.frozen) return; // main still at the frozen commit: nothing was merged, and a clone may lack the route commit
+  const merged = await isRouteTip(ctx, tip, route);
+  if (merged || await isAncestor(ctx, route, tip)) { // M, or a main that moved on from the route commit: the commit is written on main's tip
+    if (head === tip) return;
+    const written = st.asked?.commit; // the commit an earlier plain run wrote on that commit, which the --confirm run now finds at HEAD
+    if (head === written && (await ctx.git('rev-parse', '--verify', '-q', `${head}^1`)).stdout.trim() === tip) return;
+    throw new Stop(1, merged
+      ? `HEAD is ${short(head)}, not ${short(tip)}, the commit that main on GitHub holds for the ${st.route.kind} commit ${short(route)}. ${dir} writes its commit on ${short(tip)}, so that a pull request merging it can be accepted.`
+      : `HEAD is ${short(head)}, not ${short(tip)}, where main on GitHub is now. ${dir} writes its commit on main's commit, so that pushing it or merging it through a pull request can be accepted.`, ...(await folderLines(ctx, st, tip, route, head)));
+  }
+  if (!(await isAncestor(ctx, tip, route))) {
+    throw new Stop(1, `main on GitHub is ${short(tip)}, not the ${st.route.kind} commit ${short(route)} or a merge of it: something else was merged while the move is open. Ask for help.`);
+  }
+}
+
 // ---------------------------------------------------------------- the commands
 
 function note(run, ok_, text) { run.checks.push({ ok: ok_, text }); } // ok_: true, false, or 'wait' (not wrong, not finished)
+
+// How a host answers /build.txt now, in words: the status, the commit it names and, from the build's platform line, else Pages' CORS header, which platform likely sent it.
+function answerWords(r) {
+  if (r.status === 0) return `no answer: ${r.error ?? 'none'}`;
+  const first = r.body.toString('utf8').split('\n')[0].trim();
+  if (r.status === 200) {
+    if (!/^[0-9a-f]{40}$/.test(first)) return 'answers now: 200, not a build.txt this kit writes';
+    const text = r.body.toString('utf8');
+    const line = /^platform=(\S+)/m.exec(text)?.[1];
+    const how = line ? `its platform line says ${line === 'pages' ? 'Pages' : line === 'worker' ? 'the Worker' : JSON.stringify(line.length > 20 ? `${line.slice(0, 20)}…` : line)}` : r.headers.get('access-control-allow-origin') !== null ? "Pages' header is there, so likely Pages" : 'no Pages header, so likely the Worker';
+    return `answers now: 200, build.txt names ${short(first)}, ${how}`;
+  }
+  const to = r.headers.get('location');
+  return REDIRECTS.includes(r.status) && to ? `answers now: ${r.status} to ${to}; the script cannot tell what sends it` : `answers now: ${r.status}`;
+}
 
 async function cmdCheck(ctx, run) {
   const { say } = ctx;
@@ -1318,6 +1417,10 @@ async function cmdCheck(ctx, run) {
   if (gh.status === 404) throw new Stop(1, `GitHub does not show ${ctx.repository} without a login: the repository is private. ${loginHint(ctx)}`);
   const live = await readLive(ctx);
   if (!ctx.open) await firstMoveRefusals(ctx, live);
+  // The apex and www of the zone are the hosts an owner is asked about; each is read once, with the project's hosts, all together.
+  const extra = [ctx.zone.name, `www.${ctx.zone.name}`].filter((h) => !ctx.hosts.includes(h));
+  for (const h of extra) ctx.allowed.add(h);
+  const answers = new Map(await Promise.all([...ctx.hosts, ...extra].map(async (h) => [h, await ctx.siteFetch(`https://${h}/build.txt`, { headers: { 'cache-control': 'no-cache' } })])));
   say(`Move check for ${ctx.hosts.join(', ')} (zone ${ctx.zone.name}, account ${ctx.account.name})`);
   say(`Repository ${ctx.repository}, ${ctx.twoStage ? 'two-stage: production is the live branch, main the preview' : 'single-stage: main is the live branch'}. Pages project ${ctx.project.name} (${ctx.project.subdomain}); Worker ${ctx.worker} (config ${ctx.configFile}).`);
   if (ctx.open && ctx.state.route) say(`A move is open. It expects the ${ctx.state.route.kind} commit ${short(ctx.state.route.commit)} on ${ctx.twoStage ? `${ctx.prodBranch} and main` : ctx.prodBranch}; after checks the hosts ${ctx.state.route.kind === 'route' ? 'on the Worker' : 'back on Pages'}.`);
@@ -1325,6 +1428,11 @@ async function cmdCheck(ctx, run) {
     const hs = hostState(ctx, live, h);
     say(`  ${h}: ${WHERE_WORDS[hs.where]}${notActive(hs)}; DNS ${hs.recs.map((r) => `${r.type} ${r.content}${r.proxied ? ' (proxied)' : ''}`).join('; ') || 'no record'}`);
     note(run, settled(hs, false), `${h} is ${WHERE_WORDS[hs.where]}${notActive(hs)}, DNS ${hs.recs.map((r) => `${r.type} ${r.content}`).join('; ') || 'none'}`);
+    say(`  ${h}: ${answerWords(answers.get(h))}${ctx.open ? '' : '; the move moves it'}.`);
+  }
+  for (const h of extra) {
+    const a = answerWords(answers.get(h));
+    say(`  ${h}: not a domain of the Pages project, so the move does not touch it. ${a[0].toUpperCase()}${a.slice(1)}.`);
   }
   say(`The live branch ${ctx.prodBranch} on GitHub is ${short(ctx.tip)}${ctx.twoStage ? `; main is ${short(ctx.mainSha)}${ctx.mainDiffers ? ' (it differs: they must be the same before record)' : ''}` : ''}.`);
   note(run, !ctx.mainDiffers, `GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
@@ -1334,6 +1442,14 @@ async function cmdCheck(ctx, run) {
   say(`The Worker's live version ${v.id.slice(0, 8)} serves ${r.status === 200 ? short(served) : `nothing at https://${v.host}/build.txt (${r.status || r.error})`}: ${served === ctx.tip ? 'the live branch\'s commit.' : 'not the live branch\'s commit; stage 1 of the move section is not finished.'}`);
   say(`Its link, for the Cloudflare check's --preview: https://${v.host}/`);
   note(run, served === ctx.tip, `The Worker's live version serves ${r.status === 200 ? short(served) : 'nothing'}, GitHub's ${ctx.prodBranch} is ${short(ctx.tip)}`);
+  if (!ctx.open) { // advice only: a failed read says so and never changes check's result
+    let lastmodFiles = [];
+    try { lastmodFiles = await buildTimeLastmodFiles(ctx.git, ctx.tip); } catch (e) {
+      if (!(e instanceof Stop)) throw e;
+      say(`Could not look for a sitemap lastmod set to the build time in astro.config: ${e.lines.join(' ')}`);
+    }
+    for (const f of lastmodFiles) say(`Warning: ${f} at ${short(ctx.tip)} sets the sitemap's lastmod to the build time (lastmod: new Date()). Two builds of one commit would then serve two different sitemaps, and record would stop on them. Remove the line, or give a fixed date.`);
+  }
   say('Nothing was changed.');
   if (ctx.open) { // an open move waits for after only when every host is where the move ends
     const target = ctx.state.direction === 'to-pages' ? 'pages' : 'worker';
@@ -1351,8 +1467,10 @@ async function ensureBuild(ctx, sha, run) {
   const dir = path.join(ctx.runDir, 'build', sha.slice(0, 12));
   const dist = path.join(dir, 'src', 'dist');
   const exit = path.join(dir, 'exit.txt');
-  if (existsSync(exit)) {
-    const code = readFileSync(exit, 'utf8').trim();
+  // An empty exit file was caught between its creation and its write, so it is judged by the pid, like none.
+  let code = '';
+  try { code = readFileSync(exit, 'utf8').trim(); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  if (code !== '') {
     if (code !== '0') throw new Stop(1, `The build of ${short(sha)} failed (exit ${code}); its log is ${path.join(dir, 'build.log')}. Fix the site, or delete ${dir} to try again.`);
     return dist;
   }
@@ -1464,7 +1582,7 @@ async function cmdRecord(ctx, run) {
     keep();
     note(run, false, `${unknown.length} differences the script does not know between the domain and the Worker's version`);
     for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${diffWords(d)}`);
-    throw new Stop(1, `${unknown.length} unknown differences: the Worker would not serve what the domain serves now. Fix the site (stage 1), then record again. Nothing was changed.`);
+    throw new Stop(1, `${unknown.length} unknown differences: the Worker would not serve what the domain serves now. Fix the site (stage 1), then record again. Nothing was changed.`, ...sitemapLines(unknown));
   }
   st.snapshots.push(await snapshot(ctx, live, 'record'));
   st.recording.status = 'done';
@@ -1484,6 +1602,7 @@ const hostReserve = (ctx) => ctx.io.reserveMs ?? 5 * (ctx.io.requestMs ?? REQUES
 // Why the plain run's check no longer holds, or null. A --confirm run goes ahead only on a check that
 // is under 15 minutes old and still describes the deployments and the branch tips.
 const CHECK_MAX_MS = 15 * 60_000;
+const ANSWER_MIN = 10; // the yes is asked for inside CHECK_MAX_MS, with room for the assistant's turn
 function driftOf(ctx, st, dir, light) {
   const c = st.checked;
   if (!c || c.kind !== dir) return `No plain ${dir} has checked this since the last change of direction, so there is nothing to compare with.`;
@@ -1534,6 +1653,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   // Both modes: the working tree, and HEAD's Workers config the frozen one but for its routes.
   await cleanTreeOrStop(ctx);
   const head = await ctx.gitOut('rev-parse', 'HEAD');
+  if (!firstMove) await headRule(ctx, st, head, dir);
   const want = toWorker ? [...ctx.hosts] : [];
   const cfg = await headConfig(ctx);
   const fits = JSON.stringify(cfg.routes) === JSON.stringify([...want].sort());
@@ -1582,11 +1702,17 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   lines.push(toWorker
     ? `Take ${ctx.hosts.join(', ')} off the Pages project ${ctx.project.name}, delete each host's CNAME to ${ctx.project.subdomain}, and attach each to the Worker ${ctx.worker} (account ${ctx.account.name}, zone ${ctx.zone.name}).`
     : `Take ${ctx.hosts.join(', ')} off the Worker ${ctx.worker}, add each back to the Pages project ${ctx.project.name} with its CNAME to ${ctx.project.subdomain} (account ${ctx.account.name}, zone ${ctx.zone.name}).`);
-  lines.push(`Each host is down from the moment it leaves its platform until the other one serves it: about a minute. The target is ${TARGET_MS / 60_000} minutes; past it, the run tells you to go back.`);
-  lines.push(`Push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production' : 'main'} afterwards (you do that, not the script); then run after.`);
+  lines.push(`Each host is down from the moment it leaves its platform until the other one serves it: ${toWorker ? 'a few seconds' : 'one to two minutes, 63 to 98 seconds in the tests'}. The target is ${TARGET_MS / 60_000} minutes; past it, the run tells you to go back.`);
+  lines.push(`${mainStepLine(`commit ${short(commit)}`)} You do that, not the script.`);
+  if (ctx.twoStage) lines.push(productionStepLine);
+  lines.push('Then run after.');
   const input = { kind: dir, account: ctx.account.id, zone: ctx.zone.id, repository: ctx.repository.toLowerCase(), project: ctx.project.name, worker: ctx.worker, hosts: [...ctx.hosts].sort(), commit, frozen: st.frozen };
   if (!todo.length && ctx.opts.confirm === null) say(`Every host is already ${toWorker ? 'on the Worker' : 'back on Pages'}.`);
-  if (!askOrGo(ctx, dir, input, lines, run)) return 3;
+  const names = ctx.hosts.length > 1 ? `${ctx.hosts.slice(0, -1).join(', ')} and ${ctx.hosts.at(-1)}` : ctx.hosts[0];
+  const plain = toWorker
+    ? [`Move ${names} to the new hosting now?`, 'Visitors may get an error page for a few seconds while it switches.', 'If anything looks wrong afterwards, I can switch it back. In the tests the site was then down for one to two minutes, and it can take longer.']
+    : [`Move ${names} back to the old hosting (Pages) now?`, 'In the tests the site was down for one to two minutes while it switched back, and it can take longer.', 'After this, the site is where it was before the move.'];
+  if (!askOrGo(ctx, dir, input, plain, lines, run)) return 3;
 
   // --- With the yes.
   // Before anything is changed: a record that no longer fits, and a run too short for the next host.
@@ -1736,7 +1862,9 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   const verb = (one, many) => (ctx.hosts.length > 1 ? many : one); // the host list's verb: "serves" for one host, "serve" for several
   note(run, true, `Both answers in a row: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages'}, ${ago} seconds after the first left its platform`);
   say(`Done: ${ctx.hosts.join(', ')} ${verb('serves', 'serve')} ${toWorker ? 'the Worker' : 'Pages again'} (${ago} seconds since the first host left its platform).`);
-  say(`Now push commit ${short(commit)} to ${ctx.twoStage ? 'both main and production (git push origin HEAD:production HEAD:main)' : 'main'}, deploy it if the Worker has no Workers Builds, and run: node move-to-workers.mjs after`);
+  say(mainStepLine(`commit ${short(commit)}`));
+  if (ctx.twoStage) say(productionStepLine);
+  say('Deploy it if the Worker has no Workers Builds, and run: node move-to-workers.mjs after');
   run.next = 'node move-to-workers.mjs after';
   return 0;
 }
@@ -1754,22 +1882,39 @@ async function cmdAfter(ctx, run) {
       st.route = st.asked;
       st.direction = st.asked.kind === 'route' ? 'to-worker' : 'to-pages';
       delete st.asked;
+      delete st.passed;
       saveState(ctx.stateDir, st);
     }
   }
   const toWorker = st.route.kind === 'route'; // the commit waited for says where the hosts belong
-  const expect = st.route.commit;
+  const route = st.route.commit;
   const branches = ctx.twoStage ? [ctx.prodBranch, 'main'] : [ctx.prodBranch];
   const problems = [];
   const tips = {};
   for (const b of branches) tips[b] = await tipOf(ctx, b);
-  for (const b of branches) if (tips[b] !== expect) problems.push(`${b} on GitHub is ${short(tips[b])}, not the ${st.route.kind} commit ${short(expect)}: push it`);
+  for (const b of branches) await ctx.haveCommit(tips[b], b);
+  // main's tip is the route commit or a pull request's merge of it (M); from here on M takes the route commit's place.
+  const mainOk = await isRouteTip(ctx, tips.main, route);
+  const expect = mainOk ? tips.main : route;
+  let steps = [];
+  if (!mainOk) {
+    problems.push(`main on GitHub is ${short(tips.main)}, not the ${st.route.kind} commit ${short(route)} or a merge of it`);
+    steps = [mainStepLine(`the ${st.route.kind} commit ${short(route)}`), ...(ctx.twoStage ? [productionStepLine] : [])];
+    run.next = MAIN_STEP;
+  } else if (ctx.twoStage && tips[ctx.prodBranch] !== expect) {
+    if (!(await isAncestor(ctx, tips[ctx.prodBranch], expect))) {
+      note(run, false, `${ctx.prodBranch} on GitHub is ${short(tips[ctx.prodBranch])}, which is not behind main (${short(expect)})`);
+      throw new Stop(1, `${ctx.prodBranch} on GitHub is ${short(tips[ctx.prodBranch])}, which is not behind main (${short(expect)}), so a push cannot bring it there. Ask for help: ${ctx.prodBranch} has to be pointed at main again, which needs a decision.`);
+    }
+    problems.push(`${ctx.prodBranch} on GitHub is ${short(tips[ctx.prodBranch])}, not main's ${short(expect)}`);
+    steps = [productionStepLine];
+    run.next = `git fetch origin, then ${PRODUCTION_STEP}`;
+  }
   if (problems.length) {
     problems.forEach((p) => note(run, false, p));
-    run.next = `git push origin HEAD:${ctx.prodBranch}${ctx.twoStage ? ' HEAD:main' : ''}`;
-    throw new Stop(1, ...problems, 'Push the commit, then run after again.');
+    throw new Stop(1, ...problems, ...steps, ...(mainOk ? [] : ['If something else was merged into main since, ask for help.']), 'Then run after again.');
   }
-  note(run, true, `GitHub's ${branches.join(' and ')} ${branches.length > 1 ? 'are' : 'is'} the ${st.route.kind} commit ${short(expect)}`);
+  note(run, true, `GitHub's ${branches.join(' and ')} ${branches.length > 1 ? 'are' : 'is'} the ${st.route.kind} commit ${short(route)}${expect === route ? '' : ` as ${short(expect)}, which has its files`}`);
   const { list: unfinished } = await unfinishedBuilds(ctx, st.base ?? st.frozen, tips[ctx.prodBranch], { newest: Boolean(st.base), tips: Object.values(tips) });
   if (unfinished.length) {
     note(run, false, `Builds are unfinished: ${unfinished.join('; ')}`);
@@ -1838,16 +1983,19 @@ async function cmdAfter(ctx, run) {
   if (unknown.length) {
     for (const d of unknown.slice(0, 20)) say(`  unknown: ${d.host}${d.path} ${d.field}: ${diffWords(d)}`);
     run.next = toWorker ? 'Read the differences; node move-to-workers.mjs undo if a visitor would notice.' : 'Read the differences.';
-    throw new Stop(1, `${unknown.length} unknown differences between the live site and the recording.`);
+    throw new Stop(1, `${unknown.length} unknown differences between the live site and the recording.`, ...sitemapLines(unknown));
   }
   const when = new Date(ctx.now()).toISOString();
   st.base = expect; // later builds are looked at from here on; it only moves forward
+  st.commits = [...new Set([...(st.commits ?? []), expect])];
+  const folder = await folderLines(ctx, st, expect, route);
   if (toWorker) {
     st.passed = expect; // the stage marker: cleared when a switch starts, so a go-forward onto the same commit is not "passed"
     saveState(ctx.stateDir, st);
     const many = ctx.hosts.length > 1;
     say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'serve' : 'serves'} the Worker and ${many ? 'match' : 'matches'} the recording. The move stays open, so undo works until the Pages project is retired.`);
     say('If you will not undo soon, delete the API token now: https://dash.cloudflare.com/profile/api-tokens. An undo later needs a new token, made the same way.');
+    folder.forEach((l) => say(l));
     run.next = 'Nothing more for this script. Delete the API token now if you will not undo soon (an undo later needs a new one). Keep the Pages project 14 days, then retire it as the move section says.';
     run.done = true;
   } else {
@@ -1857,6 +2005,7 @@ async function cmdAfter(ctx, run) {
     const many = ctx.hosts.length > 1;
     say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'are' : 'is'} back on Pages and ${many ? 'match' : 'matches'} the recording. The move is closed; the next one starts with record.`);
     say('Delete the API token now: https://dash.cloudflare.com/profile/api-tokens.');
+    folder.forEach((l) => say(l));
     run.next = 'The move is closed. To try again: node move-to-workers.mjs record';
     run.closed = true;
   }
@@ -1877,7 +2026,7 @@ function stageOf(st, run) {
   if (run.closed) return 4; // an undo that passed its check
   if (!st) return run.stateRead ? 1 : 0; // a run that stopped before the state was read knows no stage
   if (st.open) {
-    if (st.passed === st.route?.commit && st.route?.kind === 'route') return 5; // after passed for the commit waited for
+    if (st.passed && st.route?.kind === 'route') return 5; // after passed for the commit waited for (or the merge that holds it); a switch clears it
     return run.cmd === 'after' ? 4 : 3;
   }
   return 2;

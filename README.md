@@ -326,7 +326,9 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > uncommitted skill changes, so an overwrite stays recoverable via the site's git
 > history). A skill deliberately forked for one site (e.g. localized copy) can be
 > pinned: list its name in `<skills_dir>/REFRESH-KEEP` (one per line, `#` comments)
-> and `--refresh` will never touch it — reports mark it "(pinned)". Plain
+> and `--refresh` will never touch it — reports mark it "(pinned)". A refresh writes the
+> pinned skill's old baseline as a `pinned:` line in `SUITE-VERSION`, so its upstream changes
+> stay in the report; once the copy has what you want from them, delete that line. Plain
 > `make whats-new` shows the suite's recent skill changes.
 >
 > One folder never reaches a site: `website-brand-kit/scripts/tests`, the toolkit's own
@@ -344,8 +346,13 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `.claude/hooks/git-stand.mjs`) are **frozen one-time copies**, not vendored skills —
 > `--refresh` never touches them. `whats-new` reports
 > their upstream drift via the site's `tests/TESTS-VERSION` stamp (pre-existing sites
-> fall back to the `SUITE-VERSION` baseline); merge those changes by hand, then
-> `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. A changed file the site has no copy
+> fall back to the `SUITE-VERSION` baseline; a site with neither stamp is told how to pick one); merge those changes by hand, then
+> `./scripts/whats-new.sh --stamp-tests <site-dir>/tests`. Before stamping, add a line
+> `left_out: <path> — <why>` to `tests/TESTS-VERSION` for each file you reviewed and did not
+> take (`kept: <path> — <why>` for one the starter dropped and the site keeps), the path as the
+> site has it or would (`tests/x.spec.ts`, `AGENTS.md`): the stamp keeps
+> those lines, adds a `left_out:` line for each file changed since the last stamp that the site
+> has no copy of, and every report lists them. A changed file the site has no copy
 > of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
 > `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
 > never marked MISSING.
@@ -544,6 +551,9 @@ scripts/
   check_node_floor.sh       the starter's Node floor: engines inside Astro's, lockfile and docs agree, .nvmrc and ci.yml on one major (make check)
   test_node_floor.sh        the Node-floor check goes red for each way the floor can drift (make check)
   check_skill_budgets.sh    per-skill size budgets: description hard limit + line budget (make check)
+  check_lock.sh             `make check` takes this lock: a second one on the same Mac is refused, never queued, and so is any session but the one named next
+  check_next.sh             the manager names the session whose make check turn is next: set <session>, show, clear
+  test_check_lock.sh        the lock refuses a second make check, runs when free, frees itself on kill -9, passes TERM and HUP on to its command, fails a killed run; the next-in-line entry is honoured, expires and refuses loudly when damaged or held (make check)
   check_cdpath_safe.sh      an exported CDPATH changes no script's behaviour (make check)
   check_pipefail_pipes.sh   no pipe into head / grep -q / … under pipefail (make check)
   list_shell_scripts.sh     every shell script in the suite, found by shebang (the two guards above use it)
@@ -554,6 +564,7 @@ scripts/
   test_package_leak.sh      package.sh's leak check still fires on a leak past a pipe buffer, and fails the build when a maintainer tracker (docs/BUGLOG.md, docs/DECISIONS_PENDING.md) is in the zip (make check)
   test_pre_push_hook.sh     the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax (make check)
   test_verify.sh            the site's verify script reinstalls only when package.json or the lockfile changed, and stops at the first red step (make check)
+  test_config_lines.sh      the starter's analytics gate and deploy check name, before a build, each src/config.ts line a site lacks, and whats-new says those two tests read that file (make check)
   test_whats_new.sh         whats-new marks a frozen template file the site lacks as MISSING, and shows and checks the same site path for every tracked file with a fixed one (all but PUBLISHING.md) (make check)
   test_mktemp_guard.sh      each script it lists that builds a throwaway folder stops with an error, and leaves the folder it ran from alone, when mktemp fails; a new script that calls mktemp must be listed or exempted in it (make check)
   check_lf_checkout.sh      every text file checks out LF, even where Git converts to CRLF (make check)

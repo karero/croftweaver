@@ -210,7 +210,7 @@ an "Email Tap" event there, as a click on an email address does.
   build and tests. For Cloudflare it uses `npm run deploy:preview` and
   `npm run deploy:live` (the site's `scripts/deploy.sh`, which builds the site and runs
   `wrangler preview` or `wrangler deploy`) with a token you make, or `npx wrangler login`. A site still on Pages uses
-  `npx wrangler pages project create` and `npx wrangler pages deploy`. Its
+  `npx wrangler pages project create` (with `--force`, which stops Wrangler making a Worker instead when an AI assistant runs it) and `npx wrangler pages deploy`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
   settings; it needs no token. With `--site` it also reads the Wrangler files in your site's folder. It also sends requests that carry the names of AI crawlers
   (GPTBot, ClaudeBot and others) to your own domain, to see whether Cloudflare lets them in.
@@ -453,6 +453,8 @@ with its own terms.
 | `~/.config/gsc-insights/` (Python environment, `token.json`, `.env`, `history.csv`, `sites/` with the fix proposals, `reports/`, `geo/` with `ai-check.lock`, `logs/`, a lock file per site) | `search-console-insights` | when you connect Search Console, run the AI check or the weekly report, or answer a fix proposal | delete the folder |
 | `~/Library/LaunchAgents/com.gsc-insights.<site>.plist` | `schedule_tracking.sh install` (macOS only) | when you say yes to weekly tracking (the start minute is the first of :00, :15, :30 and :45, then 5-minute steps, that no other site uses at that day and hour; a re-install at the same day and hour keeps the site's minute if no other site uses it, and with all twelve taken the site shares :00) | `schedule_tracking.sh remove <site>` (leaves the log and history behind) |
 | `~/.config/croftweaver/moves/<zone>/<owner-repo>/` (`state.json`, and a `lock` while a run is going) | `move-to-workers.mjs` | runs other than `check` | delete the folder once the move is done and you will not undo |
+| `~/.cache/croftweaver/make-check.lock` | `make check` (also inside `make package` and `make smoke`) | each run; holds the session name, folder and start time of the run that holds the lock, and after the run its end time, readable only by you | delete it when no `make check` is running |
+| `~/.cache/croftweaver/make-check.lock.next` | `scripts/check_next.sh set`, `show` and `clear` (the session that hands out `make check` slots); `make check` only creates it empty, reads it and empties it | when that session names the next session to run; holds that session's id, who set it and when, readable only by you; empty when no one is named | run `bash scripts/check_next.sh clear` (deleting the file breaks the flock that guards it) |
 | `~/.local/state/independent-review/runs.tsv` | `independent-review` | each review (turn off with `REVIEW_LOG=off`) | delete it |
 | a folder in your temp folder | `independent-review` | each review; holds the reviewers' answers, readable only by you | the skill tells the assistant to delete it at the end |
 | `~/.gitconfig`: `fetch.prune true` | you or the assistant, from `SETUP.md` and `website-team-setup` | once per computer, when you set up git or a team | `git config --global --unset fetch.prune` |

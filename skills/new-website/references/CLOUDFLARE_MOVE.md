@@ -34,7 +34,11 @@ computer, and a second computer would not know the move had begun.
    text is true on both platforms (it names Cloudflare, not Pages); and the site has exactly one
    Workers config (a `.json` or `.jsonc` that holds `assets` and no `pages_build_output_dir`) with
    `workers_dev: false`, `preview_urls: true`, `not_found_handling: "404-page"` and no domain
-   routes. All of it is merged to the live branch. The Worker itself is made as
+   routes. `astro.config` should not set the sitemap's `lastmod` to the build time
+   (`lastmod: new Date()`): two builds of one commit would serve two sitemaps and `record` would
+   stop on their bodies. Remove the line or give a fixed date. `check` warns about that one form
+   and goes on; it is a guess, so it can miss one or warn needlessly. When `record` stops on
+   sitemap bodies alone, its refusal names this cause. All of it is merged to the live branch. The Worker itself is made as
 `CLOUDFLARE_FIRST_DEPLOY.md` says for a new site: connected to GitHub with Workers Builds
 (B; the setup script, S, says how and reads the Worker once a build has made it), which then builds each push.
 
@@ -63,7 +67,10 @@ computer, and a second computer would not know the move had begun.
    with no `USE_ANALYTICS` line at all counts as on; since the new line names it, add
    `export const USE_ANALYTICS = true;` above it too.
    With analytics off, leave the line alone.
-2. **Freeze and record.** `check`, then `record`. Nothing is merged or shipped from here until
+2. **Freeze and record.** `check` and `record`. Run `check` before the freeze, while the User
+   works through the ready list in `docs/MOVE-TO-WORKERS.md` section 6, and once more when every
+   other box is ticked; its status page names `record` under "What to do next" only when stage 1
+   is done. Nothing is merged or shipped from the freeze until
    `after` passes, except the commit the script writes.
 3. **Switch.** `move`, and `undo` if you want to go back.
 4. **Check on the domain.** `after`.
@@ -74,18 +81,40 @@ computer, and a second computer would not know the move had begun.
 
 ## The token
 
-Make one token on the site's one zone: **Zone Read** and **DNS Edit** on that zone; **Cloudflare
-Pages Edit** and the Workers permission that custom domains need, both on the account; and an
-end date within a week. The token page is
-https://dash.cloudflare.com/profile/api-tokens. (The Workers permission's exact name is not
-checked yet; the script's error says so if the token lacks it.)
+Make one token with four permissions in two policies, and an end date of 7 days: **Cloudflare
+Pages Edit** and **Workers Scripts Edit** on the User's account, and **Zone Read** and **DNS Edit**
+on the site's one zone. The token page is https://dash.cloudflare.com/profile/api-tokens. If the
+token has no Workers Scripts permission, the script's error on the Worker domains points back to
+this section. A token with Workers Scripts at Read is not stopped early (read from the code, not run): check that
+the row says Edit (step 3 below).
 
-Say this plainly to the User: Pages Edit and the Workers permission reach every project on her
-account. The script reads some lists across the account (her zones, her Pages projects, the DNS
+Walk the User through the page one step at a time. These labels are as seen on 2026-11-17;
+Cloudflare moves things, so search for the name if one differs:
+1. My Profile → API Tokens → **Create Token**.
+2. **Token name:** any name she will know again.
+3. **Start from scratch** → **Start with an Account policy**. Next to **Include**, the account
+   list says **All accounts**; she picks her own account instead (the script does not check
+   this). In the permissions box, under Developer Platform: **Cloudflare Pages** → **Edit**,
+   **Workers Scripts** → **Edit**. The row called just **Workers** next to it is the wrong one.
+4. **Add new policy**, a Zone policy. Next to **Include**, the zone choice says **All zones**;
+   she picks **Specific zone**, then her domain. Under DNS & Zones: **Zone** → **Read**,
+   **DNS** → **Edit**.
+5. **Token expiration:** **7 days**. The page starts on No expiration.
+6. Before **Continue to summary**, she looks over the form: the four rows, one account, one
+   domain, 7 days. Then **Continue to summary**, and the same look at the summary page. Then she
+   creates the token and copies it. The summary page and what follows it were not looked at on
+   2026-11-17: give no labels for them.
+
+Say why there are two tokens: the build token has no end date and any package in a build can
+read it, so it must not hold DNS Edit or Pages Edit; the move token holds them for 7 days, and the
+User deletes it once she will not go back (`after` says so).
+
+Say this plainly to the User: Pages Edit and Workers Scripts Edit reach every Pages project and
+every Worker on her account. The script reads some lists across the account (her zones, her Pages projects, the DNS
 export) but changes only her site: every change it sends is checked against her hosts, her
 Pages project and her Worker before it goes out, and anything else is refused.
 
-The Workers permission makes every zone of the account show up in the token's zone list; that is
+Workers Scripts Edit makes every zone of the account show up in the token's zone list; that is
 expected. The script finds her zone as the one zone where Cloudflare lists DNS Edit for the
 token; no other permission in any zone counts. It refuses a token with DNS Edit in more than one
 zone or none, one with no end date or an end date more than 8 days out, and one that is not
@@ -108,19 +137,19 @@ never gives it to a program it starts (the build, `git`).
 
 | Step | Command | What it does |
 |---|---|---|
-| 1 | `check` | Reads only. Says what the move would touch and what is there now, and refuses a site that is not ready (below). |
+| 1 | `check` | Reads only. Says what the move would touch and what is there now, one line for how each host answers `/build.txt` now (the Pages project's hosts, and the zone's apex and `www.` when they are not among them), and refuses a site that is not ready (below). |
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
-| 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. |
+| 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. Claude Code may ask before plain `move` runs: it writes the route commit (local, not pushed), the state file and the status page, and sends Cloudflare only reads (a test checks that). Ask the User once, before the day, whether to allow it. This is about the first plain `move` only; it says nothing about plain `undo`. |
 | 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote and nothing has changed since step 3 (below): it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
-| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). The push runs the site's own tests first (a couple of minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did, on the User's own Cloudflare login, not the move token. On a site with the starter's `scripts/deploy.sh` (a `wrangler.jsonc` with no `wrangler.json` or `wrangler.toml` beside it), switch to the live branch with the pushed commit checked out and run `npm run deploy:live`: it builds with the live branch's name set, so analytics stays on, and deploys. Otherwise, on a kit site, from the pushed commit: `CF_PAGES_BRANCH=<the live branch> npm run build` (without it, a site with analytics on has its analytics and email-tap tracking switched off; this build sets `CF_PAGES_BRANCH`, which the old `enabled:` line and the 0.35 one both read), then `npx wrangler deploy --config <the Workers config file>` (the root `.json` or `.jsonc` file with `assets` that stage 1 deployed with; its name is not always `wrangler.jsonc`). `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit (`npm run deploy:live` takes the commit at the branch's tip). |
+| 5 | push | You push the route commit to `main` (`git push origin HEAD:main`). If a ruleset on `main` refuses it, push the commit to a branch of its own, have the User merge a pull request, then run `git fetch origin`; `after` accepts the merged commit (see "After the push"). On a two-stage site, push `production` second, only once `main` has the commit: `git fetch origin`, then `git push origin origin/main:production`. Never push both in one command. The push runs the site's own tests first (a couple of minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did, on the User's own Cloudflare login, not the move token. On a site with the starter's `scripts/deploy.sh` (a `wrangler.jsonc` with no `wrangler.json` or `wrangler.toml` beside it), switch to the live branch with the pushed commit checked out and run `npm run deploy:live`: it builds with the live branch's name set, so analytics stays on, and deploys. Otherwise, on a kit site, from the pushed commit: `CF_PAGES_BRANCH=<the live branch> npm run build` (without it, a site with analytics on has its analytics and email-tap tracking switched off; this build sets `CF_PAGES_BRANCH`, which the old `enabled:` line and the 0.35 one both read), then `npx wrangler deploy --config <the Workers config file>` (the root `.json` or `.jsonc` file with `assets` that stage 1 deployed with; its name is not always `wrangler.jsonc`). `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit (`npm run deploy:live` takes the commit at the branch's tip). |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
 
 **`check` refuses** (and each refusal says what to do): a Pages project made by direct upload, or
 none found for this repository; a Worker that already has a domain; more than one Workers
 config; a `functions/` folder holding anything but `_middleware.ts`, or a `public/_worker.js`;
-and a site in analytics server mode. Once the Worker's domain is checked, the other four (the
-Workers config, `functions/`, `public/_worker.js` and server mode) are listed together, and after a
-refused token too, so one run shows what stage 1 still lacks. Every run that gets that far reads
+and a site in analytics server mode. Once the Worker's domain is checked, the other gaps (the
+Workers config, `functions/`, `public/_worker.js`, server mode and the analytics lines)
+are listed together, and after a refused token too, so one run shows what stage 1 still lacks. Every run that gets that far reads
 the Workers config; the other checks are for a first move, and while a move is open they are
 lifted. A site is two-stage when `PROD_BRANCH` in `src/config.ts` is `production` and
 GitHub has a branch `production`; `check` then also shows whether `main` is on the live branch's
@@ -128,11 +157,16 @@ commit, and `record` refuses until it is. `check` first verifies the token and r
 comes first, and it names a private repository (and, when `gh` is missing, says where to get it); while a move is open it says which commit `after` waits for
 and, when a host is not where the move ends, the command that carries it on.
 
-**`record` takes minutes.** The build runs apart from the command. While it runs, `record`
-exits 4: run the same command again until it finishes.
+**`record` takes minutes.** The build runs apart from the command and is kept under
+`move-run/build/`. A run that finds no build for the commit starts one and exits 4, "The build is
+not finished. Run the same command again in a minute.", and so does every run while it builds. A
+run that finds the finished build goes straight on to the recording; one that finds a failed build
+exits 1 and names its log. The recording itself can exit 4 too, when addresses did not answer: run
+it again.
 
-**The question (`move`) is the User's to answer.** Read her the printed end state, not a
-summary of it. The code changes with every fact in that end state, so a code from an earlier
+**The question (`move`) is the User's to answer.** Read her the plain lines at the top, word for
+word, not a summary; the lines under "For your assistant" are for you, and you read them to her
+when she asks. She should say yes within 10 minutes (the script allows 15). Plain `undo` prints the same shape. The code changes with every fact in that end state, so a code from an earlier
 question will not fit a later one: a wrong code asks again and changes nothing.
 
 ## Exit statuses
@@ -173,14 +207,20 @@ A run lasts at most about a minute. The switch is built for that.
 
 If a change fails, the run stops at once, reads the host back and says whether it is on Pages, on
 the Worker or on neither; **run the same command again at once**, because a host on neither is
-down. Each host is down from the moment it leaves its platform until the other serves it: about a
-minute. 15 minutes is the target, not a promise; past it the report says to go back.
+down. Each host is down from the moment it leaves its platform until the other serves it: a few seconds going
+forward, one to two minutes going back (63 to 98 seconds in the tests). 15 minutes is the target, not a promise; past it the report says to go back.
 
 ## After the push
 
-`after` reads the tips of the branches on GitHub. They must equal the commit of the last
+`after` reads the tips of the branches on GitHub. `main` must be the commit of the last
 `move --confirm` or `undo --confirm` (that commit says which way the hosts should be: the route
-commit means on the Worker, the undo commit means back on Pages). The commit of a plain `move` or
+commit means on the Worker, the undo commit means back on Pages), or a pull request's merge of it:
+a commit with that commit's files and the same first parent. From then on `after` waits for that
+merged commit everywhere. On a two-stage site `production` must reach the same commit; if it is
+behind `main`, `after` prints the `production` step, and if it is not behind `main` (the route
+commit pushed there before a squash merge), `after` says to ask for help. When the merged commit is
+not the route commit, `move` and `undo` must run from it (`after` prints how to bring the folder's
+`main` there: `git fetch origin`, `git switch main`, `git reset --keep <commit>`). The commit of a plain `move` or
 `undo` that nobody confirmed counts only when every host already sits where it points, as when the
 steps were done by hand. No build of Pages or Workers Builds may be unfinished. Where Workers
 Builds is connected (any commit since the last pass has one of its check runs), a pushed branch tip
@@ -215,11 +255,11 @@ which platform has it.
 `undo` is the same shape as `move`: `undo` writes the undo commit on your branch (local, not
 pushed) and asks; `undo --confirm <code>` changes only Cloudflare and refuses unless HEAD holds
 that commit: each host leaves the Worker and goes back to the Pages project with its CNAME. Push
-the commit as in step 5 of the table (to `main` too on a two-stage site), and where the Worker has
+the commit as in step 5 of the table (`main` first, then `production` on a two-stage site), and where the Worker has
 no Workers Builds, deploy it as well, from the undo commit and the same way as in step 5: otherwise
 the Worker keeps serving the old commit and `check` says so. Then run `after`; it closes the move when the hosts serve from Pages again. A move that
 stopped can be undone the same way, by hand if need be: `after` follows the commit, so it closes
-either. If an undo stops part way, `move` goes forward again from where it stopped. Ordinary commits
+either. If an undo stops part way, `move` goes forward again from where it stopped. If `main` is protected and the route commit went in as a squash merge, an `undo` after anything else was merged into `main` can stop and say to ask for help (then tell the User that going back needs help). Ordinary commits
 shipped meanwhile, a changed compatibility date among them, do not stand in the way: the commit the
 script writes changes the routes and nothing else, and it refuses a HEAD that changed the routes
 together with something else.

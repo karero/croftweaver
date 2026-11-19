@@ -70,8 +70,19 @@ fi
 # The production branch as this site names it ('production', or 'main' on a single-stage
 # site), read from the line the gate compares against.
 prod="$(sed -nE "s/^export const PROD_BRANCH = ['\"]([^'\"]*)['\"];?.*/\1/p" src/config.ts)"
+# src/config.ts is the site's own file, so whats-new never lists a line it lacks: each message
+# about it names the line, as the starter writes it.
+ENABLED_LINE="enabled: USE_ANALYTICS && (process.env.CF_PAGES_BRANCH ?? process.env.WORKERS_CI_BRANCH) === PROD_BRANCH,"
+# That line reads USE_ANALYTICS, which a site made before the switch does not define. The line
+# itself names it, so only the export counts.
+USE_HINT=""
+grep -qE '^export const USE_ANALYTICS[[:space:]]*=' src/config.ts || USE_HINT="  It reads USE_ANALYTICS, which src/config.ts lacks: add export const USE_ANALYTICS = true; as well (true keeps analytics on, as now)."
 if [ -z "$prod" ]; then
   echo "✗ analytics gate: no \"export const PROD_BRANCH = '…';\" line in src/config.ts to test against."
+  echo "  Add it as the starter's src/config.ts has it, naming the branch Cloudflare builds as Production,"
+  echo "  for example: export const PROD_BRANCH = 'production';"
+  echo "  and have the ANALYTICS enabled: line compare against it: $ENABLED_LINE"
+  [ -z "$USE_HINT" ] || echo "$USE_HINT"
   exit 1
 fi
 # Whether the owner uses analytics at all. No line means a site made before the switch: on.
@@ -121,7 +132,8 @@ wvar=WORKERS_CI_BRANCH
 if [ "$use" != false ]; then
   wvar_fail() {
     echo "✗ analytics gate: $1"
-    echo "  A site on Workers Builds needs the enabled: line of the 0.35 release notes in src/config.ts."
+    echo "  The starter's line, which works on Pages and on Workers Builds alike: $ENABLED_LINE"
+    [ -z "$USE_HINT" ] || echo "$USE_HINT"
     exit 1
   }
   [ "$(grep -cE '^[[:space:]]*enabled:.*process\.env\.' src/config.ts)" = 1 ] || wvar_fail "src/config.ts needs exactly one enabled: line reading process.env."
@@ -657,7 +669,7 @@ for my $file (@ARGV) {
       $attr{$name} = defined $2 ? $2 : defined $3 ? $3 : defined $4 ? $4 : '' unless exists $attr{$name};
     }
     my $is_email = defined $attr{class} && $attr{class} =~ /(?:^|\s)email-link(?:\s|$)/;
-    my $is_go = defined $attr{href} && $attr{href} =~ /^\/go\/email\?/;
+    my $is_go = defined $attr{href} && $attr{href} =~ /^\/go\/email(?:[?#\/]|$)/;
     $email++ if $is_email;
     $emailgo++ if $is_email && $is_go;
     $go++ if $is_go;
@@ -692,8 +704,13 @@ go_selftest() {
   gofix dataclass '<a data-class="email-link" href="/go/email?e=x">a</a>'
   gofix inquote  "<a title=\"href='/go/email?e=x' class='email-link'\" class=\"email-link\" href=\"#\">a</a>"
   gofix unquoted '<a class=email-link href=/go/email?e=x>a</a>'
+  gofix bare     '<a class="email-link" href="/go/email">a</a>'
+  gofix hash     '<a class="email-link" href="/go/email#x">a</a>'
+  gofix slash    '<a class="email-link" href="/go/email/">a</a>'
+  gofix longer   '<a class="email-link" href="/go/emails">a</a>'
   for expect in plain:'1 0 0' go:'1 1 1' extra:'1 1 1' lookalike:'0 0 0' handmade:'0 0 1' comment:'0 0 0' \
-                quoted:'1 1 1' apart:'1 0 1' datahref:'1 0 0' dataclass:'0 0 1' inquote:'1 0 0' unquoted:'1 1 1'; do
+                quoted:'1 1 1' apart:'1 0 1' datahref:'1 0 0' dataclass:'0 0 1' inquote:'1 0 0' unquoted:'1 1 1' \
+                bare:'1 1 1' hash:'1 1 1' slash:'1 1 1' longer:'1 0 0'; do
     name="${expect%%:*}"; want="${expect#*:}"; k=$((k + 1))
     got="$(perl -e "$(go_program)" "$dir/$name.html" | awk '{print $1, $2, $3}')"
     if [ "$got" != "$want" ]; then
@@ -748,6 +765,7 @@ if [ "$use" = false ]; then
   expect_go live "CF_PAGES_BRANCH=$prod (the live build, analytics off)" none
   build workers-live unset "" "$prod"
   expect_off workers-live "$wvar=$prod (a Workers Builds live build, analytics off)"
+  expect_go workers-live "$wvar=$prod (a Workers Builds live build, analytics off)" none
 else
 report_problems "$(csp_host_problems public/_headers)" "public/_headers lists $host as a token in script-src and connect-src"
 
@@ -771,13 +789,15 @@ done
 build workers-live unset "" "$prod"
 before=$fail; fail=0
 expect_on workers-live "$wvar=$prod (a Workers Builds live build)"
-[ "$fail" = 0 ] || echo "  src/config.ts needs the enabled: line of the 0.35 release notes."
+[ "$fail" = 0 ] || { echo "  src/config.ts needs the starter's enabled: line: $ENABLED_LINE"; [ -z "$USE_HINT" ] || echo "$USE_HINT"; }
 fail=$((fail | before))
 expect_go workers-live "$wvar=$prod (a Workers Builds live build)" none
 build workers-preview unset "" "$preview"
 expect_off workers-preview "$wvar=$preview (a Workers Builds preview)"
+expect_go workers-preview "$wvar=$preview (a Workers Builds preview)" none
 build workers-pages-empty set "" "$prod"
 expect_off workers-pages-empty "CF_PAGES_BRANCH= with $wvar=$prod (CF_PAGES_BRANCH wins)"
+expect_go workers-pages-empty "CF_PAGES_BRANCH= with $wvar=$prod (CF_PAGES_BRANCH wins)" none
 fi
 
 build unset unset

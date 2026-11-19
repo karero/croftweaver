@@ -78,42 +78,106 @@ Your assistant does this ("stage 1" in `CLOUDFLARE_MOVE.md`) and merges it to yo
 - **Export your DNS records:** your domain, DNS → Records → Import and Export → Export. Keep
   the file outside the site's folder.
 
+Then make the move token (section 6) and tick every box of the list at the end of that section,
+all before the freeze.
+
 Do not delete the script's state file,
 `~/.config/croftweaver/moves/<domain>/<owner>-<repo>/state.json`, or its lock beside it.
 
 ## 6. Your token
 
-You make one token for the move, at https://dash.cloudflare.com/profile/api-tokens:
+You make one token for the move, at https://dash.cloudflare.com/profile/api-tokens. It holds four
+permissions, in two policies, and it ends after 7 days:
 
+- **Cloudflare Pages Edit** and **Workers Scripts Edit**, on your account.
 - **Zone Read** and **DNS Edit**, on your one domain.
-- **Cloudflare Pages Edit** and the Workers permission, on your account. The token page showed
-  it as Workers Scripts, set to Edit, in the kit's own moves; Cloudflare's wording may differ,
-  and the script's error says so if the token lacks it.
-- An end date within a week.
 
-Pages Edit and the Workers permission reach every project and Worker on your account; the
+Pages Edit and Workers Scripts Edit reach every project and Worker on your account; the
 token's zone list also shows every zone, which is expected. The script reads some lists across
 your account (your zones, your Pages projects, and your domain's DNS records, which it keeps as
 a backup), but it changes only your site: every change it sends is checked against your hosts,
 your Pages project and your Worker before it goes out, and anything else is refused.
 
+Why a second token, beside the one Workers Builds uses? That one has no end date, and any package
+in a build can read it, so it must not be able to change your DNS or your Pages project. The move
+token can, so it ends after 7 days, and you delete it once you will not go back (section 10).
+
+**The clicks.** These are the labels as seen on 2026-11-17. Cloudflare moves things, so search for
+the name if one differs.
+
+1. Open https://dash.cloudflare.com/profile/api-tokens (My Profile → API Tokens) and choose
+   **Create Token**.
+2. **Token name:** a name you will know again, such as "move" and your domain.
+3. Under Policies, choose **Start from scratch**, then **Start with an Account policy**.
+   - Next to **Include**, the account list says **All accounts**. Change it to your own account,
+     which the list names. Do not leave All accounts: the script does not check this.
+   - In the permissions box, under Developer Platform, find **Cloudflare Pages** and set it to
+     **Edit**. Find **Workers Scripts** and set it to **Edit**. A row called just **Workers** sits
+     next to it; it is not the one.
+4. Choose **Add new policy**, and make it a Zone policy.
+   - Next to **Include**, the zone choice says **All zones**. Choose **Specific zone**, then your
+     domain.
+   - Under DNS & Zones, set **Zone** to **Read** and **DNS** to **Edit**.
+5. **Token expiration:** choose **7 days**. The page starts on No expiration.
+6. Before you choose **Continue to summary**, look over the form: the four rows, your one
+   account, your one domain, 7 days. Then choose **Continue to summary** and look again on the
+   summary page. Then create the token and copy it. The summary page and what follows it were
+   not looked at on 2026-11-17, so this guide gives no labels for them.
+
 You make it; your assistant puts it where the script reads it (a variable for the session, or
 a `.dev.vars` file that git ignores). It never goes in a file git tracks. Delete it afterwards
 (section 10).
+
+### Ready before the freeze
+
+Tick every box before the freeze (section 7, step 1). Each is a few minutes now, and an hour of
+waiting on the day if it is missed.
+
+- [ ] **The Worker is connected to GitHub** (section 5). Your assistant's `check` says whether the
+  Worker's live version serves the live branch's commit. That shows a build reached the Worker,
+  not that Workers Builds is connected, so look at the Worker in the dashboard too.
+- [ ] **The build token has every row** that "B. GitHub Workers Builds, by hand" in
+  `CLOUDFLARE_FIRST_DEPLOY.md` lists for it, among them **Workers Routes → Edit** and **SSL and
+  Certificates → Edit** on your domain. The move's commit adds your domain's route, and the build
+  of that commit deploys it. In the first live move the build token lacked this row, and the
+  route commit's build passed once it was added (not tested without it). Your assistant
+  cannot check this: the move token cannot read other tokens. You look, on the token's page.
+- [ ] **The move token is made** (above): 7 days, one account, one zone. `check` refuses a token that
+  is not active, has no end date or one more than 8 days away, or has DNS Edit in no zone or in
+  more than one. It does not see whether Pages and Workers Scripts are set to Edit, or which
+  accounts the token reaches, so look over the form, and then the summary page, before you create
+  it: the four rows, one account, one zone, the end date. A token with Pages or Workers Scripts at Read
+  is not refused by `check` (read from the code, not run). With Pages at Read, the move stops
+  at its first change and nothing on Cloudflare moves; you make a new token and run it again
+  (not run in a test). With Workers Scripts at Read, the script can take a host off Pages before
+  the step that puts it on the Worker fails, and the site is down until your assistant runs
+  `undo` (read from the script's code; not run).
+- [ ] **Your assistant ran `check` last, after every box above, and its status page names `record`
+  under "What to do next".** It does that only when stage 1 is done, `main` and the live branch
+  are the same commit, and the Worker serves that commit.
 
 ## 7. On the day
 
 1. **Freeze.** Make no change to the site from the recording until the last check passes. Tell
    anyone else who edits it.
-2. **Record.** Your assistant runs `check`, then `record`, more than once.
-3. **The question.** Your assistant reads you the move's end state, word for word, and a code.
-   Say yes only if it is what you want. Your yes and the move's prompt must come within 15
-   minutes of the question, or your assistant asks again before it starts another host. (A
-   host that a stopped move left down is finished first, whatever the time.)
+2. **Record.** Your assistant runs `record`, more than once (`check` ran before the freeze, in the
+   list at the end of section 6). The first run starts building your site and stops with "The build
+   is not finished. Run the same command again in a minute." That is expected. It may stop like
+   that a few times, and once more if some addresses did not answer; each time, your assistant
+   runs it again.
+3. **The question.** Your assistant reads you the question word for word, and a code. Say yes
+   only if it is what you want. Your yes must come within 10 minutes of the question (the script
+   allows 15; your assistant's own turn takes some), or your assistant asks again before it
+   starts another host. (A host that a stopped move left down is finished first, whatever the time.)
 4. **Prompts.** Your assistant's own permission prompts come before the move, the push and any
    deploy. They may describe DNS and domain changes: read them before you approve.
 5. **The move.** Each run lasts about a minute at most, so a move with several hosts can take
    more than one run. Then the push, then the check, `after`.
+
+   If your site's `main` branch is protected, GitHub will not take the push straight away. That
+   is fine: your assistant puts the change on a branch of its own, opens a pull request, and you
+   merge it. `after` accepts the merged result. If your site has a separate live branch, it comes
+   second: your assistant updates it only once `main` has the change.
 
 `move-run/status.html` in the site's folder shows where the move stands. Open it in a browser.
 
@@ -122,8 +186,10 @@ a `.dev.vars` file that git ignores). It never goes in a file git tracks. Delete
 Choose it if the check fails and the fix is not quick, or the site looks wrong. Tell your
 assistant: "go back". It writes an undo commit, reads you the end state of the undo, and waits
 for your yes. Each host is down from the moment it leaves the Worker until Pages serves it
-again, about a minute; the tests saw up to 98 seconds. Then it pushes the undo commit and runs
-`after`. You can move again later (not run in a test yet).
+again: one to two minutes (63 to 98 seconds in the tests), and it can take longer. Then it pushes the undo commit and runs
+`after`. You can move again later (not run in a test yet). If your site's `main` is protected, the
+move's change was merged with GitHub's "Squash and merge", and other changes were merged after it,
+going back may need help: if so, your assistant will say so and stop.
 
 ## 9. If a run stops part way
 
@@ -164,9 +230,9 @@ the name if one differs.
    record, stop. Wait for "active".
 4. Your assistant pushes the undo commit and deploys, as `CLOUDFLARE_MOVE.md` says. If GitHub
    refuses the push it deploys nothing and stops; press no "Retry build" in Workers Builds. Then
-   it runs `after`. If `after` says a branch is "not the undo commit … push it", push the undo
-   commit and run `after` again. If it says "not the route commit … push it", do not push the route
-   commit and deploy nothing: stop and tell the owner.
+   it runs `after`. If `after` says `main` is "not the undo commit … or a merge of it", push the
+   undo commit as it says and run `after` again. If it says "not the route commit … or a merge of
+   it", do not push the route commit and deploy nothing: stop and tell the owner.
 
 Not checked: whether taking a host off the Worker leaves a record behind. The steps leave out
 going forward by hand.

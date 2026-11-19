@@ -483,7 +483,8 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    (every `https://example.com` link); the first `npm test` fails while `robots.txt` or
    `llms.txt` still names `example.com`. **Set `SITE.name` there too, then run `node scripts/make-icons.mjs --setup`
    after `npm install`:** it draws the site's first letter on its `--brand` colour into the seven icon files the
-   starter links, and the first `npm test` fails without them. A name that starts with no letter A–Z or digit
+   starter links, and the first `npm test` fails without them (the build also refuses create-astro's own
+   `favicon.svg` and `favicon.ico`, so a site cannot go live with them). A name that starts with no letter A–Z or digit
    needs a letter from the owner: add `--letter X`. **Set `SITE.locale` in `src/config.ts` to match the interview's
    Q4a content-language answer** (and `lang` in `Base.astro` too, if not running
    `astro-i18n-setup`). **`'de'` flips the footer's links to `/datenschutz` and `/impressum`** —
@@ -495,7 +496,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    The overlay ships `locale: 'en'`, and leaving that default in
    place for a German-content (or other non-English) site is exactly the silent-default
    bug Q4a exists to catch.
-   **This starter needs Node ≥22.23.4**, and Node's current security fixes are in 22.23.4, 24.22.1 and 26.12.1 (one per line).
+   **This starter needs Node ≥22.23.5**, and Node's current security fixes are in 22.23.5, 24.22.3 and 26.13.1 (one per line).
    The overlay's `.nvmrc` pins 26 for local + Cloudflare's builds. If `npm install` prints
    `EBADENGINE` for the site's own package (the `name@version` in the site's `package.json`, whatever the
    owner named it) and `node`, stop and have the owner update Node (SETUP.md) before going on; a warning
@@ -801,7 +802,9 @@ hold Search Console Request Indexing until then.
 - [ ] Deployed to Cloudflare, as a Worker, per the chosen **publish model** (§1 Q6).
       **Two-stage:** create the live branch (`git checkout -b production && git push -u
       origin production && git checkout main` — end back on `main`), then in Cloudflare set
-      the Worker's *production branch* = `production` (Workers Builds, in its import form) — so
+      the Worker's *production branch* = `production` (in its Settings → Builds, after the
+      import: the import form has no such field, so the first build runs from `main`, and the
+      live build comes with the first `npm run ship` after a new commit on `main`, before launch) — so
       `main` = noindexed preview, `production` = live; analytics, once switched on, fires on production only.
       **Single-stage:** `main` = live (the production branch is `main`).
       **Creating the Worker + first deploy** (the step a Cloudflare newcomer

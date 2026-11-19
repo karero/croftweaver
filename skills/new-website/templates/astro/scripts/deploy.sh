@@ -7,12 +7,61 @@
 #
 # The build runs as Workers Builds runs it: WORKERS_CI=1, and for `live` WORKERS_CI_BRANCH set
 # to PROD_BRANCH (src/config.ts), which is what switches analytics on. Every CF_* and
-# CLOUDFLARE_* variable is removed first, so no build package can read a token from them, and
-# build-marker.mjs takes the commit from git. Wrangler itself runs with your own environment.
+# CLOUDFLARE_* variable and WORKERS_CI_COMMIT_SHA is removed first, so no build package can read
+# a token from them, and build-marker.mjs takes the commit from git. Wrangler itself runs with your own environment.
 #
 # The body is the function `deploy`, called on the last line: bash reads a script as it runs
 # it, and an edit saved mid-deploy would otherwise run. Nothing here may replace the shell with
 # another program.
+# The `site:` readers below are copied word for word from scripts/ship.sh (the two files each
+# stand alone in a site); tests/check_deploy.sh fails if the copies differ.
+# The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
+# A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
+# NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
+# follows such redirects, but keep the normalization.
+site_of() { # <astro.config.mjs text>
+  local s
+  s="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
+  printf '%s\n' "${s%/}"
+}
+
+# none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
+# an old address kept in a comment counts. Many means no one address can be named or checked.
+# commented: the text before the one match does not end in plain code (js_state), so the build
+# may use another address, or ship cannot tell; it checks none.
+site_count() { # <astro.config.mjs text>
+  local h pre
+  h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
+  case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
+  # The counted match starts at the text's first occurrence of $h: an earlier one would itself
+  # be a match, and grep would have counted it first.
+  pre="${1%%"$h"*}"
+  case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
+}
+
+# Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
+# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments. A / that opens no comment, a regex
+# literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
+# The | ends the text on a character of its own, so a line comment that closed at a final
+# newline is not reported.
+js_state() { # <text>
+  printf '%s|' "$1" | awk '
+    { sub(/\r$/, "")
+      if (cont) cont = 0; else if (st != "block" && st != "tpl" && st != "slash") st = "code"
+      for (i = 1; i <= length($0) && st != "slash"; i++) {
+        c = substr($0, i, 1); d = substr($0, i, 2)
+        if (st == "code") {
+          if (d == "//") { st = "line"; break }
+          if (d == "/*") { st = "block"; i++ }
+          else if (c == "/") st = "slash"
+          else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"
+        } else if (st == "block") { if (d == "*/") { st = "code"; i++ } }
+        else if (c == "\\") { if (i == length($0)) cont = 1; i++ }
+        else if ((st == "sq" && c == "\047") || (st == "dq" && c == "\"") || (st == "tpl" && c == "`")) st = "code"
+      } }
+    END { print (st == "" ? "code" : st) }'
+}
+
 deploy() {
   local mode="" dry=0 arg
   for arg in "$@"; do
@@ -39,7 +88,8 @@ deploy() {
   fi
 
   # The Worker's name, and whether the config routes a custom domain: the comments are stripped
-  # outside strings, then JSON.parse. A file it cannot parse stops the run, naming the file.
+  # outside strings, then a comma before a closing } or ] (Wrangler accepts one), then JSON.parse.
+  # A file it cannot parse stops the run, naming the file.
   local cfg name domain
   cfg="$(node -e '
     const fs = require("fs");
@@ -60,9 +110,19 @@ deploy() {
         i = j + 2;
       } else { s += c; i++; }
     }
+    let u = "", k = 0;
+    while (k < s.length) {
+      const c = s[k];
+      if (c === "\"") {
+        let m = k + 1;
+        while (m < s.length && s[m] !== "\"") m += s[m] === "\\" ? 2 : 1;
+        u += s.slice(k, m + 1); k = m + 1;
+      } else if (c === "," && /^\s*[}\]]/.test(s.slice(k + 1))) { k++; }
+      else { u += c; k++; }
+    }
     let conf;
-    try { conf = JSON.parse(s); } catch (e) {
-      console.error(f + " is not JSON with comments (a trailing comma is not allowed): " + e.message);
+    try { conf = JSON.parse(u); } catch (e) {
+      console.error(f + " is not JSON with comments: " + e.message);
       process.exit(1);
     }
     const routes = Array.isArray(conf.routes) ? conf.routes : [];
@@ -122,7 +182,7 @@ deploy() {
   local -a unset_args=()
   local v
   for v in $(env | sed -n -E 's/^((CF|CLOUDFLARE)_[A-Za-z0-9_]*)=.*/\1/p'); do unset_args+=(-u "$v"); done
-  unset_args+=(-u WORKERS_CI_BRANCH)
+  unset_args+=(-u WORKERS_CI_BRANCH -u WORKERS_CI_COMMIT_SHA)
   local -a set_args=(WORKERS_CI=1)
   [ "$mode" != live ] || set_args+=("WORKERS_CI_BRANCH=$prod")
   echo "→ Building ($mode)…"
@@ -147,12 +207,16 @@ deploy() {
   # With a domain: the build wrote its commit to /build.txt (scripts/build-marker.mjs). Poll the
   # site until it serves this one, 10 s apart for about 6 minutes (the slowest Workers build seen
   # took about 300 s; scripts/ship.sh waits the same).
-  local site matches
-  matches="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs || true)"
-  site="$(sed -E "s/site:[[:space:]]*['\"]//" <<<"$matches")"
-  site="${site%/}"
-  if [ -z "$site" ] || [ "$(grep -c . <<<"$matches")" != 1 ]; then
-    echo "✓ Deployed the Worker \"$name\", but astro.config.mjs has no single site: address, so this cannot check"
+  local site="" text why=""
+  text="$(cat -- astro.config.mjs 2>/dev/null || true)"
+  case "$(site_count "$text")" in
+    one) site="$(site_of "$text")" ;;
+    many) why="has more than one site: address (an old one in a comment counts)" ;;
+    commented) why="has only a site: address that sits in a comment, or this cannot tell" ;;
+    *) why="has no site: address" ;;
+  esac
+  if [ -z "$site" ]; then
+    echo "✓ Deployed the Worker \"$name\", but astro.config.mjs $why, so this cannot check"
     echo "  the live site. In a few minutes your live URL's /build.txt should show $id."
     return 0
   fi

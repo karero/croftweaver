@@ -11,7 +11,8 @@ import { fileURLToPath } from 'node:url';
 // `pages_build_output_dir` (a Pages config holds that key), as the move tools find it.
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
-// Wrangler's JSONC: comments outside strings are dropped, then JSON.parse.
+// Wrangler's JSONC: comments outside strings are dropped, then a comma before a closing } or ]
+// (Wrangler accepts one), then JSON.parse.
 function parseJsonc(text: string): unknown {
   let out = '';
   for (let i = 0; i < text.length; ) {
@@ -32,7 +33,22 @@ function parseJsonc(text: string): unknown {
       i++;
     }
   }
-  return JSON.parse(out);
+  let json = '';
+  for (let i = 0; i < out.length; ) {
+    const c = out[i];
+    if (c === '"') {
+      let j = i + 1;
+      while (j < out.length && out[j] !== '"') j += out[j] === '\\' ? 2 : 1;
+      json += out.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === ',' && /^\s*[}\]]/.test(out.slice(i + 1))) {
+      i++;
+    } else {
+      json += c;
+      i++;
+    }
+  }
+  return JSON.parse(json);
 }
 
 function workersConfigs(): { file: string; conf: Record<string, unknown> }[] {
@@ -70,4 +86,15 @@ test.describe('Workers config', () => {
       expect(assets?.directory, `${file} must serve the built files from ./dist`).toBe('./dist');
     });
   }
+});
+
+// The reader Wrangler's own JSONC does: comments and a comma before a closing } or ] are fine,
+// but a `,}` inside a string is text and a missing comma is an error (as Wrangler 4 reports it).
+test.describe('Wrangler JSONC reader', () => {
+  test('a comma before a closing brace or bracket is dropped, one inside a string is kept', () => {
+    expect(parseJsonc('{ "a": "x,}", /* c */ "b": [1,], // d\n }')).toEqual({ a: 'x,}', b: [1] });
+  });
+  test('a missing comma is still an error', () => {
+    expect(() => parseJsonc('{ "a": 1 "b": 2 }')).toThrow();
+  });
 });

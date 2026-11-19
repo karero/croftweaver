@@ -86,8 +86,8 @@ npx playwright install chromium        # per machine, once
 > the tools with the macOS/Linux commands above (including `pip3 install Pillow`) inside the
 > WSL2 shell, not the PowerShell ones.
 
-> **Node ≥22.23.4 required** (this starter's floor, never below Astro's own). Node's
-> current security fixes are in **22.23.4, 24.22.1 and 26.12.1**: use the 22, 24 or 26
+> **Node ≥22.23.5 required** (this starter's floor, never below Astro's own). Node's
+> current security fixes are in **22.23.5, 24.22.3 and 26.13.1**: use the 22, 24 or 26
 > line, at that version or newer, because older versions have known security flaws. A new
 > site's `package.json` makes npm warn when its Node is older than that. After installing, and
 > if Node is already on your computer, run `node --version` and update it the way you
