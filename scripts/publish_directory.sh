@@ -11,7 +11,7 @@
 # Refuses a tag not on main, a `directory` whose last commit names no source, a release
 # older than the one already published, and a tree that is not exactly the five files, as
 # plain files: the four text files without a NUL byte or a leading `#!`, and an icon that
-# is a PNG. Pushes without force. --check-tree runs that last check alone. --compare prints `same`, `version
+# starts with the PNG signature. These catch a script or a stray binary, not every bad file. Pushes without force. --check-tree runs that last check alone. --compare prints `same`, `version
 # only` (the trees differ only in plugin.json's version) or the changed paths, one per line.
 set -euo pipefail
 
@@ -38,11 +38,11 @@ check_tree() {
     hex=$(git cat-file blob "$sha" | od -An -tx1 | tr -d ' \n')
     if [ "$path" = .claude-plugin/icon.png ]; then
       [ "${hex:0:16}" = 89504e470d0a1a0a ] \
-        || fail "$path in the directory tree is not a PNG"
+        || fail "$path in the directory tree does not start with the PNG signature"
       continue
     fi
     [ "$(git cat-file -s "$sha")" = "$(git cat-file blob "$sha" | LC_ALL=C tr -d '\0' | wc -c | tr -d ' ')" ] \
-      || fail "$path in the directory tree holds a NUL byte: the directory takes text"
+      || fail "$path in the directory tree holds a NUL byte, which a text file never does"
     [ "${hex:0:4}" != 2321 ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
   done < <(git ls-tree -r -z --full-tree "$tree")
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \

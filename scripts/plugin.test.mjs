@@ -504,7 +504,7 @@ const POINTER_MAP = [['pointer/plugin.json', '.claude-plugin/plugin.json'], ['.c
 const DIRECTORY_FILES = ['.claude-plugin/icon.png', '.claude-plugin/plugin.json', 'LICENSE', 'README.md', 'skills/get-croftweaver/SKILL.md'];
 const PRIVACY_URL = 'https://github.com/karero/croftweaver#what-the-directory-plugin-sends';
 const RELEASES_URL = 'https://github.com/karero/croftweaver/releases/latest';
-// The publish script runs under the system bash: on a Mac that is 3.2, where `read -N` fails.
+// The publish script must keep working under the system bash (3.2 on a Mac).
 const SYSTEM_BASH = fs.existsSync('/bin/bash') ? '/bin/bash' : 'bash';
 // A stand-in icon: the PNG signature, then a tail that tells one icon from another.
 const PNG = (tail = '') => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(tail)]);
@@ -669,7 +669,7 @@ function directoryRepo() {
   const run = (script, ...args) => spawnSync(SYSTEM_BASH, [script, ...args], { cwd: work, encoding: 'utf8', env });
   const publish = (tag) => { const r = run(path.join(REPO, 'scripts', 'publish_directory.sh'), tag); return { status: r.status, log: r.stdout + r.stderr }; };
   const script = (...args) => { const r = run(path.join(REPO, 'scripts', 'publish_directory.sh'), ...args); return { status: r.status, log: r.stdout + r.stderr, out: r.stdout.trim() }; };
-  // A tree of exactly these entries, [mode, path, text], written into the repository's objects.
+  // A tree of exactly these entries, [mode, path, text or bytes], written into the repository's objects.
   const makeTree = (entries) => {
     const index = path.join(path.dirname(work), `index-${Math.random().toString(36).slice(2)}`);
     const withIndex = { ...env, GIT_INDEX_FILE: index };
@@ -775,7 +775,7 @@ test('a release that would put anything but the five plain files (four text, one
     ['a symlink', five.map((e) => (e[1] === 'README.md' ? ['120000', e[1], 'LICENSE'] : e)), /::error::README\.md in the directory tree has mode 120000/],
     ['a script', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], '#!/usr/bin/env node\n'] : e)), /::error::README\.md in the directory tree starts with #!/],
     ['a binary blob as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x4d, 0x5a, 0x00, 0x01, 0x02])] : e)), /::error::README\.md in the directory tree holds a NUL byte/],
-    ['a text file as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], 'not a png'] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a PNG/],
+    ['a text file as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], 'not a png'] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree does not start with the PNG signature/],
   ];
   for (const [what, entries, message] of cases) {
     const tree = makeTree(entries);
