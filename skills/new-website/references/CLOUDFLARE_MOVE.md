@@ -141,7 +141,7 @@ never gives it to a program it starts (the build, `git`).
 | 2 | `record` | Freezes the live branch's tip and builds it apart from your working folder, then records what the live site serves. |
 | 3 | `move` | Writes the route commit on your branch (local, not pushed), then asks: the end state in plain words and a code. Nothing on Cloudflare changes. Claude Code may ask before plain `move` runs: it writes the route commit (local, not pushed), the state file and the status page, and sends Cloudflare only reads (a test checks that). Ask the User once, before the day, whether to allow it. This is about the first plain `move` only; it says nothing about plain `undo`. |
 | 4 | `move --confirm <code>` | After the User says yes to that question. Changes only Cloudflare, and only if HEAD already holds the route commit step 3 wrote and nothing has changed since step 3 (below): it moves each host off Pages, deletes its Pages CNAME, and attaches it to the Worker. |
-| 5 | push | You push the route commit to the live branch; on a two-stage site, to `main` too (`git push origin HEAD:production HEAD:main`). The push runs the site's own tests first (a couple of minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did, on the User's own Cloudflare login, not the move token. On a site with the starter's `scripts/deploy.sh` (a `wrangler.jsonc` with no `wrangler.json` or `wrangler.toml` beside it), switch to the live branch with the pushed commit checked out and run `npm run deploy:live`: it builds with the live branch's name set, so analytics stays on, and deploys. Otherwise, on a kit site, from the pushed commit: `CF_PAGES_BRANCH=<the live branch> npm run build` (without it, a site with analytics on has its analytics and email-tap tracking switched off; this build sets `CF_PAGES_BRANCH`, which the old `enabled:` line and the 0.35 one both read), then `npx wrangler deploy --config <the Workers config file>` (the root `.json` or `.jsonc` file with `assets` that stage 1 deployed with; its name is not always `wrangler.jsonc`). `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit (`npm run deploy:live` takes the commit at the branch's tip). |
+| 5 | push | You push the route commit to `main` (`git push origin HEAD:main`). If a ruleset on `main` refuses it, push the commit to a branch of its own, have the User merge a pull request, then run `git fetch origin`; `after` accepts the merged commit (see "After the push"). On a two-stage site, push `production` second, only once `main` has the commit: `git fetch origin`, then `git push origin origin/main:production`. Never push both in one command. The push runs the site's own tests first (a couple of minutes on the kit), so it can look hung. If the Worker has no Workers Builds, deploy it as well, as stage 1 did, on the User's own Cloudflare login, not the move token. On a site with the starter's `scripts/deploy.sh` (a `wrangler.jsonc` with no `wrangler.json` or `wrangler.toml` beside it), switch to the live branch with the pushed commit checked out and run `npm run deploy:live`: it builds with the live branch's name set, so analytics stays on, and deploys. Otherwise, on a kit site, from the pushed commit: `CF_PAGES_BRANCH=<the live branch> npm run build` (without it, a site with analytics on has its analytics and email-tap tracking switched off; this build sets `CF_PAGES_BRANCH`, which the old `enabled:` line and the 0.35 one both read), then `npx wrangler deploy --config <the Workers config file>` (the root `.json` or `.jsonc` file with `assets` that stage 1 deployed with; its name is not always `wrangler.jsonc`). `after` fails until the Worker serves the new commit. After an `undo`, the same with the undo commit, never the route commit (`npm run deploy:live` takes the commit at the branch's tip). |
 | 6 | `after` | Compares the live site with the recording and reports what differs. |
 
 **`check` refuses** (and each refusal says what to do): a Pages project made by direct upload, or
@@ -212,9 +212,15 @@ forward, one to two minutes going back (63 to 98 seconds in the tests). 15 minut
 
 ## After the push
 
-`after` reads the tips of the branches on GitHub. They must equal the commit of the last
+`after` reads the tips of the branches on GitHub. `main` must be the commit of the last
 `move --confirm` or `undo --confirm` (that commit says which way the hosts should be: the route
-commit means on the Worker, the undo commit means back on Pages). The commit of a plain `move` or
+commit means on the Worker, the undo commit means back on Pages), or a pull request's merge of it:
+a commit with that commit's files and the same first parent. From then on `after` waits for that
+merged commit everywhere. On a two-stage site `production` must reach the same commit; if it is
+behind `main`, `after` prints the `production` step, and if it is not behind `main` (the route
+commit pushed there before a squash merge), `after` says to ask for help. When the merged commit is
+not the route commit, `move` and `undo` must run from it (`after` prints how to bring the folder's
+`main` there: `git fetch origin`, `git switch main`, `git reset --keep <commit>`). The commit of a plain `move` or
 `undo` that nobody confirmed counts only when every host already sits where it points, as when the
 steps were done by hand. No build of Pages or Workers Builds may be unfinished. Where Workers
 Builds is connected (any commit since the last pass has one of its check runs), a pushed branch tip
@@ -249,11 +255,11 @@ which platform has it.
 `undo` is the same shape as `move`: `undo` writes the undo commit on your branch (local, not
 pushed) and asks; `undo --confirm <code>` changes only Cloudflare and refuses unless HEAD holds
 that commit: each host leaves the Worker and goes back to the Pages project with its CNAME. Push
-the commit as in step 5 of the table (to `main` too on a two-stage site), and where the Worker has
+the commit as in step 5 of the table (`main` first, then `production` on a two-stage site), and where the Worker has
 no Workers Builds, deploy it as well, from the undo commit and the same way as in step 5: otherwise
 the Worker keeps serving the old commit and `check` says so. Then run `after`; it closes the move when the hosts serve from Pages again. A move that
 stopped can be undone the same way, by hand if need be: `after` follows the commit, so it closes
-either. If an undo stops part way, `move` goes forward again from where it stopped. Ordinary commits
+either. If an undo stops part way, `move` goes forward again from where it stopped. If `main` is protected and the route commit went in as a squash merge, an `undo` after anything else was merged into `main` can stop and say to ask for help (then tell the User that going back needs help). Ordinary commits
 shipped meanwhile, a changed compatibility date among them, do not stand in the way: the commit the
 script writes changes the routes and nothing else, and it refuses a HEAD that changed the routes
 together with something else.

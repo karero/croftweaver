@@ -2984,13 +2984,13 @@ describe('review: the undo says to deploy as well (kit undo test, 2026-11-05)', 
     const q = await s.go(['move']);
     const route = git(s.site.work, 'rev-parse', 'HEAD');
     const go = await s.go(['move', '--confirm', codeOf(q)]);
-    assert.match(go.text, /Now push commit [0-9a-f]+ to .*, deploy it if the Worker has no Workers Builds, and run: node move-to-workers\.mjs after/);
+    assert.match(go.text, /Push commit [0-9a-f]+ to main .*\nThen, once main has the commit.*\nDeploy it if the Worker has no Workers Builds, and run: node move-to-workers\.mjs after/);
     s.push();
     s.w.pagesCommit = s.w.workerCommit = route;
     assert.equal((await s.go(['after'])).code, 0);
     const uq = await s.go(['undo']);
     const back = await s.go(['undo', '--confirm', codeOf(uq)]);
-    assert.match(back.text, /Now push commit [0-9a-f]+ to .*, deploy it if the Worker has no Workers Builds, and run: node move-to-workers\.mjs after/);
+    assert.match(back.text, /Push commit [0-9a-f]+ to main .*\nThen, once main has the commit.*\nDeploy it if the Worker has no Workers Builds, and run: node move-to-workers\.mjs after/);
   });
 });
 
@@ -3523,5 +3523,366 @@ describe('0.36 fix 5: check says how each host answers now', () => {
     const r = await s.go(['check']);
     assert.equal(r.code, 0, r.text);
     assert.ok(r.out.includes(`  ${HOSTS[1]}: ${NOT_PROJECT} Answers now: 200, build.txt names aaaaaaa, its platform line says "staging".`), r.text);
+  });
+});
+
+// ---------------------------------------------------------------- main protected: the route commit merged through a pull request
+
+// move-protected-main/PLAN.md (the private hub): P1 to P6 are its scenarios, T1 to T6 its tests. Each runs main() the way
+// production does, in a fixture whose origin is a local bare repository; the merges are made with git itself in a clone.
+describe('move on a protected main (P1 to P6)', () => {
+  const prList = (s, name) => path.join(s.site.dir, `pr-${name}`);
+  const gitTry = (cwd, ...args) => { try { return { ok: true, out: git(cwd, ...args) }; } catch (e) { return { ok: false, out: String(e.stderr ?? e.message) }; } };
+  const originMain = (s) => git(s.site.origin, 'rev-parse', 'refs/heads/main');
+  const originProd = (s) => git(s.site.origin, 'rev-parse', 'refs/heads/production');
+  const HOOK = (s) => path.join(s.site.origin, 'hooks', 'update');
+  // A ruleset on main: the update hook refuses a push to refs/heads/main and nothing else.
+  const protect = (s) => { writeFileSync(HOOK(s), '#!/bin/sh\n[ "$1" = refs/heads/main ] && { echo "main is protected" >&2; exit 1; }\nexit 0\n', { mode: 0o755 }); };
+  const unprotect = (s) => rmSync(HOOK(s), { force: true });
+  // What the owner does on GitHub: the commit goes to a branch of its own, a pull request merges it into main.
+  let prSerial = 0;
+  function mergeViaPr(s, commit, how) {
+    const name = `${how}${++prSerial}`;
+    git(s.site.work, 'push', '-q', 'origin', `${commit}:refs/heads/route-${name}`);
+    const clone = prList(s, name);
+    git(s.site.dir, 'clone', '-q', slash(s.site.origin), clone);
+    git(clone, 'checkout', '-q', 'main');
+    if (how === 'squash') { git(clone, 'merge', '--squash', '-q', `origin/route-${name}`); git(clone, 'commit', '-q', '-m', 'Route commit (#1)'); } else git(clone, 'merge', '--no-ff', '-q', '-m', 'Merge pull request #1', `origin/route-${name}`);
+    git(clone, 'push', '-q', 'origin', 'main');
+    git(s.site.work, 'fetch', '-q', 'origin');
+    return git(clone, 'rev-parse', 'HEAD');
+  }
+  // A folder as a User has it: a local main at the frozen commit, and the move run on a branch of its own.
+  async function moved(s = null) {
+    s ??= await recorded();
+    git(s.site.work, 'branch', 'main', s.site.frozen);
+    const route = await moveAll(s);
+    return { s, route };
+  }
+  const worldAt = (s, sha) => { s.w.pagesCommit = s.w.workerCommit = sha; };
+  const asRun = (r) => r.text.split('\n').find((l) => l.startsWith('Stopped:'));
+  // Every text a run prints, and the status page, which holds run.next.
+  const printed = (s, r) => `${r.text}\n${statusPage(s)}`;
+  const noTwoRefPush = (text) => {
+    assert.ok(!/HEAD:production/.test(text), `a push of HEAD to production is printed:\n${text}`);
+    assert.ok(!/git push\b[^\n]*\s\S+:\S+\s+\S+:\S+/.test(text), `a push naming two refs is printed:\n${text}`);
+  };
+  const steps = (text) => ({ main: text.includes('git push origin HEAD:main'), production: text.includes('git push origin origin/main:production'), fetch: text.includes('git fetch origin') });
+  const runPrinted = (s, text) => { // what the assistant types from the printed production step
+    assert.ok(steps(text).production, text);
+    git(s.site.work, 'fetch', '-q', 'origin');
+    git(s.site.work, 'push', '-q', 'origin', 'origin/main:production');
+  };
+
+  for (const how of ['squash', 'merge']) {
+    test(`T1 (P1): after accepts main at a ${how === 'squash' ? 'squash of' : 'merge commit with'} the route commit, and runs to the end`, async () => {
+      const { s, route } = await moved();
+      const m = mergeViaPr(s, route, how);
+      assert.notEqual(m, route);
+      assert.equal(git(s.site.work, 'rev-parse', `${m}^1`), s.site.frozen, 'by hand: M sits on the frozen commit');
+      if (how === 'merge') assert.equal(git(s.site.work, 'rev-parse', `${m}^2`), route, 'by hand: the second parent is the route commit');
+      worldAt(s, m);
+      const early = await s.go(['after']); // production is still at the frozen commit
+      assert.equal(early.code, 1, early.text);
+      runPrinted(s, early.text);
+      assert.equal(originProd(s), m);
+      const ok = await s.go(['after']);
+      assert.equal(ok.code, 0, ok.text);
+      assert.match(ok.text, /After passed/);
+      assert.equal(nowStage(s), '5', 'the status page shows the move as finished');
+      assert.equal(s.state().base, m);
+      noTwoRefPush(printed(s, early)); noTwoRefPush(printed(s, ok));
+    });
+  }
+
+  test('T1 (P1): a single-stage site accepts a squash of the route commit too', async () => {
+    const s = scenario({ site: makeSite({ prodBranch: 'main' }) });
+    assert.equal((await recordDone(s)).code, 0);
+    const route = await moveAll(s);
+    const m = mergeViaPr(s, route, 'squash');
+    worldAt(s, m);
+    const ok = await s.go(['after']);
+    assert.equal(ok.code, 0, ok.text);
+    assert.equal(nowStage(s), '5');
+  });
+
+  test('T2 (P2): the printed main step is refused, production stays at the frozen commit; the production step follows once main has it', async () => {
+    // A fixture check, not coverage: a two-ref push moves production although main is refused, so the hook refuses one ref and not the whole push.
+    const probe = makeSite();
+    protect({ site: probe });
+    git(probe.work, 'commit', '-q', '--allow-empty', '-m', 'probe');
+    assert.equal(gitTry(probe.work, 'push', 'origin', 'HEAD:production', 'HEAD:main').ok, false);
+    assert.equal(git(probe.origin, 'rev-parse', 'refs/heads/production'), git(probe.work, 'rev-parse', 'HEAD'), 'the fixture: production took the commit');
+    assert.equal(git(probe.origin, 'rev-parse', 'refs/heads/main'), probe.frozen, 'the fixture: main was refused');
+
+    const { s, route } = await moved();
+    protect(s);
+    const q = await s.go(['move']); // the question already prints the steps
+    noTwoRefPush(printed(s, q));
+    const asked = steps(q.text);
+    assert.ok(asked.main && asked.production && asked.fetch, q.text);
+    const push = gitTry(s.site.work, 'push', 'origin', 'HEAD:main'); // the printed main step
+    assert.equal(push.ok, false, 'GitHub refuses it');
+    assert.equal(originProd(s), s.site.frozen, 'production was not touched');
+    assert.equal(originMain(s), s.site.frozen);
+    worldAt(s, route);
+    const refused = await s.go(['after']);
+    assert.equal(refused.code, 1, refused.text);
+    assert.ok(steps(refused.text).main && steps(refused.text).production, refused.text);
+    noTwoRefPush(printed(s, refused));
+
+    unprotect(s);
+    const m = mergeViaPr(s, route, 'squash');
+    worldAt(s, m);
+    const onlyProd = await s.go(['after']);
+    assert.equal(onlyProd.code, 1, onlyProd.text);
+    const st = steps(onlyProd.text);
+    assert.ok(st.production && st.fetch && !st.main, `only the production step: ${onlyProd.text}`);
+    noTwoRefPush(printed(s, onlyProd));
+    runPrinted(s, onlyProd.text);
+    const ok = await s.go(['after']);
+    assert.equal(ok.code, 0, ok.text);
+    assert.equal(originProd(s), m);
+    assert.equal(originMain(s), m);
+    assert.equal(gitTry(s.site.work, 'merge-base', '--is-ancestor', originProd(s), originMain(s)).ok, true, 'production is an ancestor of main: ship fast-forwards');
+  });
+
+  test('T2 (P2): production at the route commit is a fast-forward under a merge commit, and a request for help under a squash', async () => {
+    for (const how of ['merge', 'squash']) {
+      const { s, route } = await moved();
+      const m = mergeViaPr(s, route, how);
+      git(s.site.work, 'push', '-q', 'origin', `${route}:refs/heads/production`); // by hand, or a move started on today's code
+      worldAt(s, m);
+      const r = await s.go(['after']);
+      assert.equal(r.code, 1, r.text);
+      noTwoRefPush(printed(s, r));
+      if (how === 'merge') {
+        assert.ok(steps(r.text).production && !steps(r.text).main, r.text);
+        runPrinted(s, r.text);
+        assert.equal((await s.go(['after'])).code, 0);
+      } else {
+        assert.match(r.text, /Ask for help/);
+        assert.ok(!steps(r.text).production, r.text);
+      }
+    }
+  });
+
+  test('T3 (P3): the route commit pushed as it always was passes, and no folder line is printed for a main that is already it', async () => {
+    const { s, route } = await moved();
+    s.push();
+    git(s.site.work, 'branch', '-f', 'main', route);
+    worldAt(s, route);
+    const ok = await s.go(['after']);
+    assert.equal(ok.code, 0, ok.text);
+    assert.doesNotMatch(ok.text, /git reset --keep|commits of its own/);
+  });
+
+  test('T4 (P4): a main with another commit after the frozen commit, or with the route files on another parent, is refused', async () => {
+    const { s, route } = await moved();
+    const other = git(s.site.work, 'commit-tree', `${s.site.frozen}^{tree}`, '-p', s.site.frozen, '-m', 'something else');
+    git(s.site.work, 'push', '-q', 'origin', `${other}:refs/heads/main`);
+    worldAt(s, other);
+    const a = await s.go(['after']);
+    assert.equal(a.code, 1, a.text);
+    assert.match(a.text, /not the route commit/);
+    const onOther = git(s.site.work, 'commit-tree', `${route}^{tree}`, '-p', other, '-m', 'route files, another parent');
+    git(s.site.work, 'push', '-q', 'origin', `${onOther}:refs/heads/main`);
+    worldAt(s, onOther);
+    const b = await s.go(['after']);
+    assert.equal(b.code, 1, b.text);
+    assert.match(b.text, /not the route commit/);
+  });
+
+  test('T5 (P5): after accepts M, a later check fails, and the next run from the saved state accepts M again', async () => {
+    const { s, route } = await moved();
+    const m = mergeViaPr(s, route, 'squash');
+    git(s.site.work, 'push', '-q', 'origin', `${m}:refs/heads/production`);
+    worldAt(s, route); // the site is built from the route commit: /build.txt does not name M yet
+    const failed = await s.go(['after']);
+    assert.equal(failed.code, 1, failed.text);
+    assert.match(failed.text, /commit line/);
+    worldAt(s, m);
+    git(s.site.work, 'update-ref', 'refs/heads/main', m);
+    const ok = await s.go(['after']);
+    assert.equal(ok.code, 0, ok.text);
+    assert.doesNotMatch(ok.text, /git reset --keep|commits of its own/, 'the folder\'s main is M: no folder line');
+    assert.equal(s.state().base, m);
+  });
+
+  // The way back.
+  async function passedWithM(withAfter = true) {
+    const { s, route } = await moved();
+    const m = mergeViaPr(s, route, 'squash');
+    git(s.site.work, 'push', '-q', 'origin', `${m}:refs/heads/production`);
+    worldAt(s, m);
+    if (withAfter) {
+      const ok = await s.go(['after']);
+      assert.equal(ok.code, 0, ok.text);
+      assert.ok(ok.text.includes(`git reset --keep ${m}`), `the folder line names M by its id:\n${ok.text}`);
+      noTwoRefPush(printed(s, ok));
+    }
+    return { s, route, m };
+  }
+
+  for (const withAfter of [true, false]) {
+    test(`T6 (P6): undo refuses HEAD = the route commit, and HEAD = a merge of it and M, and prints the folder line (after run: ${withAfter})`, async () => {
+      const { s, route, m } = await passedWithM(withAfter);
+      const u = await s.go(['undo']);
+      assert.equal(u.code, 1, u.text);
+      assert.ok(u.text.includes(`git reset --keep ${m}`) && u.text.includes('git switch main') && u.text.includes('git fetch origin'), u.text);
+      noTwoRefPush(printed(s, u));
+      git(s.site.work, 'switch', '-q', '-c', 'both', route);
+      git(s.site.work, 'merge', '-q', '--no-edit', m);
+      assert.notEqual(git(s.site.work, 'rev-parse', 'HEAD'), m);
+      const u2 = await s.go(['undo']);
+      assert.equal(u2.code, 1, u2.text);
+      assert.ok(u2.text.includes(`git reset --keep ${m}`), u2.text);
+    });
+  }
+
+  test('T6 (P6): a folder main with a commit of its own is told to ask for help; the printed commands bring main to M, also when origin/main has moved on, and undo then refuses', async () => {
+    const { s, route, m } = await passedWithM(true);
+    const own = git(s.site.work, 'commit-tree', `${s.site.frozen}^{tree}`, '-p', s.site.frozen, '-m', 'mine');
+    git(s.site.work, 'branch', '-f', 'main', own);
+    const help = await s.go(['undo']);
+    assert.equal(help.code, 1, help.text);
+    assert.match(help.text, /Ask for help/);
+    assert.ok(!help.text.includes('git reset --keep'), help.text);
+    git(s.site.work, 'branch', '-f', 'main', s.site.frozen);
+    // origin/main moves on after the line was printed: the line names M, so it still lands there.
+    git(s.site.work, 'push', '-q', 'origin', `${git(s.site.work, 'commit-tree', `${m}^{tree}`, '-p', m, '-m', 'later')}:refs/heads/main`);
+    git(s.site.work, 'fetch', '-q', 'origin');
+    git(s.site.work, 'switch', '-q', 'main');
+    git(s.site.work, 'reset', '-q', '--keep', m);
+    assert.equal(git(s.site.work, 'rev-parse', 'main'), m);
+    assert.equal(readFileSync(path.join(s.site.work, 'workers.jsonc'), 'utf8').trimEnd(), git(s.site.work, 'show', `${m}:workers.jsonc`), 'the files are M\'s, checked by content');
+    assert.equal(git(s.site.work, 'rev-parse', 'HEAD^{tree}'), git(s.site.work, 'rev-parse', `${m}^{tree}`));
+    const past = await s.go(['undo']); // main on GitHub is past M: something else was merged
+    assert.equal(past.code, 1, past.text);
+    assert.match(past.text, /something else was merged/);
+    assert.match(past.text, /not the route commit/);
+  });
+
+  // A main that moved on from the route commit (a merge commit M and a later merge, or a directly pushed route commit and a later ship):
+  // undo still runs, but only from main's tip, so its commit can be accepted.
+  async function undoFromTip(s, tip, landUndo) {
+    const refused = await s.go(['undo']);
+    assert.equal(refused.code, 1, refused.text);
+    assert.match(refused.text, /where main on GitHub is now/);
+    assert.ok(refused.text.includes(`git reset --keep ${tip}`), `the folder line names main's tip:\n${refused.text}`);
+    noTwoRefPush(printed(s, refused));
+    git(s.site.work, 'switch', '-q', '-C', 'main', tip);
+    const q = await s.go(['undo']);
+    assert.equal(q.code, 3, q.text);
+    const undoCommit = git(s.site.work, 'rev-parse', 'HEAD');
+    const g = await s.go(['undo', '--confirm', codeOf(q)]);
+    assert.equal(g.code, 0, g.text);
+    const landed = landUndo(undoCommit);
+    worldAt(s, landed);
+    const ok = await s.go(['after']);
+    assert.equal(ok.code, 0, ok.text);
+    assert.match(ok.text, /back on Pages/);
+  }
+  // A later change that edits a file other than the Workers config: a one-parent commit on `from`, or a two-parent merge of a side commit made on the frozen commit.
+  const later = (s, from, merge = false) => {
+    const w = s.site.work;
+    const branch = git(w, 'rev-parse', '--abbrev-ref', 'HEAD'); // the literal HEAD when detached
+    const back = branch === 'HEAD' ? git(w, 'rev-parse', 'HEAD') : branch;
+    const edit = (name, text, msg) => { writeFileSync(path.join(w, name), text); git(w, 'add', name); git(w, 'commit', '-q', '-m', msg); return git(w, 'rev-parse', 'HEAD'); };
+    git(w, 'switch', '-q', '--detach', merge ? s.site.frozen : from);
+    const c = edit('later-note.txt', 'a later change\n', 'a later change');
+    let out = c;
+    if (merge) { git(w, 'switch', '-q', '--detach', from); git(w, 'merge', '-q', '--no-ff', '-m', 'a later merge', c); out = git(w, 'rev-parse', 'HEAD'); }
+    git(w, 'switch', '-q', ...(back.length === 40 ? ['--detach'] : []), back);
+    return out;
+  };
+  const pushBoth = (s, sha) => { git(s.site.work, 'push', '-q', 'origin', `${sha}:refs/heads/main`, `${sha}:refs/heads/production`); git(s.site.work, 'fetch', '-q', 'origin'); };
+
+  test('T6 (P6): after a merge-commit M and one later merge, undo refuses the old HEAD (a folder main that is merely behind gets the reset line), and from the tip its commit, merged, passes after', async () => {
+    const { s, route } = await moved();
+    const m = mergeViaPr(s, route, 'merge');
+    const next = later(s, m, true);
+    pushBoth(s, next);
+    git(s.site.work, 'branch', '-f', 'main', m); // behind main's tip, and neither the frozen commit nor the route commit
+    worldAt(s, next);
+    await undoFromTip(s, next, (u) => { const m2 = mergeViaPr(s, u, 'squash'); git(s.site.work, 'push', '-q', 'origin', `${m2}:refs/heads/production`); return m2; });
+  });
+
+  test('T6 (P6): after a directly pushed route commit and one later commit on main, undo refuses the old HEAD, and from the tip its pushed commit passes after', async () => {
+    const { s, route } = await moved();
+    s.push();
+    const next = later(s, route);
+    pushBoth(s, next);
+    worldAt(s, next);
+    await undoFromTip(s, next, (u) => { pushBoth(s, u); return u; });
+  });
+
+  test('T6 (P6): with the route commit pushed directly as main and HEAD still at the frozen commit, undo refuses and prints the folder line', async () => {
+    const { s, route } = await moved();
+    s.push();
+    git(s.site.work, 'fetch', '-q', 'origin');
+    git(s.site.work, 'switch', '-q', '--detach', s.site.frozen);
+    const r = await s.go(['undo']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /HEAD is [0-9a-f]+, not [0-9a-f]+, the commit that main on GitHub holds/);
+    assert.ok(r.text.includes(`run git fetch origin, git switch main, then git reset --keep ${route}.`), r.text); // the folder's main is still at the frozen commit
+  });
+
+  test('T6 (P6): a folder with no branch called main is told how to make one at M', async () => {
+    const { s, m } = await passedWithM(false);
+    git(s.site.work, 'branch', '-D', 'main');
+    const r = await s.go(['undo']);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes(`This folder has no branch called main. Run git fetch origin, then git switch -c main ${m}.`), r.text);
+  });
+
+  test('T6 (P6): with the folder\'s main at M and HEAD on the route branch, undo and move --confirm refuse and print git switch main', async () => {
+    const { s, m } = await passedWithM(true);
+    git(s.site.work, 'branch', '-f', 'main', m);
+    for (const args of [['undo'], ['move', '--confirm', '0'.repeat(16)]]) {
+      const r = await s.go(args);
+      assert.equal(r.code, 1, r.text);
+      assert.ok(r.text.includes('git switch main'), r.text);
+      assert.ok(!r.text.includes('git reset --keep'), r.text);
+    }
+  });
+
+  for (const withAfter of [true, false]) {
+    test(`T6 (P6): undo run from M merges through a pull request and passes after (after run before: ${withAfter})`, async () => {
+      const { s, m } = await passedWithM(withAfter);
+      git(s.site.work, 'switch', '-q', '-C', 'main', m);
+      const q = await s.go(['undo']);
+      assert.equal(q.code, 3, q.text);
+      const undoCommit = git(s.site.work, 'rev-parse', 'HEAD');
+      assert.equal(git(s.site.work, 'rev-parse', 'HEAD~1'), m, 'the undo commit sits on M');
+      const g = await s.go(['undo', '--confirm', codeOf(q)]);
+      assert.equal(g.code, 0, g.text);
+      const m2 = mergeViaPr(s, undoCommit, 'squash');
+      git(s.site.work, 'push', '-q', 'origin', `${m2}:refs/heads/production`);
+      worldAt(s, m2);
+      const ok = await s.go(['after']);
+      assert.equal(ok.code, 0, ok.text);
+      assert.match(ok.text, /back on Pages/);
+    });
+  }
+
+  // Shows the git premise only; the guard against it is the test where undo refuses HEAD = the route commit.
+  test('T6 (P6): on the old way of working, a squash of an undo commit built on the route commit leaves the routes in place', () => {
+    const s = makeSite();
+    const { work } = s;
+    const file = path.join(work, 'workers.jsonc');
+    const plain = readFileSync(file, 'utf8');
+    git(work, 'switch', '-q', '-c', 'route');
+    writeFileSync(file, setRoutes(plain, HOSTS));
+    git(work, 'commit', '-q', '-am', 'route');
+    git(work, 'switch', '-q', '-c', 'undo');
+    writeFileSync(file, plain);
+    git(work, 'commit', '-q', '-am', 'undo');
+    git(work, 'switch', '-q', '-c', 'squash', s.frozen);
+    git(work, 'merge', '--squash', '-q', 'route');
+    git(work, 'commit', '-q', '-m', 'route squashed');
+    git(work, 'merge', '--squash', '-q', 'undo');
+    git(work, 'commit', '-q', '--allow-empty', '-m', 'undo squashed');
+    assert.deepEqual(routesOf(parseJsonc(readFileSync(file, 'utf8')), 'workers.jsonc'), HOSTS, 'the routes stay');
   });
 });

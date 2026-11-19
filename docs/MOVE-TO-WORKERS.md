@@ -174,6 +174,11 @@ waiting on the day if it is missed.
 5. **The move.** Each run lasts about a minute at most, so a move with several hosts can take
    more than one run. Then the push, then the check, `after`.
 
+   If your site's `main` branch is protected, GitHub will not take the push straight away. That
+   is fine: your assistant puts the change on a branch of its own, opens a pull request, and you
+   merge it. `after` accepts the merged result. If your site has a separate live branch, it comes
+   second: your assistant updates it only once `main` has the change.
+
 `move-run/status.html` in the site's folder shows where the move stands. Open it in a browser.
 
 ## 8. Going back
@@ -182,7 +187,9 @@ Choose it if the check fails and the fix is not quick, or the site looks wrong. 
 assistant: "go back". It writes an undo commit, reads you the end state of the undo, and waits
 for your yes. Each host is down from the moment it leaves the Worker until Pages serves it
 again: one to two minutes (63 to 98 seconds in the tests), and it can take longer. Then it pushes the undo commit and runs
-`after`. You can move again later (not run in a test yet).
+`after`. You can move again later (not run in a test yet). If your site's `main` is protected, the
+move's change was merged with GitHub's "Squash and merge", and other changes were merged after it,
+going back may need help: if so, your assistant will say so and stop.
 
 ## 9. If a run stops part way
 
@@ -223,9 +230,9 @@ the name if one differs.
    record, stop. Wait for "active".
 4. Your assistant pushes the undo commit and deploys, as `CLOUDFLARE_MOVE.md` says. If GitHub
    refuses the push it deploys nothing and stops; press no "Retry build" in Workers Builds. Then
-   it runs `after`. If `after` says a branch is "not the undo commit … push it", push the undo
-   commit and run `after` again. If it says "not the route commit … push it", do not push the route
-   commit and deploy nothing: stop and tell the owner.
+   it runs `after`. If `after` says `main` is "not the undo commit … or a merge of it", push the
+   undo commit as it says and run `after` again. If it says "not the route commit … or a merge of
+   it", do not push the route commit and deploy nothing: stop and tell the owner.
 
 Not checked: whether taking a host off the Worker leaves a record behind. The steps leave out
 going forward by hand.
