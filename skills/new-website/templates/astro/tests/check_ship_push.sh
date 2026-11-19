@@ -977,6 +977,10 @@ want_line1="→ Site: https://same.example · GitHub repo: $repo_fallback"; expe
 mark decoy noorigin
 printf "export default {\nwebsite: 'https://x.example',\n};\n/*\nsite: 'https://x.example'\n*/\n" > "$work/cwd/astro.config.mjs"
 want_line1="$one_comment"; expect decoy 1 0 "not for a network reason"
+# Bytes before the key: grep counts them in bytes, and a cut by characters would end inside the key.
+mark utf8key noorigin
+printf "/* éééééé */site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect utf8key 1 0 "not for a network reason"
 # A / that opens no comment (here a regex holding a quote, which could hide a real /*) stops the
 # scan: nothing is checked. A string continued past a line's end with \ stays a string.
 mark regexquote noorigin; mark continued noorigin
@@ -2133,7 +2137,7 @@ export default {};"
   want "a custom_domain in a comment or a string with // is no route" last_starts "$sent"
   # The message names the Workers config ship read, which a site may keep under another name.
   wname=worker.json workers_case w1b github "$noroute" SHIP_T_NOSITE=1; exits 0
-  want "the message names the file ship read" last_starts "${sent/wrangler.jsonc/worker.json}"
+  want "the message names the file ship read" last_starts "${sent//wrangler.jsonc/worker.json}"
   workers_case w3 folder "$noroute" SHIP_T_NOSITE=1; exits 0
   want "a folder's own copy is read too" last_starts "$sent"
   bad_cfg="✗ The publish went out (GitHub's production is now"

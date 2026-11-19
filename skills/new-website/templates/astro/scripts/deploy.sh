@@ -34,8 +34,10 @@ site_count() { # <astro.config.mjs text>
   local h b pre
   h="$(grep -oEb "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  # grep -b says where the match starts (offset:match). The match may begin with the one character
-  # before `site:`, which belongs to the text before the key: a quote that opens a string, the / of */.
+  # grep -b says where the match starts: "byte offset:match" (GNU and BSD grep alike), so cut the text
+  # by bytes (LC_ALL=C). The match may begin with the one character before `site:`, which belongs to
+  # the text before the key: a quote that opens a string, the / of */. The x keeps $( ) from
+  # stripping a final newline of that text.
   b="${h#*:}"; b="${b%%site:*}"
   pre="$(LC_ALL=C; printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
   case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
