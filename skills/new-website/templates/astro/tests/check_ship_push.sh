@@ -981,7 +981,17 @@ want_line1="$one_comment"; expect decoy 1 0 "not for a network reason"
 # (so this case runs in a UTF-8 locale, where the two differ).
 mark utf8key noorigin
 printf "/* éééééé */site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
-want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; LC_ALL=en_US.UTF-8 expect utf8key 1 0 "not for a network reason"
+# The case needs a UTF-8 locale this machine has: a missing one makes bash print a warning that
+# becomes the first line, so it is skipped, with a note, where none of these exists.
+utf8_loc=""
+for l in C.UTF-8 en_US.UTF-8 en_US.utf8 C.utf8; do
+  if locale -a 2>/dev/null | grep -qix "$l"; then utf8_loc="$l"; break; fi
+done
+if [ -n "$utf8_loc" ]; then
+  want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; LC_ALL="$utf8_loc" expect utf8key 1 0 "not for a network reason"
+else
+  echo "  note: the utf8key case is skipped: no UTF-8 locale (C.UTF-8 or en_US.UTF-8) on this machine."
+fi
 # A / that opens no comment (here a regex holding a quote, which could hide a real /*) stops the
 # scan: nothing is checked. A string continued past a line's end with \ stays a string.
 mark regexquote noorigin; mark continued noorigin
@@ -2311,7 +2321,7 @@ export default {};"
     want "main on GitHub is that same commit" eq "$(gh main)" "$(gh production)"
     want "the question is asked once" eq "$(again_count)" 1
     want "it says it ships again" has "→ Shipping again: 'main' and 'production' get the commit"
-    want "the offer says what a main that refuses pushes does" has "If 'main' refuses direct pushes, git refuses this push and nothing more changes; the first publish stays."
+    want "the offer says what a main that refuses pushes does" has "If GitHub refuses direct pushes to 'main', it refuses this push too: neither branch changes, and ship ends there and says what to check in Cloudflare."
     want "the commit and its file do not send the owner to PUBLISHING.md" eval '! git --git-dir="$O" log -1 --format=%B refs/heads/production | grep -q PUBLISHING && ! git --git-dir="$O" show refs/heads/production:SHIP-AGAIN.txt | grep -q PUBLISHING'
     want "the gate ran for both pushes" eq "$(gate_runs)" 2
     want "the run ends on the LIVE line" live_line

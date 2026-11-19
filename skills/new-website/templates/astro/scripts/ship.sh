@@ -1327,7 +1327,7 @@ while [ "$i" -lt "$limit" ]; do
     echo "  not have started a production build for this commit (the cause is not known), or it is slow."
     echo "  'ship again' makes one small commit on 'main' (one line of $again_file changes), pushes it to"
     echo "  'main' and 'production' (the pre-push gate runs again) and waits again. Any other answer leaves the wait as it is."
-    echo "  If 'main' refuses direct pushes, git refuses this push and nothing more changes; the first publish stays."
+    echo "  If GitHub refuses direct pushes to 'main', it refuses this push too: neither branch changes, and ship ends there and says what to check in Cloudflare."
     if [ "$live_n" = 0 ]; then
       q_stop="Nothing was pushed ('production' already had ${id:0:12}); nothing more was done."
     else
