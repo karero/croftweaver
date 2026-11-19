@@ -9,7 +9,7 @@ const TABLE = Array.from({ length: 256 }, (_, n) => {
   for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
   return c >>> 0;
 });
-// CRC-32 as PNG uses it; zlib.crc32 is missing on older Node 20.
+// CRC-32 as PNG uses it, written out so no Node version's zlib matters.
 export function crc32(buf) {
   let c = 0xffffffff;
   for (const b of buf) c = TABLE[(c ^ b) & 0xff] ^ (c >>> 8);
@@ -18,11 +18,15 @@ export function crc32(buf) {
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-// The reason a PNG is not whole, or '' when it is. No pixel decoding.
+// Channels per pixel, and the bit depths allowed, for each PNG colour type.
+const COLOUR = { 0: [1, [1, 2, 4, 8, 16]], 2: [3, [8, 16]], 3: [1, [1, 2, 4, 8]], 4: [2, [8, 16]], 6: [4, [8, 16]] };
+
+// The reason a PNG is not whole, or '' when it is: its chunks, header, and every row of its
+// image data are checked; pixel values are not.
 export function pngProblem(buf) {
   if (buf.length < 8 || !buf.subarray(0, 8).equals(SIGNATURE)) return 'no PNG signature';
   const idat = [];
-  let pos = 8, first = true;
+  let pos = 8, first = true, hdr, plte = false;
   for (;;) {
     if (pos + 12 > buf.length) return 'cut short: no IEND chunk';
     const len = buf.readUInt32BE(pos);
@@ -32,9 +36,14 @@ export function pngProblem(buf) {
     if (buf.readUInt32BE(end - 4) !== crc32(buf.subarray(pos + 4, end - 4))) return `the ${type} chunk fails its checksum`;
     if (first) {
       if (type !== 'IHDR' || len !== 13) return 'IHDR is not the first chunk, or is not 13 bytes';
-      if (buf.readUInt32BE(pos + 8) === 0 || buf.readUInt32BE(pos + 12) === 0) return 'width or height is zero';
+      hdr = { w: buf.readUInt32BE(pos + 8), h: buf.readUInt32BE(pos + 12), depth: buf[pos + 16], colour: buf[pos + 17],
+        rest: [buf[pos + 18], buf[pos + 19], buf[pos + 20]] };
+      if (hdr.w === 0 || hdr.h === 0) return 'width or height is zero';
+      if (!COLOUR[hdr.colour] || !COLOUR[hdr.colour][1].includes(hdr.depth)) return 'its colour type and bit depth are not a PNG pair';
+      if (hdr.rest.join() !== '0,0,0') return 'interlaced, or a compression or filter method PNG does not define';
       first = false;
     } else if (type === 'IHDR') return 'a second IHDR chunk';
+    else if (type === 'PLTE') plte = true;
     else if (type === 'IDAT') idat.push(buf.subarray(pos + 8, end - 4));
     if (type === 'IEND') {
       if (len !== 0) return 'IEND is not empty';
@@ -44,7 +53,16 @@ export function pngProblem(buf) {
     pos = end;
   }
   if (!idat.length) return 'no IDAT chunk';
-  try { zlib.inflateSync(Buffer.concat(idat)); } catch { return 'the image data is not valid zlib'; }
+  if (hdr.colour === 3 && !plte) return 'a palette image with no PLTE chunk';
+  const rowBytes = 1 + Math.ceil((hdr.w * COLOUR[hdr.colour][0] * hdr.depth) / 8);
+  const size = rowBytes * hdr.h;
+  if (size > 64 * 1024 * 1024) return 'larger than an icon needs';
+  const data = Buffer.concat(idat);
+  let raw;
+  try { raw = zlib.inflateSync(data, { info: true, maxOutputLength: size + 1 }); } catch { return 'the image data is not valid zlib, or too long'; }
+  if (raw.engine.bytesWritten !== data.length) return 'bytes after the image data';
+  if (raw.buffer.length !== size) return 'the image data does not fill its rows';
+  for (let row = 0; row < size; row += rowBytes) if (raw.buffer[row] > 4) return 'a row has a filter PNG does not define';
   return '';
 }
 
@@ -58,12 +76,14 @@ function textProblem(buf) {
   return '';
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+// Run as a command (also through a symlink), not when the tests import crc32. publish_directory.sh
+// takes only "ok" as a pass, so a run that checks nothing fails there.
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   const file = process.argv[2];
   if (!file) { console.log('no path given'); process.exit(1); }
   const buf = fs.readFileSync(0);
-  const problem = file === '.claude-plugin/icon.png'
-    ? (pngProblem(buf) && `is not a whole PNG: ${pngProblem(buf)}`)
-    : textProblem(buf);
+  const png = file === '.claude-plugin/icon.png' ? pngProblem(buf) : '';
+  const problem = png ? `is not a whole PNG: ${png}` : file === '.claude-plugin/icon.png' ? '' : textProblem(buf);
   if (problem) { console.log(problem); process.exit(1); }
+  console.log('ok');
 }

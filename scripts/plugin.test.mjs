@@ -546,6 +546,16 @@ test('the real pointer tree passes the publish script\'s check of its five files
   assert.equal(run.status, 0, run.stderr);
 });
 
+test('the content checker checks when run through a symlink, and says ok only for a file it passed', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cw-checker-'));
+  const link = path.join(dir, 'check.mjs');
+  fs.symlinkSync(path.join(REPO, 'scripts', 'check_directory_files.mjs'), link);
+  const run = (input) => spawnSync('node', [link, 'README.md'], { input, encoding: 'utf8' });
+  assert.deepEqual([run('#!/bin/sh\n').status, run('#!/bin/sh\n').stdout.trim()], [1, 'starts with #!: the directory takes text, not scripts']);
+  assert.deepEqual([run('plain text\n').status, run('plain text\n').stdout.trim()], [0, 'ok']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('the pointer plugin carries the kit\'s name and number, metadata only, and a privacy link to a heading the README has', () => {
   const kit = JSON.parse(read('.claude-plugin', 'plugin.json'));
   const pointer = JSON.parse(read('pointer', 'plugin.json'));
@@ -808,6 +818,12 @@ test('a release that would put anything but the five plain files (four text, one
     ['an icon with one checksum byte flipped', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], flipByte(PNG('i'), 8 + 12 + 13 - 1)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the IHDR chunk fails its checksum/],
     ['an icon with bytes after IEND', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG('i'), Buffer.from('x')])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after IEND/],
     ['an icon whose image data is not zlib', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.from('not zlib at all'))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data is not valid zlib/],
+    ['an icon whose image data inflates to nothing', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.alloc(0)))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data does not fill its rows/],
+    ['an icon with more image data than its rows', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.alloc(10)))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data is not valid zlib, or too long/],
+    ['an icon with a row filter PNG lacks', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.from([5, 0, 0, 0, 0])))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: a row has a filter PNG does not define/],
+    ['an icon with bytes after its compressed data', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.concat([zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0])), Buffer.from('xx')]))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after the image data/],
+    ['an interlaced icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 1])),
+      pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: interlaced/],
   ];
   for (const [what, entries, message] of cases) {
     const tree = makeTree(entries);

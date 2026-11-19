@@ -38,8 +38,8 @@ check_tree() {
     paths+="$path"$'\n'
     [ "$mode" = 100644 ] || fail "$path in the directory tree has mode $mode: only plain files (100644) go to the directory"
     git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
-    msg=$(git cat-file blob "$sha" | node "$here/check_directory_files.mjs" "$path") \
-      || fail "$path in the directory tree ${msg:-could not be checked (check_directory_files.mjs failed)}"
+    msg=$(git cat-file blob "$sha" | node "$here/check_directory_files.mjs" "$path" 2>&1) || true
+    [ "$msg" = ok ] || fail "$path in the directory tree ${msg:-could not be checked: check_directory_files.mjs printed nothing}"
   done < <(git ls-tree -r -z --full-tree "$tree")
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
     || fail "the directory tree is not exactly the five pointer files: got $(printf '%s' "$paths" | LC_ALL=C sort | tr '\n' ' ')"
