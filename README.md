@@ -175,10 +175,11 @@ setting, is in [What the skills run on your computer](docs/WHAT-THE-SKILLS-RUN.m
 
 ## What the directory plugin sends
 
-Nothing. The Croftweaver plugin in Anthropic's plugin directory holds one skill, a page of
-text that says what Croftweaver is and gives you the install commands to type yourself. It
-runs nothing, fetches nothing and stores nothing. What the full kit sends once you install
-it and build a site is listed above, under [What leaves your computer](#what-leaves-your-computer).
+The Croftweaver plugin in Anthropic's plugin directory is moving to a short version: one
+skill, a page of text that says what Croftweaver is and gives you the install commands to
+type yourself. That version sends nothing: it runs nothing, fetches nothing and stores
+nothing. Until it is there, the plugin in the directory is the full kit, and what the full
+kit sends is listed above, under [What leaves your computer](#what-leaves-your-computer).
 
 ## What happens next
 
