@@ -198,6 +198,43 @@ gf() {
   if [ -n "$out" ]; then printf '%s\n' "$out"; fi
   return 0
 }
+# `g -r` over the scan targets (names or docs). In a git checkout it reads only the files git
+# lists, tracked or untracked and not ignored: grep -r walks ignored folders such as node_modules
+# and only drops their hits afterwards (filter_ignored), which took many minutes with the
+# starter's packages installed. A copy without git keeps grep -r. An empty list is an error:
+# grep with no file would read stdin.
+gscan() { # <names|docs> <grep flags and pattern…> → as g
+  local which="$1" targets lst err rc f; shift
+  if [ "$which" = names ]; then targets="$SCAN_NAMES"; else targets="$SCAN_DOCS"; fi
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # shellcheck disable=SC2086
+    g -r "$@" $targets
+    return 0
+  fi
+  local -a files=()
+  lst="$(mktemp)" || { echo "✗ scan error (mktemp failed) — this check did NOT run"; return 0; }
+  err="$(mktemp)" || { rm -f "$lst"; echo "✗ scan error (mktemp failed) — this check did NOT run"; return 0; }
+  set -f
+  # shellcheck disable=SC2086
+  git ls-files -z --cached --others --exclude-standard -- $targets >"$lst" 2>"$err"; rc=$?
+  set +f
+  # A folder git cannot read is warned about, not failed on, and then goes unscanned: grep -r
+  # reported such a folder as a scan error, so any word on stderr does here.
+  if [ "$rc" -ne 0 ] || [ -s "$err" ]; then
+    echo "✗ scan error (git ls-files exit $rc) — files may be unscanned:"
+    sed 's/^/    /' "$err"
+  fi
+  while IFS= read -r -d '' f; do
+    # a tracked file deleted from the work tree is not on disk, where grep -r would not see it
+    [ -e "$f" ] && files+=("$f")
+  done <"$lst"
+  rm -f "$lst" "$err"
+  if [ "${#files[@]}" -eq 0 ]; then
+    echo "✗ scan error (git lists no file under: $targets) — this check did NOT run"
+    return 0
+  fi
+  g -H "$@" -- "${files[@]}"
+}
 report() { # <label> <grep-output>
   [ -z "$2" ] && return 0
   local hits
@@ -305,7 +342,7 @@ if [ -f "$DENYLIST_FILE" ]; then
     cmp -s LICENSE skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md 2>/dev/null \
       && ! compgen -G 'skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md:*' >/dev/null \
       && self="$self|^skills/new-website/templates/astro/CROFTWEAVER-LICENSE\.md:[0-9]+:"
-    hits="$(g -rinE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b" $SCAN_NAMES)"
+    hits="$(gscan names -inE "(^|$E)(${NAMES})($E|\$)|\\b(${NAMES})\\b")"
     case "$hits" in
       "✗ scan error"*) ;;
       # gf() never fails, so under pipefail a failure here is sed's or awk's, and its hits
@@ -339,13 +376,13 @@ else
 fi
 
 # 2. Personal home paths (non-portable + identifying).
-report "home path" "$(g -rnE '/(Users|home)/[A-Za-z0-9._-]+' $SCAN_DOCS)"
+report "home path" "$(gscan docs -nE '/(Users|home)/[A-Za-z0-9._-]+')"
 
 # 3. Real email addresses (anything that is not an obvious placeholder/markup token).
 EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
 # The exemptions here and in check 5 match a hit's text after "file:line:", never its file
 # name: a binary file's hit is its name alone, and docs/example.com.bin holds no placeholder.
-report "email address" "$(g -rinE "$EMAIL" $SCAN_DOCS \
+report "email address" "$(gscan docs -inE "$EMAIL" \
   | gf -viE ':[0-9]+:.*(@(example|test|domain|yoursite|site|company)\b|example\.(com|org)|@(type|id|context|media|import|2x|3x|font-face|keyframes)|(you|user|name|email|first\.last|hello|info|team)@|git@(github|gitlab)\.com)')"
 
 # 4. Credential / secret formats + private keys + JWTs.
@@ -365,11 +402,11 @@ for k in "a risk-free-and-clear-guarantee-for-everyone" "ask-me-anything-about-y
          "task-sk-$x20" "the pplx-style answer"; do
   if grep -qE -- "$SECRETS" <<<"$k"; then echo "FAIL — the secret pattern matches plain prose: $k"; exit 1; fi
 done
-report "credential/secret" "$(g -rnE "$SECRETS" $SCAN_DOCS)"
+report "credential/secret" "$(gscan docs -nE "$SECRETS")"
 
 # 5. Secret-looking assignments:  (api_key|secret|token|password|...) = "longish-literal"
 ASSIGN='(api[_-]?key|secret|client[_-]?secret|access[_-]?token|auth[_-]?token|password|passwd|bearer)["'"'"' ]*[:=]["'"'"' ]*["'"'"'][^"'"'"' ]{8,}'
-report "secret-looking assignment" "$(g -rinE "$ASSIGN" $SCAN_DOCS \
+report "secret-looking assignment" "$(gscan docs -inE "$ASSIGN" \
   | gf -viE ':[0-9]+:.*(placeholder|example|your[_-]|<[a-z]|x{4,}|\.\.\.|process\.env|import\.meta\.env|REPLACE|TODO|\[bracket\])')"
 
 if [ "$fail" -ne 0 ]; then

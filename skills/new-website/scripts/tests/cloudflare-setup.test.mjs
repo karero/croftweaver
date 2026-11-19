@@ -1442,7 +1442,9 @@ describe('TS: the setup stage, at a Worker', { concurrency: true }, () => {
     }));
 });
 
-describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
+// One at a time: each launch runs on a real 55-second clock and stops with 4 when under 45 seconds are
+// left at the attach, so on a slow runner running them together made some arrive too late.
+describe('TL: the launch stage, at a Worker', () => {
   const before = (h) => launchState(h);
   const site = { routed: false };
 

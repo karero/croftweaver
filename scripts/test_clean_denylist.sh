@@ -375,6 +375,25 @@ rm "$R/docs/zorblequux-scratch"
 printf 'ignored\n' >"$R/docs/scratch"; printf 'ran zorblequux\n' >"$R/docs/scratch:zorblequux.md"
 masked "masked: a file named like an ignored path plus a colon and a name: still fails" 1 "personal/site identifier"
 rm "$R/docs/scratch" "$R/docs/scratch:zorblequux.md"
+# BUGLOG 2026-11-18: in a git checkout the scans read the files git lists, not a walk that drops
+# ignored hits afterwards (node_modules made make check take minutes). So an ignored folder is
+# never opened: a file in one that this user cannot read is no scan error, where a grep -r walk
+# reported it. A folder that is NOT ignored and unreadable still is (the masked case below). An
+# untracked folder with a listed name in it is read, and fails.
+mkdir "$R/docs/ignored-locked" && printf 'x\n' >"$R/docs/ignored-locked/a.md" && printf 'docs/ignored-locked/\n' >>"$R/.gitignore"
+chmod 000 "$R/docs/ignored-locked/a.md"
+if [ -r "$R/docs/ignored-locked/a.md" ]; then
+  echo "SKIP: ignored-folder case needs a file this user cannot read (running as root?)"
+else
+  expect "an unreadable file in a gitignored folder is never opened: passes" 0 "OK — no private names in:" "$R"
+fi
+chmod 644 "$R/docs/ignored-locked/a.md"; rm -r "$R/docs/ignored-locked"
+mkdir -p "$R/docs/new/deep" && printf 'ran zorblequux\n' >"$R/docs/new/deep/x.md"
+expect "a listed name in an untracked, not ignored folder: still fails" 1 "docs/new/deep/x.md" "$R"
+rm -r "$R/docs/new"
+printf 'tracked\n' >"$R/docs/gone.md"; $git -C "$R" add docs/gone.md; rm "$R/docs/gone.md"
+expect "a tracked file deleted from the work tree is no scan error: passes" 0 "OK — no private names in:" "$R"
+$git -C "$R" rm -q --cached docs/gone.md
 # grep's own errors name files, and are withheld like hits.
 mkdir "$R/docs/zorblequux-locked"; printf 'x\n' >"$R/docs/zorblequux-locked/a.md"; chmod 000 "$R/docs/zorblequux-locked"
 if [ -r "$R/docs/zorblequux-locked" ]; then

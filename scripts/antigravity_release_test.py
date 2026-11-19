@@ -334,7 +334,8 @@ def effects(command, depth=0):
     `node -e`, and a heredoc body given to an interpreter or a shell; `shutil.rmtree(`, `fs.rmSync(`,
     `find -delete`, `git clean`. A spelling it does not know (`g=git; $g commit`, `echo commit | xargs
     git`, `os.system("git commit")`, a `$(rm x)` in a heredoc, a heredoc given with a redirection before
-    its command, `<<EOF bash`) is not seen, and a program that only
+    its command, `<<EOF bash`) is not seen, nor is a script file the agent writes first and runs
+    afterwards (its commands are in the file, not in the command line), and a program that only
     prints `shutil.rmtree(x)`, an `rm` after a `;` inside a `#` comment, or an argument after `-c` that
     is not code (`bash script.sh -c x`) is over-seen. A `<<word` inside quotes is read as a heredoc, so
     commands after it can be hidden (it takes the lines up to the next line equal to `word`, or the end) and
