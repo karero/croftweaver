@@ -30,8 +30,9 @@ tree_arg() {
 }
 
 check_tree() {
-  local tree=$1 mode type sha path paths= msg
+  local tree=$1 mode type sha path paths= msg err
   command -v node >/dev/null || fail "node is needed to check the directory tree and is not on PATH"
+  err=$(mktemp)
   while IFS= read -r -d '' entry; do
     path=${entry#*$'\t'}
     read -r mode type sha <<<"${entry%%$'\t'*}"
@@ -39,11 +40,15 @@ check_tree() {
     [ "$mode" = 100644 ] || fail "$path in the directory tree has mode $mode: only plain files (100644) go to the directory"
     git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
     # A pass needs both: the pipeline succeeded (pipefail) and the checker printed ok.
-    if ! msg=$(git cat-file blob "$sha" | node "$here/check_directory_files.mjs" "$path") || [ "$msg" != ok ]; then
+    if ! msg=$(git cat-file blob "$sha" | node "$here/check_directory_files.mjs" "$path" 2>"$err") || [ "$msg" != ok ]; then
       [ -n "$msg" ] && [ "$msg" != ok ] || msg="could not be checked: reading it or check_directory_files.mjs failed, or printed nothing"
+      # The checker's own error, if any, goes on the same line, so the annotation shows it.
+      [ ! -s "$err" ] || msg+="; node said: $(head -c 300 "$err" | tr '\n' ' ')"
+      rm -f "$err"
       fail "$path in the directory tree $msg"
     fi
   done < <(git ls-tree -r -z --full-tree "$tree")
+  rm -f "$err"
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
     || fail "the directory tree is not exactly the five pointer files: got $(printf '%s' "$paths" | LC_ALL=C sort | tr '\n' ' ')"
 }

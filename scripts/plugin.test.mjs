@@ -847,6 +847,8 @@ test('a release that would put anything but the five plain files (four text, one
   for (const checker of ['', "console.log('ok'); process.exit(7);"]) {
     refused(publishWithStubBuilder('v0.5', makeTree(five), checker), /::error::\S+ in the directory tree could not be checked: reading it or check_directory_files\.mjs failed, or printed nothing/);
   }
+  // When the checker itself crashes, its error is on the ::error:: line.
+  refused(publishWithStubBuilder('v0.5', makeTree(five), "console.error('checker broke'); process.exit(3);"), /::error::\S+ in the directory tree could not be checked: .*; node said: checker broke/);
 
   // A tree of the five files, UTF-8 text with a tab and CRLF and a whole PNG, passes.
   const good = script('--check-tree', makeTree(five));
