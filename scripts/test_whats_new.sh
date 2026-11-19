@@ -120,12 +120,23 @@ has   "unstamped copies: and says the skills were not compared" "note: no SUITE-
 # BUGLOG 2026-11-19: a left_out or kept line the site wrote is not a file to copy, in either
 # path form; a line the stamp added itself (the file is not in the site) still is.
 L="$T/leftout"; cp -R "$P" "$L"
-printf 'suite_commit: %s\ncopied: 2026-01-01\nleft_out: tests/b.spec.ts — not needed here\nkept: verify.mjs — ours\nleft_out: scripts/verify.mjs — not needed here\nleft_out: .claude/hooks/git-stand.mjs — not in the site when stamped 2026-01-01\n' "$BASE" > "$L/tests/TESTS-VERSION"
+printf 'suite_commit: %s\ncopied: 2026-01-01\nleft_out: tests/b.spec.ts — not needed here\nleft_out: scripts/verify.mjs — not needed here\nleft_out: .claude/hooks/git-stand.mjs — not in the site when stamped 2026-01-01\n' "$BASE" > "$L/tests/TESTS-VERSION"
 report "$S" "$L" "a site with left_out lines"
 hasnt "a left_out line keeps its file off the MISSING list"      "    MISSING: the site has no tests/b.spec.ts"
-hasnt "a kept line, in either path form, keeps its file off"     "    MISSING: the site has no scripts/verify.mjs"
+hasnt "a left_out line, as the site has the path, keeps it off"  "    MISSING: the site has no scripts/verify.mjs"
 has   "a line the stamp added does not hide a missing file"      "    MISSING: the site has no .claude/hooks/git-stand.mjs"
 has   "a file no line names is still MISSING"                    "    MISSING: the site has no CROFTWEAVER-LICENSE.md"
+# A kept line alone, in each path form (relative to tests/, and as the site has it).
+K="$T/kept1"; cp -R "$P" "$K"
+printf 'suite_commit: %s\ncopied: 2026-01-01\nkept: b.spec.ts — ours\n' "$BASE" > "$K/tests/TESTS-VERSION"
+report "$S" "$K" "a site with a kept line relative to tests/"
+hasnt "a kept line relative to tests/ keeps its file off"        "    MISSING: the site has no tests/b.spec.ts"
+has   "and the other missing files are still listed"             "    MISSING: the site has no scripts/verify.mjs"
+K="$T/kept2"; cp -R "$P" "$K"
+printf 'suite_commit: %s\ncopied: 2026-01-01\nkept: scripts/verify.mjs — ours\n' "$BASE" > "$K/tests/TESTS-VERSION"
+report "$S" "$K" "a site with a kept line as the site has the path"
+hasnt "a kept line as the site has the path keeps it off"        "    MISSING: the site has no scripts/verify.mjs"
+has   "and a file it does not name is still MISSING"             "    MISSING: the site has no tests/b.spec.ts"
 
 # BUGLOG 2026-11-19: a tests stamp and a skills folder with no SUITE-VERSION (a folder that is
 # local, not the kit's) must not fail the run: a note, and the tests-only branch's exit status
