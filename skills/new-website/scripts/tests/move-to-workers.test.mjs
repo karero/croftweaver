@@ -1056,7 +1056,7 @@ describe('3: the state file, the lock and a second checkout', () => {
       const stop = path.join(dir, 'stop');
       writeFileSync(path.join(dir, 'lock'), `${dead}\nabc\n`);
       const at = Date.now() + 3000;
-      const kids = Array.from({ length: 6 }, () => node(`import { existsSync } from 'node:fs'; while (Date.now() < ${at}); let got = false; try { m.takeLock(${JSON.stringify(dir)}, {}, () => {}); got = true; } catch {} console.log(got ? 'GOT' : 'NO'); const until = Date.now() + 60000; while (!existsSync(${JSON.stringify(stop)}) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));`));
+      const kids = Array.from({ length: 6 }, () => node(`import { existsSync } from 'node:fs'; while (Date.now() < ${at}); let got = false, why = ''; try { m.takeLock(${JSON.stringify(dir)}, {}, () => {}); got = true; } catch (e) { why = JSON.stringify(String(e.code ?? e.name) + ': ' + e.message); } console.log(got ? 'GOT' : 'NO ' + why); const until = Date.now() + 60000; while (!existsSync(${JSON.stringify(stop)}) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));`));
       const results = kids.map((k) => outcome(k));
       const first = await Promise.all(kids.map((k) => new Promise((resolve) => k.stdout.once('data', (d) => resolve(String(d).trim())))));
       writeFileSync(stop, '');
