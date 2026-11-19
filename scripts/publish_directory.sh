@@ -10,9 +10,10 @@
 #
 # Refuses a tag not on main, a `directory` whose last commit names no source, a release
 # older than the one already published, and a tree that is not exactly the five files, as
-# plain files: the four text files valid UTF-8, with no control character but tab and line
-# breaks and no leading `#!`; the icon a PNG with its IHDR chunk first and IEND last. These
-# catch a script, a stray binary or a cut-short icon; they do not decode the image. Pushes without force. --check-tree runs that last check alone. --compare prints `same`, `version
+# plain files. check_directory_files.mjs refuses a text file that is not UTF-8, holds a control
+# character but tab and line breaks, or starts with `#!`, and an icon that is not a whole PNG
+# (chunks, checksums, IEND last, image data inflates; pixels are not decoded). Pushes without
+# force. --check-tree runs that last check alone. --compare prints `same`, `version
 # only` (the trees differ only in plugin.json's version) or the changed paths, one per line.
 set -euo pipefail
 
@@ -29,26 +30,16 @@ tree_arg() {
 }
 
 check_tree() {
-  local tree=$1 mode type sha path paths= hex
+  local tree=$1 mode type sha path paths= msg
+  command -v node >/dev/null || fail "node is needed to check the directory tree and is not on PATH"
   while IFS= read -r -d '' entry; do
     path=${entry#*$'\t'}
     read -r mode type sha <<<"${entry%%$'\t'*}"
     paths+="$path"$'\n'
     [ "$mode" = 100644 ] || fail "$path in the directory tree has mode $mode: only plain files (100644) go to the directory"
     git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
-    hex=$(git cat-file blob "$sha" | od -An -tx1 | tr -d ' \n')
-    if [ "$path" = .claude-plugin/icon.png ]; then
-      [ "${hex:0:32}" = 89504e470d0a1a0a0000000d49484452 ] \
-        || fail "$path in the directory tree does not start with the PNG signature and its IHDR chunk"
-      [ "${hex: -24}" = 0000000049454e44ae426082 ] \
-        || fail "$path in the directory tree does not end with the PNG's IEND chunk: is it cut short?"
-      continue
-    fi
-    [ "$(git cat-file -s "$sha")" = "$(git cat-file blob "$sha" | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177' | wc -c | tr -d ' ')" ] \
-      || fail "$path in the directory tree holds a control character other than tab or a line break"
-    git cat-file blob "$sha" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 \
-      || fail "$path in the directory tree is not valid UTF-8"
-    [ "${hex:0:4}" != 2321 ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
+    msg=$(git cat-file blob "$sha" | node "$here/check_directory_files.mjs" "$path") \
+      || fail "$path in the directory tree ${msg:-could not be checked (check_directory_files.mjs failed)}"
   done < <(git ls-tree -r -z --full-tree "$tree")
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
     || fail "the directory tree is not exactly the five pointer files: got $(printf '%s' "$paths" | LC_ALL=C sort | tr '\n' ' ')"

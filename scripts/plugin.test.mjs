@@ -12,9 +12,10 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { after, test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const REPO = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { crc32 } = await import(pathToFileURL(path.join(REPO, 'scripts', 'check_directory_files.mjs')).href);
 const VAR = '${CLAUDE_SKILL_DIR}';
 const read = (...parts) => fs.readFileSync(path.join(REPO, ...parts), 'utf8');
 const scratch = [];
@@ -510,13 +511,18 @@ const SYSTEM_BASH = fs.existsSync('/bin/bash') ? '/bin/bash' : 'bash';
 const pngChunk = (type, data) => {
   const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
   const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-  const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body));
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body));
   return Buffer.concat([len, body, crc]);
 };
 // A real 1x1 PNG; the tail goes in a text chunk, so one icon can differ from another.
 const PNG = (tail = '') => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk('tEXt', Buffer.from(`Comment\0${tail}`, 'latin1')),
   pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))]);
+
+const flipByte = (buf, at) => { const b = Buffer.from(buf); b[at] ^= 0xff; return b; };
+// The 1x1 PNG with its IDAT data replaced.
+const pngWith = (type, data) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk(type, data), pngChunk('IEND', Buffer.alloc(0))]);
 
 const lsTree = (treeish) => execFileSync('git', ['ls-tree', '-r', '-z', treeish], { cwd: REPO, encoding: 'utf8' })
   .split('\0').filter(Boolean).map((entry) => { const [meta, file] = entry.split('\t'); return { meta, file }; });
@@ -695,7 +701,7 @@ function directoryRepo() {
   // The publish script beside a builder that prints `tree` whatever the commit holds.
   const publishWithStubBuilder = (tag, tree) => {
     const dir = tmp();
-    fs.copyFileSync(path.join(REPO, 'scripts', 'publish_directory.sh'), path.join(dir, 'publish_directory.sh'));
+    for (const f of ['publish_directory.sh', 'check_directory_files.mjs']) fs.copyFileSync(path.join(REPO, 'scripts', f), path.join(dir, f));
     fs.writeFileSync(path.join(dir, 'build_directory_tree.sh'), `#!/usr/bin/env bash\necho ${tree}\n`, { mode: 0o755 });
     const r = run(path.join(dir, 'publish_directory.sh'), tag);
     return { status: r.status, log: r.stdout + r.stderr };
@@ -792,9 +798,16 @@ test('a release that would put anything but the five plain files (four text, one
     ['a binary blob as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x4d, 0x5a, 0x00, 0x01, 0x02])] : e)), /::error::README\.md in the directory tree holds a control character/],
     ['binary with no NUL as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x01, 0x02, 0x03, 0x04, 0xff, 0xfe])] : e)), /::error::README\.md in the directory tree holds a control character/],
     ['Latin-1 text as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from('caf\u00e9\n', 'latin1')] : e)), /::error::README\.md in the directory tree is not valid UTF-8/],
-    ['a text file as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], 'not a png'] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree does not start with the PNG signature/],
-    ['the PNG signature alone as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG().subarray(0, 8)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree does not start with the PNG signature and its IHDR chunk/],
-    ['a cut-short icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG('i').subarray(0, 40)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree does not end with the PNG's IEND chunk/],
+    ['a text file as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], 'not a png'] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: no PNG signature/],
+    ['the PNG signature alone as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG().subarray(0, 8)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: cut short: no IEND chunk/],
+    ['a cut-short icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG('i').subarray(0, 40)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: cut short/],
+    ['UTF-8 above U+10FFFF as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xf4, 0x90, 0x80, 0x80])] : e)), /::error::README\.md in the directory tree is not valid UTF-8/],
+    ['a 5-byte UTF-8 sequence as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xf8, 0x88, 0x80, 0x80, 0x80])] : e)), /::error::README\.md in the directory tree is not valid UTF-8/],
+    ['U+0080 as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xc2, 0x80])] : e)), /::error::README\.md in the directory tree holds a control character/],
+    ['an icon whose IHDR overruns the file', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.from('89504e470d0a1a0a0000000d494844520000000049454e44ae426082', 'hex')] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: /],
+    ['an icon with one checksum byte flipped', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], flipByte(PNG('i'), 8 + 12 + 13 - 1)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the IHDR chunk fails its checksum/],
+    ['an icon with bytes after IEND', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG('i'), Buffer.from('x')])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after IEND/],
+    ['an icon whose image data is not zlib', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.from('not zlib at all'))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data is not valid zlib/],
   ];
   for (const [what, entries, message] of cases) {
     const tree = makeTree(entries);
