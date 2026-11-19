@@ -882,13 +882,20 @@ test('--compare tells a new version number from every other change of the five f
   assert.deepEqual(compare(tree({ license: 'MIT 2' })), ['LICENSE']);
   assert.deepEqual(compare(tree({ readme: 'r2', skill: 's2' })), ['README.md', 'skills/get-croftweaver/SKILL.md']);
   // A "version" key below the root is not the release number: it is a change the trial must see.
-  const nested = (v) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "author": {\n    "name": "a",\n    "version": "${v}"\n  }\n}\n`;
-  const nestedTree = (v) => makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100644', '.claude-plugin/plugin.json', nested(v)],
+  const nested = (v, root = '0.36.0') => `{\n  "name": "croftweaver",\n  "version": "${root}",\n  "author": {\n    "name": "a",\n    "version": "${v}"\n  }\n}\n`;
+  const withManifest = (text) => makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100644', '.claude-plugin/plugin.json', text],
     ['100644', 'LICENSE', 'MIT'], ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']]);
-  const nestedBase = nestedTree('1');
-  const nestedCompare = (other) => { const r = script('--compare', nestedBase, other); assert.equal(r.status, 0, r.log); return r.out.split('\n'); };
-  assert.deepEqual(nestedCompare(nestedTree('2')), ['.claude-plugin/plugin.json']);
-  assert.deepEqual(nestedCompare(nestedTree('1')), ['same']);
+  const compareTo = (from, to) => { const r = script('--compare', withManifest(from), withManifest(to)); assert.equal(r.status, 0, r.log); return r.out.split('\n'); };
+  const PATH_ = ['.claude-plugin/plugin.json'];
+  assert.deepEqual(compareTo(nested('1'), nested('2')), PATH_);
+  // With a nested "version" present, a new root number alone is still only a new number, and beside a nested change it is not.
+  assert.deepEqual(compareTo(nested('1'), nested('1', '0.37.0')), ['version only']);
+  assert.deepEqual(compareTo(nested('1'), nested('2', '0.37.0')), PATH_);
+  // A text that does not read back as written (a repeated key, a number past 2^53) is a change, not "version only".
+  const dup = (n) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "author": {"name": "a", "name": "${n}"}\n}\n`;
+  assert.deepEqual(compareTo(dup('b'), dup('c')), PATH_);
+  const big = (n) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "build": ${n}\n}\n`;
+  assert.deepEqual(compareTo(big('9007199254740992'), big('9007199254740993')), PATH_);
   // A new number does not hide another change.
   assert.deepEqual(compare(tree({ version: '0.37.0', license: 'MIT 2' })), ['.claude-plugin/plugin.json', 'LICENSE']);
   // A file gone, a file added.

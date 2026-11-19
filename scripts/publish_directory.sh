@@ -63,10 +63,18 @@ compare_trees() {
   if [ "$changed" = .claude-plugin/plugin.json ] && [ "$ma" = "$mb" ]; then
     pa=$(git cat-file blob "$a:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $a"
     pb=$(git cat-file blob "$b:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $b"
-    # Only the root "version" may differ: parse both and drop that one key (a nested "version" counts).
+    # Only the root "version" may differ. Both texts are parsed, and one that does not read back as
+    # written (a repeated key, a number past 2^53, 1.0 for 1) counts as changed, never as equal.
+    command -v node >/dev/null || fail "node is needed to compare plugin.json and is not on PATH"
     same=$(PA=$pa PB=$pb node -e '
-      const d = (s) => { const o = JSON.parse(s); delete o.version; return JSON.stringify(o); };
-      process.stdout.write(d(process.env.PA) === d(process.env.PB) ? "yes" : "no");') \
+      const d = (s) => {
+        const o = JSON.parse(s);
+        if (s.replace(/"(?:[^"\\]|\\.)*"|\s+/g, (m) => (m[0] === "\"" ? m : "")) !== JSON.stringify(o)) return null;
+        delete o.version;
+        return JSON.stringify(o);
+      };
+      const x = d(process.env.PA), y = d(process.env.PB);
+      process.stdout.write(x !== null && x === y ? "yes" : "no");') \
       || fail "cannot parse plugin.json in $a or $b"
     if [ "$same" = yes ]; then
       echo "version only"; return
