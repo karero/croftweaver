@@ -708,10 +708,12 @@ function directoryRepo() {
     execFileSync('git', ['update-index', '--index-info'], { cwd: work, env: withIndex, input: `${lines.join('\n')}\n` });
     return execFileSync('git', ['write-tree'], { cwd: work, env: withIndex, encoding: 'utf8' }).trim();
   };
-  // The publish script beside a builder that prints `tree` whatever the commit holds.
-  const publishWithStubBuilder = (tag, tree) => {
+  // The publish script beside a builder that prints `tree` whatever the commit holds, and the
+  // real content checker or, given `checker`, that text in its place.
+  const publishWithStubBuilder = (tag, tree, checker) => {
     const dir = tmp();
     for (const f of ['publish_directory.sh', 'check_directory_files.mjs']) fs.copyFileSync(path.join(REPO, 'scripts', f), path.join(dir, f));
+    if (checker !== undefined) fs.writeFileSync(path.join(dir, 'check_directory_files.mjs'), checker);
     fs.writeFileSync(path.join(dir, 'build_directory_tree.sh'), `#!/usr/bin/env bash\necho ${tree}\n`, { mode: 0o755 });
     const r = run(path.join(dir, 'publish_directory.sh'), tag);
     return { status: r.status, log: r.stdout + r.stderr };
@@ -835,6 +837,9 @@ test('a release that would put anything but the five plain files (four text, one
     assert.match(alone.log, message, what);
   }
   assert.deepEqual(remote('ls-tree', '-r', '--name-only', held).split('\n'), DIRECTORY_FILES);
+
+  // A checker that checks nothing and prints nothing is not a pass, even for good files.
+  refused(publishWithStubBuilder('v0.5', makeTree(five), ''), /::error::\S+ in the directory tree could not be checked: check_directory_files\.mjs printed nothing/);
 
   // A tree of the five files, UTF-8 text with a tab and CRLF and a whole PNG, passes.
   const good = script('--check-tree', makeTree(five));
