@@ -1,19 +1,83 @@
 #!/usr/bin/env bash
 # Publishes a release to the branch `directory`, which Anthropic's plugin directory follows:
-# one commit holding scripts/build_directory_tree.sh's tree, whose message names the
-# release's commit on a `Source:` line. The release-tag workflow runs it after `stable`
-# moved; a person runs the same command when that step failed.
+# one commit holding scripts/build_directory_tree.sh's tree (the pointer plugin, five files),
+# whose message names the release's commit on a `Source:` line. The release-tag workflow runs
+# it after `stable` moved; a person runs the same command when that step failed.
 #
 # usage: scripts/publish_directory.sh <release tag, e.g. v0.34>
+#        scripts/publish_directory.sh --check-tree <tree>
+#        scripts/publish_directory.sh --compare <tree> <tree>
 #
-# Refuses a tag not on main, a `directory` whose last commit names no source, and a
-# release older than the one already published. Pushes without force.
+# Refuses a tag not on main, a `directory` whose last commit names no source, a release
+# older than the one already published, and a tree that is not exactly the five files, as
+# plain files, none starting with `#!`: nothing but text goes to the directory. Pushes
+# without force. --check-tree runs that last check alone. --compare prints `same`, `version
+# only` (the trees differ only in plugin.json's version) or the changed paths, one per line.
 set -euo pipefail
 
 fail() { echo "::error::$*" >&2; exit 1; }
-[ $# -eq 1 ] || { echo "usage: $0 <release tag>" >&2; exit 2; }
-tag=$1
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+
+# The branch holds exactly these paths. Written out here, apart from the tree builder's map,
+# so a change to one alone is refused.
+ALLOWED=$'.claude-plugin/icon.png\n.claude-plugin/plugin.json\nLICENSE\nREADME.md\nskills/get-croftweaver/SKILL.md'
+
+tree_arg() {
+  [ "$(git cat-file -t "$1^{tree}" 2>/dev/null)" = tree ] || fail "no tree named $1 here"
+  git rev-parse "$1^{tree}"
+}
+
+check_tree() {
+  local tree=$1 mode type sha path paths= first
+  while IFS= read -r -d '' entry; do
+    path=${entry#*$'\t'}
+    read -r mode type sha <<<"${entry%%$'\t'*}"
+    paths+="$path"$'\n'
+    [ "$mode" = 100644 ] || fail "$path in the directory tree has mode $mode: only plain files (100644) go to the directory"
+    git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
+    first=
+    IFS= read -r -N 2 first < <(git cat-file blob "$sha") || true
+    [ "$first" != '#!' ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
+  done < <(git ls-tree -r -z --full-tree "$tree")
+  [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
+    || fail "the directory tree is not exactly the five pointer files: got $(printf '%s' "$paths" | LC_ALL=C sort | tr '\n' ' ')"
+}
+
+# Paths that differ (a blob, a mode, or present in one tree only); `version only` when that is
+# plugin.json and its text differs only in the version.
+compare_trees() {
+  local a=$1 b=$2 changed pa pb
+  [ "$a" != "$b" ] || { echo same; return; }
+  changed=$({ diff <(git ls-tree -r --full-tree "$a") <(git ls-tree -r --full-tree "$b") || [ $? -eq 1 ]; } \
+    | awk -F'\t' '/^[<>] /{print $2}' | LC_ALL=C sort -u)
+  if [ "$changed" = .claude-plugin/plugin.json ]; then
+    pa=$(git cat-file blob "$a:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $a"
+    pb=$(git cat-file blob "$b:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $b"
+    local strip='s/("version"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"-"/'
+    if [ "$(sed -E "$strip" <<<"$pa")" = "$(sed -E "$strip" <<<"$pb")" ]; then
+      echo "version only"; return
+    fi
+  fi
+  [ -n "$changed" ] || fail "the trees $a and $b differ but no path does: cannot compare"
+  printf '%s\n' "$changed"
+}
+
+case "${1:-}" in
+  --check-tree)
+    [ $# -eq 2 ] || { echo "usage: $0 --check-tree <tree>" >&2; exit 2; }
+    t1=$(tree_arg "$2")
+    check_tree "$t1"
+    echo "ok: $2 is exactly the five pointer files"
+    exit 0 ;;
+  --compare)
+    [ $# -eq 3 ] || { echo "usage: $0 --compare <tree> <tree>" >&2; exit 2; }
+    t1=$(tree_arg "$2")
+    t2=$(tree_arg "$3")
+    compare_trees "$t1" "$t2"
+    exit 0 ;;
+esac
+[ $# -eq 1 ] || { echo "usage: $0 <release tag> | --check-tree <tree> | --compare <tree> <tree>" >&2; exit 2; }
+tag=$1
 commit=$(git rev-parse -q --verify "$tag^{commit}") || fail "no tag named $tag here"
 
 git fetch -q origin main
@@ -37,6 +101,7 @@ else
 fi
 
 tree=$("$here/build_directory_tree.sh" "$commit")
+check_tree "$tree"
 bot='github-actions[bot]'
 mail='41898282+github-actions[bot]@users.noreply.github.com'
 new=$(GIT_AUTHOR_NAME=$bot GIT_AUTHOR_EMAIL=$mail GIT_COMMITTER_NAME=$bot GIT_COMMITTER_EMAIL=$mail \

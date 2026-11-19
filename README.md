@@ -23,11 +23,17 @@ or newer, and building a site needs a recent security release of Node, which the
 [setup guide](skills/new-website/templates/SETUP.md) names. One Node that meets the second
 covers both, and your assistant tells you if yours is too old.
 
+<!-- pointer/ repeats the lines of each pointer-commands block, and scripts/plugin.test.mjs fails until
+     they match. Only these marked blocks are checked, not the prose around them. -->
+<!-- pointer-commands npm -->
 ```bash
 npm create croftweaver
+npm create croftweaver -- --codex
+npm create croftweaver -- --antigravity
 ```
+<!-- /pointer-commands -->
 
-It tells you the next step. For Codex add `-- --codex`, for Antigravity `-- --antigravity`.
+Run one line: the first for Claude Code, the second for Codex, the third for Antigravity. It tells you the next step.
 Plugins and other routes: [Manual install](#manual-install--technical-reference).
 
 **Before you choose:** [How it compares](https://croftweaver.com/compare) ·
@@ -224,21 +230,27 @@ Console/API account).
 [setup guide](skills/new-website/templates/SETUP.md) names. The command runs in any
 terminal, on Windows too:
 
+<!-- pointer-commands npm -->
 ```bash
 npm create croftweaver
+npm create croftweaver -- --codex
+npm create croftweaver -- --antigravity
 ```
+<!-- /pointer-commands -->
 
-It copies the skills of the latest release into `~/.claude/skills/` and tells you the next
-step, which is step 3 below. To update, run it again. For Codex add `-- --codex`, for
-Antigravity `-- --antigravity`.
+Run one line: the first for Claude Code, the second for Codex, the third for Antigravity. It
+copies the skills of the latest release into the assistant's skills folder and tells you the
+next step, which is step 3 below. To update, run it again.
 
 **As a Claude Code plugin**, from release 0.32 on. Claude Code installs the suite itself:
 no Node, no script, no folder to keep.
 
+<!-- pointer-commands claude -->
 ```bash
 claude plugin marketplace add https://github.com/karero/croftweaver.git
 claude plugin install croftweaver@croftweaver
 ```
+<!-- /pointer-commands -->
 
 (The address is written out in full so that nothing needs a GitHub key.)
 
