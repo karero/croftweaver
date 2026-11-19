@@ -117,6 +117,33 @@ report "$S" "$Q" "the site after the stamp is written as told"
 has   "unstamped copies: then the report lists what is MISSING" "    MISSING: the site has no tests/b.spec.ts"
 has   "unstamped copies: and says the skills were not compared" "note: no SUITE-VERSION stamp and no .claude/skills or .agents/skills dir found under $Q, so the bundled skills were not compared."
 
+# BUGLOG 2026-11-19: a left_out or kept line the site wrote is not a file to copy, in either
+# path form; a line the stamp added itself (the file is not in the site) still is.
+L="$T/leftout"; cp -R "$P" "$L"
+printf 'suite_commit: %s\ncopied: 2026-01-01\nleft_out: tests/b.spec.ts — not needed here\nkept: verify.mjs — ours\nleft_out: scripts/verify.mjs — not needed here\nleft_out: .claude/hooks/git-stand.mjs — not in the site when stamped 2026-01-01\n' "$BASE" > "$L/tests/TESTS-VERSION"
+report "$S" "$L" "a site with left_out lines"
+hasnt "a left_out line keeps its file off the MISSING list"      "    MISSING: the site has no tests/b.spec.ts"
+hasnt "a kept line, in either path form, keeps its file off"     "    MISSING: the site has no scripts/verify.mjs"
+has   "a line the stamp added does not hide a missing file"      "    MISSING: the site has no .claude/hooks/git-stand.mjs"
+has   "a file no line names is still MISSING"                    "    MISSING: the site has no CROFTWEAVER-LICENSE.md"
+
+# BUGLOG 2026-11-19: a tests stamp and a skills folder with no SUITE-VERSION (a folder that is
+# local, not the kit's) must not fail the run: a note, and the tests-only branch's exit status
+# (0 for stale tests, 1 when the tests report failed). With no tests stamp it still stops.
+R="$T/localskills"; mkdir -p "$R/.claude/skills" "$R/tests"; echo v1 > "$R/tests/a.spec.ts"
+stamp "$R/tests/TESTS-VERSION" "$BASE"
+report "$S" "$R" "a tests stamp and an unstamped skills folder"
+has   "the unstamped skills folder is a note"                    "note: $R/.claude/skills has no SUITE-VERSION stamp, so the bundled skills were not compared. If the folder is from the kit, stamp it: scripts/whats-new.sh --stamp $R/.claude/skills"
+hasnt "and not an error"                                         "predates stamping"
+printf 'suite_commit: unknown\n' > "$R/tests/TESTS-VERSION"
+bash "$S/scripts/whats-new.sh" "$R" > "$T/out" 2>&1; rc=$?
+if [ "$rc" -eq 1 ]; then printf 'ok   %s\n' "an unusable tests baseline with an unstamped skills folder exits 1"; else printf 'FAIL %s (exit %s)\n' "an unusable tests baseline with an unstamped skills folder exits 1" "$rc"; fails=$((fails+1)); fi
+has   "the note is still printed when the tests report failed"  "note: $R/.claude/skills has no SUITE-VERSION stamp, so the bundled skills were not compared. If the folder is from the kit, stamp it: scripts/whats-new.sh --stamp $R/.claude/skills"
+rm "$R/tests/TESTS-VERSION"
+bash "$S/scripts/whats-new.sh" "$R" > "$T/out" 2>&1; rc=$?
+if [ "$rc" -eq 1 ]; then printf 'ok   %s\n' "an unstamped skills folder and no tests stamp still exits 1"; else printf 'FAIL %s (exit %s)\n' "an unstamped skills folder and no tests stamp still exits 1" "$rc"; fails=$((fails+1)); fi
+has   "and still says the project predates stamping"             "error: $R/.claude/skills exists but has no SUITE-VERSION stamp — the project predates stamping."
+
 # Once the site has every file, nothing is MISSING, though the drift report still runs.
 echo v1 > "$P/scripts/verify.mjs"; echo v1 > "$P/tests/b.spec.ts"
 mkdir -p "$P/.claude/hooks" && echo v1 > "$P/.claude/hooks/git-stand.mjs"
