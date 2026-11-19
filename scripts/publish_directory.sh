@@ -10,8 +10,8 @@
 #
 # Refuses a tag not on main, a `directory` whose last commit names no source, a release
 # older than the one already published, and a tree that is not exactly the five files, as
-# plain files, none starting with `#!`: nothing but text goes to the directory. Pushes
-# without force. --check-tree runs that last check alone. --compare prints `same`, `version
+# plain files: the four text files without a NUL byte or a leading `#!`, and an icon that
+# is a PNG. Pushes without force. --check-tree runs that last check alone. --compare prints `same`, `version
 # only` (the trees differ only in plugin.json's version) or the changed paths, one per line.
 set -euo pipefail
 
@@ -27,30 +27,44 @@ tree_arg() {
   git rev-parse "$1^{tree}"
 }
 
+# The first bytes of a blob. A SIGPIPE from head closing early is no failure; the blob was
+# checked readable before.
+blob_head() { { git cat-file blob "$1" || true; } | head -c "$2"; }
+
 check_tree() {
-  local tree=$1 mode type sha path paths= first
+  local tree=$1 mode type sha path paths=
   while IFS= read -r -d '' entry; do
     path=${entry#*$'\t'}
     read -r mode type sha <<<"${entry%%$'\t'*}"
     paths+="$path"$'\n'
     [ "$mode" = 100644 ] || fail "$path in the directory tree has mode $mode: only plain files (100644) go to the directory"
     git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
-    first=
-    IFS= read -r -N 2 first < <(git cat-file blob "$sha") || true
-    [ "$first" != '#!' ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
+    if [ "$path" = .claude-plugin/icon.png ]; then
+      [ "$(blob_head "$sha" 8 | od -An -tx1 | tr -d ' \n')" = 89504e470d0a1a0a ] \
+        || fail "$path in the directory tree is not a PNG"
+      continue
+    fi
+    [ "$(git cat-file -s "$sha")" = "$(git cat-file blob "$sha" | LC_ALL=C tr -d '\0' | wc -c | tr -d ' ')" ] \
+      || fail "$path in the directory tree holds a NUL byte: the directory takes text"
+    [ "$(blob_head "$sha" 2)" != '#!' ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
   done < <(git ls-tree -r -z --full-tree "$tree")
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
     || fail "the directory tree is not exactly the five pointer files: got $(printf '%s' "$paths" | LC_ALL=C sort | tr '\n' ' ')"
 }
 
 # Paths that differ (a blob, a mode, or present in one tree only); `version only` when that is
-# plugin.json and its text differs only in the version.
+# plugin.json, of the same mode and type in both, and its text differs only in the version.
 compare_trees() {
-  local a=$1 b=$2 changed pa pb
+  local a=$1 b=$2 changed pa pb la lb rc=0 out ma mb
   [ "$a" != "$b" ] || { echo same; return; }
-  changed=$({ diff <(git ls-tree -r --full-tree "$a") <(git ls-tree -r --full-tree "$b") || [ $? -eq 1 ]; } \
-    | awk -F'\t' '/^[<>] /{print $2}' | LC_ALL=C sort -u)
-  if [ "$changed" = .claude-plugin/plugin.json ]; then
+  la=$(git ls-tree -r --full-tree "$a") || fail "cannot list $a"
+  lb=$(git ls-tree -r --full-tree "$b") || fail "cannot list $b"
+  out=$(diff <(printf '%s\n' "$la") <(printf '%s\n' "$lb")) || rc=$?
+  [ "$rc" -le 1 ] || fail "diff failed (exit $rc) comparing $a and $b"
+  changed=$(printf '%s\n' "$out" | awk -F'\t' '/^[<>] /{print $2}' | LC_ALL=C sort -u)
+  ma=$(git ls-tree --full-tree "$a" .claude-plugin/plugin.json | cut -f1 | cut -d' ' -f1,2)
+  mb=$(git ls-tree --full-tree "$b" .claude-plugin/plugin.json | cut -f1 | cut -d' ' -f1,2)
+  if [ "$changed" = .claude-plugin/plugin.json ] && [ "$ma" = "$mb" ]; then
     pa=$(git cat-file blob "$a:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $a"
     pb=$(git cat-file blob "$b:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $b"
     local strip='s/("version"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"-"/'

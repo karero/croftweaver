@@ -496,7 +496,7 @@ test('the workflow moves stable to a release that is on main, forward only', () 
 });
 
 // --- The branch `directory`, which Anthropic's plugin directory follows ---------------------
-// The branch holds a pointer plugin of five text files (pointer/ on main), never the kit's
+// The branch holds a pointer plugin of four text files and a PNG icon (pointer/ on main), never the kit's
 // code. The lists below are written here, not read from the scripts, so a wrong list in a
 // script fails.
 const POINTER_MAP = [['pointer/plugin.json', '.claude-plugin/plugin.json'], ['.claude-plugin/icon.png', '.claude-plugin/icon.png'],
@@ -504,6 +504,10 @@ const POINTER_MAP = [['pointer/plugin.json', '.claude-plugin/plugin.json'], ['.c
 const DIRECTORY_FILES = ['.claude-plugin/icon.png', '.claude-plugin/plugin.json', 'LICENSE', 'README.md', 'skills/get-croftweaver/SKILL.md'];
 const PRIVACY_URL = 'https://github.com/karero/croftweaver#what-the-directory-plugin-sends';
 const RELEASES_URL = 'https://github.com/karero/croftweaver/releases/latest';
+// The publish script runs under the system bash: on a Mac that is 3.2, where `read -N` fails.
+const SYSTEM_BASH = fs.existsSync('/bin/bash') ? '/bin/bash' : 'bash';
+// A stand-in icon: the PNG signature, then a tail that tells one icon from another.
+const PNG = (tail = '') => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(tail)]);
 
 const lsTree = (treeish) => execFileSync('git', ['ls-tree', '-r', '-z', treeish], { cwd: REPO, encoding: 'utf8' })
   .split('\0').filter(Boolean).map((entry) => { const [meta, file] = entry.split('\t'); return { meta, file }; });
@@ -514,7 +518,7 @@ function directoryTree() {
   return lsTree(builtTree);
 }
 
-test('the directory tree is the five pointer files as plain files, each the commit\'s own blob of its source', () => {
+test('the directory tree is the five pointer files (four text, one PNG) as plain files, each the commit\'s own blob of its source', () => {
   const expected = [...POINTER_MAP].sort((x, y) => (x[1] < y[1] ? -1 : 1))
     .map(([src, dst]) => `100644 blob ${execFileSync('git', ['rev-parse', `HEAD:${src}`], { cwd: REPO, encoding: 'utf8' }).trim()}\t${dst}`);
   assert.deepEqual(directoryTree().map(({ meta, file }) => `${meta}\t${file}`), expected);
@@ -662,7 +666,7 @@ function directoryRepo() {
     git('tag', tag);
     return git('rev-parse', 'HEAD');
   };
-  const run = (script, ...args) => spawnSync('bash', [script, ...args], { cwd: work, encoding: 'utf8', env });
+  const run = (script, ...args) => spawnSync(SYSTEM_BASH, [script, ...args], { cwd: work, encoding: 'utf8', env });
   const publish = (tag) => { const r = run(path.join(REPO, 'scripts', 'publish_directory.sh'), tag); return { status: r.status, log: r.stdout + r.stderr }; };
   const script = (...args) => { const r = run(path.join(REPO, 'scripts', 'publish_directory.sh'), ...args); return { status: r.status, log: r.stdout + r.stderr, out: r.stdout.trim() }; };
   // A tree of exactly these entries, [mode, path, text], written into the repository's objects.
@@ -687,7 +691,7 @@ function directoryRepo() {
 }
 
 // What a release holds: the pointer's five sources, and kit files the branch must never take.
-const pointerFiles = (more = {}) => ({ 'pointer/plugin.json': '{"name":"x","version":"0.1.0"}\n', '.claude-plugin/icon.png': 'icon-1', 'pointer/README.md': 'readme',
+const pointerFiles = (more = {}) => ({ 'pointer/plugin.json': '{"name":"x","version":"0.1.0"}\n', '.claude-plugin/icon.png': PNG('icon-1'), 'pointer/README.md': 'readme',
   'LICENSE': 'MIT', 'pointer/get-croftweaver.md': 'the skill', 'skills/a/SKILL.md': 'kit skill', 'scripts/tool.sh': '#!/bin/sh\n', Makefile: 'm', ...more });
 
 test('a release reaches directory as one commit of the five pointer files naming its source; a re-run adds nothing', () => {
@@ -736,7 +740,7 @@ test('the first release after the pointer replaces the code tree that directory 
   assert.match(remote('log', '-1', '--format=%B', d), new RegExp(`Source: ${c2}$`));
 });
 
-test('a release that would put anything but the five plain text files on directory is refused, and directory stays', () => {
+test('a release that would put anything but the five plain files (four text, one PNG) on directory is refused, and directory stays', () => {
   const { git, release, publish, script, makeTree, publishWithStubBuilder, remote, directory } = directoryRepo();
   release('v0.1', pointerFiles());
   git('push', '-q', 'origin', 'main', 'v0.1');
@@ -761,7 +765,7 @@ test('a release that would put anything but the five plain text files on directo
   // Past the builder (a builder changed to take more, or the test of its list edited with it):
   // the script's own list of five still stands. Each stub tree must be a real tree first, so
   // the refusal below cannot be a broken stub failing later at commit-tree.
-  const five = [['100644', '.claude-plugin/icon.png', 'i'], ['100644', '.claude-plugin/plugin.json', '{}'], ['100644', 'LICENSE', 'l'],
+  const five = [['100644', '.claude-plugin/icon.png', PNG('i')], ['100644', '.claude-plugin/plugin.json', '{}'], ['100644', 'LICENSE', 'l'],
     ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']];
   const cases = [
     ['a sixth path', [...five, ['100644', 'hooks/hooks.json', '{}']], /::error::the directory tree is not exactly the five pointer files: got .*hooks\/hooks\.json/],
@@ -770,6 +774,8 @@ test('a release that would put anything but the five plain text files on directo
     ['an executable file', five.map((e) => (e[1] === 'LICENSE' ? ['100755', e[1], e[2]] : e)), /::error::LICENSE in the directory tree has mode 100755/],
     ['a symlink', five.map((e) => (e[1] === 'README.md' ? ['120000', e[1], 'LICENSE'] : e)), /::error::README\.md in the directory tree has mode 120000/],
     ['a script', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], '#!/usr/bin/env node\n'] : e)), /::error::README\.md in the directory tree starts with #!/],
+    ['a binary blob as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x4d, 0x5a, 0x00, 0x01, 0x02])] : e)), /::error::README\.md in the directory tree holds a NUL byte/],
+    ['a text file as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], 'not a png'] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a PNG/],
   ];
   for (const [what, entries, message] of cases) {
     const tree = makeTree(entries);
@@ -792,7 +798,7 @@ test('a release that would put anything but the five plain text files on directo
 test('--compare tells a new version number from every other change of the five files', () => {
   const { makeTree, script } = directoryRepo();
   const manifest = (version, description = 'd') => `{\n  "name": "croftweaver",\n  "version": "${version}",\n  "description": "${description}"\n}\n`;
-  const tree = ({ version = '0.36.0', description, icon = 'icon', license = 'MIT', readme = 'r', skill = 's' } = {}) => makeTree([
+  const tree = ({ version = '0.36.0', description, icon = PNG('icon'), license = 'MIT', readme = 'r', skill = 's' } = {}) => makeTree([
     ['100644', '.claude-plugin/icon.png', icon], ['100644', '.claude-plugin/plugin.json', manifest(version, description)],
     ['100644', 'LICENSE', license], ['100644', 'README.md', readme], ['100644', 'skills/get-croftweaver/SKILL.md', skill]]);
   const base = tree();
@@ -802,7 +808,14 @@ test('--compare tells a new version number from every other change of the five f
   // A new description is a change the trial must see, even beside a new number.
   assert.deepEqual(compare(tree({ description: 'new words' })), ['.claude-plugin/plugin.json']);
   assert.deepEqual(compare(tree({ version: '0.37.0', description: 'new words' })), ['.claude-plugin/plugin.json']);
-  assert.deepEqual(compare(tree({ icon: 'icon, new' })), ['.claude-plugin/icon.png']);
+  assert.deepEqual(compare(tree({ icon: PNG('icon, new') })), ['.claude-plugin/icon.png']);
+  // A mode alone is a change the trial must see: no version exception for it.
+  const execManifest = makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100755', '.claude-plugin/plugin.json', manifest('0.36.0')],
+    ['100644', 'LICENSE', 'MIT'], ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']]);
+  assert.deepEqual(compare(execManifest), ['.claude-plugin/plugin.json']);
+  const execNewVersion = makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100755', '.claude-plugin/plugin.json', manifest('0.37.0')],
+    ['100644', 'LICENSE', 'MIT'], ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']]);
+  assert.deepEqual(compare(execNewVersion), ['.claude-plugin/plugin.json']);
   assert.deepEqual(compare(tree({ license: 'MIT 2' })), ['LICENSE']);
   assert.deepEqual(compare(tree({ readme: 'r2', skill: 's2' })), ['README.md', 'skills/get-croftweaver/SKILL.md']);
   // A new number does not hide another change.

@@ -33,4 +33,5 @@ Any of the three (needs Node 22.12 or newer), one line for the assistant they us
 By hand: the newest croftweaver.zip from https://github.com/karero/croftweaver/releases/latest,
 then the README's "Manual install".
 
-Use one route: with two, every skill is listed twice.
+Use one route: the plugin together with a copy in `~/.claude/skills/`, which the npm
+installer makes, lists every skill twice.
