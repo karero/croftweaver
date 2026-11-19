@@ -10,6 +10,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -506,8 +507,16 @@ const PRIVACY_URL = 'https://github.com/karero/croftweaver#what-the-directory-pl
 const RELEASES_URL = 'https://github.com/karero/croftweaver/releases/latest';
 // The publish script must keep working under the system bash (3.2 on a Mac).
 const SYSTEM_BASH = fs.existsSync('/bin/bash') ? '/bin/bash' : 'bash';
-// A stand-in icon: the PNG signature, then a tail that tells one icon from another.
-const PNG = (tail = '') => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(tail)]);
+const pngChunk = (type, data) => {
+  const body = Buffer.concat([Buffer.from(type, 'latin1'), data]);
+  const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4); crc.writeUInt32BE(zlib.crc32(body));
+  return Buffer.concat([len, body, crc]);
+};
+// A real 1x1 PNG; the tail goes in a text chunk, so one icon can differ from another.
+const PNG = (tail = '') => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk('tEXt', Buffer.from(`Comment\0${tail}`, 'latin1')),
+  pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))]);
 
 const lsTree = (treeish) => execFileSync('git', ['ls-tree', '-r', '-z', treeish], { cwd: REPO, encoding: 'utf8' })
   .split('\0').filter(Boolean).map((entry) => { const [meta, file] = entry.split('\t'); return { meta, file }; });
@@ -523,6 +532,12 @@ test('the directory tree is the five pointer files (four text, one PNG) as plain
     .map(([src, dst]) => `100644 blob ${execFileSync('git', ['rev-parse', `HEAD:${src}`], { cwd: REPO, encoding: 'utf8' }).trim()}\t${dst}`);
   assert.deepEqual(directoryTree().map(({ meta, file }) => `${meta}\t${file}`), expected);
   assert.deepEqual(directoryTree().map(({ file }) => file), DIRECTORY_FILES);
+});
+
+test('the real pointer tree passes the publish script\'s check of its five files', () => {
+  directoryTree();
+  const run = spawnSync(SYSTEM_BASH, [path.join(REPO, 'scripts', 'publish_directory.sh'), '--check-tree', builtTree], { cwd: REPO, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
 });
 
 test('the pointer plugin carries the kit\'s name and number, metadata only, and a privacy link to a heading the README has', () => {
@@ -766,7 +781,7 @@ test('a release that would put anything but the five plain files (four text, one
   // the script's own list of five still stands. Each stub tree must be a real tree first, so
   // the refusal below cannot be a broken stub failing later at commit-tree.
   const five = [['100644', '.claude-plugin/icon.png', PNG('i')], ['100644', '.claude-plugin/plugin.json', '{}'], ['100644', 'LICENSE', 'l'],
-    ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']];
+    ['100644', 'README.md', 'r\tcaf\u00e9\r\n'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']];
   const cases = [
     ['a sixth path', [...five, ['100644', 'hooks/hooks.json', '{}']], /::error::the directory tree is not exactly the five pointer files: got .*hooks\/hooks\.json/],
     ['a missing path', five.slice(1), /::error::the directory tree is not exactly the five pointer files/],
@@ -774,8 +789,12 @@ test('a release that would put anything but the five plain files (four text, one
     ['an executable file', five.map((e) => (e[1] === 'LICENSE' ? ['100755', e[1], e[2]] : e)), /::error::LICENSE in the directory tree has mode 100755/],
     ['a symlink', five.map((e) => (e[1] === 'README.md' ? ['120000', e[1], 'LICENSE'] : e)), /::error::README\.md in the directory tree has mode 120000/],
     ['a script', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], '#!/usr/bin/env node\n'] : e)), /::error::README\.md in the directory tree starts with #!/],
-    ['a binary blob as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x4d, 0x5a, 0x00, 0x01, 0x02])] : e)), /::error::README\.md in the directory tree holds a NUL byte/],
+    ['a binary blob as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x4d, 0x5a, 0x00, 0x01, 0x02])] : e)), /::error::README\.md in the directory tree holds a control character/],
+    ['binary with no NUL as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0x01, 0x02, 0x03, 0x04, 0xff, 0xfe])] : e)), /::error::README\.md in the directory tree holds a control character/],
+    ['Latin-1 text as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from('caf\u00e9\n', 'latin1')] : e)), /::error::README\.md in the directory tree is not valid UTF-8/],
     ['a text file as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], 'not a png'] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree does not start with the PNG signature/],
+    ['the PNG signature alone as the icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG().subarray(0, 8)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree does not start with the PNG signature and its IHDR chunk/],
+    ['a cut-short icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], PNG('i').subarray(0, 40)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree does not end with the PNG's IEND chunk/],
   ];
   for (const [what, entries, message] of cases) {
     const tree = makeTree(entries);
@@ -788,7 +807,7 @@ test('a release that would put anything but the five plain files (four text, one
   }
   assert.deepEqual(remote('ls-tree', '-r', '--name-only', held).split('\n'), DIRECTORY_FILES);
 
-  // A tree of the five plain text files passes.
+  // A tree of the five files, UTF-8 text with a tab and CRLF and a whole PNG, passes.
   const good = script('--check-tree', makeTree(five));
   assert.deepEqual([good.status, good.out.startsWith('ok:')], [0, true], good.log);
   // A name that is no tree is refused, not passed.

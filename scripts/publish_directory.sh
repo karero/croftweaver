@@ -10,8 +10,9 @@
 #
 # Refuses a tag not on main, a `directory` whose last commit names no source, a release
 # older than the one already published, and a tree that is not exactly the five files, as
-# plain files: the four text files without a NUL byte or a leading `#!`, and an icon that
-# starts with the PNG signature. These catch a script or a stray binary, not every bad file. Pushes without force. --check-tree runs that last check alone. --compare prints `same`, `version
+# plain files: the four text files valid UTF-8, with no control character but tab and line
+# breaks and no leading `#!`; the icon a PNG with its IHDR chunk first and IEND last. These
+# catch a script, a stray binary or a cut-short icon; they do not decode the image. Pushes without force. --check-tree runs that last check alone. --compare prints `same`, `version
 # only` (the trees differ only in plugin.json's version) or the changed paths, one per line.
 set -euo pipefail
 
@@ -37,12 +38,16 @@ check_tree() {
     git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
     hex=$(git cat-file blob "$sha" | od -An -tx1 | tr -d ' \n')
     if [ "$path" = .claude-plugin/icon.png ]; then
-      [ "${hex:0:16}" = 89504e470d0a1a0a ] \
-        || fail "$path in the directory tree does not start with the PNG signature"
+      [ "${hex:0:32}" = 89504e470d0a1a0a0000000d49484452 ] \
+        || fail "$path in the directory tree does not start with the PNG signature and its IHDR chunk"
+      [ "${hex: -24}" = 0000000049454e44ae426082 ] \
+        || fail "$path in the directory tree does not end with the PNG's IEND chunk: is it cut short?"
       continue
     fi
-    [ "$(git cat-file -s "$sha")" = "$(git cat-file blob "$sha" | LC_ALL=C tr -d '\0' | wc -c | tr -d ' ')" ] \
-      || fail "$path in the directory tree holds a NUL byte, which a text file never does"
+    [ "$(git cat-file -s "$sha")" = "$(git cat-file blob "$sha" | LC_ALL=C tr -d '\000-\010\013\014\016-\037\177' | wc -c | tr -d ' ')" ] \
+      || fail "$path in the directory tree holds a control character other than tab or a line break"
+    git cat-file blob "$sha" | iconv -f UTF-8 -t UTF-8 >/dev/null 2>&1 \
+      || fail "$path in the directory tree is not valid UTF-8"
     [ "${hex:0:4}" != 2321 ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
   done < <(git ls-tree -r -z --full-tree "$tree")
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
