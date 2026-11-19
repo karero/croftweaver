@@ -984,8 +984,10 @@ printf "/* éééééé */site: 'https://new.example' };\n" > "$work/cwd/astro.c
 # The case needs a UTF-8 locale this machine has: a missing one makes bash print a warning that
 # becomes the first line, so it is skipped, with a note, where none of these exists.
 utf8_loc=""
+# Read the list first: under pipefail, grep -q stops early and locale dies of SIGPIPE (status 141).
+locales=$(locale -a 2>/dev/null || true)
 for l in C.UTF-8 en_US.UTF-8 en_US.utf8 C.utf8; do
-  if locale -a 2>/dev/null | grep -qix "$l"; then utf8_loc="$l"; break; fi
+  if grep -qix "$l" <<<"$locales"; then utf8_loc="$l"; break; fi
 done
 if [ -n "$utf8_loc" ]; then
   want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; LC_ALL="$utf8_loc" expect utf8key 1 0 "not for a network reason"
@@ -2148,7 +2150,7 @@ export default {};"
   want "a custom_domain in a comment or a string with // is no route" last_starts "$sent"
   # The message names the Workers config ship read, which a site may keep under another name.
   wname=worker.json workers_case w1b github "$noroute" SHIP_T_NOSITE=1; exits 0
-  want "the message names the file ship read" last_starts "${sent//wrangler.jsonc/worker.json}"
+  want "the message names the file ship read" last_starts "${sent//wrangler[.]jsonc/worker.json}"
   workers_case w3 folder "$noroute" SHIP_T_NOSITE=1; exits 0
   want "a folder's own copy is read too" last_starts "$sent"
   bad_cfg="✗ The publish went out (GitHub's production is now"
