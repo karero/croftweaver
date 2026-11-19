@@ -177,9 +177,9 @@ setting, is in [What the skills run on your computer](docs/WHAT-THE-SKILLS-RUN.m
 
 The Croftweaver plugin in Anthropic's plugin directory is moving to a short version: one
 skill, a page of text that says what Croftweaver is and gives you the install commands to
-type yourself. That version is text only: it holds no scripts, hooks or servers, so you type
-every command it shows. Until it is there, the plugin in the directory is the full kit, and what the full
-kit sends is listed above, under [What leaves your computer](#what-leaves-your-computer).
+type yourself. That version is text only: it holds no scripts, hooks or servers. Until it is
+there, the plugin in the directory is the full kit; for what the full kit sends, see
+[What leaves your computer](#what-leaves-your-computer) above.
 
 ## What happens next
 
