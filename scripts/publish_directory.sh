@@ -11,8 +11,8 @@
 # Refuses a tag not on main, a `directory` whose last commit names no source, a release
 # older than the one already published, and a tree that is not exactly the five files, as
 # plain files. check_directory_files.mjs refuses a text file that is not UTF-8, holds a control
-# character but tab and line breaks, or starts with `#!`, and an icon that is not a whole PNG
-# (chunks, checksums, IEND last, image data inflates; pixels are not decoded). Pushes without
+# character but tab and line breaks, or starts with `#!`, and an icon that is not an 8-bit RGB or
+# RGBA PNG with whole chunks and rows (its own header says exactly what). Pushes without
 # force. --check-tree runs that last check alone. --compare prints `same`, `version
 # only` (the trees differ only in plugin.json's version) or the changed paths, one per line.
 set -euo pipefail
@@ -38,8 +38,11 @@ check_tree() {
     paths+="$path"$'\n'
     [ "$mode" = 100644 ] || fail "$path in the directory tree has mode $mode: only plain files (100644) go to the directory"
     git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
-    msg=$(git cat-file blob "$sha" | node "$here/check_directory_files.mjs" "$path" 2>&1) || true
-    [ "$msg" = ok ] || fail "$path in the directory tree ${msg:-could not be checked: check_directory_files.mjs printed nothing}"
+    # A pass needs both: the pipeline succeeded (pipefail) and the checker printed ok.
+    if ! msg=$(git cat-file blob "$sha" | node "$here/check_directory_files.mjs" "$path") || [ "$msg" != ok ]; then
+      [ -n "$msg" ] && [ "$msg" != ok ] || msg="could not be checked: reading it or check_directory_files.mjs failed, or printed nothing"
+      fail "$path in the directory tree $msg"
+    fi
   done < <(git ls-tree -r -z --full-tree "$tree")
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
     || fail "the directory tree is not exactly the five pointer files: got $(printf '%s' "$paths" | LC_ALL=C sort | tr '\n' ' ')"

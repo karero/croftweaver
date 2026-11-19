@@ -543,17 +543,18 @@ test('the directory tree is the five pointer files (four text, one PNG) as plain
 test('the real pointer tree passes the publish script\'s check of its five files', () => {
   directoryTree();
   const run = spawnSync(SYSTEM_BASH, [path.join(REPO, 'scripts', 'publish_directory.sh'), '--check-tree', builtTree], { cwd: REPO, encoding: 'utf8' });
-  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
 test('the content checker checks when run through a symlink, and says ok only for a file it passed', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cw-checker-'));
   const link = path.join(dir, 'check.mjs');
   fs.symlinkSync(path.join(REPO, 'scripts', 'check_directory_files.mjs'), link);
-  const run = (input) => spawnSync('node', [link, 'README.md'], { input, encoding: 'utf8' });
-  assert.deepEqual([run('#!/bin/sh\n').status, run('#!/bin/sh\n').stdout.trim()], [1, 'starts with #!: the directory takes text, not scripts']);
-  assert.deepEqual([run('plain text\n').status, run('plain text\n').stdout.trim()], [0, 'ok']);
-  fs.rmSync(dir, { recursive: true, force: true });
+  try {
+    const run = (input) => spawnSync('node', [link, 'README.md'], { input, encoding: 'utf8' });
+    assert.deepEqual([run('#!/bin/sh\n').status, run('#!/bin/sh\n').stdout.trim()], [1, 'starts with #!: the directory takes text, not scripts']);
+    assert.deepEqual([run('plain text\n').status, run('plain text\n').stdout.trim()], [0, 'ok']);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('the pointer plugin carries the kit\'s name and number, metadata only, and a privacy link to a heading the README has', () => {
@@ -826,6 +827,10 @@ test('a release that would put anything but the five plain files (four text, one
     ['an icon with bytes after its compressed data', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.concat([zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0])), Buffer.from('xx')]))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after the image data/],
     ['an interlaced icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 1])),
       pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: interlaced/],
+    ['a palette icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 3, 0, 0, 0])), pngChunk('PLTE', Buffer.from([0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0]))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: not an 8-bit RGB or RGBA image/],
+    ['a 16-bit icon', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 16, 6, 0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.alloc(9))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: not an 8-bit RGB or RGBA image/],
+    ['an RGBA icon with a PLTE chunk', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk('PLTE', Buffer.from([0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0]))), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: a PLTE chunk, which the icon may not have/],
+    ['an icon whose IDAT chunks are split by another chunk', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG().subarray(0, 8), pngChunk('IHDR', Buffer.from([0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0])), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0])).subarray(0, 4)), pngChunk('tEXt', Buffer.from('a\0b', 'latin1')), pngChunk('IDAT', zlib.deflateSync(Buffer.from([0, 0, 0, 0, 0])).subarray(4)), pngChunk('IEND', Buffer.alloc(0))])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: its IDAT chunks are not consecutive/],
   ];
   for (const [what, entries, message] of cases) {
     const tree = makeTree(entries);
@@ -838,8 +843,10 @@ test('a release that would put anything but the five plain files (four text, one
   }
   assert.deepEqual(remote('ls-tree', '-r', '--name-only', held).split('\n'), DIRECTORY_FILES);
 
-  // A checker that checks nothing and prints nothing is not a pass, even for good files.
-  refused(publishWithStubBuilder('v0.5', makeTree(five), ''), /::error::\S+ in the directory tree could not be checked: check_directory_files\.mjs printed nothing/);
+  // A checker that prints nothing, or prints ok and then fails, is not a pass, even for good files.
+  for (const checker of ['', "console.log('ok'); process.exit(7);"]) {
+    refused(publishWithStubBuilder('v0.5', makeTree(five), checker), /::error::\S+ in the directory tree could not be checked: reading it or check_directory_files\.mjs failed, or printed nothing/);
+  }
 
   // A tree of the five files, UTF-8 text with a tab and CRLF and a whole PNG, passes.
   const good = script('--check-tree', makeTree(five));

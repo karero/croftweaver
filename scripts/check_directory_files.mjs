@@ -18,15 +18,14 @@ export function crc32(buf) {
 
 const SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-// Channels per pixel, and the bit depths allowed, for each PNG colour type.
-const COLOUR = { 0: [1, [1, 2, 4, 8, 16]], 2: [3, [8, 16]], 3: [1, [1, 2, 4, 8]], 4: [2, [8, 16]], 6: [4, [8, 16]] };
-
-// The reason a PNG is not whole, or '' when it is: its chunks, header, and every row of its
-// image data are checked; pixel values are not.
+// The reason the icon is refused, or '' when it passes. Only what an icon needs passes: an 8-bit
+// RGB or RGBA PNG, not interlaced, whose critical chunks are IHDR first, consecutive IDATs and
+// IEND last (no PLTE), with every checksum and every row of image data whole. Ancillary chunks
+// (sRGB, eXIf and the like) pass on their checksum alone; pixel values are not checked.
 export function pngProblem(buf) {
   if (buf.length < 8 || !buf.subarray(0, 8).equals(SIGNATURE)) return 'no PNG signature';
   const idat = [];
-  let pos = 8, first = true, hdr, plte = false;
+  let pos = 8, first = true, hdr, idatEnded = false;
   for (;;) {
     if (pos + 12 > buf.length) return 'cut short: no IEND chunk';
     const len = buf.readUInt32BE(pos);
@@ -39,12 +38,17 @@ export function pngProblem(buf) {
       hdr = { w: buf.readUInt32BE(pos + 8), h: buf.readUInt32BE(pos + 12), depth: buf[pos + 16], colour: buf[pos + 17],
         rest: [buf[pos + 18], buf[pos + 19], buf[pos + 20]] };
       if (hdr.w === 0 || hdr.h === 0) return 'width or height is zero';
-      if (!COLOUR[hdr.colour] || !COLOUR[hdr.colour][1].includes(hdr.depth)) return 'its colour type and bit depth are not a PNG pair';
+      if (hdr.depth !== 8 || (hdr.colour !== 2 && hdr.colour !== 6)) return 'not an 8-bit RGB or RGBA image';
       if (hdr.rest.join() !== '0,0,0') return 'interlaced, or a compression or filter method PNG does not define';
       first = false;
-    } else if (type === 'IHDR') return 'a second IHDR chunk';
-    else if (type === 'PLTE') plte = true;
-    else if (type === 'IDAT') idat.push(buf.subarray(pos + 8, end - 4));
+    } else if (type === 'IDAT') {
+      if (idatEnded) return 'its IDAT chunks are not consecutive';
+      idat.push(buf.subarray(pos + 8, end - 4));
+    } else {
+      if (idat.length) idatEnded = true;
+      // A critical chunk has an upper-case first letter; only IHDR, IDAT and IEND may appear.
+      if (type !== 'IEND' && !(buf[pos + 4] & 0x20)) return `a ${type} chunk, which the icon may not have`;
+    }
     if (type === 'IEND') {
       if (len !== 0) return 'IEND is not empty';
       if (end !== buf.length) return 'bytes after IEND';
@@ -53,8 +57,7 @@ export function pngProblem(buf) {
     pos = end;
   }
   if (!idat.length) return 'no IDAT chunk';
-  if (hdr.colour === 3 && !plte) return 'a palette image with no PLTE chunk';
-  const rowBytes = 1 + Math.ceil((hdr.w * COLOUR[hdr.colour][0] * hdr.depth) / 8);
+  const rowBytes = 1 + hdr.w * (hdr.colour === 6 ? 4 : 3);
   const size = rowBytes * hdr.h;
   if (size > 64 * 1024 * 1024) return 'larger than an icon needs';
   const data = Buffer.concat(idat);
