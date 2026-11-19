@@ -1374,7 +1374,7 @@ async function folderLines(ctx, st, M, route, head = null) {
 }
 
 // move and undo write their commit on the commit GitHub's main holds for the route commit, so a pull
-// request that merges it has that commit as first parent; and they refuse a main that moved past a squash of it.
+// request that merges it has that commit as first parent; and they refuse a main that holds neither the route commit nor a merge of it (a squash, then a later merge).
 async function headRule(ctx, st, head, dir) {
   const route = st.route?.commit;
   const tip = ctx.mainSha;

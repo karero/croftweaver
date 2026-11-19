@@ -189,7 +189,7 @@ for your yes. Each host is down from the moment it leaves the Worker until Pages
 again: one to two minutes (63 to 98 seconds in the tests), and it can take longer. Then it pushes the undo commit and runs
 `after`. You can move again later (not run in a test yet). If your site's `main` is protected, the
 move's change was merged with GitHub's "Squash and merge", and other changes were merged after it,
-going back needs help: your assistant will say so and stop.
+going back may need help: if so, your assistant will say so and stop.
 
 ## 9. If a run stops part way
 

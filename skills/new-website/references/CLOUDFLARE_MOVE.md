@@ -259,7 +259,7 @@ the commit as in step 5 of the table (`main` first, then `production` on a two-s
 no Workers Builds, deploy it as well, from the undo commit and the same way as in step 5: otherwise
 the Worker keeps serving the old commit and `check` says so. Then run `after`; it closes the move when the hosts serve from Pages again. A move that
 stopped can be undone the same way, by hand if need be: `after` follows the commit, so it closes
-either. If an undo stops part way, `move` goes forward again from where it stopped. If `main` is protected and the route commit went in as a squash merge, an `undo` after anything else was merged into `main` stops and says to ask for help (tell the User that going back needs help). Ordinary commits
+either. If an undo stops part way, `move` goes forward again from where it stopped. If `main` is protected and the route commit went in as a squash merge, an `undo` after anything else was merged into `main` can stop and say to ask for help (then tell the User that going back needs help). Ordinary commits
 shipped meanwhile, a changed compatibility date among them, do not stand in the way: the commit the
 script writes changes the routes and nothing else, and it refuses a HEAD that changed the routes
 together with something else.

@@ -3786,7 +3786,8 @@ describe('move on a protected main (P1 to P6)', () => {
   // A later change that edits a file other than the Workers config: a one-parent commit on `from`, or a two-parent merge of a side commit made on the frozen commit.
   const later = (s, from, merge = false) => {
     const w = s.site.work;
-    const back = git(w, 'symbolic-ref', '-q', '--short', 'HEAD') || git(w, 'rev-parse', 'HEAD');
+    const branch = git(w, 'rev-parse', '--abbrev-ref', 'HEAD'); // the literal HEAD when detached
+    const back = branch === 'HEAD' ? git(w, 'rev-parse', 'HEAD') : branch;
     const edit = (name, text, msg) => { writeFileSync(path.join(w, name), text); git(w, 'add', name); git(w, 'commit', '-q', '-m', msg); return git(w, 'rev-parse', 'HEAD'); };
     git(w, 'switch', '-q', '--detach', merge ? s.site.frozen : from);
     const c = edit('later-note.txt', 'a later change\n', 'a later change');
@@ -3817,14 +3818,14 @@ describe('move on a protected main (P1 to P6)', () => {
   });
 
   test('T6 (P6): with the route commit pushed directly as main and HEAD still at the frozen commit, undo refuses and prints the folder line', async () => {
-    const { s } = await moved();
+    const { s, route } = await moved();
     s.push();
     git(s.site.work, 'fetch', '-q', 'origin');
     git(s.site.work, 'switch', '-q', '--detach', s.site.frozen);
     const r = await s.go(['undo']);
     assert.equal(r.code, 1, r.text);
     assert.match(r.text, /HEAD is [0-9a-f]+, not [0-9a-f]+, the commit that main on GitHub holds/);
-    assert.ok(r.text.includes('git switch'), r.text);
+    assert.ok(r.text.includes(`run git fetch origin, git switch main, then git reset --keep ${route}.`), r.text); // the folder's main is still at the frozen commit
   });
 
   test('T6 (P6): a folder with no branch called main is told how to make one at M', async () => {
