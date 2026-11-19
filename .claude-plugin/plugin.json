@@ -1,8 +1,8 @@
 {
   "name": "croftweaver",
   "displayName": "Croftweaver",
-  "version": "0.36.0",
-  "description": "Skills that build a small-business website end to end with your AI coding assistant: positioning, content, SEO, design, tests, review and launch.",
+  "version": "0.37.0",
+  "description": "Points the way to Croftweaver, a free kit of skills that builds a small-business website. This plugin holds one skill that explains it and gives you the install commands to type yourself; it builds nothing on its own.",
   "author": {
     "name": "Croftweaver",
     "url": "https://croftweaver.com"
@@ -10,5 +10,5 @@
   "homepage": "https://croftweaver.com",
   "repository": "https://github.com/karero/croftweaver",
   "license": "MIT",
-  "privacyPolicyUrl": "https://github.com/karero/croftweaver#what-leaves-your-computer"
+  "privacyPolicyUrl": "https://github.com/karero/croftweaver#what-the-directory-plugin-sends"
 }
