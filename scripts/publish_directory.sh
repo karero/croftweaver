@@ -27,26 +27,23 @@ tree_arg() {
   git rev-parse "$1^{tree}"
 }
 
-# The first bytes of a blob. A SIGPIPE from head closing early is no failure; the blob was
-# checked readable before.
-blob_head() { { git cat-file blob "$1" || true; } | head -c "$2"; }
-
 check_tree() {
-  local tree=$1 mode type sha path paths=
+  local tree=$1 mode type sha path paths= hex
   while IFS= read -r -d '' entry; do
     path=${entry#*$'\t'}
     read -r mode type sha <<<"${entry%%$'\t'*}"
     paths+="$path"$'\n'
     [ "$mode" = 100644 ] || fail "$path in the directory tree has mode $mode: only plain files (100644) go to the directory"
     git cat-file -e "$sha" || fail "cannot read $path in the directory tree"
+    hex=$(git cat-file blob "$sha" | od -An -tx1 | tr -d ' \n')
     if [ "$path" = .claude-plugin/icon.png ]; then
-      [ "$(blob_head "$sha" 8 | od -An -tx1 | tr -d ' \n')" = 89504e470d0a1a0a ] \
+      [ "${hex:0:16}" = 89504e470d0a1a0a ] \
         || fail "$path in the directory tree is not a PNG"
       continue
     fi
     [ "$(git cat-file -s "$sha")" = "$(git cat-file blob "$sha" | LC_ALL=C tr -d '\0' | wc -c | tr -d ' ')" ] \
       || fail "$path in the directory tree holds a NUL byte: the directory takes text"
-    [ "$(blob_head "$sha" 2)" != '#!' ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
+    [ "${hex:0:4}" != 2321 ] || fail "$path in the directory tree starts with #!: the directory takes text, not scripts"
   done < <(git ls-tree -r -z --full-tree "$tree")
   [ "$(printf '%s' "$paths" | LC_ALL=C sort)" = "$ALLOWED" ] \
     || fail "the directory tree is not exactly the five pointer files: got $(printf '%s' "$paths" | LC_ALL=C sort | tr '\n' ' ')"
