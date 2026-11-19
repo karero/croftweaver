@@ -977,10 +977,11 @@ want_line1="→ Site: https://same.example · GitHub repo: $repo_fallback"; expe
 mark decoy noorigin
 printf "export default {\nwebsite: 'https://x.example',\n};\n/*\nsite: 'https://x.example'\n*/\n" > "$work/cwd/astro.config.mjs"
 want_line1="$one_comment"; expect decoy 1 0 "not for a network reason"
-# Bytes before the key: grep counts them in bytes, and a cut by characters would end inside the key.
+# Bytes before the key: grep counts them in bytes, and a cut by characters would end inside the key
+# (so this case runs in a UTF-8 locale, where the two differ).
 mark utf8key noorigin
 printf "/* éééééé */site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
-want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect utf8key 1 0 "not for a network reason"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; LC_ALL=en_US.UTF-8 expect utf8key 1 0 "not for a network reason"
 # A / that opens no comment (here a regex holding a quote, which could hide a real /*) stops the
 # scan: nothing is checked. A string continued past a line's end with \ stays a string.
 mark regexquote noorigin; mark continued noorigin
