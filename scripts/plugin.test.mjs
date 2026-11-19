@@ -892,10 +892,13 @@ test('--compare tells a new version number from every other change of the five f
   assert.deepEqual(compareTo(nested('1'), nested('1', '0.37.0')), ['version only']);
   assert.deepEqual(compareTo(nested('1'), nested('2', '0.37.0')), PATH_);
   // A text that does not read back as written (a repeated key, a number past 2^53) is a change, not "version only".
-  const dup = (n) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "author": {"name": "a", "name": "${n}"}\n}\n`;
+  const dup = (n) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "author": {"name": "${n}", "name": "a"}\n}\n`;
   assert.deepEqual(compareTo(dup('b'), dup('c')), PATH_);
   const big = (n) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "build": ${n}\n}\n`;
   assert.deepEqual(compareTo(big('9007199254740992'), big('9007199254740993')), PATH_);
+  // The manifest the directory really holds reads back as written, so its new number stays "version only".
+  const real = fs.readFileSync(new URL('../pointer/plugin.json', import.meta.url), 'utf8');
+  assert.deepEqual(compareTo(real, real.replace(/"version": "[^"]*"/, '"version": "99.0.0"')), ['version only']);
   // A new number does not hide another change.
   assert.deepEqual(compare(tree({ version: '0.37.0', license: 'MIT 2' })), ['.claude-plugin/plugin.json', 'LICENSE']);
   // A file gone, a file added.
