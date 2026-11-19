@@ -4,6 +4,8 @@ Done up to the submission: the plan passed its review gate, the trial passed Val
 build is merged, and the maintainer submitted the listing on 2026-10-25. What is left: the
 directory's review, and seeing release 0.34 reach `directory` through the workflow.
 
+Update 2026-11-19: the directory refused the code tree this plan publishes (a plugin from an account that is not a Verified organization may hold only text, JSON, YAML and images). `directory` is to get a five-file pointer plugin instead, from the release after the build merges; see `plugin-directory/PLAN-pointer.md` in the maintainer's notes.
+
 | # | Step | State | Evidence |
 |---|------|-------|----------|
 | 1 | This plan | ✅ written 2026-10-24 | this file |

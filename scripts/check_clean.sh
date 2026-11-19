@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Guard: the skill suite is a handoff artifact — no personal names, contact info, or
 # credentials may enter it. Scans skills/ + root docs (and scripts/, for names only; and
-# packages/, where there is one) and exits 1 (with file:line) on any hit. Wired into
+# packages/ and pointer/, where there are any) and exits 1 (with file:line) on any hit. Wired into
 # `make check` and CI (.github/workflows/clean.yml).
 #
 # Two kinds of check:
@@ -111,12 +111,13 @@ if [ -n "$MISSING" ]; then
   echo "legitimately lack one, drop it from SCAN_NAMES_ALL/SCAN_DOCS_ALL deliberately."
   exit 1
 fi
-# packages/ (the npm installer) is in the repo but not in the handoff zip, where `make check`
-# runs too, so it cannot be a required target above: it is scanned where it exists. A name
-# or an address in it reaches the public repo and the npm page. (2026-10-12: it was added
-# and no check read it.)
+# packages/ (the npm installer) and pointer/ (the files the directory plugin publishes) are in
+# the repo but not in the handoff zip, where `make check` runs too, so they cannot be required
+# targets above: each is scanned where it exists. A name or an address in them reaches the
+# public repo, the npm page or the directory. (2026-10-12: packages/ was added and no check
+# read it.)
 SCAN_PRESENT=""
-[ -e packages ] && SCAN_PRESENT="packages"
+for d in packages pointer; do [ -e "$d" ] && SCAN_PRESENT="${SCAN_PRESENT:+$SCAN_PRESENT }$d"; done
 SCAN_NAMES="$SCAN_NAMES${SCAN_PRESENT:+ $SCAN_PRESENT}"
 SCAN_DOCS="$SCAN_DOCS${SCAN_PRESENT:+ $SCAN_PRESENT}"
 fail=0

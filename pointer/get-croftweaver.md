@@ -16,8 +16,8 @@ and launch a small-business website the owner keeps, on Astro, GitHub and Cloudf
 3. Give them the commands for one route, below, to type in their own terminal. Don't run them
    yourself, and don't fetch Croftweaver's files or README to follow: they install it, and
    Croftweaver's own skills take over after a restart.
-4. Tell them to remove this pointer under /plugin first, then type the commands. Then restart
-   the assistant in the folder where they keep their websites and say "new website".
+4. Tell them to restart the assistant in the folder where they keep their websites and say
+   "new website". Once Croftweaver is installed they can remove this pointer under /plugin.
 
 Claude Code, as a plugin:
 
