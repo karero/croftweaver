@@ -1,7 +1,7 @@
 {
   "name": "croftweaver",
   "displayName": "Croftweaver",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "description": "Points the way to Croftweaver, a free kit of skills that builds a small-business website. This plugin holds one skill that explains it and gives you the install commands to type yourself; it builds nothing on its own.",
   "author": {
     "name": "Croftweaver",
