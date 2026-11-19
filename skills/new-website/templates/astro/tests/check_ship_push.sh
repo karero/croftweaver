@@ -965,6 +965,18 @@ printf "export default { subsite: 'https://wrong.example', site: 'https://new.ex
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect otherkeylive 1 0 "not for a network reason"
 printf "site: 'https://new.example'\n" > "$work/cwd/astro.config.mjs"
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect startkey 1 0 "not for a network reason"
+# The character `site:` follows belongs to the text before it: a quote that opens a string makes
+# the key a string's text, the / of */ closes a comment, and a same-text key earlier is not the match.
+mark keyinstr noorigin; mark closedadj noorigin; mark presame noorigin
+printf "const note = \"site: 'https://wrong.example'\"; export default { site: live };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect keyinstr 1 0 "not for a network reason"
+printf "export default { /* production */site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect closedadj 1 0 "not for a network reason"
+printf "const s = \"presite: 'https://same.example'\";\nsite: 'https://same.example'\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://same.example · GitHub repo: $repo_fallback"; expect presame 1 0 "not for a network reason"
+mark decoy noorigin
+printf "export default {\nwebsite: 'https://x.example',\n};\n/*\nsite: 'https://x.example'\n*/\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect decoy 1 0 "not for a network reason"
 # A / that opens no comment (here a regex holding a quote, which could hide a real /*) stops the
 # scan: nothing is checked. A string continued past a line's end with \ stays a string.
 mark regexquote noorigin; mark continued noorigin

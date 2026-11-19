@@ -71,7 +71,7 @@ config_text() { # <folder>
 # What the site's Workers config says about its domain, for the folder given. A Workers config is
 # a .json or .jsonc file in the root that holds `assets` and no `pages_build_output_dir` (as the
 # move tools find it). Prints `none` (no such file: a Pages site), `route` (a custom_domain
-# route in its root `routes`), `noroute <file>` (the Workers config it read), or `error <file>: <why>` for a Wrangler file that is
+# route in its root `routes`), `noroute <file>` (the last Workers config it read), or `error <file>: <why>` for a Wrangler file that is
 # not JSON with comments. Comments are dropped outside strings, then a comma before a closing
 # } or ] (Wrangler accepts one), then JSON.parse.
 workers_state() { # <folder>
@@ -176,12 +176,13 @@ site_of() { # <astro.config.mjs text>
 # commented: the text before the one match does not end in plain code (js_state), so the build
 # may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
-  local h pre
-  h="$(grep -oE "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
+  local h b pre
+  h="$(grep -oEb "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  # The counted match starts at the text's first occurrence of $h: an earlier one would itself
-  # be a match, and grep would have counted it first.
-  pre="${1%%"$h"*}"
+  # grep -b says where the match starts (offset:match). The match may begin with the one character
+  # before `site:`, which belongs to the text before the key: a quote that opens a string, the / of */.
+  b="${h#*:}"; b="${b%%site:*}"
+  pre="$(LC_ALL=C; printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
   case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
 }
 
@@ -1208,7 +1209,7 @@ if [ -z "$site" ]; then
 fi
 # The one "ship again": a commit that changes one line of $again_file (a kit-owned text file, not
 # part of the build), so the commit has a changed file for a build to see; build watch paths that
-# do not list that file still skip it (the offer and PUBLISHING.md say so). The push below sends it to main and to
+# do not list that file still skip it (the commit message and PUBLISHING.md say so). The push below sends it to main and to
 # production. Folder mode makes it on `main` and only if the folder is as the checks at the start
 # left it; worktree mode makes it in the temporary copy. No hook runs for the commit (hooksPath
 # points at nothing): the pre-push gate runs for the push. Says why and returns 1 when the commit

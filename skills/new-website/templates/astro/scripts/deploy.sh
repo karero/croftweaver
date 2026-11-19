@@ -31,12 +31,13 @@ site_of() { # <astro.config.mjs text>
 # commented: the text before the one match does not end in plain code (js_state), so the build
 # may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
-  local h pre
-  h="$(grep -oE "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
+  local h b pre
+  h="$(grep -oEb "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
   case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  # The counted match starts at the text's first occurrence of $h: an earlier one would itself
-  # be a match, and grep would have counted it first.
-  pre="${1%%"$h"*}"
+  # grep -b says where the match starts (offset:match). The match may begin with the one character
+  # before `site:`, which belongs to the text before the key: a quote that opens a string, the / of */.
+  b="${h#*:}"; b="${b%%site:*}"
+  pre="$(LC_ALL=C; printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
   case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
 }
 
