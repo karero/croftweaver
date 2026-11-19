@@ -173,6 +173,13 @@ Two tools your site is built with, Astro and Cloudflare's Wrangler, send anonymo
 data to their own makers unless you switch that off. The full list, with every script and
 setting, is in [What the skills run on your computer](docs/WHAT-THE-SKILLS-RUN.md).
 
+## What the directory plugin sends
+
+Nothing. The Croftweaver plugin in Anthropic's plugin directory holds one skill, a page of
+text that says what Croftweaver is and gives you the install commands to type yourself. It
+runs nothing, fetches nothing and stores nothing. What the full kit sends once you install
+it and build a site is listed above, under [What leaves your computer](#what-leaves-your-computer).
+
 ## What happens next
 
 Once you run `new website`, the assistant will:
