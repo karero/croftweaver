@@ -1,6 +1,6 @@
 import { chromium, defineConfig, devices } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readdirSync, realpathSync } from 'node:fs';
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -24,17 +24,25 @@ const BASE = `http://localhost:${PORT}`;
 // the build this Playwright version expects; then every browser test failed there with "Executable
 // doesn't exist". A headless run launches the headless shell, not chromium.executablePath() (the
 // full browser), so the shell is the build to look for: it sits beside the full one as
-// chromium_headless_shell-<revision>. Only when the expected shell is missing, launch the cloud's
-// own build: its headless shell first (the full browser also fetches the favicon on its own). CI
-// and anyone who ran `npx playwright install chromium` keep the pinned one.
-const CLOUD_BROWSERS = '/opt/pw-browsers';
+// chromium_headless_shell-<revision>. Only when the expected shell is missing, or its folder holds
+// no executable (a partial install), launch the cloud's own build: its headless shell first (the
+// full browser also fetches the favicon on its own). CI and anyone who ran
+// `npx playwright install chromium` keep the pinned one.
+const CLOUD_BROWSERS = process.env.SITE_TEST_CLOUD_BROWSERS ?? '/opt/pw-browsers'; // the variable is for the toolkit's own test
 function expectedHeadlessBuild(): string {
   const full = chromium.executablePath();
   const m = /^(.*[\\/])chromium-(\d+)[\\/]/.exec(full);
   return m ? `${m[1]}chromium_headless_shell-${m[2]}` : full;
 }
+// The folder holds the shell when one of its subfolders (chrome-headless-shell-<platform>) has the executable.
+function hasHeadlessShell(folder: string): boolean {
+  if (!existsSync(folder)) return false;
+  if (!statSync(folder).isDirectory()) return true; // expectedHeadlessBuild() fell back to the full browser's file
+  return readdirSync(folder, { withFileTypes: true }).some((d) => d.isDirectory()
+    && ['chrome-headless-shell', 'chrome-headless-shell.exe'].some((exe) => existsSync(join(folder, d.name, exe))));
+}
 function cloudChromium(): string | undefined {
-  if (existsSync(expectedHeadlessBuild()) || !existsSync(CLOUD_BROWSERS)) return undefined;
+  if (hasHeadlessShell(expectedHeadlessBuild()) || !existsSync(CLOUD_BROWSERS)) return undefined;
   const shell = readdirSync(CLOUD_BROWSERS).filter((name) => name.startsWith('chromium_headless_shell-')).sort().pop();
   return [
     ...(shell ? [join(CLOUD_BROWSERS, shell, 'chrome-headless-shell-linux64', 'chrome-headless-shell')] : []),

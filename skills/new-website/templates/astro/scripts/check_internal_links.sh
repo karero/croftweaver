@@ -91,6 +91,14 @@ NLINKS=$(grep -c . "$LINKS")
 INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
                       END { for (t in cnt) print cnt[t] "\t" t }' "$LINKS")
 
+# Pages never reported as orphans: the 404 page (reached by a wrong address, not a link) and the
+# ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
+EXEMPT="/404"
+if [ -f tests/orphans.spec.ts ]; then
+  EXEMPT="$EXEMPT
+$(sed -n '/ORPHAN_EXEMPT = new Set/,/\]);/p' tests/orphans.spec.ts | sed 's#//.*##' | grep -oE "'/[^']*'" | tr -d "'")"
+fi
+
 # Orphans = pages that received zero inbound edges (and aren't the home root).
 orphans=""; thin=""
 while IFS= read -r p; do
@@ -98,8 +106,15 @@ while IFS= read -r p; do
   [ "$p" = "/" ] && continue
   c=$(echo "$INBOUND" | awk -F'\t' -v t="$p" '$2==t{print $1}')
   if [ -z "$c" ]; then
-    orphans="$orphans$p
-"
+    case "
+$EXEMPT
+" in
+      *"
+$p
+"*) ;;
+      *) orphans="$orphans$p
+" ;;
+    esac
   elif [ "$c" = "1" ]; then
     one=$(awk -F'\t' -v t="$p" '$1==t && $1!=$2 {print $2; exit}' "$LINKS")
     thin="$thin$p  <-  $one

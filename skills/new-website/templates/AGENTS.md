@@ -101,8 +101,11 @@ applies there; instead of steps 2 to 4, only this:
   This rule binds the assistant from day one. On a single-owner site the owner may
   still push to `main` themselves as `PUBLISHING.md` describes; once
   `website-team-setup` has run it binds everyone, and GitHub or the pre-push hook
-  rejects a direct push. The one exception is the site's first upload,
-  `git push -u origin main`: a new repository has no `main` to open a pull request against.
+  rejects a direct push. The exceptions are the site's first upload,
+  `git push -u origin main` (a new repository has no `main` to open a pull request against),
+  and `npm run ship`'s own retry: when the owner types y at its "Ship again?" question, it pushes
+  one commit that changes only `SHIP-AGAIN.txt` to `main` and `production`. Never answer that
+  question for the owner.
   - Locally (Codex or Claude Code on your own computer): every task on its own branch
     (see 1.4), then `git push -u origin content/<short-name>` and open the pull request
     on GitHub.

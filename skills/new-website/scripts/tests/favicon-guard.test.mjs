@@ -51,6 +51,8 @@ const ASTRO = {
   ico2021: { file: 'astro-minimal-favicon-578ad458.ico', bytes: 4286, sha: '5af608ecd60d93abd453f78896e95a7c8c0a2c632a92a10e57f19423f333bc46' },
   svgo2023: { file: 'astro-minimal-favicon-f157bd1c.svgo-4.1.0.svg', bytes: 644, sha: 'c98ef972cd0a097ef32ad0f6d17e08d8e015a630a43b87be015e70d6d329dc32' },
   svgo2022: { file: 'astro-minimal-favicon-0f390629.svgo-4.1.0.svg', bytes: 787, sha: 'd7adbb88b727be7b4df28b8a98f9f48699168ce20504faea2eaf3483ebda1d02' },
+  abs2023: { file: 'astro-minimal-favicon-f157bd1c.svgo-4.1.0-absolute.svg', bytes: 770, sha: 'dc3e867993b0205e6a569ca09101e4164a2fc0cbd12115064c99b39b5aa0756f' },
+  abs2022: { file: 'astro-minimal-favicon-0f390629.svgo-4.1.0-absolute.svg', bytes: 885, sha: '6d0ea9fa154171a5efd30d0af01cd99f7f8902c958ad9fc037958f9a46b96ae1' },
 };
 const astro = (key) => fx(ASTRO[key].file);
 const astroText = (key) => astro(key).toString('utf8');
@@ -133,6 +135,9 @@ const REFUSED_SVG = [
   ['the 2022 logo as Astro ships it', () => astro('svg2022')],
   ['the 2022 logo with Windows line endings', () => astroText('svg2022').replace(/\n/g, '\r\n')],
   ['the 2022 logo after svgo 4.1.0', () => astro('svgo2022')],
+  // svgo's path rewriting can change the path data: with forceAbsolutePath the opening is another one.
+  ['the 2023 logo after svgo 4.1.0 with forceAbsolutePath', () => astro('abs2023')],
+  ['the 2022 logo after svgo 4.1.0 with forceAbsolutePath', () => astro('abs2022')],
   // A "<!--" inside CDATA or <?…?> must not hide the real path that follows it.
   ['the 2023 logo with a "<!--" in CDATA before it and a comment after', () => astroText('svg2023')
     .replace(/(<svg[^>]*>)/, '$1<metadata><![CDATA[<!--]]></metadata>').replace('</svg>', '<!-- end --></svg>')],
@@ -166,6 +171,36 @@ for (const [name, body] of REFUSED_ICO) {
     assert.deepEqual(ls(dir), []);
   });
 }
+
+// Astro's path as text, outside a d="…" attribute, draws nothing: a site's own icon that holds it
+// (in its metadata, say) is not Astro's icon and must build.
+const astroPath = () => /\sd="([^"]*)"/.exec(astroText('svg2023'))[1];
+for (const [where, wrap] of [
+  ['<metadata>', (p) => `<metadata>${p}</metadata>`],
+  ['<desc>', (p) => `<desc>${p}</desc>`],
+  ['a CDATA section', (p) => `<style><![CDATA[${p}]]></style>`],
+]) {
+  test(`Astro's path inside ${where} of the site's own icon does not stop the build`, () => {
+    const own = ownIcons().svg.toString('utf8').replace(/(<svg[^>]*>)/, `$1${wrap(astroPath())}`);
+    assert.ok(own.includes(astroPath()), 'the path is in the file');
+    const dir = distWith({ 'favicon.svg': own });
+    const r = marker(dir);
+    assert.equal(r.status, 0, r.stderr);
+    assert.ok(existsSync(path.join(dir, 'dist', 'build.txt')));
+  });
+}
+
+test('a site without scripts/make-icons.mjs is not told to run it', () => {
+  const dir = distWith({ 'favicon.svg': astro('svg2023') });
+  mkdirSync(path.join(dir, 'scripts'));
+  cpSync(SCRIPT, path.join(dir, 'scripts', 'build-marker.mjs'));
+  const r = spawnSync(process.execPath, ['scripts/build-marker.mjs'], { cwd: dir, encoding: 'utf8', env: cleanEnv() });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /Astro's default icon/);
+  assert.doesNotMatch(r.stderr, /make-icons\.mjs --setup/);
+  assert.match(r.stderr, /This site has no scripts\/make-icons\.mjs/);
+  assert.match(r.stderr, /website-brand-kit/);
+});
 
 test('S6: Astro\'s ICO beside the site\'s own SVG: the build stops and names favicon.ico alone', () => {
   const dir = distWith({ 'favicon.svg': ownIcons().svg, 'favicon.ico': astro('ico2026') });

@@ -38,8 +38,14 @@ function anchorRef(href: string, sourceAbs: string, testHost: string): Ref | nul
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
   const host = stripWww(u.hostname.toLowerCase());
   if (host !== testHost && host !== SITE_HOST) return null; // external
-  const fragment = u.hash.slice(1);
+  let fragment = u.hash.slice(1);
   if (!fragment) return null; // no fragment → not our concern
+  // Browsers match "#caf%C3%A9" to id="café": compare the decoded form.
+  try {
+    fragment = decodeURIComponent(fragment);
+  } catch {
+    /* malformed escape: compare the raw text */
+  }
   const route = u.pathname.replace(/\/+$/, '') || '/';
   return { route, fragment };
 }
@@ -49,7 +55,7 @@ const idsOf = (page: import('@playwright/test').Page) =>
   page.locator('[id]').evaluateAll((els) => els.map((e) => e.id).filter(Boolean));
 
 const idsFromHtml = (html: string) =>
-  new Set([...html.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  new Set([...html.matchAll(/\sid=(?:"([^"]+)"|'([^']+)')/g)].map((m) => m[1] ?? m[2]));
 
 test('every internal #anchor points at a real element id', async ({ page, request, baseURL }) => {
   const testHost = stripWww(new URL(baseURL!).hostname.toLowerCase());
@@ -101,4 +107,12 @@ test('every internal #anchor points at a real element id', async ({ page, reques
     }
   }
   expect(problems, `dead internal anchor(s):\n${problems.join('\n')}`).toEqual([]);
+});
+
+// Pure checks of the two helpers above: no page, no server.
+test('anchor helpers — single-quoted ids are read, percent-escaped fragments are decoded', () => {
+  expect([...idsFromHtml(`<h2 id="a">x</h2><h2 id='b'>y</h2>`)]).toEqual(['a', 'b']);
+  const ref = anchorRef('/about#caf%C3%A9', 'http://localhost:4321/', 'localhost');
+  expect(ref?.fragment).toBe('café');
+  expect(anchorRef('/about#bad%E0%A4%A', 'http://localhost:4321/', 'localhost')?.fragment).toBe('bad%E0%A4%A');
 });

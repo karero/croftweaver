@@ -4,8 +4,40 @@ import { SITE } from '../src/config';
 
 // Every route in PAGES returns 200, and every internal link on it resolves to a
 // 200 with no redirect hop (clean URLs only). Links written as absolute production
-// URLs (https://site.tld/about) are internal too — they get the same check.
+// URLs (https://site.tld/about) and page-relative ones (about, ../about) are
+// internal too — they get the same check.
 // Catches dead links and renamed pages before users do.
+const stripWww = (host: string) => host.replace(/^www\./, '');
+
+// The path + query an href points at on this site, or null when it is a pure
+// "#fragment", a mailto:/tel: link or another host. The www./apex variant of the
+// production host counts as internal (a www link on an apex-canonical site is
+// almost always a mistake; checking it beats silently skipping it).
+function internalTarget(href: string, pageUrl: string, siteHost: string): string | null {
+  if (!href || href.startsWith('#')) return null;
+  let u: URL;
+  try {
+    u = new URL(href, pageUrl);
+  } catch {
+    return null; // malformed URL: not ours to judge here
+  }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.origin !== new URL(pageUrl).origin && stripWww(u.hostname.toLowerCase()) !== siteHost) return null;
+  return u.pathname + u.search;
+}
+
+test('navigation — internalTarget reads page-relative, root-relative and production-host links', () => {
+  const at = (h: string) => internalTarget(h, 'http://localhost:4321/team/', 'example.com');
+  expect(at('missing')).toBe('/team/missing');
+  expect(at('../missing')).toBe('/missing');
+  expect(at('/about?x=1#y')).toBe('/about?x=1');
+  expect(at('https://www.example.com/about')).toBe('/about');
+  expect(at('https://other.org/about')).toBeNull();
+  expect(at('//other.org/about')).toBeNull();
+  expect(at('#top')).toBeNull();
+  expect(at('mailto:a@b.c')).toBeNull();
+});
+
 for (const path of PAGES) {
   test(`navigation — ${path} loads and its internal links resolve`, async ({ page, request, baseURL }) => {
     const res = await page.goto(path);
@@ -13,24 +45,13 @@ for (const path of PAGES) {
 
     const hrefs = await page.locator('a[href]').evaluateAll((as) =>
       as.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? ''));
-    // Absolute URLs on the production host count as internal — including the
-    // www./apex variant of it (a www link on an apex-canonical site is almost
-    // always a mistake; checking it beats silently skipping it).
-    const stripWww = (host: string) => host.replace(/^www\./, '');
-    const siteHost = stripWww(new URL(SITE.url).hostname);
-    const internal = [...new Set(hrefs)]
-      .map((h) => {
-        if (!/^https?:\/\//i.test(h)) return h;
-        try {
-          const u = new URL(h);
-          if (stripWww(u.hostname.toLowerCase()) === siteHost) return u.pathname + u.search + u.hash;
-        } catch { /* malformed absolute URL — leave it; the filter drops it */ }
-        return h;
-      })
-      .filter((h) => h.startsWith('/') && !h.startsWith('//') && !h.startsWith('/#'));
+    const siteHost = stripWww(new URL(SITE.url).hostname.toLowerCase());
+    const pageUrl = page.url();
 
-    for (const href of internal) {
-      const url = new URL(href, baseURL).href;
+    for (const href of [...new Set(hrefs)]) {
+      const target = internalTarget(href, pageUrl, siteHost);
+      if (target === null) continue;
+      const url = new URL(target, baseURL).href;
       const r = await request.get(url, { maxRedirects: 0 });
       expect([200, 304], `internal link ${href} returned ${r.status()} (expected 200, no redirect hop)`).toContain(r.status());
     }

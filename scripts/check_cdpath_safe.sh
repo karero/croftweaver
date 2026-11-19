@@ -56,6 +56,7 @@ NOT_RUN=(
   scripts/test_pre_push_hook.sh                                 # builds a throwaway repo; needs git
   scripts/test_verify.sh                                        # builds a throwaway site with a stub npm; needs node and a real npm
   scripts/test_config_lines.sh                                  # builds throwaway sites and a suite repo; needs git and node
+  scripts/test_link_reports.sh                                  # builds throwaway sites with stub npm and curl; needs git
   scripts/test_clean_denylist.sh                                # builds a throwaway repo and worktree; needs git
   scripts/test_git_stand_hook.sh                                # builds throwaway repos; needs git and node
   scripts/test_whats_new.sh                                     # builds a throwaway suite repo and site; needs git
