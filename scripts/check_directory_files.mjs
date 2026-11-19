@@ -84,9 +84,15 @@ function textProblem(buf) {
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
   const file = process.argv[2];
   if (!file) { console.log('no path given'); process.exit(1); }
-  const buf = fs.readFileSync(0);
-  const png = file === '.claude-plugin/icon.png' ? pngProblem(buf) : '';
-  const problem = png ? `is not a whole PNG: ${png}` : file === '.claude-plugin/icon.png' ? '' : textProblem(buf);
+  let problem;
+  try {
+    const buf = fs.readFileSync(0);
+    const png = file === '.claude-plugin/icon.png' ? pngProblem(buf) : '';
+    problem = png ? `is not a whole PNG: ${png}` : file === '.claude-plugin/icon.png' ? '' : textProblem(buf);
+  } catch (e) {
+    // On stdout, so publish_directory.sh puts the reason on its ::error:: line.
+    problem = `could not be checked: the checker failed (${e.message})`;
+  }
   if (problem) { console.log(problem); process.exit(1); }
   console.log('ok');
 }
