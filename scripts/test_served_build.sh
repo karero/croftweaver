@@ -79,6 +79,47 @@ case_ "server sends the run's id, dist/ changed after: passes (dist/ only names 
 case_ "the server sends no id: fails" run-a run-a - 1 "The server sent no test-build id (HTTP 404"
 case_ "no run id: fails" "" run-a run-a 1 "SITE_TEST_BUILD is not set"
 
+# The licence-notice test reads dist/ itself: with no dist/ it says the server builds the site
+# first, not a raw ENOENT.
+licence_() { # <name> <expected exit> <phrase in the output> [file to put in dist/]
+  local name="$1" want="$2" phrase="$3" file="${4:-}" out code
+  rm -rf "$T/site/dist"
+  if [ "$file" != - ]; then mkdir -p "$T/site/dist"; printf 'x\n' >"$T/site/dist/${file:-index.html}"; fi
+  out="$(cd "$T/site" && CASE_RUN_ID=run-a CI= "$PW" test -c run.config.ts --reporter=line -g "licence notice" 2>&1)"
+  code=$?
+  if [ "$code" -ne "$want" ]; then
+    printf 'FAIL %s (exit %s, expected %s)\n%s\n' "$name" "$code" "$want" "$(printf '%s\n' "$out" | tail -n 25)"; fails=$((fails+1))
+  elif [ -n "$phrase" ] && ! printf '%s' "$out" | grep -qF -- "$phrase"; then
+    printf 'FAIL %s (no "%s" in the output)\n%s\n' "$name" "$phrase" "$(printf '%s\n' "$out" | tail -n 25)"; fails=$((fails+1))
+  elif [ "$want" -ne 0 ] && printf '%s' "$out" | grep -q 'ENOENT'; then
+    printf 'FAIL %s (a raw ENOENT shows)\n%s\n' "$name" "$(printf '%s\n' "$out" | tail -n 25)"; fails=$((fails+1))
+  else
+    printf 'ok   %s\n' "$name"
+  fi
+}
+licence_ "no dist/: fails with the test's own message, not ENOENT" 1 "the test server builds the site first" -
+licence_ "a dist/ without the notice: passes" 0 ""
+licence_ "the notice in dist/: fails" 1 "keep CROFTWEAVER-LICENSE.md in the top folder" CROFTWEAVER-LICENSE.md
+
+# The icons spec compares each icon link with SITE.url: one that is empty or no address gets the
+# spec's own message, before the page is fetched, not a raw "Invalid URL".
+mkdir -p "$T/site/src"
+cp "$SITE/tests/icons.spec.ts" "$T/site/tests/"
+cp "$SITE/scripts/make-icons.mjs" "$T/site/scripts/"
+icons_url_() { # <name> <SITE.url as the config holds it>
+  local name="$1" url="$2" out code
+  printf "export const SITE = { url: '%s' };\n" "$url" >"$T/site/src/config.ts"
+  out="$(cd "$T/site" && CASE_RUN_ID=run-a CI= "$PW" test -c run.config.ts --reporter=line -g "icons — /favicon.svg" 2>&1)"
+  code=$?
+  if [ "$code" -ne 1 ] || ! printf '%s' "$out" | grep -qF -- "SITE.url in src/config.ts is '$url': set it to the site's full address"; then
+    printf 'FAIL %s (exit %s, expected 1 with the spec'"'"'s own message)\n%s\n' "$name" "$code" "$(printf '%s\n' "$out" | tail -n 25)"; fails=$((fails+1))
+  else
+    printf 'ok   %s\n' "$name"
+  fi
+}
+icons_url_ "icons spec: an empty SITE.url gets a clear message" ""
+icons_url_ "icons spec: a SITE.url with no scheme gets a clear message" "example.com"
+
 # The marker writes the run's id, and with none set removes the file.
 (cd "$T/site" && SITE_TEST_BUILD=marker-id node scripts/build-marker.mjs >/dev/null 2>&1)
 got="$(cat "$T/site/dist/test-build-id.txt" 2>/dev/null)"
