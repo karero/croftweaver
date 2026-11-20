@@ -357,6 +357,7 @@ $git -C "$S7" init -q && $git -C "$S7" commit -qm base --allow-empty
 BASE7="$($git -C "$S7" rev-parse HEAD)"
 cp "$HERE/../$A/scripts/orphan-exempt.mjs" "$HERE/../$A/scripts/check_internal_links.sh" "$S7/$A/scripts/"
 cp "$HERE/../$A/tests/orphans.spec.ts" "$S7/$A/tests/"
+cp "$HERE/../$A/orphan-exempt.txt" "$S7/$A/"
 $git -C "$S7" add -A && $git -C "$S7" commit -qm later
 stamp "$P7/.claude/skills/SUITE-VERSION" "$BASE7"
 stamp "$P7/tests/TESTS-VERSION" "$BASE7"

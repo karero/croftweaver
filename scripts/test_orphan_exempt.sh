@@ -3,12 +3,10 @@
 # test_orphan_exempt.sh — the starter's scripts/orphan-exempt.mjs, which reads orphan-exempt.txt
 # (the pages a site leaves unlinked on purpose) for tests/orphans.spec.ts and check_internal_links.sh.
 #
-# Why it exists: the list used to sit in TypeScript and a shell script read it with grep and awk;
-# five review rounds each found one more way JavaScript could write it that the reader misread.
-# A text file has one way to be written, and one reader. These cases pin that reader: what it
-# accepts, and that every line it cannot read exactly stops the run, naming the file and the
-# line, rather than being guessed at. Bytes that a keyboard cannot type are written with printf
-# octal escapes and checked with od before they are read.
+# The list used to sit in TypeScript, read by grep and awk. A text file has one way to be written
+# and one reader. These cases pin that reader: what it accepts, and that every line it cannot read
+# stops the run, naming the file and the line, rather than being guessed at. Bytes a keyboard
+# cannot type are written with printf octal escapes; cases that give a hex string check them with od.
 #
 # Usage: bash scripts/test_orphan_exempt.sh
 set -u
@@ -77,6 +75,10 @@ bad "a no-break space after an address" '/ok\n/a\302\240\n' 2 'U+00A0' "2f61c2a0
 bad "a line separator is named"        '/ok\n/a\342\200\250b\n' 2 'U+2028' "2f61e280a862"
 bad "an ideographic space is named"    '/ok\n/a\343\200\200b\n' 2 'U+3000' "e38080"
 bad "a control character is named"     '/ok\n/a\001b\n' 2 'U+0001'
+bad "a zero-width space is named"      '/ok\n/a\342\200\213b\n' 2 'U+200B' "2f61e2808b62"
+bad "a soft hyphen is named"           '/ok\n/\302\255a\n' 2 'U+00AD' "2fc2ad61"
+bad "a word joiner is named"           '/ok\n/a\342\201\240b\n' 2 'U+2060' "2f61e281a062"
+bad "a byte that is not UTF-8 is named" '/ok\n/a\377b\n' 2 'U+FFFD' "2f61ff62"
 bad "a second BOM at the start"        '\357\273\277\357\273\277/a\n' 1 'U+FEFF' "efbbbfefbbbf"
 bad "a BOM on a later line"            '/ok\n\357\273\277/a\n' 2 'U+FEFF'
 # A CR belongs to the line end only right before the LF.

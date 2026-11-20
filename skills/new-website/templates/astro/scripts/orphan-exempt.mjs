@@ -10,12 +10,13 @@ import { fileURLToPath } from 'node:url';
 
 export const FILE = 'orphan-exempt.txt';
 
-// White space other than space and tab, and control characters other than tab: they can never match a page.
+// White space other than space and tab, control and invisible characters, and U+FFFD (a byte that is not UTF-8):
+// they can never match a page.
 // Numbers, not escapes: an escape typed into a source file can reach it as the raw character.
 function isBadChar(cp) {
   return cp <= 0x08 || (cp >= 0x0a && cp <= 0x1f) || (cp >= 0x7f && cp <= 0x9f)
-    || cp === 0xa0 || cp === 0x1680 || (cp >= 0x2000 && cp <= 0x200a)
-    || cp === 0x2028 || cp === 0x2029 || cp === 0x202f || cp === 0x205f || cp === 0x3000 || cp === 0xfeff;
+    || cp === 0xa0 || cp === 0xad || cp === 0x1680 || (cp >= 0x2000 && cp <= 0x200f)
+    || cp === 0x2060 || cp === 0xfffd || cp === 0x2028 || cp === 0x2029 || cp === 0x202f || cp === 0x205f || cp === 0x3000 || cp === 0xfeff;
 }
 const code = (ch) => 'U+' + ch.codePointAt(0).toString(16).toUpperCase().padStart(4, '0');
 

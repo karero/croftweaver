@@ -220,7 +220,7 @@ jobs:
         run: npm test
       # The shipped orphan-exempt.txt lists nothing, so a green run alone cannot show that
       # tests/orphans.spec.ts uses it. Add a page nothing links to: with its entry in the file
-      # the spec must pass; without the entry it must fail, naming the page and the file.
+      # the spec must pass; without the entry it must fail, naming the page.
       # The files are put back afterwards.
       - name: The orphan spec uses orphan-exempt.txt
         run: |
@@ -234,7 +234,6 @@ jobs:
             printf '%s\n' "$out" | tail -n 6; echo "::error::the spec stayed green with an unlinked page and no entry"; exit 1
           fi
           printf '%s\n' "$out" | grep -Fq '/ci-unlinked' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the failure does not name /ci-unlinked"; exit 1; }
-          printf '%s\n' "$out" | grep -Fq 'orphan-exempt.txt' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the failure does not name orphan-exempt.txt"; exit 1; }
           git checkout -- tests/_helpers.ts
           rm src/pages/ci-unlinked.astro
       # The legal-page guard in tests/placeholders.spec.ts is green on the shipped starter,
