@@ -102,8 +102,8 @@ typographic quotes. Dashes and every other character are compared as written. Ex
 the owner to read, as it is. Components that add their own text (a byline, a button) are named
 with `--skip`, as tags or `.classes`. The default skips `nav,footer,aside,.vh,.sr-only,.visually-hidden`,
 and a `--skip` of your own replaces it, so keep those in the list. The three classes are matched by
-name: text inside them is not compared. If the site's CSS shows copy in one of them, pass a `--skip`
-without that class. If the check names a sentence the owner did not approve, that is the finding.
+name: text inside them is not compared. Check that the site's CSS hides each of them; if it shows copy in
+one, pass a `--skip` without that class. If the check names a sentence the owner did not approve, that is the finding.
 Exit 2 means the check could not read its input.
 
 **8. Review the code** with the site's usual review (`website-review`, or `independent-review`'s
