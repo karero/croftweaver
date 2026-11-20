@@ -92,7 +92,7 @@ not pin all of the body copy: the next step watches it.
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_page_text.py" docs/pages/<slug>.md dist/<slug>.html \
-  --title-suffix " | Site name" --skip nav,footer,aside,.byline
+  --title-suffix " | Site name" --skip nav,footer,aside,.vh,.sr-only,.visually-hidden,.byline
 ```
 
 It compares the draft with the built page's title, description, FAQ schema and every sentence in
@@ -101,8 +101,11 @@ typographic quotes. Dashes and every other character are compared as written. Ex
 0 means the build kept the text. Exit 1 lists every changed sentence: put that list in the PR for
 the owner to read, as it is. Components that add their own text (a byline, a button) are named
 with `--skip`, as tags or `.classes` (a breadcrumb component too: its words and the hub link
-sentence belong to the build, so step 7 does not list them as added text); if the check names a sentence the owner did not approve,
-that is the finding. Exit 2 means the check could not read its input.
+sentence belong to the build, so step 7 does not list them as added text). The default skips `nav,footer,aside,.vh,.sr-only,.visually-hidden`,
+and a `--skip` of your own replaces it, so keep those in the list. The three classes are matched by
+name: text inside them is not compared. Check that the site's CSS hides each of them; if it shows copy in
+one, pass a `--skip` without that class. If the check names a sentence the owner did not approve, that is the finding.
+Exit 2 means the check could not read its input.
 
 **8. Hand the built page to `ai-seo`, then to `internal-link-audit`.** Build fresh first
 (`npm run build`), so both read the page as it ships. The owner's go covers the text and the link
