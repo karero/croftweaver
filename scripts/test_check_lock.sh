@@ -177,9 +177,14 @@ run_make "$C6" check CROFTWEAVER_CHECK_LOCK="$T/t6b.lock" CHECK_STUB_MARKER="$C6
 parent="$(sed -n 1p "$C6/marker" 2>/dev/null)"
 case "$(basename -- "${parent:-none}")" in
   make*|gmake*)
+    # The case is that a killed run is never a pass. Make says so as "Error 143", or, when the
+    # killed make loses a race with its own child, "wait: No child processes" and exit 2 (seen
+    # once in CI, not reproduced here); both are a failure, so both count, with a non-zero exit.
     case "$m_out" in
-      *"Error 143"*) ok "T6 make check fails with Error 143 when its guards are killed by TERM" ;;
-      *) fail "T6 make check did not fail with Error 143 when its guards were killed (exit $m_rc): $m_out" ;;
+      *"Error 143"*|*"wait: No child processes"*)
+        if [ "$m_rc" -ne 0 ]; then ok "T6 make check fails (not a pass) when its guards are killed by TERM"
+        else fail "T6 make check exited 0 when its guards were killed: $m_out"; fi ;;
+      *) fail "T6 make check did not fail with Error 143 or \"wait: No child processes\" when its guards were killed (exit $m_rc): $m_out" ;;
     esac ;;
   *) fail "T6 the stub's parent is '${parent:-nothing}', not make: make no longer runs this recipe line directly, so the kill hits the wrong process" ;;
 esac

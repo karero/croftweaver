@@ -1442,7 +1442,10 @@ describe('TS: the setup stage, at a Worker', { concurrency: true }, () => {
     }));
 });
 
-describe('TL: the launch stage, at a Worker', { concurrency: true }, () => {
+// One at a time. A launch has a 55-second deadline by default and stops with 4 when under 45 seconds
+// are left at the attach. Running these together on a slow runner is the suspected cause of the
+// late arrivals seen in CI (BUGLOG 2026-11-19); that was not shown, and nothing here can fail without it.
+describe('TL: the launch stage, at a Worker', () => {
   const before = (h) => launchState(h);
   const site = { routed: false };
 
