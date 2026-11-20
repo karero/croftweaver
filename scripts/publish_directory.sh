@@ -11,7 +11,8 @@
 # Refuses a tag not on main, a `directory` whose last commit names no source, a release
 # older than the one already published, and a tree that is not exactly the five files, as
 # plain files. check_directory_files.mjs refuses a text file that is not UTF-8, holds a control
-# character but tab and line breaks, or starts with `#!`, and an icon that is not an 8-bit RGB or
+# character but tab and line breaks, or starts with `#!`, a plugin.json that is not one JSON object,
+# and an icon that is not an 8-bit RGB or
 # RGBA PNG with whole chunks and rows (its own header says exactly what). Pushes without
 # force. --check-tree runs that last check alone. --compare prints `same`, `version
 # only` (the trees differ only in plugin.json's version) or the changed paths, one per line.
@@ -49,9 +50,9 @@ check_tree() {
 }
 
 # Paths that differ (a blob, a mode, or present in one tree only); `version only` when that is
-# plugin.json, of the same mode and type in both, and its text differs only in the version.
+# plugin.json, of the same mode and type in both, and it differs only in its root `version`.
 compare_trees() {
-  local a=$1 b=$2 changed pa pb la lb rc=0 out ma mb
+  local a=$1 b=$2 changed pa pb la lb rc=0 out ma mb same
   [ "$a" != "$b" ] || { echo same; return; }
   la=$(git ls-tree -r --full-tree "$a") || fail "cannot list $a"
   lb=$(git ls-tree -r --full-tree "$b") || fail "cannot list $b"
@@ -63,8 +64,20 @@ compare_trees() {
   if [ "$changed" = .claude-plugin/plugin.json ] && [ "$ma" = "$mb" ]; then
     pa=$(git cat-file blob "$a:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $a"
     pb=$(git cat-file blob "$b:.claude-plugin/plugin.json") || fail "cannot read plugin.json in $b"
-    local strip='s/("version"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"-"/'
-    if [ "$(sed -E "$strip" <<<"$pa")" = "$(sed -E "$strip" <<<"$pb")" ]; then
+    # Only the root "version" may differ. Both texts are parsed, and one that does not read back as
+    # written (a repeated key, a number past 2^53, 1.0 for 1) counts as changed, never as equal.
+    command -v node >/dev/null || fail "node is needed to compare plugin.json and is not on PATH"
+    same=$(PA=$pa PB=$pb node -e '
+      const d = (s) => {
+        const o = JSON.parse(s);
+        if (s.replace(/"(?:[^"\\]|\\.)*"|\s+/g, (m) => (m[0] === "\"" ? m : "")) !== JSON.stringify(o)) return null;
+        delete o.version;
+        return JSON.stringify(o);
+      };
+      const x = d(process.env.PA), y = d(process.env.PB);
+      process.stdout.write(x !== null && x === y ? "yes" : "no");') \
+      || fail "cannot parse plugin.json in $a or $b"
+    if [ "$same" = yes ]; then
       echo "version only"; return
     fi
   fi
