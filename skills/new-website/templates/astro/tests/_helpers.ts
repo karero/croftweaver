@@ -87,7 +87,8 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
   // (e.g. adding "überzeugend"), use \p{L} lookaround + the u flag instead of \b.
   {
     label: 'buzzword',
-    // entfesselt gets the same endings as every other entry, its superlative in both spellings ("entfesseltste", "entfesselteste").
+    // entfesselt gets the same endings as every other entry, its superlative in both
+    // spellings ("entfesseltste", "entfesselteste").
     // Endings cover all four cases incl. dative -em ("mit nahtlosem Übergang"
     // previously slipped through) and superlatives (-ste/-ster/-stes/-sten/-stem,
     // "die nahtloseste Erfahrung").
@@ -110,6 +111,7 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
     // "maßgeschneiderte Lösung(en)" is banned, not the word: "ein maßgeschneidertes Zuhause" is
     // literal and fine. Both spellings, since Swiss German writes ß as ss and /i does not fold
     // them; comparative and superlative too; compounds such as "IT-Lösungen" and "Softwarelösungen".
+    // Known accepted edge: "Erlösung" and "Auflösung" match too (rare, and it fails loudly).
     re: /(?<!\p{L})(in\s+der\s+heutigen(?:,?\s+(?!(?:der|die|das|den|dem|des|unser\p{L}*|euer|eure\p{L}*|ihr\p{L}*)\b)\p{L}+){0,2}?[\s-]*\p{L}*welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lass(?:en\s+sie|t)?\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen)|ma(?:ß|ss)geschneidert(?:e?st|er)?(?:e|er|en)?\s+[\p{L}\p{N}-]*lösung(?:en)?)(?!\p{L})/gui,
   },
 ];
