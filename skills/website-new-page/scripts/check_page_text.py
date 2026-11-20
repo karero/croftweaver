@@ -94,7 +94,8 @@ class Page(HTMLParser):
             self._ld_text = []
         if tag in VOID:
             if tag == "br":
-                self._buf.append(" ")
+                if not self._hidden and not self._skipped:
+                    self._buf.append(" ")
             elif tag not in INLINE:
                 self._cut()
             return
@@ -353,7 +354,8 @@ def main(argv):
     ap.add_argument("--title-suffix", default="", help="text the site adds to every <title>, e.g. ' | Site'")
     ap.add_argument("--skip", default="nav,footer,aside",
                     help="tags, or .classes, whose text is site chrome, not page copy "
-                         "(default: nav,footer,aside; '' for none), e.g. nav,footer,.byline")
+                         "(default: nav,footer,aside; '' for none), e.g. nav,footer,.byline. "
+                         "A block element ends the text around it; an inline one is cut out of its sentence")
     args = ap.parse_args(argv)
     try:
         with open(args.document, encoding="utf-8") as f:
