@@ -30,7 +30,8 @@ fi
 
 # Own production host, derived from `site:` in astro.config.mjs so this stays
 # domain-agnostic. An absolute link to this host counts as internal, same as the tests.
-SITE_HOST=$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
+# The key must start its name (`website:` is another key), read as bytes, as in scripts/ship.sh.
+SITE_HOST=$(export LC_ALL=C; hi=$'\200-\377'; grep -oE "(^|[^[:alnum:]_\$.$hi-])site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
   | sed -E "s#.*://(www\.)?##; s#/.*##" | tr 'A-Z' 'a-z' | head -1)
 [ -n "$SITE_HOST" ] || SITE_HOST="__no_site_configured__"
 
@@ -96,11 +97,24 @@ INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
 # ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
 EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
-  EXEMPT_SPAN=$(awk '/ORPHAN_EXEMPT = new Set/ { on = 1 } on { sub(/\/\/.*/, ""); k = index($0, "])"); if (k) { print substr($0, 1, k); exit } print }' tests/orphans.spec.ts)
-  # A /* */ comment could hide or fake an entry: refuse it rather than guess (use // comments).
-  case "$EXEMPT_SPAN" in
-    *'/*'*) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2; exit 1 ;;
-  esac
+  # The list ends at the first "])" outside a quoted entry, so an entry may hold "])" or "//". A // comment
+  # is dropped; a /* */ comment could hide or fake an entry, so awk stops with 3 on one (use // comments).
+  EXEMPT_SPAN=$(LC_ALL=C awk '/ORPHAN_EXEMPT = new Set/ { on = 1 }
+    on { out = ""; q = ""
+      for (i = 1; i <= length($0); i++) {
+        c = substr($0, i, 1); d = substr($0, i, 2)
+        if (q != "") { out = out c; if (c == "\\") out = out substr($0, ++i, 1); else if (c == q) q = ""; continue }
+        if (d == "//") break
+        if (d == "/*") exit 3
+        if (d == "])") { print out "]"; exit }
+        if (c == "\047" || c == "\"" || c == "`") q = c
+        out = out c
+      }
+      print out }' tests/orphans.spec.ts) || {
+    if [ "$?" -eq 3 ]; then echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2
+    else echo "✗ tests/orphans.spec.ts: could not read ORPHAN_EXEMPT." >&2; fi
+    exit 1
+  }
   EXEMPT="$EXEMPT
 $(printf '%s\n' "$EXEMPT_SPAN" | grep -oE "'/[^']*'|\"/[^\"]*\"" | sed 's/^.//; s/.$//')"
 fi

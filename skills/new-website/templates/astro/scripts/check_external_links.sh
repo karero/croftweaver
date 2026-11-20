@@ -22,7 +22,8 @@ fi
 
 # Own production host, derived from `site:` in astro.config.mjs so this stays
 # domain-agnostic across sites. Falls back to matching nothing if unset.
-SITE_HOST=$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
+# The key must start its name (`website:` is another key), read as bytes, as in scripts/ship.sh.
+SITE_HOST=$(export LC_ALL=C; hi=$'\200-\377'; grep -oE "(^|[^[:alnum:]_\$.$hi-])site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
   | sed -E "s#.*://(www\.)?##; s#/.*##" | head -1)
 [ -n "$SITE_HOST" ] || SITE_HOST="__no_site_configured__"
 

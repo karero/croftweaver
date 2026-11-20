@@ -17,13 +17,16 @@
 # stand alone in a site); tests/check_deploy.sh fails if the copies differ.
 # The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
 # The key must start its name: `website:` or `subsite:` is another key, not the site's address.
+# The text is read as bytes, so the answer is the same in every locale; a byte above 127 before
+# `site:` counts as part of a longer name, like a letter.
 # A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
 # NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
 # follows such redirects, but keep the normalization.
 site_of() { # <astro.config.mjs text>
-  local s
-  s="$(grep -oE "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/^.?site:[[:space:]]*['\"]//" | head -1 || true)"
-  printf '%s\n' "${s%/}"
+  ( LC_ALL=C; export LC_ALL
+    local s hi=$'\200-\377'
+    s="$(grep -oE "(^|[^[:alnum:]_\$.$hi-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/^.?site:[[:space:]]*['\"]//" | head -1 || true)"
+    printf '%s\n' "${s%/}" )
 }
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
@@ -31,16 +34,17 @@ site_of() { # <astro.config.mjs text>
 # commented: the text before the one match does not end in plain code (js_state), so the build
 # may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
-  local h b pre
-  h="$(grep -oEb "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
-  case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  # grep -b says where the match starts: "byte offset:match" (GNU and BSD grep alike), so cut the text
-  # by bytes (LC_ALL=C). The match may begin with the one character before `site:`, which belongs to
-  # the text before the key: a quote that opens a string, the / of */. The x keeps $( ) from
-  # stripping a final newline of that text.
-  b="${h#*:}"; b="${b%%site:*}"
-  pre="$(LC_ALL=C; printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
-  case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
+  ( LC_ALL=C; export LC_ALL
+    local h b pre hi=$'\200-\377'
+    h="$(grep -oEb "(^|[^[:alnum:]_\$.$hi-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
+    case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
+    # grep -b says where the match starts: "byte offset:match" (GNU and BSD grep alike), so cut the text
+    # by bytes (LC_ALL=C). The match may begin with the one character before `site:`, which belongs to
+    # the text before the key: a quote that opens a string, the / of */. The x keeps $( ) from
+    # stripping a final newline of that text.
+    b="${h#*:}"; b="${b%%site:*}"
+    pre="$(printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
+    case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac )
 }
 
 # Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
