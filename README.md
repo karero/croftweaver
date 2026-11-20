@@ -374,6 +374,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > those lines, adds a `left_out:` line for each file changed since the last stamp that the site
 > has no copy of, and every report lists them. A changed file the site has no copy
 > of is marked **MISSING** and listed again at the end: copy it in, there is nothing to merge.
+> A file your own `left_out:` or `kept:` line names is not marked.
 > `PUBLISHING.md` is the exception: an owner may keep a translation under another name, so it is
 > never marked MISSING.
 >
