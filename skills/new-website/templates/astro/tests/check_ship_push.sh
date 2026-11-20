@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.34   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.35   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -957,6 +957,43 @@ printf "const c = ['https://*.cdn.example', 'ws://a']; export default { site: 'h
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect instring 1 0 "not for a network reason"
 printf "// the live address\nsite: 'https://new.example'\n" > "$work/cwd/astro.config.mjs"
 want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect commentabove 1 0 "not for a network reason"
+# A key that only ends in `site:` is another key, not the site's address; the real key beside it still counts.
+mark otherkey noorigin; mark otherkeylive noorigin; mark startkey noorigin
+printf "export default { website: 'https://wrong.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: (no site: address in astro.config.mjs) · GitHub repo: $repo_fallback"; expect otherkey 1 0 "not for a network reason"
+printf "export default { subsite: 'https://wrong.example', site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect otherkeylive 1 0 "not for a network reason"
+printf "site: 'https://new.example'\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect startkey 1 0 "not for a network reason"
+# The character `site:` follows belongs to the text before it: a quote that opens a string makes
+# the key a string's text, the / of */ closes a comment, and a same-text key earlier is not the match.
+mark keyinstr noorigin; mark closedadj noorigin; mark presame noorigin
+printf "const note = \"site: 'https://wrong.example'\"; export default { site: live };\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect keyinstr 1 0 "not for a network reason"
+printf "export default { /* production */site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; expect closedadj 1 0 "not for a network reason"
+printf "const s = \"presite: 'https://same.example'\";\nsite: 'https://same.example'\n" > "$work/cwd/astro.config.mjs"
+want_line1="→ Site: https://same.example · GitHub repo: $repo_fallback"; expect presame 1 0 "not for a network reason"
+mark decoy noorigin
+printf "export default {\nwebsite: 'https://x.example',\n};\n/*\nsite: 'https://x.example'\n*/\n" > "$work/cwd/astro.config.mjs"
+want_line1="$one_comment"; expect decoy 1 0 "not for a network reason"
+# Bytes before the key: grep counts them in bytes, and a cut by characters would end inside the key
+# (so this case runs in a UTF-8 locale, where the two differ).
+mark utf8key noorigin
+printf "/* éééééé */site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+# The case needs a UTF-8 locale this machine has: a missing one makes bash print a warning that
+# becomes the first line, so it is skipped, with a note, where none of these exists.
+utf8_loc=""
+# Read the list first: under pipefail, grep -q stops early and locale dies of SIGPIPE (status 141).
+locales=$(locale -a 2>/dev/null || true)
+for l in C.UTF-8 en_US.UTF-8 en_US.utf8 C.utf8; do
+  if grep -qix "$l" <<<"$locales"; then utf8_loc="$l"; break; fi
+done
+if [ -n "$utf8_loc" ]; then
+  want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; LC_ALL="$utf8_loc" expect utf8key 1 0 "not for a network reason"
+else
+  echo "  note: the utf8key case is skipped: no UTF-8 locale (C.UTF-8 or en_US.UTF-8) on this machine."
+fi
 # A / that opens no comment (here a regex holding a quote, which could hide a real /*) stops the
 # scan: nothing is checked. A string continued past a line's end with \ stays a string.
 mark regexquote noorigin; mark continued noorigin
@@ -1307,11 +1344,12 @@ GATE
       "$REAL_SLEEP" 0.1; i=$((i + 1))
     done
   }
-  # run_tty <case> <answer|--eof|--stop|--none> [--then ANSWER] [--prog FILE] [--out FILE] [--stdin-null] [--limit S] [VAR=value…]
+  # run_tty <case> <answer|--eof|--stop|--none> [--then ANSWER] [--prog FILE] [--out FILE] [--stdin-null] [--folder-moves] [--limit S] [VAR=value…]
   # ship.sh on a fake terminal: BSD's `script -q /dev/null cmd`, or util-linux's `script -qec
   # 'exec cmd' /dev/null` (told apart by `script --version`). A feeder waits until the question is
   # in the log, writes the answer (or ends the input, or sends a terminate) and holds the input
   # open until the run ends; a watchdog ends a run past the limit and run_tty returns 124 in rc.
+  # --folder-moves: the case expects ship.sh to change this folder's branch (see the check at the end).
   # It sets `fail` only for a misuse of its own options. The wrapper writes down its pid outside the clone, then becomes
   # ship.sh, which leads its own process group under `script` (util-linux runs it through sh -c,
   # hence the exec).
@@ -2086,7 +2124,7 @@ export default {};"
   workers_case() { # <case> <github|folder> <wrangler.jsonc text, or - for none> [VAR=value…]
     local c="$1" how="$2" text="$3"; shift 3
     fixture "$c"
-    if [ "$text" != - ]; then printf '%s\n' "$text" > "$S/wrangler.jsonc"; fi
+    if [ "$text" != - ]; then printf '%s\n' "$text" > "$S/${wname:-wrangler.jsonc}"; fi
     git -C "$S" add -A; git -C "$S" commit -q --allow-empty -am "workers config"; git -C "$S" push -q origin main
     git -C "$C" pull -q --ff-only
     if [ "$how" = folder ]; then
@@ -2110,6 +2148,9 @@ export default {};"
   "name": "https://a//b", "assets": { "directory": "./dist" }
 }' SHIP_T_NOSITE=1; exits 0
   want "a custom_domain in a comment or a string with // is no route" last_starts "$sent"
+  # The message names the Workers config ship read, which a site may keep under another name.
+  wname=worker.json workers_case w1b github "$noroute" SHIP_T_NOSITE=1; exits 0
+  want "the message names the file ship read" last_starts "${sent//wrangler[.]jsonc/worker.json}"
   workers_case w3 folder "$noroute" SHIP_T_NOSITE=1; exits 0
   want "a folder's own copy is read too" last_starts "$sent"
   bad_cfg="✗ The publish went out (GitHub's production is now"
@@ -2282,6 +2323,8 @@ export default {};"
     want "main on GitHub is that same commit" eq "$(gh main)" "$(gh production)"
     want "the question is asked once" eq "$(again_count)" 1
     want "it says it ships again" has "→ Shipping again: 'main' and 'production' get the commit"
+    want "the offer says what a main that refuses pushes does" has "If GitHub refuses direct pushes to 'main', it refuses this push too: neither branch changes, and ship ends there and says what to check in Cloudflare."
+    want "the commit and its file do not send the owner to PUBLISHING.md" eval '! git --git-dir="$O" log -1 --format=%B refs/heads/production | grep -q PUBLISHING && ! git --git-dir="$O" show refs/heads/production:SHIP-AGAIN.txt | grep -q PUBLISHING'
     want "the gate ran for both pushes" eq "$(gate_runs)" 2
     want "the run ends on the LIVE line" live_line
     # T11: worktree mode, answer y, then n: it waits on and ends with the warning.
