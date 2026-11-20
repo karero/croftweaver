@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.35
+# template-version: 0.36
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -162,13 +162,17 @@ probe_site() { # <site address>
 
 # The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
 # The key must start its name: `website:` or `subsite:` is another key, not the site's address.
+# The text is read as bytes, so the answer is the same in every locale; a byte above 127 before
+# `site:` counts as part of a longer name, like a letter, unless it ends one of JavaScript's white-space
+# characters (no-break space, BOM, line separator and the other Unicode spaces).
 # A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
 # NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
 # follows such redirects, but keep the normalization.
 site_of() { # <astro.config.mjs text>
-  local s
-  s="$(grep -oE "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/^.?site:[[:space:]]*['\"]//" | head -1 || true)"
-  printf '%s\n' "${s%/}"
+  ( LC_ALL=C; export LC_ALL
+    local s hi=$'\200-\377' ws=$'\302\240|\357\273\277|\341\232\200|\342\200[\200-\212\250\251\257]|\342\201\237|\343\200\200'
+    s="$(grep -oE "(^|[^[:alnum:]_\$.$hi-]|$ws)site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/^.{0,3}site:[[:space:]]*['\"]//" | head -1 || true)"
+    printf '%s\n' "${s%/}" )
 }
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
@@ -176,20 +180,22 @@ site_of() { # <astro.config.mjs text>
 # commented: the text before the one match does not end in plain code (js_state), so the build
 # may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
-  local h b pre
-  h="$(grep -oEb "(^|[^[:alnum:]_$.-])site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
-  case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  # grep -b says where the match starts: "byte offset:match" (GNU and BSD grep alike), so cut the text
-  # by bytes (LC_ALL=C). The match may begin with the one character before `site:`, which belongs to
-  # the text before the key: a quote that opens a string, the / of */. The x keeps $( ) from
-  # stripping a final newline of that text.
-  b="${h#*:}"; b="${b%%site:*}"
-  pre="$(LC_ALL=C; printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
-  case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
+  ( LC_ALL=C; export LC_ALL
+    local h b pre hi=$'\200-\377' ws=$'\302\240|\357\273\277|\341\232\200|\342\200[\200-\212\250\251\257]|\342\201\237|\343\200\200'
+    h="$(grep -oEb "(^|[^[:alnum:]_\$.$hi-]|$ws)site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
+    case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
+    # grep -b says where the match starts: "byte offset:match" (GNU and BSD grep alike), so cut the text
+    # by bytes (LC_ALL=C). The match may begin with the one character (up to three bytes) before `site:`, which belongs to
+    # the text before the key: a quote that opens a string, the / of */. The x keeps $( ) from
+    # stripping a final newline of that text.
+    b="${h#*:}"; b="${b%%site:*}"
+    pre="$(printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
+    case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac )
 }
 
 # Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
-# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments. A / that opens no comment, a regex
+# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments (a // comment
+# also ends at a Unicode line separator, U+2028 or U+2029). A / that opens no comment, a regex
 # literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
 # The | ends the text on a character of its own, so a line comment that closed at a final
 # newline is not reported.
@@ -200,7 +206,7 @@ js_state() { # <text>
       for (i = 1; i <= length($0) && st != "slash"; i++) {
         c = substr($0, i, 1); d = substr($0, i, 2)
         if (st == "code") {
-          if (d == "//") { st = "line"; break }
+          if (d == "//") { st = "line"; k = match(substr($0, i), /\342\200[\250\251]/); if (!k) break; st = "code"; i += k + 1; continue }
           if (d == "/*") { st = "block"; i++ }
           else if (c == "/") st = "slash"
           else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"

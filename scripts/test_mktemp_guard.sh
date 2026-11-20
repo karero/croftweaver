@@ -40,6 +40,7 @@ SCRIPTS=(
   scripts/test_verify.sh
   scripts/test_config_lines.sh
   scripts/test_link_reports.sh
+  scripts/test_site_readers.sh
   scripts/check_cdpath_safe.sh
   scripts/test_clean_denylist.sh
   scripts/test_git_stand_hook.sh
