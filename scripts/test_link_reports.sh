@@ -9,7 +9,7 @@
 # fetches has & where the HTML has &amp;.
 #
 # The internal-link report is run on built pages too: a page ORPHAN_EXEMPT names (either quote
-# style) is not an orphan and is not counted as having two inbound links, and an unlisted one still is.
+# style) is not an orphan, an unlisted one still is, and a /* */ comment in the list stops the run.
 #
 # Usage: bash scripts/test_link_reports.sh
 set -u
@@ -96,7 +96,7 @@ out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
 orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
 if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && ! printf '%s' "$orph" | grep -q '/lp/' \
    && printf '%s' "$out" | grep -q 'ORPHANS.*(1)' && printf '%s' "$out" | grep -q '^## OK: 2 page(s)'; then
-  ok "internal links: exempt pages (both quote styles) are no orphans and not counted OK; /lost is the one orphan"
+  ok "internal links: exempt pages (both quote styles) are no orphans; /lost is the one orphan"
 else
   fail "internal links: exit $rc, out: $out"
 fi
@@ -126,6 +126,15 @@ if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && printf '%s' "$o
   ok "internal links: the exempt list stops at its own closing \"])\", keeps an apostrophe, ignores a comment's \"])\""
 else
   fail "internal links, exact exempt list: exit $rc, orphans: $orph"
+fi
+
+# A /* */ comment inside the list could hide an entry or fake one: the run stops with a message.
+printf "const ORPHAN_EXEMPT = new Set<string>([\n  /* '/lost' was removed ]) */\n  '/lp/spring',\n]);\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'a /\* \*/ comment inside ORPHAN_EXEMPT'; then
+  ok "internal links: a block comment in ORPHAN_EXEMPT stops the run with a message"
+else
+  fail "internal links, block comment in the exempt list: exit $rc, out: $out"
 fi
 
 # An exempt page that other pages do link to is a healthy page: it counts as OK.

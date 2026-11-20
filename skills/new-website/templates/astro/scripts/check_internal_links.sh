@@ -95,8 +95,13 @@ INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
 # ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
 EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
+  EXEMPT_SPAN=$(awk '/ORPHAN_EXEMPT = new Set/ { on = 1 } on { sub(/\/\/.*/, ""); k = index($0, "])"); if (k) { print substr($0, 1, k); exit } print }' tests/orphans.spec.ts)
+  # A /* */ comment could hide or fake an entry: refuse it rather than guess (use // comments).
+  case "$EXEMPT_SPAN" in
+    *'/*'*) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2; exit 1 ;;
+  esac
   EXEMPT="$EXEMPT
-$(awk '/ORPHAN_EXEMPT = new Set/ { on = 1 } on { sub(/\/\/.*/, ""); k = index($0, "])"); if (k) { print substr($0, 1, k); exit } print }' tests/orphans.spec.ts | grep -oE "'/[^']*'|\"/[^\"]*\"" | sed 's/^.//; s/.$//')"
+$(printf '%s\n' "$EXEMPT_SPAN" | grep -oE "'/[^']*'|\"/[^\"]*\"" | sed 's/^.//; s/.$//')"
 fi
 
 # Orphans = pages that received zero inbound edges (and aren't the home root).
