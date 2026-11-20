@@ -5,7 +5,7 @@
 added pages are in `site-src/` (`pages/` and `layouts/Plain.astro`; `Plain.astro` is a layout with
 no `<main>`). Two edits were made to the starter's `Base.astro`, which is not copied here: a
 `before-main` and an `after-main` slot around `<main id="main">`, and a footer link to
-`/footer-only` on every page. The site is made up (`https://example.com`); every page holds
+`/footer-only` on every page that uses it (the two no-`<main>` pages use `Plain.astro`, which has no footer). The site is made up (`https://example.com`); every page holds
 placeholder text. The folder is not named `dist` because the repo's `.gitignore` skips that name. The build was trimmed, and nothing else was edited: each `<style>` block and
 each inline script without `type="application/ld+json"` was removed.
 
@@ -13,7 +13,7 @@ The cases, by path:
 
 - `/hub` with spokes `/hub/spoke-ok` (breadcrumb `<nav>` inside `<main>` back to the hub),
   `/hub/spoke-sib` and `/hub/spoke-noback` (names its hub only in BreadcrumbList JSON-LD).
-- `/footer-only`: linked from the footer of every page and from one `<nav>` inside `/hub`'s `<main>`.
+- `/footer-only`: linked from the footer of every page that uses `Base.astro` and from one `<nav>` inside `/hub`'s `<main>`.
 - `/header-only`: linked only from a `<header>` that sits inside `<main>`: on `/hub` the header holds
   a `<nav>`, on `/other` a plain link.
 - `/plain-div`: linked from `/div-linker1` and `/div-linker2`, each from a `<div>` outside `<main>`.
