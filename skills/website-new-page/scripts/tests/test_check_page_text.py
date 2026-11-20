@@ -290,5 +290,97 @@ class ReviewRound1(Base):
         self.assertEqual(blocks, ["Learn C#", "Why C#"])
 
 
+class InlineElementsInsideASentence(Base):
+    """An icon or a hidden "(opens in a new tab)" note inside a sentence must not cut it in two.
+
+    The markup is written by hand, not captured from a build, in the structure of a real
+    external-link component (the `a.ext` with an inline `svg` icon and a `span.vh` in
+    skills/website-launch-check/scripts/tests/fixtures/live-home-older-tag-2026-11-09.html). The
+    words are made up. Expected lines were written by hand from the draft.
+    """
+
+    HEAD = '<html><head><title>T</title><meta name="description" content="D"></head><body>'
+    DOC = ("## Draft\n\nTitle: T\nDescription: D\n\n# Meetups\n\n"
+           "Sam also runs Bread Club, a monthly meetup. Read the Flour Rules. Then go on.\n")
+    EXT = ('<a class="ext" href="{href}" target="_blank" rel="noopener">{text}'
+           '<svg class="ext-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+           '<path fill="none" stroke="currentColor" d="M14 5h5v5"></path></svg>'
+           '<span class="vh" lang="en"> (opens in a new tab)</span></a>')
+
+    def page_with_links(self):
+        body = ("<p>Sam also runs " + self.EXT.format(href="https://events.example.com", text="Bread Club")
+                + ", a monthly meetup. Read the " + self.EXT.format(href="https://rules.example.com", text="Flour Rules")
+                + ". Then go on.</p>")
+        return self.write("p.html", self.HEAD + "<main><h1>Meetups</h1>" + body + "</main></body></html>")
+
+    def test_a_skipped_note_inside_a_sentence_leaves_the_sentence_whole(self):
+        # Why: the owner reads the list as it is; a sentence cut at every link showed as CHANGED plus
+        # ADDED fragments, false lines that teach owners to ignore the list.
+        # Through the command line, as the builder runs it.
+        draft, page = self.write("d.md", self.DOC), self.page_with_links()
+        r = subprocess.run([sys.executable, "-I", SCRIPT, draft, page, "--skip", ".vh"],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("draft: 4 sentences, 0 FAQ; built: 4 sentences, 0 FAQ in the schema", r.stdout)
+
+    def test_the_same_in_process_with_other_skipped_tags_beside_it(self):
+        code, out, err = self.run_check(self.write("d.md", self.DOC), self.page_with_links(), ["--skip", "nav,footer,.vh"])
+        self.assertEqual((code, err), (0, ""), out)
+
+    def test_without_skip_the_note_stays_in_its_sentence_one_changed_and_one_added_line_per_link(self):
+        # Why: the owner sees the note the build added, once, in the sentence it sits in; not as
+        # two halves cut at the icon.
+        code, out, _ = self.run_check(self.write("d.md", self.DOC), self.page_with_links(), ["--skip", ""])
+        self.assertEqual(code, 1)
+        self.assertIn('ADDED (in the page, not in the draft): '
+                      '"Sam also runs Bread Club (opens in a new tab), a monthly meetup."', out)
+        self.assertIn('ADDED (in the page, not in the draft): "Read the Flour Rules (opens in a new tab)."', out)
+        self.assertEqual(out.count("CHANGED"), 2)
+        self.assertEqual(out.count("ADDED"), 2)
+
+    def test_two_words_that_touch_across_a_skipped_element_are_one_word(self):
+        # Why: the reader sees "Pancakes"; the skipped text takes no place in the word.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nPancakes are good.\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>Pan<span class="vh">x</span>cakes are good.</p></main></body></html>')
+        self.assertEqual(self.run_check(self.write("d.md", doc), page, ["--skip", ".vh"])[0], 0)
+
+    def test_a_line_break_inside_a_skipped_note_adds_no_space(self):
+        # Why: the note's text drops out; a <br> inside it must not leave a gap in the word around it.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nPancakes are good.\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>Pan<span class="vh">x<br>y</span>cakes are good.</p></main></body></html>')
+        code, out, _ = self.run_check(self.write("d.md", doc), page, ["--skip", ".vh"])
+        self.assertEqual(code, 0, out)
+
+    def test_a_block_inside_a_skipped_inline_element_does_not_cut_the_text_before_it(self):
+        # Why: a tag inside skipped content never cuts; if it did, it would clear "a" from the buffer.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nab\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>a<span class="vh"><div>q</div></span>b</p></main></body></html>')
+        code, out, _ = self.run_check(self.write("d.md", doc), page, ["--skip", ".vh"])
+        self.assertEqual(code, 0, out)
+
+    def test_an_icon_between_words_does_not_cut_them_apart(self):
+        # Why: an svg is inline in the page; only its (never shown) content is hidden.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nOpen the settings page.\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>Open the <svg viewBox="0 0 1 1"><title>gear</title></svg>settings page.</p></main></body></html>')
+        code, out, _ = self.run_check(self.write("d.md", doc), page, [])
+        self.assertEqual(code, 0, out)
+
+    def test_a_skipped_block_still_cuts_the_text_around_it(self):
+        # Why: a nav sits between two blocks of copy; they must stay two blocks, or its removal would
+        # glue "menu" to "after" and every sentence around a skipped block would show as changed.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nBefore the menu\n\nafter the menu.\n"
+        page = self.write("p.html", self.HEAD + "<main><h1>H</h1><div>Before the menu<nav>Home</nav>after the menu.</div></main></body></html>")
+        code, out, _ = self.run_check(self.write("d.md", doc), page, ["--skip", "nav"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("built: 3 sentences", out)   # heading + 2; a glued "Before the menuafter the menu." would make 2
+
+    def test_a_skipped_inline_element_that_is_left_open_ends_with_its_parent(self):
+        # Why: sloppy markup must not swallow the rest of the page.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nFirst part.\n\nSecond part.\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>First part.<span class="vh">note</p><p>Second part.</p></main></body></html>')
+        code, out, _ = self.run_check(self.write("d.md", doc), page, ["--skip", ".vh"])
+        self.assertEqual(code, 0, out)
+
+
 if __name__ == "__main__":
     unittest.main()

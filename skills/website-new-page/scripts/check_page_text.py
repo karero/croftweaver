@@ -22,10 +22,10 @@ from html.parser import HTMLParser
 
 # Tags whose content is never visible text. "head" is read separately for the title/description.
 HIDDEN = {"script", "style", "noscript", "template", "svg", "head", "title"}
-# Tags that do not end a text block; any other tag does.
+# Tags that do not end a text block; any other tag does. An svg icon sits inside a sentence.
 INLINE = {"a", "abbr", "b", "bdi", "bdo", "cite", "code", "data", "del", "dfn", "em", "i", "ins",
           "kbd", "mark", "q", "s", "samp", "small", "span", "strong", "sub", "sup", "time", "u",
-          "var", "wbr", "label"}
+          "var", "wbr", "label", "svg"}
 VOID = {"br", "hr", "img", "input", "meta", "link", "wbr", "source", "col", "area", "base", "embed"}
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
@@ -76,6 +76,12 @@ class Page(HTMLParser):
             if self._main:
                 self._main_blocks.append(text)
 
+    def _cut(self):
+        """End the current block, unless the tag sits inside hidden or skipped content: that content
+        is never buffered, so a tag in it must not cut the text around the element."""
+        if not self._hidden and not self._skipped:
+            self._flush()
+
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
         if tag == "meta" and (a.get("name") or "").lower() == "description" and self.description is None:
@@ -88,15 +94,16 @@ class Page(HTMLParser):
             self._ld_text = []
         if tag in VOID:
             if tag == "br":
-                self._buf.append(" ")
+                if not self._hidden and not self._skipped:
+                    self._buf.append(" ")
             elif tag not in INLINE:
-                self._flush()
+                self._cut()
             return
         classes = set((a.get("class") or "").split())
         hidden = tag in HIDDEN
         skipped = tag in self.skip or any("." + c in self.skip for c in classes)
-        if tag not in INLINE or skipped:     # a skipped inline element is cut off from its neighbours too
-            self._flush()
+        if tag not in INLINE:     # a skipped inline element drops out; its neighbours join up
+            self._cut()
         self._stack.append((tag, hidden, skipped))
         self._hidden += hidden
         self._skipped += skipped
@@ -110,14 +117,10 @@ class Page(HTMLParser):
         # close any tags the markup left open inside this one
         while self._stack:
             top, hidden, skipped = self._stack.pop()
-            if top not in INLINE or skipped:   # flush while the element still counts as open
-                self._hidden += hidden
-                self._skipped += skipped
-                self._flush()
-                self._hidden -= hidden
-                self._skipped -= skipped
             self._hidden -= hidden
             self._skipped -= skipped
+            if top not in INLINE:
+                self._cut()
             if top == "main":
                 self._main -= 1
             if top == "title" and self._in_title:
@@ -134,7 +137,7 @@ class Page(HTMLParser):
             self._title_buf.append(data)
         elif self._ld_script:
             self._ld_text.append(data)
-        elif not self._hidden:
+        elif not self._hidden and not self._skipped:
             self._buf.append(data)
 
     def close(self):
@@ -351,7 +354,8 @@ def main(argv):
     ap.add_argument("--title-suffix", default="", help="text the site adds to every <title>, e.g. ' | Site'")
     ap.add_argument("--skip", default="nav,footer,aside",
                     help="tags, or .classes, whose text is site chrome, not page copy "
-                         "(default: nav,footer,aside; '' for none), e.g. nav,footer,.byline")
+                         "(default: nav,footer,aside; '' for none), e.g. nav,footer,.byline. "
+                         "A block element ends the text around it; an inline one is cut out of its sentence")
     args = ap.parse_args(argv)
     try:
         with open(args.document, encoding="utf-8") as f:
