@@ -3,7 +3,8 @@
 # which pages are ORPHANED (no internal link points at them — invisible to crawlers and
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
 # contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
-# only a broken auto-build (it can't audit a missing/partial dist/) or a failed mktemp exits non-zero.
+# only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp or a /* */
+# comment inside ORPHAN_EXEMPT exits non-zero.
 # It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
