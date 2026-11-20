@@ -103,7 +103,8 @@ the owner to read, as it is. Components that add their own text (a byline, a but
 with `--skip`, as tags or `.classes`. The default skips `nav,footer,aside,.vh,.sr-only,.visually-hidden`,
 and a `--skip` of your own replaces it, so keep those in the list. The three classes are matched by
 name: text inside them is not compared. If the site's CSS shows copy in one of them, pass a `--skip`
-without that class. If the check names a sentence the owner did not approve, that is the finding. Exit 2 means the check could not read its input.
+without that class. If the check names a sentence the owner did not approve, that is the finding.
+Exit 2 means the check could not read its input.
 
 **8. Review the code** with the site's usual review (`website-review`, or `independent-review`'s
 diff gate where the owner has chosen it). By now the copy has been judged, so this round checks
