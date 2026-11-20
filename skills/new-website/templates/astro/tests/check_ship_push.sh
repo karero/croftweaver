@@ -996,7 +996,7 @@ else
 fi
 # The locale must not change what is read. An address with letters above ASCII is read whole, and a
 # key that only ends in `site:` after such a letter (`üsite:`) is another key, in every locale.
-mark idn_C noorigin; mark idn_utf8 noorigin; mark nonasciikey_C noorigin; mark nonasciikey_utf8 noorigin
+mark idn_C noorigin; mark idn_utf8 noorigin; mark nonasciikey_C noorigin; mark nonasciikey_utf8 noorigin; mark nbsp_C noorigin; mark nbsp_utf8 noorigin
 for loc in C "$utf8_loc"; do
   [ -n "$loc" ] || continue
   tag=utf8; [ "$loc" = C ] && tag=C
@@ -1004,6 +1004,9 @@ for loc in C "$utf8_loc"; do
   want_line1="→ Site: https://müller-bäckerei.de · GitHub repo: $repo_fallback"; LC_ALL="$loc" expect "idn_$tag" 1 0 "not for a network reason"
   printf "export default { üsite: 'https://wrong.example' };\n" > "$work/cwd/astro.config.mjs"
   want_line1="→ Site: (no site: address in astro.config.mjs) · GitHub repo: $repo_fallback"; LC_ALL="$loc" expect "nonasciikey_$tag" 1 0 "not for a network reason"
+  # A no-break space (U+00A0) before the key is white space, not part of a name.
+  printf "export default { \302\240site: 'https://new.example' };\n" > "$work/cwd/astro.config.mjs"
+  want_line1="→ Site: https://new.example · GitHub repo: $repo_fallback"; LC_ALL="$loc" expect "nbsp_$tag" 1 0 "not for a network reason"
 done
 # A / that opens no comment (here a regex holding a quote, which could hide a real /*) stops the
 # scan: nothing is checked. A string continued past a line's end with \ stays a string.

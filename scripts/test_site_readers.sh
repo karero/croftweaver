@@ -13,6 +13,7 @@
 # What it checks:
 #   - the copies of site_of, site_count and js_state in ship.sh and deploy.sh are the same text, and
 #     the extraction it compares by does see a change (so an empty extraction cannot pass);
+#   - a no-break space, BOM or other Unicode space before `site:` ends the name before it;
 #   - those functions give the same answer in the C locale and in a UTF-8 one, for an address
 #     with letters above ASCII, a key that follows such a letter and a byte that is not UTF-8;
 #   - the external and internal link reports take the site's host from the `site:` key, not
@@ -76,6 +77,10 @@ check_locales "a key that follows a letter above ASCII is another key" "export d
 " "none|"
 check_locales "that key beside the real one" "export default { üsite: 'https://wrong.example', site: 'https://right.example' };
 " "one|https://right.example"
+# JavaScript white space that is not ASCII ends a name: no-break space, BOM, line separator, ideographic space.
+for ws in '\302\240' '\357\273\277' '\342\200\250' '\343\200\200'; do
+  check_locales "a Unicode space ($(printf "$ws" | od -An -tx1 | tr -d ' \n')) before site:" "$(printf "export default { ${ws}site: 'https://right.example' };\n")" "one|https://right.example"
+done
 # A byte that is not UTF-8 (Latin-1 ü) in the address: read as bytes, so both locales keep it.
 latin1="$(printf "export default { site: 'https://m\374ller.de/' };\n")"
 check_locales "a byte that is not UTF-8 in the address" "$latin1" "$(printf 'one|https://m\374ller.de')"
@@ -94,7 +99,8 @@ site() {
 }
 # A key that only ends in `site:` comes first; the real key is second. Expected by hand: the site is example.com.
 # Another decoy sits before them: a key that follows a letter above ASCII, which the C locale must not take for `site:`.
-CONF="export default { üsite: 'https://decoy2.example', website: 'https://decoy.example', site: 'https://example.com' };"
+# The real key follows a no-break space, which is white space.
+CONF="$(printf "export default { üsite: 'https://decoy2.example', website: 'https://decoy.example', \302\240site: 'https://example.com' };")"
 
 # External report: links to the site's own host are not fetched; the decoys' are.
 site extern "$CONF"
@@ -160,6 +166,15 @@ if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(2)' && printf '%s\
   ok "internal links: a list closed with \"] )\" ends there"
 else
   fail "internal links, a list closed with \"] )\": exit $rc, out: $out"
+fi
+# The same with the ")" on the next line.
+printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/late'] // end\n);\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(2)' && printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p' | grep -q '^/lost$' \
+   && ! printf '%s\n' "$out" | grep -q '^/lp/late$'; then
+  ok "internal links: a list closed with \"]\" and \")\" on the next line ends there"
+else
+  fail "internal links, a list closed with \")\" on the next line: exit $rc, out: $out"
 fi
 # A list that cannot be read safely stops the report with its reason, and no list is read past its end.
 unreadable() { # <label> <spec text> <text the message must hold>

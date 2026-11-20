@@ -31,7 +31,7 @@ fi
 # Own production host, derived from `site:` in astro.config.mjs so this stays
 # domain-agnostic. An absolute link to this host counts as internal, same as the tests.
 # The key must start its name (`website:` is another key), read as bytes, as in scripts/ship.sh.
-SITE_HOST=$(export LC_ALL=C; hi=$'\200-\377'; grep -oE "(^|[^[:alnum:]_\$.$hi-])site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
+SITE_HOST=$(export LC_ALL=C; hi=$'\200-\377'; ws=$'\302\240|\357\273\277|\341\232\200|\342\200[\200-\212\250\251\257]|\342\201\237|\343\200\200'; grep -oE "(^|[^[:alnum:]_\$.$hi-]|$ws)site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
   | sed -E "s#.*://(www\.)?##; s#/.*##" | tr 'A-Z' 'a-z' | head -1)
 [ -n "$SITE_HOST" ] || SITE_HOST="__no_site_configured__"
 
@@ -97,18 +97,23 @@ INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
 # ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
 EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
-  # The list ends at the first "])" outside a quoted entry (blanks allowed between the two), so an entry may
+  # The list ends at the first "])" outside a quoted entry (blanks, even a line break, allowed between the two), so an entry may
   # hold "])" or "//". A // comment is dropped. A /* */ comment could hide or fake an entry, a backslash in an
   # entry or a backtick string cannot be read as text, and a list that never closes is not a list: awk stops
   # with 3, 5, 6 or 4 on those. A quote ends with its line, so a string or regex that runs on is not followed.
   EXEMPT_SPAN=$(LC_ALL=C awk '/ORPHAN_EXEMPT = new Set/ { on = 1 }
-    on { out = ""; q = ""
+    on { if (pend) { pend = 0; if ($0 ~ /^[ \t]*\)/) { closed = 1; exit } }
+      out = ""; q = ""
       for (i = 1; i <= length($0); i++) {
         c = substr($0, i, 1); d = substr($0, i, 2)
         if (q != "") { if (c == "\\") { bad = 1; exit 5 } out = out c; if (c == q) q = ""; continue }
         if (d == "//") break
         if (d == "/*") { bad = 1; exit 3 }
-        if (c == "]" && substr($0, i) ~ /^\][ \t]*\)/) { closed = 1; print out "]"; exit }
+        if (c == "]") {
+          r = substr($0, i)
+          if (r ~ /^\][ \t]*\)/) { closed = 1; print out "]"; exit }
+          if (r ~ /^\][ \t]*(\/\/.*)?$/) pend = 1
+        }
         if (c == "`") { bad = 1; exit 6 }
         if (c == "\047" || c == "\"") q = c
         out = out c
