@@ -1,0 +1,8 @@
+---
+// A layout with no <main>: the page's content is the body.
+const { title } = Astro.props;
+---
+<html lang="en">
+  <head><meta charset="utf-8" /><title>{title}</title></head>
+  <body><slot /></body>
+</html>
