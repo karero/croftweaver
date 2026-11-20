@@ -101,8 +101,9 @@ typographic quotes. Dashes and every other character are compared as written. Ex
 0 means the build kept the text. Exit 1 lists every changed sentence: put that list in the PR for
 the owner to read, as it is. Components that add their own text (a byline, a button) are named
 with `--skip`, as tags or `.classes`. The default skips `nav,footer,aside,.vh,.sr-only,.visually-hidden`,
-and a `--skip` of your own replaces it, so keep those in the list. If the check names a sentence
-the owner did not approve, that is the finding. Exit 2 means the check could not read its input.
+and a `--skip` of your own replaces it, so keep those in the list. The three classes are matched by
+name: text inside them is not compared, so a site that shows copy in one of them hides it from the
+check. If the check names a sentence the owner did not approve, that is the finding. Exit 2 means the check could not read its input.
 
 **8. Review the code** with the site's usual review (`website-review`, or `independent-review`'s
 diff gate where the owner has chosen it). By now the copy has been judged, so this round checks

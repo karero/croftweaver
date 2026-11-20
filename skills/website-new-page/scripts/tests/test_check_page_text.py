@@ -385,8 +385,9 @@ class InlineElementsInsideASentence(Base):
 class HiddenTextSkippedByDefault(Base):
     """Screen-reader-only text is never copy the owner approved, so a plain run ignores it.
 
-    Every case enters through the command line with no --skip, as the builder runs it. The markup is
-    written by hand in the shape of the external-link component (see InlineElementsInsideASentence).
+    The default cases enter through the command line with no --skip, as the builder runs it; the
+    override case passes one. The markup is written by hand in the shape of the external-link
+    component (see InlineElementsInsideASentence).
     """
 
     HEAD = InlineElementsInsideASentence.HEAD

@@ -359,6 +359,7 @@ def main(argv):
                          "not page copy (default: " + DEFAULT_SKIP + "; '' for none). "
                          "Your list replaces the default, so repeat the hidden classes: "
                          "nav,footer,.vh,.sr-only,.visually-hidden,.byline. "
+                         "Classes are matched by name: text inside a skipped class is not compared. "
                          "A block element ends the text around it; an inline one is cut out of its sentence")
     args = ap.parse_args(argv)
     try:
