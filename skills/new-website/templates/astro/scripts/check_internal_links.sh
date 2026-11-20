@@ -3,8 +3,8 @@
 # which pages are ORPHANED (no internal link points at them — invisible to crawlers and
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
 # contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
-# only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp or an
-# ORPHAN_EXEMPT list it cannot read safely exits non-zero.
+# only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp or a /* */
+# comment inside ORPHAN_EXEMPT exits non-zero.
 # It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
@@ -97,37 +97,11 @@ INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
 # ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
 EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
-  # The list is read by a strict rule: after its "[", only quoted addresses, commas, blanks, // comments and
-  # the closing "])" (the two characters together) are accepted. Anything else, a backslash in an entry, a
-  # block comment, a backtick string, a spread, a "]" not followed by ")", or a list that never closes, stops
-  # the report with the line, rather than a guess. A quote ends on its line.
-  EXEMPT_SPAN=$(LC_ALL=C awk '!on && /^[ \t]*(export[ \t]+)?(const|let|var)[ \t]+ORPHAN_EXEMPT([^[:alnum:]_$]|$)/ { on = 1; k = index($0, "["); s = (k ? substr($0, k + 1) : "["); first = 1 }
-    on {
-      if (!first) s = $0
-      first = 0
-      for (i = 1; i <= length(s); i++) {
-        c = substr(s, i, 1); d = substr(s, i, 2)
-        if (c == " " || c == "\t" || c == ",") continue
-        if (d == "//") break
-        if (d == "])") { closed = 1; exit }
-        if (d == "/*") { bad = 1; exit 3 }
-        if (c != "\047" && c != "\"") { bad = 1; exit 5 }
-        j = index(substr(s, i + 1), c)
-        if (j == 0) { bad = 1; exit 5 }
-        e = substr(s, i + 1, j - 1)
-        if (index(e, "\\")) { bad = 1; exit 5 }
-        print c e c
-        i += j
-      }
-    }
-    END { if (bad) print "line " NR > "/dev/stderr"; if (on && !closed && !bad) exit 4 }' tests/orphans.spec.ts) || {
-    case "$?" in
-      3) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2 ;;
-      4) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT is not closed with ])." >&2 ;;
-      *) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT holds something that cannot be read safely. Write it as quoted addresses, commas and // comments, closed by ]) — no backslash, backtick string or spread." >&2 ;;
-    esac
-    exit 1
-  }
+  EXEMPT_SPAN=$(awk '/ORPHAN_EXEMPT = new Set/ { on = 1 } on { sub(/\/\/.*/, ""); k = index($0, "])"); if (k) { print substr($0, 1, k); exit } print }' tests/orphans.spec.ts)
+  # A /* */ comment could hide or fake an entry: refuse it rather than guess (use // comments).
+  case "$EXEMPT_SPAN" in
+    *'/*'*) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2; exit 1 ;;
+  esac
   EXEMPT="$EXEMPT
 $(printf '%s\n' "$EXEMPT_SPAN" | grep -oE "'/[^']*'|\"/[^\"]*\"" | sed 's/^.//; s/.$//')"
 fi

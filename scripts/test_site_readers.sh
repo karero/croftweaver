@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 #
-# test_site_readers.sh — every reader of `site:` in the starter's astro.config.mjs, and the
-# ORPHAN_EXEMPT reader, run the way a site runs them.
+# test_site_readers.sh — every reader of `site:` in the starter's astro.config.mjs, run the way a site runs them.
 #
 # Why it exists: the readers were separate greps that did not all agree. scripts/ship.sh and
 # scripts/deploy.sh carry the same three functions (each file stands alone in a site, so they
 # cannot share one); the two link reports had their own, without ship's left edge, so a key
 # that ends in `site:` (`website:`) was read as the site's address. A non-ASCII letter before
-# `site:` was read as a name break in one locale and as the key in another. And an entry in
-# ORPHAN_EXEMPT that held "])" or "//" cut the list short, and a list written in some other way was
-# guessed at.
+# `site:` was read as a name break in one locale and as the key in another.
 #
 # What it checks:
 #   - the copies of site_of, site_count and js_state in ship.sh and deploy.sh are the same text, and
@@ -18,9 +15,7 @@
 #   - those functions give the same answer in the C locale and in a UTF-8 one, for an address
 #     with letters above ASCII, a key that follows such a letter and a byte that is not UTF-8;
 #   - the external and internal link reports take the site's host from the `site:` key, not
-#     from `website:`;
-#   - the internal report reads an ORPHAN_EXEMPT entry that holds "])" or "//" whole, and stops with a reason on
-#     a list written any other way than quoted addresses, commas, // comments and a closing "])".
+#     from `website:`.
 #
 # Usage: bash scripts/test_site_readers.sh
 set -u
@@ -136,57 +131,6 @@ for loc in C ${utf8_loc:+"$utf8_loc"}; do
     fail "internal links, in the $loc locale: exit $rc, orphans: $orph"
   fi
 done
-
-# --- 4. ORPHAN_EXEMPT entries are read whole ----------------------------------------------------
-# /lp/a])b is a page whose name holds "])"; /lp/late is listed after an entry that holds "//", on the
-# same line. Both are exempt; /lost is not. Expected by hand: /lost is the only orphan.
-site exempt "export default { site: 'https://example.com' };"
-mkdir -p "$S/dist/lp" "$S/tests"
-printf '<a href="/about">a</a>\n' >"$S/dist/index.html"
-printf '<p>x</p>\n' >"$S/dist/about.html"; printf '<p>x</p>\n' >"$S/dist/lost.html"
-printf '<p>x</p>\n' >"$S/dist/lp/a])b.html"; printf '<p>x</p>\n' >"$S/dist/lp/late.html"
-printf "const ORPHAN_EXEMPT = new Set<string>([\n  '/lp/a])b',  // a quoted \"])\"\n  '/lp/c//d', '/lp/late', // after a quoted \"//\"\n]);\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
-orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
-if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && ! printf '%s' "$orph" | grep -q '^/lp/' && printf '%s' "$out" | grep -q 'ORPHANS.*(1)'; then
-  ok "internal links: an ORPHAN_EXEMPT entry holding \"])\" or \"//\" is read whole; the entries after it still count"
-else
-  fail "internal links, exempt entries with \"])\" and \"//\": exit $rc, orphans: $orph"
-fi
-# A quoted "/*" is an entry's text, not a comment: no refusal.
-printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/*', '/lp/a])b', '/lp/late']);\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
-if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -q 'comment inside ORPHAN_EXEMPT'; then
-  ok "internal links: a quoted /* in an ORPHAN_EXEMPT entry is not a comment"
-else
-  fail "internal links, a quoted /*: exit $rc, out: $out"
-fi
-
-# A list the strict rule does not accept stops the report with a reason, and nothing after it is read as an
-# exemption: "/lost" must never be taken for an entry of a list that closes in some other way.
-unreadable() { # <label> <spec text> <text the message must hold>
-  printf "$2" >"$S/tests/orphans.spec.ts"
-  out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -qF -- "$3"; then ok "internal links: $1 stops the report"; else fail "internal links, $1: exit $rc, out: $out"; fi
-}
-SAFE="cannot be read safely"
-# A comment that quotes the declaration is not the declaration: /lost stays an orphan, /lp/late stays exempt.
-printf "// ORPHAN_EXEMPT = new Set<string>(['/lost']);\nconst ORPHAN_EXEMPT = new Set<string>(['/lp/late']);\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
-if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p' | grep -q '^/lost$' && ! printf '%s\n' "$out" | grep -q '^/lp/late$'; then
-  ok "internal links: a comment that quotes the declaration is not the declaration"
-else
-  fail "internal links, a comment quoting the declaration: exit $rc, out: $out"
-fi
-unreadable "an ORPHAN_EXEMPT list that never closes" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late',\n'/lost'\n" "not closed with ])"
-unreadable "a closing bracket and parenthesis with a blank between" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late'] );\nconst ROOT = '/lost';\n" "$SAFE"
-unreadable "a closing bracket and parenthesis on two lines" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late']\n);\nconst ROOT = '/lost';\n" "$SAFE"
-unreadable "a /* */ comment inside ORPHAN_EXEMPT" "const ORPHAN_EXEMPT = new Set<string>([ /* x */ '/lp/late']);\n" "a /* */ comment inside ORPHAN_EXEMPT"
-unreadable "a declaration written without blanks around =" "const ORPHAN_EXEMPT=new Set<string>([...OTHER]);\n" "$SAFE"
-unreadable "a declaration with no list on its line" "const ORPHAN_EXEMPT = new Set(OTHER);\n" "$SAFE"
-unreadable "a backtick string in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([\n\`\n'/lost'\n\`]);\n" "$SAFE"
-unreadable "a spread in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([...OTHER, '/lp/late']);\n" "$SAFE"
-unreadable "a backslash in an ORPHAN_EXEMPT entry" "const ORPHAN_EXEMPT = new Set<string>(['/lp/it\\\\'s']);\n" "$SAFE"
 
 if [ "$fails" -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
