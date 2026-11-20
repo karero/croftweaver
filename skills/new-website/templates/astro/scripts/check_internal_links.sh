@@ -101,7 +101,7 @@ if [ -f tests/orphans.spec.ts ]; then
   # the closing "])" (the two characters together) are accepted. Anything else, a backslash in an entry, a
   # block comment, a backtick string, a spread, a "]" not followed by ")", or a list that never closes, stops
   # the report with the line, rather than a guess. A quote ends on its line.
-  EXEMPT_SPAN=$(LC_ALL=C awk '/ORPHAN_EXEMPT = new Set/ { on = 1; k = index($0, "["); s = (k ? substr($0, k + 1) : "["); first = 1 }
+  EXEMPT_SPAN=$(LC_ALL=C awk '!on && /^[ \t]*(export[ \t]+)?(const|let|var)[ \t]+ORPHAN_EXEMPT([^[:alnum:]_$]|$)/ { on = 1; k = index($0, "["); s = (k ? substr($0, k + 1) : "["); first = 1 }
     on {
       if (!first) s = $0
       first = 0
@@ -110,19 +110,21 @@ if [ -f tests/orphans.spec.ts ]; then
         if (c == " " || c == "\t" || c == ",") continue
         if (d == "//") break
         if (d == "])") { closed = 1; exit }
-        if (c != "\047" && c != "\"") { bad = 1; exit 3 }
+        if (d == "/*") { bad = 1; exit 3 }
+        if (c != "\047" && c != "\"") { bad = 1; exit 5 }
         j = index(substr(s, i + 1), c)
-        if (j == 0) { bad = 1; exit 3 }
+        if (j == 0) { bad = 1; exit 5 }
         e = substr(s, i + 1, j - 1)
-        if (index(e, "\\")) { bad = 1; exit 3 }
+        if (index(e, "\\")) { bad = 1; exit 5 }
         print c e c
         i += j
       }
     }
     END { if (bad) print "line " NR > "/dev/stderr"; if (on && !closed && !bad) exit 4 }' tests/orphans.spec.ts) || {
     case "$?" in
+      3) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2 ;;
       4) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT is not closed with ])." >&2 ;;
-      *) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT holds something that cannot be read safely. Write it as quoted addresses, commas and // comments, closed by ]) — no backslash, block comment, backtick string or spread." >&2 ;;
+      *) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT holds something that cannot be read safely. Write it as quoted addresses, commas and // comments, closed by ]) — no backslash, backtick string or spread." >&2 ;;
     esac
     exit 1
   }

@@ -194,7 +194,8 @@ site_count() { # <astro.config.mjs text>
 }
 
 # Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
-# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments. A / that opens no comment, a regex
+# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments (a // comment
+# also ends at a Unicode line separator, U+2028 or U+2029). A / that opens no comment, a regex
 # literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
 # The | ends the text on a character of its own, so a line comment that closed at a final
 # newline is not reported.
@@ -205,7 +206,7 @@ js_state() { # <text>
       for (i = 1; i <= length($0) && st != "slash"; i++) {
         c = substr($0, i, 1); d = substr($0, i, 2)
         if (st == "code") {
-          if (d == "//") { st = "line"; break }
+          if (d == "//") { st = "line"; k = match(substr($0, i), /\342\200[\250\251]/); if (!k) break; st = "code"; i += k + 1; continue }
           if (d == "/*") { st = "block"; i++ }
           else if (c == "/") st = "slash"
           else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"

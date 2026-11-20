@@ -82,6 +82,10 @@ check_locales "that key beside the real one" "export default { üsite: 'https://
 for ws in '\302\240' '\357\273\277' '\342\200\250' '\343\200\200'; do
   check_locales "a Unicode space ($(printf "$ws" | od -An -tx1 | tr -d ' \n')) before site:" "$(printf "export default { ${ws}site: 'https://right.example' };\n")" "one|https://right.example"
 done
+# A // comment ends at a Unicode line separator (U+2028, U+2029): the key after it is code, not comment.
+for sep in '\342\200\250' '\342\200\251'; do
+  check_locales "a key after a // comment and a line separator ($(printf "$sep" | od -An -tx1 | tr -d ' \n'))" "$(printf "export default { // note${sep}site: 'https://right.example' };\n")" "one|https://right.example"
+done
 # A byte that is not UTF-8 (Latin-1 ü) in the address: read as bytes, so both locales keep it.
 latin1="$(printf "export default { site: 'https://m\374ller.de/' };\n")"
 check_locales "a byte that is not UTF-8 in the address" "$latin1" "$(printf 'one|https://m\374ller.de')"
@@ -166,10 +170,20 @@ unreadable() { # <label> <spec text> <text the message must hold>
   if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -qF -- "$3"; then ok "internal links: $1 stops the report"; else fail "internal links, $1: exit $rc, out: $out"; fi
 }
 SAFE="cannot be read safely"
+# A comment that quotes the declaration is not the declaration: /lost stays an orphan, /lp/late stays exempt.
+printf "// ORPHAN_EXEMPT = new Set<string>(['/lost']);\nconst ORPHAN_EXEMPT = new Set<string>(['/lp/late']);\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p' | grep -q '^/lost$' && ! printf '%s\n' "$out" | grep -q '^/lp/late$'; then
+  ok "internal links: a comment that quotes the declaration is not the declaration"
+else
+  fail "internal links, a comment quoting the declaration: exit $rc, out: $out"
+fi
 unreadable "an ORPHAN_EXEMPT list that never closes" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late',\n'/lost'\n" "not closed with ])"
 unreadable "a closing bracket and parenthesis with a blank between" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late'] );\nconst ROOT = '/lost';\n" "$SAFE"
 unreadable "a closing bracket and parenthesis on two lines" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late']\n);\nconst ROOT = '/lost';\n" "$SAFE"
-unreadable "a /* */ comment inside ORPHAN_EXEMPT" "const ORPHAN_EXEMPT = new Set<string>([ /* x */ '/lp/late']);\n" "$SAFE"
+unreadable "a /* */ comment inside ORPHAN_EXEMPT" "const ORPHAN_EXEMPT = new Set<string>([ /* x */ '/lp/late']);\n" "a /* */ comment inside ORPHAN_EXEMPT"
+unreadable "a declaration written without blanks around =" "const ORPHAN_EXEMPT=new Set<string>([...OTHER]);\n" "$SAFE"
+unreadable "a declaration with no list on its line" "const ORPHAN_EXEMPT = new Set(OTHER);\n" "$SAFE"
 unreadable "a backtick string in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([\n\`\n'/lost'\n\`]);\n" "$SAFE"
 unreadable "a spread in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([...OTHER, '/lp/late']);\n" "$SAFE"
 unreadable "a backslash in an ORPHAN_EXEMPT entry" "const ORPHAN_EXEMPT = new Set<string>(['/lp/it\\\\'s']);\n" "$SAFE"
