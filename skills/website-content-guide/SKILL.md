@@ -98,8 +98,8 @@ translation error.
   imperatives on one page); subtler shifts still need a human read.
 - **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e/en),
   bahnbrechend, revolutionär, wegweisend, erstklassig, hochmodern,
-  maßgeschneidert (Swiss spelling "massgeschneidert" is caught too — the
-  enforced test doesn't fold ß↔ss, so both spellings are listed explicitly),
+  maßgeschneiderte Lösung(en) (Swiss "massgeschneiderte" also caught; the
+  word itself is fine when it is literal: "ein maßgeschneidertes Zuhause"),
   zukunftsweisend, transformativ, unschlagbar, entfesseln/entfesselt,
   Spitzenreiter (trim/extend per brand).
 - **AI-tell phrases to avoid:**

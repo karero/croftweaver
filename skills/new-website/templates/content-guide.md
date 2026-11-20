@@ -52,8 +52,9 @@ lever is register, not contraction.
   page); subtler mixing still needs a human read.
 - **No buzzwords:** ganzheitlich, nahtlos, Synergie(n), Synergieeffekt(e/en),
   bahnbrechend, revolutionär, wegweisend, erstklassig, hochmodern,
-  maßgeschneidert (Swiss "massgeschneidert" also caught — the enforced test
-  doesn't fold ß↔ss), zukunftsweisend, transformativ, unschlagbar,
+  maßgeschneiderte Lösung(en) (Swiss "massgeschneiderte" also caught; the
+  word itself is fine when it is literal: "ein maßgeschneidertes Zuhause"),
+  zukunftsweisend, transformativ, unschlagbar,
   entfesseln/entfesselt, Spitzenreiter. [trim/add]
 
 **Do / don't examples**

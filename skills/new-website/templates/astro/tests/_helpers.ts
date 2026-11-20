@@ -87,13 +87,11 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
   // (e.g. adding "überzeugend"), use \p{L} lookaround + the u flag instead of \b.
   {
     label: 'buzzword',
-    // "massgeschneidert" alongside "maßgeschneidert": Swiss German writes ß as ss, and
-    // the /i flag does not fold ß↔ss for us. entfesselt gets the same endings as every
-    // other entry, its superlative in both spellings ("entfesseltste", "entfesselteste").
+    // entfesselt gets the same endings as every other entry, its superlative in both spellings ("entfesseltste", "entfesselteste").
     // Endings cover all four cases incl. dative -em ("mit nahtlosem Übergang"
     // previously slipped through) and superlatives (-ste/-ster/-stes/-sten/-stem,
     // "die nahtloseste Erfahrung").
-    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?)?|nahtlos(?:e|er|es|en|em|este[mnrs]?)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?)?|(?:ma(?:ß|ss)geschneidert)(?:e|er|es|en|em|ste[mnrs]?)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?)?|transformativ(?:e|er|es|en|em|ste[mnrs]?)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?)?|entfesseln|entfesselt(?:e|er|es|en|em|e?ste[mnrs]?)?|spitzenreiter)(?!\p{L})/gui,
+    re: /(?<!\p{L})(ganzheitlich(?:e|er|es|en|em|ste[mnrs]?)?|nahtlos(?:e|er|es|en|em|este[mnrs]?)?|synergien?|synergieeffekt(?:e|en)?|bahnbrechend(?:e|er|es|en|em|ste[mnrs]?)?|revolutionär(?:e|er|es|en|em|ste[mnrs]?)?|wegweisend(?:e|er|es|en|em|ste[mnrs]?)?|erstklassig(?:e|er|es|en|em|ste[mnrs]?)?|hochmodern(?:e|er|es|en|em|ste[mnrs]?)?|zukunftsweisend(?:e|er|es|en|em|ste[mnrs]?)?|transformativ(?:e|er|es|en|em|ste[mnrs]?)?|unschlagbar(?:e|er|es|en|em|ste[mnrs]?)?|entfesseln|entfesselt(?:e|er|es|en|em|e?ste[mnrs]?)?|spitzenreiter)(?!\p{L})/gui,
   },
   // Multi-word AI-tell phrases — own rule/label (not merged into the buzzword
   // list above). \s+ tolerates whitespace variation between words; same
@@ -109,7 +107,10 @@ const GERMAN_RULES: { label: string; re: RegExp }[] = [
     // clean). Known accepted edge: "in der heutigen Umwelt" matches (rare,
     // and usually filler prose anyway). The eintauchen family covers
     // Sie/du/wir registers (lassen Sie uns / lass uns / lasst uns).
-    re: /(?<!\p{L})(in\s+der\s+heutigen(?:,?\s+(?!(?:der|die|das|den|dem|des|unser\p{L}*|euer|eure\p{L}*|ihr\p{L}*)\b)\p{L}+){0,2}?[\s-]*\p{L}*welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lass(?:en\s+sie|t)?\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen))(?!\p{L})/gui,
+    // "maßgeschneiderte Lösung(en)" is banned, not the word: "ein maßgeschneidertes Zuhause" is
+    // literal and fine. Both spellings, since Swiss German writes ß as ss and /i does not fold
+    // them; comparative and superlative too; compounds such as "IT-Lösungen" and "Softwarelösungen".
+    re: /(?<!\p{L})(in\s+der\s+heutigen(?:,?\s+(?!(?:der|die|das|den|dem|des|unser\p{L}*|euer|eure\p{L}*|ihr\p{L}*)\b)\p{L}+){0,2}?[\s-]*\p{L}*welt|es\s+ist\s+wichtig\s+zu\s+(?:betonen|beachten|erwähnen),?\s+dass|zusammenfassend\s+lässt\s+sich\s+sagen|lass(?:en\s+sie|t)?\s+uns\s+(?:eintauchen|einen\s+blick\s+werfen)|ma(?:ß|ss)geschneidert(?:e?st|er)?(?:e|er|en)?\s+[\p{L}\p{N}-]*lösung(?:en)?)(?!\p{L})/gui,
   },
 ];
 // Exact matches to tolerate (lowercase) — e.g. a brand name like "rock 'n' roll".

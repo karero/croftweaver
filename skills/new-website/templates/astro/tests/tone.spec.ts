@@ -16,6 +16,19 @@ test('tone — "entfesselt" is caught in every form, the superlative included', 
   for (const form of forms) expect(toneViolations(`Die ${form} Lösung.`, 'de'), form).toHaveLength(1);
 });
 
+test('tone — "maßgeschneiderte Lösungen" is caught, a literal "maßgeschneidertes Zuhause" is not', () => {
+  // The empty agency phrase stays banned; the word itself is fine for something really made to measure.
+  const banned = ['maßgeschneiderte Lösung', 'maßgeschneiderte Lösungen', 'maßgeschneiderter Lösung',
+    'maßgeschneiderten Lösungen', 'massgeschneiderte Lösungen', 'Maßgeschneiderte   Lösungen',
+    'MASSGESCHNEIDERTE LÖSUNGEN', 'die maßgeschneiderteste Lösung', 'maßgeschneidertsten Lösungen',
+    'maßgeschneidertere Lösungen', 'maßgeschneiderte Softwarelösungen', 'maßgeschneiderte IT-Lösungen',
+    'maßgeschneiderte B2B-Lösungen'];
+  for (const text of banned) expect(toneViolations(`Wir bieten ${text}.`, 'de'), text).toHaveLength(1);
+  const allowed = ['ein maßgeschneidertes Zuhause', 'maßgeschneiderte Einbauten', 'massgeschneiderte Möbel',
+    'maßgeschneidert', 'ein maßgeschneiderter Lösungsansatz', 'maßgeschneiderte Konzepte zur Lösung'];
+  for (const text of allowed) expect(toneViolations(`Wir bieten ${text}.`, 'de'), text).toEqual([]);
+});
+
 for (const path of PAGES) {
   test(`tone — no banned phrasing on ${path}`, async ({ page }) => {
     await page.goto(path);
