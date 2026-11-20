@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 
 export const FILE = 'orphan-exempt.txt';
 
-// White space other than space and tab, control and invisible characters, and U+FFFD (a byte that is not UTF-8):
-// they can never match a page.
+// White space other than space and tab, control and invisible characters, and U+FFFD (the replacement character,
+// which a byte that is not UTF-8 decodes to): they can never match a page.
 // Numbers, not escapes: an escape typed into a source file can reach it as the raw character.
 function isBadChar(cp) {
   return cp <= 0x08 || (cp >= 0x0a && cp <= 0x1f) || (cp >= 0x7f && cp <= 0x9f)
