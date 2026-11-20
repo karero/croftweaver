@@ -79,7 +79,7 @@ function textProblem(buf) {
   return '';
 }
 
-// The plugin manifest must also be one JSON object: a listing cannot read anything else.
+// The plugin manifest must also be one JSON object.
 function manifestProblem(buf) {
   const text = textProblem(buf);
   if (text) return text;
