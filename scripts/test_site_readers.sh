@@ -46,9 +46,10 @@ else
   fail "ship.sh and deploy.sh differ in site_of, site_count or js_state (diff below): copy them from one file to the other"
   diff "$T/ship.readers" "$T/deploy.readers" | head -20
 fi
-# The comparison must fail when one copy gains a line.
-{ cat "$T/deploy.readers"; echo "# drift"; } >"$T/drifted.readers"
-if ! cmp -s "$T/ship.readers" "$T/drifted.readers"; then ok "the comparison sees a change in one copy"; else fail "the comparison did not see a change in one copy"; fi
+# The comparison must fail when one copy gains a line inside the readers: change the source, then extract again.
+awk '{print} /^# The `site:` address in the astro.config.mjs text given/{print "# drift"}' "$SC/deploy.sh" >"$T/deploy.drifted.sh"
+reader "$T/deploy.drifted.sh" >"$T/drifted.readers"
+if [ -s "$T/drifted.readers" ] && grep -q '^# drift$' "$T/drifted.readers" && ! cmp -s "$T/ship.readers" "$T/drifted.readers"; then ok "the comparison sees a change in one copy"; else fail "the comparison did not see a change in one copy"; fi
 
 # --- 2. The same answer in every locale ---------------------------------------------------------
 utf8_loc=""
@@ -168,6 +169,7 @@ unreadable() { # <label> <spec text> <text the message must hold>
 }
 unreadable "an ORPHAN_EXEMPT list that never closes" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late',\n'/lost'\n" "not closed with ])"
 unreadable "a /* */ comment inside ORPHAN_EXEMPT" "const ORPHAN_EXEMPT = new Set<string>([ /* x */ '/lp/late']);\n" "comment inside ORPHAN_EXEMPT"
+unreadable "a backtick string in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([\n\`\n'/lost'\n\`]);\n" "backtick string"
 unreadable "a backslash in an ORPHAN_EXEMPT entry" "const ORPHAN_EXEMPT = new Set<string>(['/lp/it\\\\'s']);\n" "holds a backslash"
 
 if [ "$fails" -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi

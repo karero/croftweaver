@@ -4,7 +4,7 @@
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
 # contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
 # only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp or an
-# ORPHAN_EXEMPT list it cannot read safely (a /* */ comment, a backslash, no closing "])") exits non-zero.
+# ORPHAN_EXEMPT list it cannot read safely (a /* */ comment, a backslash, a backtick, no closing "])") exits non-zero.
 # It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
@@ -99,8 +99,8 @@ EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
   # The list ends at the first "])" outside a quoted entry (blanks allowed between the two), so an entry may
   # hold "])" or "//". A // comment is dropped. A /* */ comment could hide or fake an entry, a backslash in an
-  # entry cannot be read as text, and a list that never closes is not a list: awk stops with 3, 5 or 4 on those.
-  # A quote ends with its line, so a string or regex that runs on is not followed.
+  # entry or a backtick string cannot be read as text, and a list that never closes is not a list: awk stops
+  # with 3, 5, 6 or 4 on those. A quote ends with its line, so a string or regex that runs on is not followed.
   EXEMPT_SPAN=$(LC_ALL=C awk '/ORPHAN_EXEMPT = new Set/ { on = 1 }
     on { out = ""; q = ""
       for (i = 1; i <= length($0); i++) {
@@ -109,7 +109,8 @@ if [ -f tests/orphans.spec.ts ]; then
         if (d == "//") break
         if (d == "/*") { bad = 1; exit 3 }
         if (c == "]" && substr($0, i) ~ /^\][ \t]*\)/) { closed = 1; print out "]"; exit }
-        if (c == "\047" || c == "\"" || c == "`") q = c
+        if (c == "`") { bad = 1; exit 6 }
+        if (c == "\047" || c == "\"") q = c
         out = out c
       }
       print out }
@@ -117,6 +118,7 @@ if [ -f tests/orphans.spec.ts ]; then
     case "$?" in
       3) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2 ;;
       5) echo "✗ tests/orphans.spec.ts: an ORPHAN_EXEMPT entry holds a backslash, which cannot be read safely — write the page's address without one." >&2 ;;
+      6) echo "✗ tests/orphans.spec.ts: a backtick string inside ORPHAN_EXEMPT cannot be read safely — use ' or \" quotes." >&2 ;;
       4) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT is not closed with ])." >&2 ;;
       *) echo "✗ tests/orphans.spec.ts: could not read ORPHAN_EXEMPT." >&2 ;;
     esac
