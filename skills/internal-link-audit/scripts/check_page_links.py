@@ -18,7 +18,6 @@ or inside a <template>, is not counted; CSS is not read. Standard library only; 
 import argparse
 import os
 import sys
-import unicodedata
 from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin, urlsplit
 
@@ -36,11 +35,11 @@ def fold_host(host):
 
 
 def fold_path(path, decode=False):
-    """A page's key: leading slash, no closing slash (home is "/"), composed (NFC) letters.
-    A link's path is also percent-decoded, so /caf%C3%A9 finds the file café.html."""
+    """A page's key: leading slash, no closing slash (home is "/"). A link's path is also
+    percent-decoded, so /caf%C3%A9 finds the file café.html. Letters are compared as written."""
     if decode:
         path = unquote(path)
-    path = "/" + unicodedata.normalize("NFC", path).lstrip("/")
+    path = "/" + path.lstrip("/")
     return path.rstrip("/") or "/"
 
 
@@ -67,7 +66,7 @@ class Links(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
-        if tag == "base" and a.get("href") is not None:
+        if tag == "base" and any(k == "href" and v is not None for k, v in attrs):
             self.has_base = True
         if tag == "a" and a.get("href") is not None and "hidden" not in a:
             hidden, in_main, body = self._state()

@@ -243,15 +243,16 @@ class OnAHandWrittenDist(unittest.TestCase):
         code, out, _ = run(dist, "/café", *HOST, "--no-hub")
         self.assertEqual(code, 0, out)
 
-    def test_file_name_with_a_combining_mark_matches_the_composed_link(self):
-        decomposed = "cafe" + chr(0x301)      # e + combining acute: another spelling of the same name
+    def test_composed_and_decomposed_letters_are_not_taken_for_one_name(self):
+        decomposed = "cafe" + chr(0x301)      # e + combining acute: a different file name to a server
         dist = self.make({
             "index.html": '<main><a href="/a">A</a> <a href="/caf%C3%A9">Caf</a></main>',
             "a.html": '<main><a href="/caf%C3%A9">Caf</a></main>',
             decomposed + ".html": "<main>Caf</main>",
         })
-        code, out, _ = run(dist, "/café", *HOST, "--no-hub")
-        self.assertEqual(code, 0, out)
+        code, out, err = run(dist, "/" + decomposed, *HOST, "--no-hub")
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("MISS: only 0 pages link here, 2 needed", out)
 
     def test_page_with_a_base_href_cannot_be_judged(self):
         dist = self.make({
@@ -262,6 +263,25 @@ class OnAHandWrittenDist(unittest.TestCase):
         code, out, err = run(dist, "/p", *HOST, "--no-hub")
         self.assertEqual(code, 2, out)
         self.assertIn("/ sets <base href>", err)
+
+    def test_base_tag_with_a_repeated_href_attribute_cannot_be_judged(self):
+        dist = self.make({
+            "index.html": '<head><base href="/docs/" href></head><main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><a href="/p">P</a></main>',
+            "p.html": "<main>P</main>",
+        })
+        code, out, err = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 2, out)
+        self.assertIn("sets <base href>", err)
+
+    def test_base_tag_without_an_href_is_not_a_base(self):
+        dist = self.make({
+            "index.html": '<head><base target="_blank"></head><main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><a href="/p">P</a></main>',
+            "p.html": "<main>P</main>",
+        })
+        code, out, _ = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 0, out)
 
     def test_two_files_that_serve_one_address_cannot_be_judged(self):
         dist = self.make({
