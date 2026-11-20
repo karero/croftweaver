@@ -12,7 +12,7 @@
 Exit 0: all met. Exit 1: each miss is listed, with the pages that link here. Exit 2: the check
 cannot judge (no dist/, no file for the page or the hub, neither --hub nor --no-hub, --hub given
 and the page has no <main>, a folder it cannot read, two files that serve one address, or a page
-with a <base href>, which it does not apply). An <a> with a `hidden` attribute, or inside an element that has one
+with a <base> element, which it does not apply). An <a> with a `hidden` attribute, or inside an element that has one
 or inside a <template>, is not counted; CSS is not read. Standard library only; Python 3.9 or newer.
 """
 import argparse
@@ -66,7 +66,7 @@ class Links(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
-        if tag == "base" and any(k == "href" and v is not None for k, v in attrs):
+        if tag == "base":                       # whatever its attributes: the check does not apply one
             self.has_base = True
         if tag == "a" and a.get("href") is not None and "hidden" not in a:
             hidden, in_main, body = self._state()
@@ -116,7 +116,7 @@ def read_site(dist, site_host):
                 parser.feed(f.read())
                 parser.close()
             if parser.has_base:
-                raise Cannot("%s sets <base href>, which this check does not apply" % key)
+                raise Cannot("%s has a <base> element, which this check does not apply" % key)
             if fold_path(key) in pages:
                 raise Cannot("two files serve %s" % fold_path(key))
             base = "https://" + site_host + address
