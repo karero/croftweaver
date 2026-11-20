@@ -17,7 +17,8 @@
 #     with letters above ASCII, a key that follows such a letter and a byte that is not UTF-8;
 #   - the external and internal link reports take the site's host from the `site:` key, not
 #     from `website:`;
-#   - the internal report reads an ORPHAN_EXEMPT entry that holds "])" or "//" whole.
+#   - the internal report reads an ORPHAN_EXEMPT entry that holds "])" or "//" whole, ends the list at
+#     "] )", and stops with a reason on a list it cannot read safely.
 #
 # Usage: bash scripts/test_site_readers.sh
 set -u
@@ -45,8 +46,8 @@ else
   fail "ship.sh and deploy.sh differ in site_of, site_count or js_state (diff below): copy them from one file to the other"
   diff "$T/ship.readers" "$T/deploy.readers" | head -20
 fi
-# The comparison must fail on a one-character change in either copy.
-sed 's/head -1/head -2/' "$T/deploy.readers" >"$T/drifted.readers"
+# The comparison must fail when one copy gains a line.
+{ cat "$T/deploy.readers"; echo "# drift"; } >"$T/drifted.readers"
 if ! cmp -s "$T/ship.readers" "$T/drifted.readers"; then ok "the comparison sees a change in one copy"; else fail "the comparison did not see a change in one copy"; fi
 
 # --- 2. The same answer in every locale ---------------------------------------------------------
@@ -148,6 +149,26 @@ if [ "$rc" -eq 0 ] && ! printf '%s' "$out" | grep -q 'comment inside ORPHAN_EXEM
 else
   fail "internal links, a quoted /*: exit $rc, out: $out"
 fi
+
+# The list closes at "])" with blanks between the two: /lost is not part of it, and /lp/a])b (no longer listed)
+# is an orphan too; /lp/late stays exempt. Expected by hand: two orphans.
+printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/late'] );\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(2)' && printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p' | grep -q '^/lost$' \
+   && ! printf '%s\n' "$out" | grep -q '^/lp/late$'; then
+  ok "internal links: a list closed with \"] )\" ends there"
+else
+  fail "internal links, a list closed with \"] )\": exit $rc, out: $out"
+fi
+# A list that cannot be read safely stops the report with its reason, and no list is read past its end.
+unreadable() { # <label> <spec text> <text the message must hold>
+  printf "$2" >"$S/tests/orphans.spec.ts"
+  out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -qF -- "$3"; then ok "internal links: $1 stops the report"; else fail "internal links, $1: exit $rc, out: $out"; fi
+}
+unreadable "an ORPHAN_EXEMPT list that never closes" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late',\n'/lost'\n" "not closed with ])"
+unreadable "a /* */ comment inside ORPHAN_EXEMPT" "const ORPHAN_EXEMPT = new Set<string>([ /* x */ '/lp/late']);\n" "comment inside ORPHAN_EXEMPT"
+unreadable "a backslash in an ORPHAN_EXEMPT entry" "const ORPHAN_EXEMPT = new Set<string>(['/lp/it\\\\'s']);\n" "holds a backslash"
 
 if [ "$fails" -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
