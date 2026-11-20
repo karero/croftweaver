@@ -4,7 +4,7 @@
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
 # contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
 # only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp or an
-# ORPHAN_EXEMPT list it cannot read safely (a /* */ comment, a backslash, a backtick, no closing "])") exits non-zero.
+# ORPHAN_EXEMPT list it cannot read safely exits non-zero.
 # It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
@@ -97,35 +97,32 @@ INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
 # ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
 EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
-  # The list ends at the first "])" outside a quoted entry (blanks, even a line break, allowed between the two), so an entry may
-  # hold "])" or "//". A // comment is dropped. A /* */ comment could hide or fake an entry, a backslash in an
-  # entry or a backtick string cannot be read as text, and a list that never closes is not a list: awk stops
-  # with 3, 5, 6 or 4 on those. A quote ends with its line, so a string or regex that runs on is not followed.
-  EXEMPT_SPAN=$(LC_ALL=C awk '/ORPHAN_EXEMPT = new Set/ { on = 1 }
-    on { if (pend) { pend = 0; if ($0 ~ /^[ \t]*\)/) { closed = 1; exit } }
-      out = ""; q = ""
-      for (i = 1; i <= length($0); i++) {
-        c = substr($0, i, 1); d = substr($0, i, 2)
-        if (q != "") { if (c == "\\") { bad = 1; exit 5 } out = out c; if (c == q) q = ""; continue }
+  # The list is read by a strict rule: after its "[", only quoted addresses, commas, blanks, // comments and
+  # the closing "])" (the two characters together) are accepted. Anything else, a backslash in an entry, a
+  # block comment, a backtick string, a spread, a "]" not followed by ")", or a list that never closes, stops
+  # the report with the line, rather than a guess. A quote ends on its line.
+  EXEMPT_SPAN=$(LC_ALL=C awk '/ORPHAN_EXEMPT = new Set/ { on = 1; k = index($0, "["); s = (k ? substr($0, k + 1) : "["); first = 1 }
+    on {
+      if (!first) s = $0
+      first = 0
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1); d = substr(s, i, 2)
+        if (c == " " || c == "\t" || c == ",") continue
         if (d == "//") break
-        if (d == "/*") { bad = 1; exit 3 }
-        if (c == "]") {
-          r = substr($0, i)
-          if (r ~ /^\][ \t]*\)/) { closed = 1; print out "]"; exit }
-          if (r ~ /^\][ \t]*(\/\/.*)?$/) pend = 1
-        }
-        if (c == "`") { bad = 1; exit 6 }
-        if (c == "\047" || c == "\"") q = c
-        out = out c
+        if (d == "])") { closed = 1; exit }
+        if (c != "\047" && c != "\"") { bad = 1; exit 3 }
+        j = index(substr(s, i + 1), c)
+        if (j == 0) { bad = 1; exit 3 }
+        e = substr(s, i + 1, j - 1)
+        if (index(e, "\\")) { bad = 1; exit 3 }
+        print c e c
+        i += j
       }
-      print out }
-    END { if (on && !closed && !bad) exit 4 }' tests/orphans.spec.ts) || {
+    }
+    END { if (bad) print "line " NR > "/dev/stderr"; if (on && !closed && !bad) exit 4 }' tests/orphans.spec.ts) || {
     case "$?" in
-      3) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2 ;;
-      5) echo "✗ tests/orphans.spec.ts: an ORPHAN_EXEMPT entry holds a backslash, which cannot be read safely — write the page's address without one." >&2 ;;
-      6) echo "✗ tests/orphans.spec.ts: a backtick string inside ORPHAN_EXEMPT cannot be read safely — use ' or \" quotes." >&2 ;;
       4) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT is not closed with ])." >&2 ;;
-      *) echo "✗ tests/orphans.spec.ts: could not read ORPHAN_EXEMPT." >&2 ;;
+      *) echo "✗ tests/orphans.spec.ts: ORPHAN_EXEMPT holds something that cannot be read safely. Write it as quoted addresses, commas and // comments, closed by ]) — no backslash, block comment, backtick string or spread." >&2 ;;
     esac
     exit 1
   }

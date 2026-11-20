@@ -8,7 +8,8 @@
 # cannot share one); the two link reports had their own, without ship's left edge, so a key
 # that ends in `site:` (`website:`) was read as the site's address. A non-ASCII letter before
 # `site:` was read as a name break in one locale and as the key in another. And an entry in
-# ORPHAN_EXEMPT that held "])" or "//" cut the list short.
+# ORPHAN_EXEMPT that held "])" or "//" cut the list short, and a list written in some other way was
+# guessed at.
 #
 # What it checks:
 #   - the copies of site_of, site_count and js_state in ship.sh and deploy.sh are the same text, and
@@ -18,8 +19,8 @@
 #     with letters above ASCII, a key that follows such a letter and a byte that is not UTF-8;
 #   - the external and internal link reports take the site's host from the `site:` key, not
 #     from `website:`;
-#   - the internal report reads an ORPHAN_EXEMPT entry that holds "])" or "//" whole, ends the list at
-#     "] )", and stops with a reason on a list it cannot read safely.
+#   - the internal report reads an ORPHAN_EXEMPT entry that holds "])" or "//" whole, and stops with a reason on
+#     a list written any other way than quoted addresses, commas, // comments and a closing "])".
 #
 # Usage: bash scripts/test_site_readers.sh
 set -u
@@ -157,35 +158,21 @@ else
   fail "internal links, a quoted /*: exit $rc, out: $out"
 fi
 
-# The list closes at "])" with blanks between the two: /lost is not part of it, and /lp/a])b (no longer listed)
-# is an orphan too; /lp/late stays exempt. Expected by hand: two orphans.
-printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/late'] );\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
-if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(2)' && printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p' | grep -q '^/lost$' \
-   && ! printf '%s\n' "$out" | grep -q '^/lp/late$'; then
-  ok "internal links: a list closed with \"] )\" ends there"
-else
-  fail "internal links, a list closed with \"] )\": exit $rc, out: $out"
-fi
-# The same with the ")" on the next line.
-printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/late'] // end\n);\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
-if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(2)' && printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p' | grep -q '^/lost$' \
-   && ! printf '%s\n' "$out" | grep -q '^/lp/late$'; then
-  ok "internal links: a list closed with \"]\" and \")\" on the next line ends there"
-else
-  fail "internal links, a list closed with \")\" on the next line: exit $rc, out: $out"
-fi
-# A list that cannot be read safely stops the report with its reason, and no list is read past its end.
+# A list the strict rule does not accept stops the report with a reason, and nothing after it is read as an
+# exemption: "/lost" must never be taken for an entry of a list that closes in some other way.
 unreadable() { # <label> <spec text> <text the message must hold>
   printf "$2" >"$S/tests/orphans.spec.ts"
   out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
   if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -qF -- "$3"; then ok "internal links: $1 stops the report"; else fail "internal links, $1: exit $rc, out: $out"; fi
 }
+SAFE="cannot be read safely"
 unreadable "an ORPHAN_EXEMPT list that never closes" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late',\n'/lost'\n" "not closed with ])"
-unreadable "a /* */ comment inside ORPHAN_EXEMPT" "const ORPHAN_EXEMPT = new Set<string>([ /* x */ '/lp/late']);\n" "comment inside ORPHAN_EXEMPT"
-unreadable "a backtick string in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([\n\`\n'/lost'\n\`]);\n" "backtick string"
-unreadable "a backslash in an ORPHAN_EXEMPT entry" "const ORPHAN_EXEMPT = new Set<string>(['/lp/it\\\\'s']);\n" "holds a backslash"
+unreadable "a closing bracket and parenthesis with a blank between" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late'] );\nconst ROOT = '/lost';\n" "$SAFE"
+unreadable "a closing bracket and parenthesis on two lines" "const ORPHAN_EXEMPT = new Set<string>(['/lp/late']\n);\nconst ROOT = '/lost';\n" "$SAFE"
+unreadable "a /* */ comment inside ORPHAN_EXEMPT" "const ORPHAN_EXEMPT = new Set<string>([ /* x */ '/lp/late']);\n" "$SAFE"
+unreadable "a backtick string in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([\n\`\n'/lost'\n\`]);\n" "$SAFE"
+unreadable "a spread in an ORPHAN_EXEMPT list" "const ORPHAN_EXEMPT = new Set<string>([...OTHER, '/lp/late']);\n" "$SAFE"
+unreadable "a backslash in an ORPHAN_EXEMPT entry" "const ORPHAN_EXEMPT = new Set<string>(['/lp/it\\\\'s']);\n" "$SAFE"
 
 if [ "$fails" -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
 echo "all checks passed"
