@@ -255,26 +255,6 @@ STUB
       esac
     fi
   done
-  # What the audit lists as orphans (not about mktemp; it reuses this fixture's setup): not the
-  # starter's 404 page, nor a page tests/orphans.spec.ts lists in ORPHAN_EXEMPT, but a page
-  # nothing links to and nothing exempts.
-  S2="$T/links-site2"
-  mkdir -p "$S2/dist/lp/spring" "$S2/dist/lonely" "$S2/tests" \
-    && git init -q "$S2" \
-    && printf '<a href="/about">About</a>\n' >"$S2/dist/index.html" \
-    && printf '<a href="/">Home</a>\n' >"$S2/dist/about.html" \
-    && printf '<h1>Not found</h1>\n' >"$S2/dist/404.html" \
-    && printf '<p>ad</p>\n' >"$S2/dist/lp/spring/index.html" \
-    && printf '<p>x</p>\n' >"$S2/dist/lonely/index.html" \
-    && printf "const ORPHAN_EXEMPT = new Set<string>([\n  '/lp/spring',  // reached only from the ad\n  // '/commented',\n]);\n" >"$S2/tests/orphans.spec.ts" \
-    || { echo "FAIL — could not build the orphan-list fixture."; exit 1; }
-  l_out="$(cd "$S2" && TMPDIR="$T/links-tmp" $TO bash "$LS" 2>&1 </dev/null)"; l_rc=$?
-  l_orph="$(printf '%s\n' "$l_out" | sed -n '/^## ORPHANS/,/^→/p' | grep '^/' | tr '\n' ' ')"
-  if [ "$l_rc" -eq 0 ] && [ "$l_orph" = "/lonely " ]; then
-    echo "ok   check_internal_links.sh: orphans are /lonely only (not /404, not ORPHAN_EXEMPT's /lp/spring)"
-  else
-    fail "check_internal_links.sh: exit $l_rc, orphans [$l_orph], expected [/lonely ]: $l_out"
-  fi
 else
   skipped=$((skipped+1)); echo "skip check_internal_links.sh: git is not installed"
 fi

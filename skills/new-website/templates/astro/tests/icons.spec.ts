@@ -46,6 +46,17 @@ const svgSize = (page: Page, bytes: Buffer) =>
     }
   }, bytes.toString('base64'));
 
+// SITE.url must be a web address with a host. `new URL('localhost:4321')` parses too, with the
+// scheme 'localhost:' and no host, so the plain parse would let it through.
+const isWebAddress = (text: string) => {
+  try {
+    const u = new URL(text);
+    return /^https?:$/.test(u.protocol) && u.hostname !== '';
+  } catch {
+    return false;
+  }
+};
+
 // A link's address as this test compares it: its path when it is on this site, its whole address
 // when it is on another host, so it matches none of our files. `own` lists this site's addresses
 // (the server under test, SITE.url); `base` only resolves a relative link and never makes a host ours.
@@ -84,6 +95,16 @@ test('icons — a link on another host is not one of this site\'s files', () => 
   expect(sitePath('/icon-192.png', 'http://localhost:4400/site.webmanifest', own), "a path in this site's manifest").toBe('/icon-192.png');
 });
 
+test('icons — SITE.url must be a web address with a host', () => {
+  expect(isWebAddress('https://example.com'), 'a full address').toBe(true);
+  expect(isWebAddress('http://localhost:4321'), 'a local address').toBe(true);
+  expect(isWebAddress('localhost:4321'), 'a host and port with no scheme parses, but is not an address').toBe(false);
+  expect(isWebAddress('example.com'), 'a bare host').toBe(false);
+  expect(isWebAddress('ftp://example.com'), 'another scheme').toBe(false);
+  expect(isWebAddress('https://'), 'no host').toBe(false);
+  expect(isWebAddress(''), 'empty').toBe(false);
+});
+
 test('icons — the logo reader finds every logo the structured data names, and only those', () => {
   expect(logosIn({ '@type': 'Organization', logo: '/a.png' }), 'a URL').toEqual(['/a.png']);
   expect(logosIn({ '@type': ['Organization', 'LocalBusiness'], logo: { '@type': 'ImageObject', url: '/a.png' } }), 'an ImageObject on a node of two types').toEqual(['/a.png']);
@@ -98,7 +119,7 @@ test('icons — the logo reader finds every logo the structured data names, and 
 for (const icon of ICONS) {
   test(`icons — ${icon.path} is linked and is ${icon.kind === 'png' ? `a ${icon.size} px PNG` : icon.kind === 'ico' ? 'an ICO with a 32 px frame' : 'an SVG'}`, async ({ page, request }) => {
     const live = SITE.url;
-    expect(() => new URL(live), `SITE.url in src/config.ts is '${live}': set it to the site's full address, such as https://example.com (this test compares each icon link with it)`).not.toThrow();
+    expect(isWebAddress(live), `SITE.url in src/config.ts is '${live}': set it to the site's full address, such as https://example.com (this test compares each icon link with it)`).toBe(true);
     await page.goto('/');
     const home = page.url();
     const own = [home, live];
