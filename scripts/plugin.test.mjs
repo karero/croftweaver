@@ -560,6 +560,17 @@ test('the content checker checks when run through a symlink, and says ok only fo
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('the content checker refuses a plugin.json that is not one JSON object, and passes the real one', () => {
+  const run = (input, file = '.claude-plugin/plugin.json') => spawnSync('node', [path.join(REPO, 'scripts', 'check_directory_files.mjs'), file], { input, encoding: 'utf8' });
+  const bad = run('{invalid json');
+  assert.deepEqual([bad.status, /^is not valid JSON \(/.test(bad.stdout)], [1, true], bad.stdout);
+  for (const text of ['[]\n', '"x"\n', 'null\n', '12\n']) assert.deepEqual([run(text).status, run(text).stdout.trim()], [1, 'is not a JSON object'], text);
+  const real = fs.readFileSync(path.join(REPO, 'pointer', 'plugin.json'));
+  assert.deepEqual([run(real).status, run(real).stdout.trim()], [0, 'ok']);
+  // Only the manifest is parsed: other text files stay free-form, so a README of `{` still passes.
+  assert.deepEqual([run('{invalid json', 'README.md').status, run('{invalid json', 'README.md').stdout.trim()], [0, 'ok']);
+});
+
 test('the pointer plugin carries the kit\'s name and number, metadata only, and a privacy link to a heading the README has', () => {
   const kit = JSON.parse(read('.claude-plugin', 'plugin.json'));
   const pointer = JSON.parse(read('pointer', 'plugin.json'));
@@ -822,6 +833,8 @@ test('a release that would put anything but the five plain files (four text, one
     ['U+0080 as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xc2, 0x80])] : e)), /::error::README\.md in the directory tree holds a control character/],
     ['an icon whose IHDR overruns the file', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.from('89504e470d0a1a0a0000000d494844520000000049454e44ae426082', 'hex')] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: /],
     ['an icon with one checksum byte flipped', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], flipByte(PNG('i'), 8 + 12 + 13 - 1)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the IHDR chunk fails its checksum/],
+    ['a plugin.json that is not JSON', five.map((e) => (e[1] === '.claude-plugin/plugin.json' ? [e[0], e[1], '{invalid json'] : e)), /::error::\.claude-plugin\/plugin\.json in the directory tree is not valid JSON \(/],
+    ['a plugin.json that is a JSON array', five.map((e) => (e[1] === '.claude-plugin/plugin.json' ? [e[0], e[1], '[]\n'] : e)), /::error::\.claude-plugin\/plugin\.json in the directory tree is not a JSON object/],
     ['an icon with bytes after IEND', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG('i'), Buffer.from('x')])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after IEND/],
     ['an icon whose image data is not zlib', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.from('not zlib at all'))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data is not valid zlib/],
     ['an icon whose image data inflates to nothing', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.alloc(0)))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data does not fill its rows/],

@@ -11,7 +11,8 @@
 # Refuses a tag not on main, a `directory` whose last commit names no source, a release
 # older than the one already published, and a tree that is not exactly the five files, as
 # plain files. check_directory_files.mjs refuses a text file that is not UTF-8, holds a control
-# character but tab and line breaks, or starts with `#!`, and an icon that is not an 8-bit RGB or
+# character but tab and line breaks, or starts with `#!`, a plugin.json that is not one JSON object,
+# and an icon that is not an 8-bit RGB or
 # RGBA PNG with whole chunks and rows (its own header says exactly what). Pushes without
 # force. --check-tree runs that last check alone. --compare prints `same`, `version
 # only` (the trees differ only in plugin.json's version) or the changed paths, one per line.

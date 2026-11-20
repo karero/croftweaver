@@ -79,6 +79,16 @@ function textProblem(buf) {
   return '';
 }
 
+// The plugin manifest must also be one JSON object: a listing cannot read anything else.
+function manifestProblem(buf) {
+  const text = textProblem(buf);
+  if (text) return text;
+  let value;
+  try { value = JSON.parse(buf.toString('utf8')); } catch (e) { return `is not valid JSON (${e.message})`; }
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'is not a JSON object';
+  return '';
+}
+
 // Run as a command (also through a symlink), not when the tests import crc32. publish_directory.sh
 // takes only "ok" as a pass, so a run that checks nothing fails there.
 if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url))) {
@@ -88,7 +98,8 @@ if (process.argv[1] && fs.realpathSync(process.argv[1]) === fs.realpathSync(file
   try {
     const buf = fs.readFileSync(0);
     const png = file === '.claude-plugin/icon.png' ? pngProblem(buf) : '';
-    problem = png ? `is not a whole PNG: ${png}` : file === '.claude-plugin/icon.png' ? '' : textProblem(buf);
+    problem = png ? `is not a whole PNG: ${png}` : file === '.claude-plugin/icon.png' ? ''
+      : file === '.claude-plugin/plugin.json' ? manifestProblem(buf) : textProblem(buf);
   } catch (e) {
     // On stdout, so publish_directory.sh puts the reason on its ::error:: line.
     problem = `could not be checked: the checker failed (${e.message})`;
