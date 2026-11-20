@@ -206,6 +206,15 @@ $auto" && continue
 }" "$auto" > "$stamp"
 }
 
+# True when a left_out or kept line the site wrote names this site path, as the site has it or
+# relative to tests/. A line the stamp added itself does not count: it records a file the site
+# lacks, which the MISSING list must keep showing.
+site_left_out() {  # $1 = tests dir, $2 = site path
+  [ -f "$1/TESTS-VERSION" ] || return 1
+  grep -E '^(left_out|kept): ' "$1/TESTS-VERSION" | grep -vE -- "$AUTO_RE" \
+    | awk -v a="$2" -v b="${2#tests/}" '$2 == a || $2 == b { found = 1 } END { exit !found }'
+}
+
 print_left_out() {  # $1 = tests dir
   local lines
   lines="$(grep -E '^(left_out|kept): ' "$1/TESTS-VERSION" 2>/dev/null || true)"
@@ -636,7 +645,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
     # A file deleted upstream is left alone; so is one with no known site path.
     site_rel="$(site_copy_of "$f")"
     if [ -n "$site_rel" ] && [ ! -e "$(dirname "$tests_dir")/$site_rel" ] &&
-       git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null; then
+       git -C "$REPO_DIR" cat-file -e "HEAD:$f" 2>/dev/null &&
+       ! site_left_out "$tests_dir" "$site_rel"; then
       echo "    MISSING: the site has no $site_rel"
       missing="$missing  $site_rel
 "
@@ -710,6 +720,13 @@ if [ -z "$STAMPS" ]; then
   fi
   for d in "$PROJECT/.claude/skills" "$PROJECT/.agents/skills"; do
     [ -d "$d" ] || continue
+    if [ "${TESTS_ALONE-}" ]; then
+      # The tests channel was reported above, so the folder is a note, not a failure: it may be
+      # the site's own, not the kit's. Exit as the tests-only branch below does.
+      echo "note: $d has no SUITE-VERSION stamp, so the bundled skills were not compared. If the folder is from the kit, stamp it: scripts/whats-new.sh --stamp $d"
+      [ "$TESTS_ALONE" = 1 ] && exit 1
+      exit 0
+    fi
     echo "error: $d exists but has no SUITE-VERSION stamp — the project predates stamping." >&2
     echo "Baseline unknown; compare by hand (git -C $REPO_DIR log --oneline -- skills/)," >&2
     echo "refresh the copies you care about, then create the stamp with:" >&2
