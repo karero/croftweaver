@@ -28,7 +28,7 @@ export const FILE = 'scorecard.json';
 // workflows. A site with further root files that shape the build adds them here.
 export const TESTED = [
   'src', 'public', 'tests', 'functions', 'scripts', 'astro.config.mjs', 'package.json',
-  'package-lock.json', 'playwright.config.ts', 'tsconfig.json', '.nvmrc',
+  'package-lock.json', 'playwright.config.ts', 'tsconfig.json', '.nvmrc', 'orphan-exempt.txt',
 ];
 const LIGHTHOUSE = ['performance', 'accessibility', 'bestPractices', 'seo'];
 

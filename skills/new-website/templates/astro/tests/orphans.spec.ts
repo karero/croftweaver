@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
 import { SITE } from '../src/config';
+import { fileURLToPath } from 'node:url';
+import { readOrphanExempt } from '../scripts/orphan-exempt.mjs';
 
 // Orphan guard: every indexable page must be REACHABLE from the home page by
 // following internal <a href> links. A page can be in the sitemap (and pass every
@@ -16,13 +18,11 @@ import { SITE } from '../src/config';
 // `internal-link-audit` skill + `scripts/check_internal_links.sh`.
 //
 // Pages you DELIBERATELY leave unlinked (a paid-campaign landing page reached only
-// from an ad, a print-QR page) go in ORPHAN_EXEMPT with a reason — opt OUT explicitly
-// rather than loosen the test (Rule 12). The home page is the crawl root, never an
-// orphan. Empty exempt set = green from commit 1 (the starter's '/' + '/privacy' are
-// both linked from the layout).
-const ORPHAN_EXEMPT = new Set<string>([
-  // '/lp/spring-promo',  // reached only from the paid ad — intentionally unlinked
-]);
+// from an ad, a print-QR page) go in orphan-exempt.txt, one address per line with a
+// reason after a #: opt OUT explicitly rather than loosen the test (Rule 12). The home
+// page is the crawl root, never an orphan. No file = green from commit 1 (the
+// starter's '/' + '/privacy' are both linked from the layout).
+const EXEMPT_PAGES = new Set<string>(readOrphanExempt(fileURLToPath(new URL('..', import.meta.url))));
 
 // The crawl root: a page reachable means "reachable from here". Home is '/'.
 const ROOT = '/';
@@ -79,13 +79,13 @@ test('no orphan pages — every route is reachable from the home page', async ({
     }
   }
 
-  const orphans = [...known].filter((p) => !reachable.has(p) && !ORPHAN_EXEMPT.has(p));
+  const orphans = [...known].filter((p) => !reachable.has(p) && !EXEMPT_PAGES.has(p));
   expect(
     orphans,
     `orphaned page(s) — in the sitemap but reachable from no internal link:\n` +
       orphans.map((p) => `  ${p}`).join('\n') +
       `\n\nAdd a contextual in-body link from a related page (or a nav/footer entry in ` +
       `src/config.ts) so crawlers and humans can find them. Run the internal-link-audit ` +
-      `skill for WHERE to link. Deliberately-unlinked pages go in ORPHAN_EXEMPT with a reason.`,
+      `skill for WHERE to link. Deliberately-unlinked pages go in orphan-exempt.txt with a reason.`,
   ).toEqual([]);
 });

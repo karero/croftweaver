@@ -133,7 +133,7 @@ card after changes without that reminder.
 
 - The card records the commit it tested and the git id of the paths in `TESTED`
   (`scripts/scorecard.mjs`): `src/`, `public/`, `tests/`, `functions/`, `scripts/`, the
-  Astro, Playwright and TypeScript configs, the package files and `.nvmrc`. A site with
+  Astro, Playwright and TypeScript configs, the package files, `.nvmrc` and `orphan-exempt.txt`. A site with
   other root files that shape the build adds them to that list. On every build the
   component compares those ids with the build's own, and counts uncommitted edits to
   those paths as edits. Same → "The site has not been edited since."
