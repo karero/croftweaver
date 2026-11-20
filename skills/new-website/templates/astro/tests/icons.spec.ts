@@ -97,9 +97,10 @@ test('icons — the logo reader finds every logo the structured data names, and 
 
 for (const icon of ICONS) {
   test(`icons — ${icon.path} is linked and is ${icon.kind === 'png' ? `a ${icon.size} px PNG` : icon.kind === 'ico' ? 'an ICO with a 32 px frame' : 'an SVG'}`, async ({ page, request }) => {
+    const live = SITE.url;
+    expect(() => new URL(live), `SITE.url in src/config.ts is '${live}': set it to the site's full address, such as https://example.com (this test compares each icon link with it)`).not.toThrow();
     await page.goto('/');
     const home = page.url();
-    const live = SITE.url;
     const own = [home, live];
     let linked: string[];
     if (icon.linkedBy === 'icon') {

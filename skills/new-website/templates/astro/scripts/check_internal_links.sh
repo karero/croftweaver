@@ -3,7 +3,8 @@
 # which pages are ORPHANED (no internal link points at them — invisible to crawlers and
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
 # contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
-# only a broken auto-build (it can't audit a missing/partial dist/) or a failed mktemp exits non-zero.
+# only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp or a /* */
+# comment inside ORPHAN_EXEMPT exits non-zero.
 # It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
@@ -91,19 +92,41 @@ NLINKS=$(grep -c . "$LINKS")
 INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
                       END { for (t in cnt) print cnt[t] "\t" t }' "$LINKS")
 
+# Pages never reported as orphans: the 404 page (reached by a wrong address, not a link) and the
+# ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
+EXEMPT="/404"
+if [ -f tests/orphans.spec.ts ]; then
+  EXEMPT_SPAN=$(awk '/ORPHAN_EXEMPT = new Set/ { on = 1 } on { sub(/\/\/.*/, ""); k = index($0, "])"); if (k) { print substr($0, 1, k); exit } print }' tests/orphans.spec.ts)
+  # A /* */ comment could hide or fake an entry: refuse it rather than guess (use // comments).
+  case "$EXEMPT_SPAN" in
+    *'/*'*) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2; exit 1 ;;
+  esac
+  EXEMPT="$EXEMPT
+$(printf '%s\n' "$EXEMPT_SPAN" | grep -oE "'/[^']*'|\"/[^\"]*\"" | sed 's/^.//; s/.$//')"
+fi
+
 # Orphans = pages that received zero inbound edges (and aren't the home root).
-orphans=""; thin=""
+orphans=""; thin=""; nok=0
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   [ "$p" = "/" ] && continue
   c=$(echo "$INBOUND" | awk -F'\t' -v t="$p" '$2==t{print $1}')
   if [ -z "$c" ]; then
-    orphans="$orphans$p
-"
+    case "
+$EXEMPT
+" in
+      *"
+$p
+"*) ;;
+      *) orphans="$orphans$p
+" ;;
+    esac
   elif [ "$c" = "1" ]; then
     one=$(awk -F'\t' -v t="$p" '$1==t && $1!=$2 {print $2; exit}' "$LINKS")
     thin="$thin$p  <-  $one
 "
+  else
+    nok=$((nok+1))
   fi
 done < <(sort -u "$PAGESF")
 
@@ -158,7 +181,7 @@ else
   printf '(none)\n'
 fi
 
-printf '\n## OK: %d page(s) with ≥2 inbound links (home + orphan/thin excluded)\n' "$((NPAGES - norphan - nthin - 1))"
+printf '\n## OK: %d page(s) with ≥2 inbound links (home, orphan and thin pages excluded)\n' "$nok"
 
 # Click-depth is an ORTHOGONAL axis (a page can be both thin AND deep), so it's
 # reported separately rather than folded into the inbound-count partition above.
