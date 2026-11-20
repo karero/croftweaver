@@ -376,7 +376,7 @@ printf 'ignored\n' >"$R/docs/scratch"; printf 'ran zorblequux\n' >"$R/docs/scrat
 masked "masked: a file named like an ignored path plus a colon and a name: still fails" 1 "personal/site identifier"
 rm "$R/docs/scratch" "$R/docs/scratch:zorblequux.md"
 # BUGLOG 2026-11-18: in a git checkout the scans read the files git lists, not a walk that drops
-# ignored hits afterwards (node_modules made make check take minutes). So an ignored folder is
+# ignored hits afterwards (node_modules made make check slow). So an ignored folder is
 # not grepped (the file-name check still lists such a folder, and opens no file): a file in one that
 # this user cannot read is no scan error, where a grep -r walk reported it. A folder that is NOT ignored and unreadable still is (the masked case below). An
 # untracked folder with a listed name in it is read, and fails.

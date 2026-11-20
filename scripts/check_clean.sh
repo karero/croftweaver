@@ -200,8 +200,8 @@ gf() {
 }
 # `g -r` over the scan targets (names or docs). In a git checkout it reads only the files git
 # lists, tracked or untracked and not ignored: grep -r walks ignored folders such as node_modules
-# and only drops their hits afterwards (filter_ignored), which took many minutes with the
-# starter's packages installed. A copy without git keeps grep -r. An empty list is an error:
+# and only drops their hits afterwards (filter_ignored), which was slow with the starter's
+# packages installed. A copy without git keeps grep -r. An empty list is an error:
 # grep with no file would read stdin.
 gscan() { # <names|docs> <grep flags and pattern…> → as g
   local which="$1" targets lst err rc f; shift
