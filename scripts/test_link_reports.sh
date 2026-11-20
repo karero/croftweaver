@@ -8,8 +8,8 @@
 # a build the script cannot audit stops it with exit 1 and a message, and that the URL it
 # fetches has & where the HTML has &amp;.
 #
-# The internal-link report is run on built pages too: a page ORPHAN_EXEMPT names (either quote
-# style) is not an orphan, an unlisted one still is, and a /* */ comment in the list stops the run.
+# The internal-link report is run on built pages too: a page orphan-exempt.txt names is not an
+# orphan, an unlisted one still is, and a bad line in the file stops the run.
 #
 # Usage: bash scripts/test_link_reports.sh
 set -u
@@ -81,70 +81,134 @@ fi
 
 # check_internal_links.sh on a built dist/ of six pages: "/", /about and /team (linked from "/" and
 # from each other, so /about and /team have 2 inbound links each), /lp/spring and /lp/summer
-# (exempt, one in each quote style) and /lost (not exempt); the last three have no inbound link.
+# (exempt in orphan-exempt.txt) and /lost (not exempt); the last three have no inbound link.
 # Plus the starter's 404 page, which nothing links to and which is never an orphan. /lost is built
-# as lost/index.html (a page in a folder), and the exempt list holds a commented-out '/lost' line,
-# which exempts nothing.
+# as lost/index.html (a page in a folder), and the file holds a commented-out '/lost' line,
+# which exempts nothing. The site holds the real starter's spec and orphan-exempt.mjs, as a site
+# built from the starter does.
 # Expected by hand: orphans = /lost only; 2 pages with >=2 inbound links; exempt pages and /404 in neither list.
-IL="$ROOT/skills/new-website/templates/astro/scripts/check_internal_links.sh"
+ASTRO="$ROOT/skills/new-website/templates/astro"
+IL="$ASTRO/scripts/check_internal_links.sh"
+# il — runs the report from $S; sets rc, out (stdout), ilerr (stderr) and orph (the ORPHANS section).
+il() {
+  out="$(cd "$S" && bash "$IL" 2>"$T/il.err" </dev/null)"; rc=$?; ilerr="$(cat "$T/il.err")"
+  orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
+}
+# Both words of the old-form warning, so a quiet run can be told from a warned one.
+warned() { printf '%s' "$ilerr" | grep -q 'orphan-exempt.txt' && printf '%s' "$ilerr" | grep -q 'are not read'; }
 site intlinks
-mkdir -p "$S/dist" "$S/tests"
+mkdir -p "$S/dist" "$S/tests" "$S/scripts"
+cp "$ASTRO/scripts/orphan-exempt.mjs" "$S/scripts/"
+cp "$ASTRO/tests/orphans.spec.ts" "$S/tests/"
 printf '<a href="/about">a</a><a href="/team">t</a>\n' >"$S/dist/index.html"
 printf '<a href="/team">t</a>\n' >"$S/dist/about.html"
 printf '<a href="/about">a</a>\n' >"$S/dist/team.html"
 for pg in lp-spring lp-summer 404; do printf '<p>x</p>\n' >"$S/dist/$pg.html"; done
 mkdir -p "$S/dist/lp" "$S/dist/lost" && mv "$S/dist/lp-spring.html" "$S/dist/lp/spring.html" && mv "$S/dist/lp-summer.html" "$S/dist/lp/summer.html" \
   && printf '<p>x</p>\n' >"$S/dist/lost/index.html"
-printf "const ORPHAN_EXEMPT = new Set<string>([\n  '/lp/spring',  // single quotes\n  \"/lp/summer\",  // double quotes\n  // '/lost',\n]);\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
-orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
+printf '# unlinked on purpose\n/lp/spring  # the ad page\n/lp/summer\n# /lost\n' >"$S/orphan-exempt.txt"
+il
 if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && ! printf '%s' "$orph" | grep -q '/lp/\|/404' \
-   && printf '%s' "$out" | grep -q 'ORPHANS.*(1)' && printf '%s' "$out" | grep -q '^## OK: 2 page(s)'; then
-  ok "internal links: exempt pages (both quote styles) and /404 are no orphans; /lost (a folder page, named only in a comment) is the one orphan"
+   && printf '%s' "$out" | grep -q 'ORPHANS.*(1)' && printf '%s' "$out" | grep -q '^## OK: 2 page(s)' && ! warned; then
+  ok "internal links: pages in orphan-exempt.txt and /404 are no orphans; /lost (named only in a comment) is the one orphan; no warning"
 else
-  fail "internal links: exit $rc, out: $out"
+  fail "internal links: exit $rc, out: $out, stderr: $ilerr"
 fi
 
-# The set written on one line: only its own entry is exempt, and a '/x' literal further down the
-# file is not (the range of lines that is read ends at the first "])").
-printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/spring']);\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
-orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
-if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && printf '%s' "$orph" | grep -q '^/lp/summer$' \
+# A whole address, not a prefix: /x is exempt, but /x/y (an unlinked page under it) is still an orphan.
+site prefix
+mkdir -p "$S/dist/x" "$S/scripts"
+cp "$ASTRO/scripts/orphan-exempt.mjs" "$S/scripts/"
+printf '<p>home</p>\n' >"$S/dist/index.html"; printf '<p>x</p>\n' >"$S/dist/x.html"; printf '<p>y</p>\n' >"$S/dist/x/y.html"
+printf '/x\n' >"$S/orphan-exempt.txt"
+il
+if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/x/y$' && ! printf '%s' "$orph" | grep -q '^/x$' && printf '%s' "$out" | grep -q 'ORPHANS.*(1)'; then
+  ok "internal links: /x in orphan-exempt.txt exempts /x only, not /x/y"
+else
+  fail "internal links, whole-line match: exit $rc, orphans: $orph"
+fi
+
+# Back to the first site, for the cases that change its list or its spec.
+S="$T/intlinks"
+# A bad line stops the run, naming file and line, whatever form the spec is in (new, old or none).
+printf '/lp/spring\nnope\n' >"$S/orphan-exempt.txt"
+spec_new="$S/tests/orphans.spec.ts"; spec_save="$T/orphans.spec.ts.real"; cp "$spec_new" "$spec_save"
+for form in new old none; do
+  case "$form" in
+    new)  cp "$spec_save" "$spec_new" ;;
+    old)  printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/old']);\n" >"$spec_new" ;;
+    none) rm -f "$spec_new" ;;
+  esac
+  il
+  if [ "$rc" -eq 1 ] && printf '%s' "$ilerr" | grep -qF 'orphan-exempt.txt line 2: ' && ! printf '%s' "$out" | grep -q '^## ORPHANS'; then
+    ok "internal links: a bad line in orphan-exempt.txt stops the run with file and line (spec: $form)"
+  else
+    fail "internal links, bad line, spec $form: exit $rc, out: $out, stderr: $ilerr"
+  fi
+done
+
+# No file: no exemptions, exit 0 (a site with no unlinked pages needs none).
+rm -f "$S/orphan-exempt.txt"; cp "$spec_save" "$spec_new"
+il
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(3)' && printf '%s' "$orph" | grep -q '^/lp/spring$' && ! warned; then
+  ok "internal links: no orphan-exempt.txt means no exemptions, exit 0"
+else
+  fail "internal links, no file: exit $rc, out: $out, stderr: $ilerr"
+fi
+
+# A spec still in the old form (it holds ORPHAN_EXEMPT): a warning, exit 0, its list is not read,
+# and the file, if there is one, still applies.
+printf "const ORPHAN_EXEMPT = new Set<string>(['/lost', '/lp/summer']);\n" >"$spec_new"
+printf '/lp/spring\n' >"$S/orphan-exempt.txt"
+il
+if [ "$rc" -eq 0 ] && warned && printf '%s' "$orph" | grep -q '^/lost$' && printf '%s' "$orph" | grep -q '^/lp/summer$' \
    && ! printf '%s' "$orph" | grep -q '^/lp/spring$'; then
-  ok "internal links: a one-line ORPHAN_EXEMPT exempts its own entry only"
+  ok "internal links: an old-form spec warns on stderr, exit 0, its list is not read, the file still applies"
 else
-  fail "internal links, one-line set: exit $rc, out: $out"
+  fail "internal links, old-form spec: exit $rc, orphans: $orph, stderr: $ilerr"
 fi
 
-# The exempt list read exactly: entries with an apostrophe inside double quotes, a comment holding
-# "])", and a literal after the closing "])" on the same line. Only the listed pages are exempt.
-mkdir -p "$S/dist/lp" "$S/dist/x"
-printf '<p>x</p>\n' >"$S/dist/lp/mother's-day.html"
-printf '<p>x</p>\n' >"$S/dist/lp/mother.html"
-printf "const ORPHAN_EXEMPT = new Set<string>([\n  \"/lp/mother's-day\",  // not this one ]) either\n  '/lp/summer', '/lp/spring']); const ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
-orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
-if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && printf '%s' "$orph" | grep -q '^/lp/mother$' \
-   && ! printf '%s' "$orph" | grep -q "^/lp/mother's-day$" && ! printf '%s' "$orph" | grep -qE '^/lp/(spring|summer)$'; then
-  ok "internal links: the exempt list stops at its own closing \"])\", keeps an apostrophe, ignores a comment's \"])\""
+# No spec and no file: no exemptions, exit 0, no warning. No spec and a file: the entries apply.
+rm -f "$spec_new" "$S/orphan-exempt.txt"
+il
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(3)' && ! warned; then
+  ok "internal links: no spec and no file: no exemptions, exit 0, no warning"
 else
-  fail "internal links, exact exempt list: exit $rc, orphans: $orph"
+  fail "internal links, no spec and no file: exit $rc, out: $out, stderr: $ilerr"
+fi
+printf '/lp/spring\n/lp/summer\n' >"$S/orphan-exempt.txt"
+il
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q 'ORPHANS.*(1)' && printf '%s' "$orph" | grep -q '^/lost$' && ! warned; then
+  ok "internal links: no spec, a file with entries: the entries apply"
+else
+  fail "internal links, no spec and a file: exit $rc, out: $out, stderr: $ilerr"
 fi
 
-# A /* */ comment inside the list could hide an entry or fake one: the run stops with a message.
-printf "const ORPHAN_EXEMPT = new Set<string>([\n  /* '/lost' was removed ]) */\n  '/lp/spring',\n]);\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
-if [ "$rc" -eq 1 ] && printf '%s' "$out" | grep -q 'a /\* \*/ comment inside ORPHAN_EXEMPT'; then
-  ok "internal links: a block comment in ORPHAN_EXEMPT stops the run with a message"
+# The script found without scripts/orphan-exempt.mjs (a site that took only the script): stops with
+# a message that names the three files, not node's MODULE_NOT_FOUND.
+cp "$spec_save" "$spec_new"; mv "$S/scripts/orphan-exempt.mjs" "$T/orphan-exempt.mjs.held"
+il
+if [ "$rc" -eq 1 ] && printf '%s' "$ilerr" | grep -qF 'scripts/orphan-exempt.mjs is missing' && ! printf '%s' "$ilerr$out" | grep -q 'MODULE_NOT_FOUND'; then
+  ok "internal links: without scripts/orphan-exempt.mjs it stops and names the file"
 else
-  fail "internal links, block comment in the exempt list: exit $rc, out: $out"
+  fail "internal links, module missing: exit $rc, out: $out, stderr: $ilerr"
+fi
+mv "$T/orphan-exempt.mjs.held" "$S/scripts/orphan-exempt.mjs"
+
+# No node on PATH (an existing dist/ never builds, so nothing else would notice): stops and says so.
+# The script runs by its absolute bash, with a PATH holding git and nothing else.
+mkdir "$T/gitonly" && ln -s "$(command -v git)" "$T/gitonly/git"
+out="$(cd "$S" && PATH="$T/gitonly" /bin/bash "$IL" 2>"$T/il.err" </dev/null)"; rc=$?; ilerr="$(cat "$T/il.err")"
+if [ "$rc" -eq 1 ] && printf '%s' "$ilerr" | grep -qF 'node is not on PATH' && ! printf '%s' "$out" | grep -q '^## ORPHANS'; then
+  ok "internal links: no node on PATH stops with a message, before any report"
+else
+  fail "internal links, no node: exit $rc, out: $out, stderr: $ilerr"
 fi
 
 # An exempt page that other pages do link to is a healthy page: it counts as OK.
+printf '/lp/spring\n' >"$S/orphan-exempt.txt"
 printf '<a href="/lp/spring">s</a>\n' >"$S/dist/about.html"; printf '<a href="/lp/spring">s</a><a href="/about">a</a>\n' >"$S/dist/team.html"
-printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/spring']);\n" >"$S/tests/orphans.spec.ts"
-out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
+il
 if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '^## OK: 2 page(s)'; then
   ok "internal links: an exempt page with two inbound links counts as OK"
 else

@@ -126,7 +126,7 @@ where it's *topically* earned, so the link helps a real reader:
 
 > Judgment, not just counts: a deliberately-unlinked page (a paid-campaign landing
 > page reached only from an ad, a print-QR page) is *correctly* orphaned — it should
-> go in `ORPHAN_EXEMPT` in `tests/orphans.spec.ts` with a reason, not get a forced
+> go in `orphan-exempt.txt` with a reason, not get a forced
 > link. Use the model to tell a real orphan from an intentional one.
 
 ### 3. Report
@@ -142,8 +142,8 @@ For each finding, after the user confirms:
 1. Add the link in the source page (`src/pages/*.astro`, a content-collection entry,
    or a nav/footer group in `src/config.ts`). Use keyword-bearing anchor text and the
    clean URL (no `.html`, no trailing slash).
-2. For a deliberately-unlinked page, add it to `ORPHAN_EXEMPT` in
-   `tests/orphans.spec.ts` with the reason instead.
+2. For a deliberately-unlinked page, add its address to `orphan-exempt.txt`, on its own
+   line, with the reason after a `#` instead.
 3. Re-run `npm run build && npm test` to confirm green (`orphans.spec.ts` must pass),
    then commit.
 

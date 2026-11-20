@@ -473,7 +473,7 @@ and once `<site>` exists, tell the owner its full path (the output of `pwd` insi
    `git checkout` is refused. Nothing is installed yet:
    `templates/astro/README.md` step 3 runs `npm install` after the overlay.) Then copy
    the `templates/astro/` overlay (`src/`, `tests/`, `public/`, `wrangler.jsonc`,
-   `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, `CROFTWEAVER-LICENSE.md` (the licence of
+   `scripts/`, `.github/`, `.nvmrc`, `.gitattributes`, `orphan-exempt.txt`, `CROFTWEAVER-LICENSE.md` (the licence of
    these copied files; it stays in the site's top folder), root configs — see `templates/astro/README.md`
    for exact steps and npm deps). **Do not copy the starter's `README.md`:** it is the kit's
    assembly manual, and the site's own `README.md` holds the owner's answers, the
@@ -756,7 +756,7 @@ hold Search Console Request Indexing until then.
       `tests/links.spec.ts` `STALE_DOMAINS`.
 - [ ] **No orphaned pages** — `tests/orphans.spec.ts` green (every page reachable from
       home). For a multi-page site, run `internal-link-audit` and resolve orphans + thin
-      pages; deliberately-unlinked pages listed in `ORPHAN_EXEMPT` with a reason.
+      pages; deliberately-unlinked pages listed in `orphan-exempt.txt` with a reason.
 - [ ] `sitemap-0.xml` present; `robots.txt` (naming it) + `llms.txt` accurate. (llms.txt
       *coverage* — every `PAGES` route listed, no stale entry for a removed or
       renamed page — is enforced both ways by `tests/llms-coverage.spec.ts`;

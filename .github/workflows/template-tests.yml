@@ -218,6 +218,25 @@ jobs:
           node scripts/make-icons.mjs --setup
       - name: Run template test suite
         run: npm test
+      # The shipped orphan-exempt.txt lists nothing, so a green run alone cannot show that
+      # tests/orphans.spec.ts uses it. Add a page nothing links to: with its entry in the file
+      # the spec must pass; without the entry it must fail, naming the page and the file.
+      # The files are put back afterwards.
+      - name: The orphan spec uses orphan-exempt.txt
+        run: |
+          cp src/pages/privacy.astro src/pages/ci-unlinked.astro
+          perl -pi -e "s|^  '/privacy',|  '/privacy',\n  '/ci-unlinked',|" tests/_helpers.ts
+          if ! grep -q "^  '/ci-unlinked'," tests/_helpers.ts; then echo "::error::the edit of tests/_helpers.ts did not apply"; exit 1; fi
+          printf '\n/ci-unlinked  # CI fixture\n' >> orphan-exempt.txt
+          CI= npx playwright test tests/orphans.spec.ts --reporter=line || { echo "::error::the entry in orphan-exempt.txt did not exempt the page"; exit 1; }
+          git checkout -- orphan-exempt.txt
+          if out="$(CI= npx playwright test tests/orphans.spec.ts --reporter=line 2>&1)"; then
+            printf '%s\n' "$out" | tail -n 6; echo "::error::the spec stayed green with an unlinked page and no entry"; exit 1
+          fi
+          printf '%s\n' "$out" | grep -Fq '/ci-unlinked' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the failure does not name /ci-unlinked"; exit 1; }
+          printf '%s\n' "$out" | grep -Fq 'orphan-exempt.txt' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the failure does not name orphan-exempt.txt"; exit 1; }
+          git checkout -- tests/_helpers.ts
+          rm src/pages/ci-unlinked.astro
       # The legal-page guard in tests/placeholders.spec.ts is green on the shipped starter,
       # so a run alone cannot show that it still fires. Take the notice off /privacy while the
       # page stays listed and no answer is recorded: its test must go red, and so must a

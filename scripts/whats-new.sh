@@ -84,7 +84,7 @@ write_stamp() {  # $1 = skills dir, $2 = optional `pinned:` lines to keep (see p
 # exactly one of TEMPLATE_TRACKED, SITE_OWNED, or the guard's SITE_SOURCE bucket —
 # scripts/check_template_coverage.sh enforces that so a new template file can no longer
 # go silently untracked (the bug PR #87 fixed for playwright.config.ts one file at a time).
-TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/SETUP.md skills/new-website/templates/CLAUDE.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/.github/dependabot.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/deploy.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md skills/new-website/templates/astro/scripts/make-icons.mjs'
+TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/templates/content-guide.md skills/new-website/templates/AGENTS.md skills/new-website/templates/PUBLISHING.md skills/new-website/templates/SETUP.md skills/new-website/templates/CLAUDE.md skills/new-website/templates/astro/playwright.config.ts skills/new-website/templates/astro/.github/workflows/ci.yml skills/new-website/templates/astro/.github/dependabot.yml skills/new-website/templates/astro/scripts/anchor-ids.mjs skills/new-website/templates/astro/scripts/check_external_links.sh skills/new-website/templates/astro/scripts/check_internal_links.sh skills/new-website/templates/astro/scripts/run_og.mjs skills/new-website/templates/astro/tsconfig.json skills/new-website/templates/astro/public/_headers skills/new-website/templates/astro/scripts/ship.sh skills/new-website/templates/astro/scripts/deploy.sh skills/new-website/templates/astro/scripts/build-marker.mjs skills/new-website/templates/astro/scripts/set_pdf_title.py skills/new-website/templates/astro/scripts/hooks/pre-push skills/new-website/templates/astro/scripts/wire-hooks.mjs skills/new-website/templates/astro/scripts/verify.mjs skills/new-website/templates/astro/.nvmrc skills/new-website/templates/astro/.gitattributes skills/new-website/templates/claude/settings.json skills/new-website/templates/claude/hooks/git-stand.mjs skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md skills/new-website/templates/astro/scripts/make-icons.mjs skills/new-website/templates/astro/scripts/orphan-exempt.mjs'
 # The root templates beside templates/astro/ and the files under templates/claude/ are
 # scanned by the guard too. AGENTS.md, CLAUDE.md, PUBLISHING.md and SETUP.md are tracked
 # because a site's assistants follow them or its skills point into them: PUBLISHING.md's
@@ -105,11 +105,12 @@ TEMPLATE_TRACKED='skills/new-website/templates/astro/tests skills/new-website/te
 #    every site, every time, which is the same noise problem as the dep-bump case above.
 #  - per-site DOCS and settings: templates/brand.md and templates/positioning.md are blanks the
 #    site fills in as BRAND.md and POSITIONING.md, and templates/.gitignore is the site's first
-#    commit, which it adds to as it goes (the owner's decision, 2026-10-18).
+#    commit, which it adds to as it goes (the owner's decision, 2026-10-18); orphan-exempt.txt is
+#    the site's own list of pages it leaves unlinked on purpose, and a site with none needs no file.
 # This list changes no runtime reporting behavior on its own (nothing above reads it) — it
 # exists purely so scripts/check_template_coverage.sh has a machine-readable record of the
 # decision instead of a silent gap it would otherwise flag as unaccounted-for.
-SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json skills/new-website/templates/astro/wrangler.jsonc skills/new-website/templates/astro/scripts/generate_og_cards.py skills/new-website/templates/.gitignore skills/new-website/templates/brand.md skills/new-website/templates/positioning.md'
+SITE_OWNED='skills/new-website/templates/astro/astro.config.mjs skills/new-website/templates/astro/package.json skills/new-website/templates/astro/wrangler.jsonc skills/new-website/templates/astro/scripts/generate_og_cards.py skills/new-website/templates/.gitignore skills/new-website/templates/brand.md skills/new-website/templates/positioning.md skills/new-website/templates/astro/orphan-exempt.txt'
 
 # Must agree with the "(site copy: ...)" arms in process_tests_stamp: test_whats_new.sh checks
 # every TEMPLATE_TRACKED file against both. PUBLISHING.md has no fixed site path (an owner's
@@ -577,6 +578,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
     case "$f" in
       skills/new-website/templates/astro/tests/icons.spec.ts)
         echo "  tests/icons.spec.ts (site copy: tests/icons.spec.ts — copy it with scripts/make-icons.mjs, which it imports; that file's note says what the icons need before npm test)" ;;
+      skills/new-website/templates/astro/tests/orphans.spec.ts)
+        echo "  tests/orphans.spec.ts (site copy: tests/orphans.spec.ts — copy it together with scripts/orphan-exempt.mjs and scripts/check_internal_links.sh. If you added pages to ORPHAN_EXEMPT, write each on its own line in orphan-exempt.txt; if you added none, you need no file)" ;;
       skills/new-website/templates/astro/tests/middleware.spec.ts|skills/new-website/templates/astro/tests/analytics-server.spec.ts)
         echo "  ${f#skills/new-website/templates/astro/} (removed from the starter with Pages Functions and analytics server mode; keep your copy while the site keeps the functions/ file it imports, otherwise delete it)" ;;
       skills/new-website/templates/astro/tests/check_analytics_gate.sh|skills/new-website/templates/astro/tests/check_deploy.sh)
@@ -604,7 +607,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
       skills/new-website/templates/astro/scripts/check_external_links.sh)
         echo "  templates/astro/scripts/check_external_links.sh (site copy: scripts/check_external_links.sh)" ;;
       skills/new-website/templates/astro/scripts/check_internal_links.sh)
-        echo "  templates/astro/scripts/check_internal_links.sh (site copy: scripts/check_internal_links.sh)" ;;
+        echo "  templates/astro/scripts/check_internal_links.sh (site copy: scripts/check_internal_links.sh — copy it with scripts/orphan-exempt.mjs, which it runs)" ;;
       skills/new-website/templates/astro/scripts/run_og.mjs)
         echo "  templates/astro/scripts/run_og.mjs (site copy: scripts/run_og.mjs)" ;;
       skills/new-website/templates/astro/tsconfig.json)
@@ -613,6 +616,8 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
         echo "  templates/astro/public/_headers (site copy: public/_headers)" ;;
       skills/new-website/templates/astro/scripts/make-icons.mjs)
         echo "  templates/astro/scripts/make-icons.mjs (site copy: scripts/make-icons.mjs — copy it with tests/icons.spec.ts. A site with no icons, or only the Astro logo, runs \`node scripts/make-icons.mjs --setup\` before \`npm test\`; a site with the brand kit's icons needs nothing more; a site built by hand from references/tab-icon.md copies public/icon-512.png to public/images/logo.png)" ;;
+      skills/new-website/templates/astro/scripts/orphan-exempt.mjs)
+        echo "  templates/astro/scripts/orphan-exempt.mjs (site copy: scripts/orphan-exempt.mjs — copy it with tests/orphans.spec.ts)" ;;
       skills/new-website/templates/astro/scripts/ship.sh)
         echo "  templates/astro/scripts/ship.sh (site copy: scripts/ship.sh)" ;;
       skills/new-website/templates/astro/scripts/deploy.sh)

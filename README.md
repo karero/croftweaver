@@ -359,7 +359,7 @@ allowlist), then sequences the sibling skills through **positioning → content 
 > `AGENTS.md`, `PUBLISHING.md`, `SETUP.md`, `playwright.config.ts`,
 > `.github/workflows/ci.yml`,
 > `.github/dependabot.yml`, `scripts/anchor-ids.mjs`, `scripts/check_external_links.sh`,
-> `scripts/check_internal_links.sh`, `scripts/run_og.mjs`, `tsconfig.json`,
+> `scripts/check_internal_links.sh`, `scripts/orphan-exempt.mjs`, `scripts/run_og.mjs`, `tsconfig.json`,
 > `public/_headers`, `scripts/ship.sh`, `scripts/build-marker.mjs`,
 > `scripts/set_pdf_title.py`, `scripts/hooks/pre-push`, `scripts/wire-hooks.mjs`,
 > `scripts/verify.mjs`, `.nvmrc`, `.gitattributes`, `CROFTWEAVER-LICENSE.md`, `.claude/settings.json`, and

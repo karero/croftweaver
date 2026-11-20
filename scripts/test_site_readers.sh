@@ -119,7 +119,8 @@ done
 
 # Internal report: an absolute link to the site's own host counts as a link to that page.
 site intern "$CONF"
-mkdir "$S/dist" "$S/tests"
+mkdir "$S/dist" "$S/tests" "$S/scripts"
+cp "$SC/orphan-exempt.mjs" "$S/scripts/"   # the report reads orphan-exempt.txt through it
 printf '<a href="https://example.com/about">a</a>\n' >"$S/dist/index.html"
 printf '<p>x</p>\n' >"$S/dist/about.html"
 for loc in C ${utf8_loc:+"$utf8_loc"}; do

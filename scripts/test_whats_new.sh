@@ -346,6 +346,41 @@ for part in "runs \`node scripts/make-icons.mjs --setup\` before \`npm test\`" "
   else printf 'FAIL S11 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
 done
 
+# S12: the orphan list moved to orphan-exempt.txt. A site made before it gets the spec, the module and
+# the changed script listed, with the migration words, and never a MISSING line for orphan-exempt.txt
+# (a site with no unlinked pages needs no file). The words are written out here, never read from
+# whats-new.sh, so an arm that is deleted or moved behind the tests/* arm leaves nothing to match.
+S7="$T/suite7" P7="$T/site7"
+mkdir -p "$S7/scripts" "$S7/$A/scripts" "$S7/$A/tests" "$P7/.claude/skills" "$P7/tests"
+cp "$HERE/whats-new.sh" "$S7/scripts/"
+$git -C "$S7" init -q && $git -C "$S7" commit -qm base --allow-empty
+BASE7="$($git -C "$S7" rev-parse HEAD)"
+cp "$HERE/../$A/scripts/orphan-exempt.mjs" "$HERE/../$A/scripts/check_internal_links.sh" "$S7/$A/scripts/"
+cp "$HERE/../$A/tests/orphans.spec.ts" "$S7/$A/tests/"
+$git -C "$S7" add -A && $git -C "$S7" commit -qm later
+stamp "$P7/.claude/skills/SUITE-VERSION" "$BASE7"
+stamp "$P7/tests/TESTS-VERSION" "$BASE7"
+report "$S7" "$P7" "S12 a site without the orphan files"
+has   "S12 the module is MISSING"                             "    MISSING: the site has no scripts/orphan-exempt.mjs"
+has   "S12 the spec is MISSING"                               "    MISSING: the site has no tests/orphans.spec.ts"
+has   "S12 the spec's import of the module is named"          "$(nf scripts/orphan-exempt.mjs)"
+if grep -F "MISSING: the site has no orphan-exempt.txt" "$T/out" | grep -q .; then printf 'FAIL S12 orphan-exempt.txt is listed as MISSING\n'; fails=$((fails+1)); else printf 'ok   S12 orphan-exempt.txt is not listed as MISSING\n'; fi
+orphan_note() {  # orphan_note <label> <the file's report line start> <words...>: each phrase is on that file's report line
+  local label="$1" start="$2" part; shift 2
+  for part in "$@"; do
+    if grep -F -- "$start" "$T/out" | grep -qF -- "$part"; then printf 'ok   S12 %s says: %s\n' "$label" "$part"
+    else printf 'FAIL S12 %s lacks: %s\n' "$label" "$part"; fails=$((fails+1)); fi
+  done
+}
+orphan_note "the spec's line" "  tests/orphans.spec.ts (site copy" \
+  "copy it together with scripts/orphan-exempt.mjs and scripts/check_internal_links.sh" \
+  "write each on its own line in orphan-exempt.txt" \
+  "you need no file"
+orphan_note "the script's line" "  templates/astro/scripts/check_internal_links.sh (site copy" \
+  "copy it with scripts/orphan-exempt.mjs, which it runs"
+orphan_note "the module's line" "  templates/astro/scripts/orphan-exempt.mjs (site copy" \
+  "copy it with tests/orphans.spec.ts"
+
 # L1-L13: --stamp-tests keeps the site's record of files it did not take. It used to write two
 # lines only, so a site's `left_out:` and `kept:` lines vanished, and a changed file the site
 # lacks dropped out of every later report with no record. The report runs as an owner runs it,

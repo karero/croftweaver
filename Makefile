@@ -51,6 +51,7 @@ check-run:  ## internal, use `make check`: run every suite guard: no personal da
 	@bash scripts/test_config_lines.sh
 	@bash scripts/test_link_reports.sh
 	@bash scripts/test_site_readers.sh
+	@bash scripts/test_orphan_exempt.sh
 	@bash scripts/test_clean_denylist.sh
 	@bash scripts/test_git_stand_hook.sh
 	@bash scripts/test_whats_new.sh
