@@ -45,7 +45,7 @@ cosmetics; red → green → commit.
   **reachable from the home page** by following internal links. A page can be in the
   sitemap and pass every other spec yet be linked from nowhere (orphaned — crawlers
   find it late, humans never do). Crawls the in-site link graph from `/` and fails
-  listing any unreachable page. Deliberately-unlinked pages opt out via `ORPHAN_EXEMPT`.
+  listing any unreachable page. Deliberately-unlinked pages opt out in `orphan-exempt.txt`.
   Offline. The judgment-side report (inbound count, thin pages, where to add links) is
   the `internal-link-audit` skill.
 - `llms-coverage.spec.ts` — `public/llms.txt` matches `PAGES`: a page missing from the file and

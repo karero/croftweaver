@@ -3,8 +3,8 @@
 # which pages are ORPHANED (no internal link points at them — invisible to crawlers and
 # browsing humans) or THIN (a single inbound link, usually just the nav/footer, no
 # contextual in-body link). It never fails on link FINDINGS (orphan/thin pages → exit 0);
-# only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp or a /* */
-# comment inside ORPHAN_EXEMPT exits non-zero.
+# only a broken auto-build (it can't audit a missing/partial dist/), a failed mktemp, a missing
+# scripts/orphan-exempt.mjs or node, or a bad line in orphan-exempt.txt exits non-zero.
 # It's the judgment-side sweep, the script form of the `internal-link-audit` skill.
 #
 # The HARD gate is tests/orphans.spec.ts (offline, in CI): it fails if any page is
@@ -14,6 +14,17 @@
 # Usage: bash scripts/check_internal_links.sh   (builds if dist/ is missing)
 # Portable to macOS bash 3.2 (no mapfile / no set -u).
 cd "$(git rev-parse --show-toplevel)" || exit 0
+
+# orphan-exempt.txt is read by node, through the module the spec uses too. Check both first, before
+# any build: an existing dist/ is never rebuilt, so nothing else would show that node is missing.
+if [ ! -f scripts/orphan-exempt.mjs ]; then
+  echo "✗ scripts/orphan-exempt.mjs is missing. Take scripts/check_internal_links.sh, scripts/orphan-exempt.mjs and tests/orphans.spec.ts together." >&2
+  exit 1
+fi
+if ! command -v node >/dev/null; then
+  echo "✗ node is not on PATH. check_internal_links.sh now needs node to read orphan-exempt.txt." >&2
+  exit 1
+fi
 
 # Audit the SHIPPED build. If dist/ is missing, build it and fail LOUDLY on a broken
 # build — never print an authoritative graph from a missing/partial dist/. If dist/
@@ -94,16 +105,16 @@ INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
                       END { for (t in cnt) print cnt[t] "\t" t }' "$LINKS")
 
 # Pages never reported as orphans: the 404 page (reached by a wrong address, not a link) and the
-# ones tests/orphans.spec.ts lists in ORPHAN_EXEMPT, the gate's own list of unlinked-on-purpose pages.
-EXEMPT="/404"
-if [ -f tests/orphans.spec.ts ]; then
-  EXEMPT_SPAN=$(awk '/ORPHAN_EXEMPT = new Set/ { on = 1 } on { sub(/\/\/.*/, ""); k = index($0, "])"); if (k) { print substr($0, 1, k); exit } print }' tests/orphans.spec.ts)
-  # A /* */ comment could hide or fake an entry: refuse it rather than guess (use // comments).
-  case "$EXEMPT_SPAN" in
-    *'/*'*) echo "✗ tests/orphans.spec.ts: a /* */ comment inside ORPHAN_EXEMPT cannot be read safely — use // comments." >&2; exit 1 ;;
-  esac
-  EXEMPT="$EXEMPT
-$(printf '%s\n' "$EXEMPT_SPAN" | grep -oE "'/[^']*'|\"/[^\"]*\"" | sed 's/^.//; s/.$//')"
+# ones orphan-exempt.txt lists, the site's own list of pages left unlinked on purpose. A bad file
+# stops the run; the module's message names the file and line.
+if ! listed="$(node scripts/orphan-exempt.mjs "$PWD")"; then
+  exit 1
+fi
+EXEMPT="/404
+$listed"
+# A spec still in the old form keeps its own list, which nothing reads now: say so, go on.
+if [ -f tests/orphans.spec.ts ] && grep -q ORPHAN_EXEMPT tests/orphans.spec.ts; then
+  echo "⚠ tests/orphans.spec.ts still holds ORPHAN_EXEMPT: the list now lives in orphan-exempt.txt, and entries still in the spec are not read." >&2
 fi
 
 # Orphans = pages that received zero inbound edges (and aren't the home root).

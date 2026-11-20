@@ -41,6 +41,7 @@ SCRIPTS=(
   scripts/test_config_lines.sh
   scripts/test_link_reports.sh
   scripts/test_site_readers.sh
+  scripts/test_orphan_exempt.sh
   scripts/check_cdpath_safe.sh
   scripts/test_clean_denylist.sh
   scripts/test_git_stand_hook.sh
@@ -214,8 +215,9 @@ done
 if command -v git >/dev/null 2>&1; then
   LS="$ROOT/skills/new-website/templates/astro/scripts/check_internal_links.sh"
   S="$T/links-site"
-  mkdir -p "$S/dist" "$T/links-tmp" \
+  mkdir -p "$S/dist" "$S/scripts" "$T/links-tmp" \
     && git init -q "$S" \
+    && cp "$ROOT/skills/new-website/templates/astro/scripts/orphan-exempt.mjs" "$S/scripts/" \
     && printf '<a href="/about">About</a>\n' >"$S/dist/index.html" \
     && printf '<a href="/">Home</a>\n' >"$S/dist/about.html" \
     || { echo "FAIL — could not build the internal-links fixture."; exit 1; }

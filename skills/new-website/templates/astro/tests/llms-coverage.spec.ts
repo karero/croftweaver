@@ -16,7 +16,7 @@ import { SITE } from '../src/config';
 // website-review Pass-2 / website-seo-geo judgment item.
 
 // Pages you DELIBERATELY keep out of the public AI index (a paid-ad landing page,
-// a print-QR page — typically the same routes as orphans.spec's ORPHAN_EXEMPT).
+// a print-QR page — typically the same routes as orphan-exempt.txt lists).
 // llms.txt is served publicly, so listing a hidden page would hand it to AI
 // answer engines and defeat the unlinking. Opt OUT explicitly with a reason
 // rather than loosen the test (Rule 12).

@@ -9,6 +9,7 @@ drives assembly; this README is the manual reference.
 
 ```
 package.json  tsconfig.json  astro.config.mjs  playwright.config.ts
+orphan-exempt.txt             # the pages left unlinked on purpose, one address per line with its reason after a # (none to start with)
 package-lock.json             # the exact dependency versions; commit it, CI uses `npm ci`
 .nvmrc                        # Node 26 — the starter needs >=22.23.5 (Cloudflare's build reads it)
 .gitattributes                # LF line endings for *.sh and scripts/hooks/*, so the pre-push hook runs on Windows
@@ -43,6 +44,7 @@ scripts/ship.sh                  # `npm run ship`: two-stage sites only, promote
 scripts/hooks/pre-push           # blocks a push when the site's checks fail
 scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, which fails without it: wires the pre-push hook
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
+scripts/orphan-exempt.mjs        # reads orphan-exempt.txt for tests/orphans.spec.ts and scripts/check_internal_links.sh
 scripts/make-icons.mjs           # setup runs it once (`--setup`): draws the site's first letter into the seven icon files, recorded in scripts/icons-made.json
 tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,icons,phone-images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,tables,served-build,workers-config}.spec.ts
 tests/fixtures/               # captures of real tool output that a check reads (workers-builds-2026-11-08.txt, axe-core-4.14.0-playwright-4.14.0-incomplete.json)
@@ -139,7 +141,7 @@ Sibling files in the parent `templates/`: `.gitignore`, `SETUP.md`,
 > from home, and WHERE to add the missing contextual links per the `site-architecture`
 > internal-linking strategy — is `scripts/check_internal_links.sh` + the
 > `internal-link-audit` skill. Deliberately-unlinked pages (a paid-ad landing page) go
-> in `ORPHAN_EXEMPT` with a reason rather than loosening the test.
+> in `orphan-exempt.txt` with a reason rather than loosening the test.
 
 > `llms-coverage.spec.ts` keeps `public/llms.txt` (the curated GEO page map) in sync
 > both ways: every route in `PAGES` must appear in it as a markdown link to its full

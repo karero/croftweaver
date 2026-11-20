@@ -1,0 +1,7 @@
+# Pages this site leaves unlinked on purpose, such as a landing page reached only from an ad.
+# One address per line, starting with /. Add the reason after a #.
+# The checks (tests/orphans.spec.ts and scripts/check_internal_links.sh) do not report these pages as orphans.
+# Not allowed: the home page /, a trailing /, a ? or # inside an address, spaces inside an address.
+#
+# Example (remove the # to use it):
+# /lp/spring-promo  # reached only from the paid ad
