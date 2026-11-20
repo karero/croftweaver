@@ -171,7 +171,8 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/check_page_links.py" dist /<page-path> \
 
 Exit 0: met. Exit 1: each miss is listed, with the pages that link here: fix the links, or put the
 miss in the PR with the owner's reason to accept it. Exit 2: it cannot judge (no `dist/`, no file
-for the page or hub, neither flag, or `--hub` for a page with no `<main>`); say so in the PR.
+for the page or hub, neither flag, `--hub` for a page with no `<main>`, a page with a
+`<base href>`, two files for one address, or a folder it cannot read); say so in the PR.
 It cannot see CSS, so whether a counted link is visible and reads naturally is yours to judge,
 and to write in the PR. Also judge, never counted: sibling pages link each other where it helps
 a reader; anchor text names the target's topic; high-traffic pages (home, FAQ) link to it where

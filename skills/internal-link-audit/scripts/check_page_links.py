@@ -10,9 +10,10 @@
   python3 check_page_links.py dist /new-page --site https://example.com (--hub /hub | --no-hub)
 
 Exit 0: all met. Exit 1: each miss is listed, with the pages that link here. Exit 2: the check
-cannot judge (no dist/, no file for the page or the hub, neither --hub nor --no-hub, or --hub given
-and the page has no <main>). An <a> with a `hidden` attribute, or inside an element that has one
-or inside a <template>, is not counted; CSS is not read, and a <base href> is not applied. Standard library only; Python 3.9 or newer.
+cannot judge (no dist/, no file for the page or the hub, neither --hub nor --no-hub, --hub given
+and the page has no <main>, a folder it cannot read, two files that serve one address, or a page
+with a <base href>, which it does not apply). An <a> with a `hidden` attribute, or inside an element that has one
+or inside a <template>, is not counted; CSS is not read. Standard library only; Python 3.9 or newer.
 """
 import argparse
 import os
@@ -43,6 +44,10 @@ def fold_path(path, decode=False):
     return path.rstrip("/") or "/"
 
 
+class Cannot(Exception):
+    """The site is in a shape the check cannot judge: main() reports it as exit 2."""
+
+
 class Links(HTMLParser):
     """Every <a href> of one page, each with whether it sits in the body (inside <main>, outside
     header, nav, footer and aside) and whether it sits inside <main> at all. Hidden ones are left out."""
@@ -51,6 +56,7 @@ class Links(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.stack = []             # (tag, hidden, in-main marker, not-body marker) of open tags
         self.has_main = False
+        self.has_base = False
         self.links = []             # (href, in_main, body)
 
     def _state(self):
@@ -61,6 +67,8 @@ class Links(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
+        if tag == "base" and a.get("href") is not None:
+            self.has_base = True
         if tag == "a" and a.get("href") is not None and "hidden" not in a:
             hidden, in_main, body = self._state()
             if not hidden:
@@ -91,10 +99,14 @@ def served_address(rel):
     return p, p
 
 
+def _raise(e):
+    raise e                             # os.walk skips an unreadable folder unless told otherwise
+
+
 def read_site(dist, site_host):
     """{page key: (has_main, [(target key, in_main, body)])} for every dist/**/*.html."""
     pages = {}
-    for root, _, files in os.walk(dist):
+    for root, _, files in os.walk(dist, onerror=_raise):
         for name in sorted(files):
             if not name.endswith(".html"):
                 continue
@@ -104,6 +116,10 @@ def read_site(dist, site_host):
                 parser = Links()
                 parser.feed(f.read())
                 parser.close()
+            if parser.has_base:
+                raise Cannot("%s sets <base href>, which this check does not apply" % key)
+            if fold_path(key) in pages:
+                raise Cannot("two files serve %s" % fold_path(key))
             base = "https://" + site_host + address
             edges = []
             for href, in_main, body in parser.links:
@@ -160,7 +176,10 @@ def main(argv=None):
         return cannot("say --hub /path, or --no-hub if the page has no hub")
     page = fold_path(args.page)
     hub = fold_path(args.hub) if args.hub else None
-    pages = read_site(args.dist, site_host)
+    try:
+        pages = read_site(args.dist, site_host)
+    except Cannot as e:
+        return cannot(str(e))
     if "/" not in pages:
         return cannot("no built file for the home page in %s (index.html)" % args.dist)
     if page not in pages:

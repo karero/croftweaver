@@ -253,6 +253,41 @@ class OnAHandWrittenDist(unittest.TestCase):
         code, out, _ = run(dist, "/café", *HOST, "--no-hub")
         self.assertEqual(code, 0, out)
 
+    def test_page_with_a_base_href_cannot_be_judged(self):
+        dist = self.make({
+            "index.html": '<head><base href="/docs/"></head><main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><a href="/p">P</a></main>',
+            "p.html": "<main>P</main>",
+        })
+        code, out, err = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 2, out)
+        self.assertIn("/ sets <base href>", err)
+
+    def test_two_files_that_serve_one_address_cannot_be_judged(self):
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><a href="/p">P</a></main>',
+            "p.html": "<main>P</main>",
+            "p/index.html": "<main>P again</main>",
+        })
+        code, out, err = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 2, out)
+        self.assertIn("two files serve /p", err)
+
+    @unittest.skipIf(os.name == "nt" or os.geteuid() == 0, "needs a folder this user cannot read")
+    def test_folder_that_cannot_be_read_cannot_be_judged(self):
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><a href="/p">P</a></main>',
+            "p.html": "<main>P</main>",
+            "secret/x.html": "<main>X</main>",
+        })
+        os.chmod(os.path.join(dist, "secret"), 0)
+        self.addCleanup(os.chmod, os.path.join(dist, "secret"), 0o700)
+        code, out, err = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 2, out)
+        self.assertIn("cannot judge", err)
+
     def test_malformed_link_is_named_on_stderr_and_not_counted(self):
         dist = self.make({
             "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
