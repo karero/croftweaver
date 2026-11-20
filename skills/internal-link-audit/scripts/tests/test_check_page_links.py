@@ -243,6 +243,16 @@ class OnAHandWrittenDist(unittest.TestCase):
         code, out, _ = run(dist, "/café", *HOST, "--no-hub")
         self.assertEqual(code, 0, out)
 
+    def test_file_name_with_a_combining_mark_matches_the_composed_link(self):
+        decomposed = "cafe" + chr(0x301)      # e + combining acute: another spelling of the same name
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/caf%C3%A9">Caf</a></main>',
+            "a.html": '<main><a href="/caf%C3%A9">Caf</a></main>',
+            decomposed + ".html": "<main>Caf</main>",
+        })
+        code, out, _ = run(dist, "/café", *HOST, "--no-hub")
+        self.assertEqual(code, 0, out)
+
     def test_malformed_link_is_named_on_stderr_and_not_counted(self):
         dist = self.make({
             "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
