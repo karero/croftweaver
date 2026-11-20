@@ -377,7 +377,7 @@ masked "masked: a file named like an ignored path plus a colon and a name: still
 rm "$R/docs/scratch" "$R/docs/scratch:zorblequux.md"
 # BUGLOG 2026-11-18: in a git checkout the scans read the files git lists, not a walk that drops
 # ignored hits afterwards (node_modules made make check take minutes). So an ignored folder is
-# never opened: a file in one that this user cannot read is no scan error, where a grep -r walk
+# never read: a file in one that this user cannot read is no scan error, where a grep -r walk
 # reported it. A folder that is NOT ignored and unreadable still is (the masked case below). An
 # untracked folder with a listed name in it is read, and fails.
 mkdir "$R/docs/ignored-locked" && printf 'x\n' >"$R/docs/ignored-locked/a.md" && printf 'docs/ignored-locked/\n' >>"$R/.gitignore"
@@ -394,6 +394,14 @@ rm -r "$R/docs/new"
 printf 'tracked\n' >"$R/docs/gone.md"; $git -C "$R" add docs/gone.md; rm "$R/docs/gone.md"
 expect "a tracked file deleted from the work tree is no scan error: passes" 0 "OK — no private names in:" "$R"
 $git -C "$R" rm -q --cached docs/gone.md
+# A nested repository is one entry in git's list, and grep reads no folder: that is an error, not
+# a silent skip. A copy where git lists nothing on disk (all of it ignored) fails the same way.
+$git init -q "$R/docs/nested"; printf 'x\n' >"$R/docs/nested/a.md"
+expect "a nested repository git lists as a folder: fails, not skipped" 1 "git lists a folder" "$R"
+rm -rf "$R/docs/nested"
+cp -R "$R" "$T/allign"; rm -rf "$T/allign/.git"; $git init -q "$T/allign"; printf '*\n' >"$T/allign/.gitignore"
+expect "every target ignored, so git lists no file: fails, not passes" 1 "git lists no file on disk" "$T/allign"
+rm -rf "$T/allign"
 # grep's own errors name files, and are withheld like hits.
 mkdir "$R/docs/zorblequux-locked"; printf 'x\n' >"$R/docs/zorblequux-locked/a.md"; chmod 000 "$R/docs/zorblequux-locked"
 if [ -r "$R/docs/zorblequux-locked" ]; then

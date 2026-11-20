@@ -225,12 +225,18 @@ gscan() { # <names|docs> <grep flags and pattern…> → as g
     sed 's/^/    /' "$err"
   fi
   while IFS= read -r -d '' f; do
+    if [ -d "$f" ]; then
+      # git lists a nested repository or a link to a folder as one entry; grep reads no folder
+      echo "✗ scan error (git lists a folder, a nested repository or a link, so its files are not scanned):"
+      printf '    %s\n' "$f"
+      continue
+    fi
     # a tracked file deleted from the work tree is not on disk, where grep -r would not see it
     [ -e "$f" ] && files+=("$f")
   done <"$lst"
   rm -f "$lst" "$err"
   if [ "${#files[@]}" -eq 0 ]; then
-    echo "✗ scan error (git lists no file under: $targets) — this check did NOT run"
+    echo "✗ scan error (git lists no file on disk under: $targets) — this check did NOT run"
     return 0
   fi
   g -H "$@" -- "${files[@]}"

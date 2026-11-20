@@ -184,7 +184,7 @@ case "$(basename -- "${parent:-none}")" in
       *"Error 143"*|*"wait: No child processes"*)
         if [ "$m_rc" -ne 0 ]; then ok "T6 make check fails (not a pass) when its guards are killed by TERM"
         else fail "T6 make check exited 0 when its guards were killed: $m_out"; fi ;;
-      *) fail "T6 make check did not fail with Error 143 when its guards were killed (exit $m_rc): $m_out" ;;
+      *) fail "T6 make check did not fail with Error 143 or \"wait: No child processes\" when its guards were killed (exit $m_rc): $m_out" ;;
     esac ;;
   *) fail "T6 the stub's parent is '${parent:-nothing}', not make: make no longer runs this recipe line directly, so the kill hits the wrong process" ;;
 esac
