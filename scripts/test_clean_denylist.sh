@@ -377,15 +377,15 @@ masked "masked: a file named like an ignored path plus a colon and a name: still
 rm "$R/docs/scratch" "$R/docs/scratch:zorblequux.md"
 # BUGLOG 2026-11-18: in a git checkout the scans read the files git lists, not a walk that drops
 # ignored hits afterwards (node_modules made make check take minutes). So an ignored folder is
-# never read: a file in one that this user cannot read is no scan error, where a grep -r walk
-# reported it. A folder that is NOT ignored and unreadable still is (the masked case below). An
+# not grepped (the file-name check still lists such a folder, and opens no file): a file in one that
+# this user cannot read is no scan error, where a grep -r walk reported it. A folder that is NOT ignored and unreadable still is (the masked case below). An
 # untracked folder with a listed name in it is read, and fails.
 mkdir "$R/docs/ignored-locked" && printf 'x\n' >"$R/docs/ignored-locked/a.md" && printf 'docs/ignored-locked/\n' >>"$R/.gitignore"
 chmod 000 "$R/docs/ignored-locked/a.md"
 if [ -r "$R/docs/ignored-locked/a.md" ]; then
   echo "SKIP: ignored-folder case needs a file this user cannot read (running as root?)"
 else
-  expect "an unreadable file in a gitignored folder is never opened: passes" 0 "OK — no private names in:" "$R"
+  expect "an unreadable file in a gitignored folder is not grepped: passes" 0 "OK — no private names in:" "$R"
 fi
 chmod 644 "$R/docs/ignored-locked/a.md"; rm -r "$R/docs/ignored-locked"
 mkdir -p "$R/docs/new/deep" && printf 'ran zorblequux\n' >"$R/docs/new/deep/x.md"
