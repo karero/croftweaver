@@ -91,33 +91,38 @@ site() {
   mkdir "$S" && git init -q "$S" && printf '%s\n' "$2" >"$S/astro.config.mjs" || { echo "FAIL — could not build the $1 fixture."; exit 1; }
 }
 # A key that only ends in `site:` comes first; the real key is second. Expected by hand: the site is example.com.
-CONF="export default { website: 'https://decoy.example', site: 'https://example.com' };"
+# Another decoy sits before them: a key that follows a letter above ASCII, which the C locale must not take for `site:`.
+CONF="export default { üsite: 'https://decoy2.example', website: 'https://decoy.example', site: 'https://example.com' };"
 
-# External report: links to the site's own host are not fetched; the decoy's are.
+# External report: links to the site's own host are not fetched; the decoys' are.
 site extern "$CONF"
 mkdir "$S/dist"
-printf '<a href="https://example.com/own">o</a><a href="https://decoy.example/x">d</a>\n' >"$S/dist/index.html"
-: >"$T/curl.log"
-out="$(cd "$S" && CURL_LOG="$T/curl.log" PATH="$T/stub:$PATH" bash "$SC/check_external_links.sh" 2>&1 </dev/null)"; rc=$?
-urls="$(cat "$T/curl.log")"
-if [ "$rc" -eq 0 ] && [ "$urls" = "https://decoy.example/x" ]; then
-  ok "external links: the site's own host comes from site:, not from website:"
-else
-  fail "external links: exit $rc, curl was asked for [$urls] (wanted only https://decoy.example/x), out: $out"
-fi
+printf '<a href="https://example.com/own">o</a><a href="https://decoy.example/x">d</a><a href="https://decoy2.example/y">d</a>\n' >"$S/dist/index.html"
+for loc in C ${utf8_loc:+"$utf8_loc"}; do
+  : >"$T/curl.log"
+  out="$(cd "$S" && LC_ALL="$loc" CURL_LOG="$T/curl.log" PATH="$T/stub:$PATH" bash "$SC/check_external_links.sh" 2>&1 </dev/null)"; rc=$?
+  urls="$(sort "$T/curl.log")"
+  if [ "$rc" -eq 0 ] && [ "$urls" = "$(printf 'https://decoy.example/x\nhttps://decoy2.example/y')" ]; then
+    ok "external links, in the $loc locale: the site's own host comes from site:, not from website: or üsite:"
+  else
+    fail "external links, in the $loc locale: exit $rc, curl was asked for [$urls] (wanted the two decoys only), out: $out"
+  fi
+done
 
 # Internal report: an absolute link to the site's own host counts as a link to that page.
 site intern "$CONF"
 mkdir "$S/dist" "$S/tests"
 printf '<a href="https://example.com/about">a</a>\n' >"$S/dist/index.html"
 printf '<p>x</p>\n' >"$S/dist/about.html"
-out="$(cd "$S" && bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
-orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
-if [ "$rc" -eq 0 ] && ! printf '%s' "$orph" | grep -q '^/about$' && printf '%s' "$out" | grep -q 'ORPHANS.*(0)'; then
-  ok "internal links: an absolute link to the site's own host reaches the page, whatever website: says"
-else
-  fail "internal links: exit $rc, orphans: $orph"
-fi
+for loc in C ${utf8_loc:+"$utf8_loc"}; do
+  out="$(cd "$S" && LC_ALL="$loc" bash "$SC/check_internal_links.sh" 2>&1 </dev/null)"; rc=$?
+  orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
+  if [ "$rc" -eq 0 ] && ! printf '%s' "$orph" | grep -q '^/about$' && printf '%s' "$out" | grep -q 'ORPHANS.*(0)'; then
+    ok "internal links, in the $loc locale: an absolute link to the site's own host reaches the page, whatever the decoys say"
+  else
+    fail "internal links, in the $loc locale: exit $rc, orphans: $orph"
+  fi
+done
 
 # --- 4. ORPHAN_EXEMPT entries are read whole ----------------------------------------------------
 # /lp/a])b is a page whose name holds "])"; /lp/late is listed after an entry that holds "//", on the

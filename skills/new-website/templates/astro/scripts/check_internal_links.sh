@@ -99,6 +99,7 @@ EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
   # The list ends at the first "])" outside a quoted entry, so an entry may hold "])" or "//". A // comment
   # is dropped; a /* */ comment could hide or fake an entry, so awk stops with 3 on one (use // comments).
+  # A quote ends with its line, so a string or regex that runs on is not followed.
   EXEMPT_SPAN=$(LC_ALL=C awk '/ORPHAN_EXEMPT = new Set/ { on = 1 }
     on { out = ""; q = ""
       for (i = 1; i <= length($0); i++) {
