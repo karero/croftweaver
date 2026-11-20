@@ -7,7 +7,7 @@ no `<main>`). Two edits were made to the starter's `Base.astro`, which is not co
 `before-main` and an `after-main` slot around `<main id="main">`, and a footer link to
 `/footer-only` on every page that uses it (the two no-`<main>` pages use `Plain.astro`, which has no footer). The site is made up (`https://example.com`); every page holds
 placeholder text. The folder is not named `dist` because the repo's `.gitignore` skips that name. The build was trimmed, and nothing else was edited: each `<style>` block and
-each inline script without `type="application/ld+json"` was removed.
+each `<script>` that is not JSON-LD was removed.
 
 The cases, by path:
 

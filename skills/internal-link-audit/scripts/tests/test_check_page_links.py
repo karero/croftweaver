@@ -146,6 +146,20 @@ class CannotJudge(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("--no-hub", err)
 
+    def test_no_home_page_cannot_be_judged(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        with open(os.path.join(tmp.name, "p.html"), "w") as f:
+            f.write("<main>P</main>")
+        code, _, err = run(tmp.name, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 2)
+        self.assertIn("no built file for the home page", err)
+
+    def test_site_without_a_host_cannot_be_judged(self):
+        code, _, err = run(DIST, "/hub", "--site", "example", "--no-hub")
+        self.assertEqual(code, 2)
+        self.assertIn("has no host", err)
+
     def test_no_file_for_the_hub(self):
         code, _, err = check("/hub/spoke-ok", "--hub", "/not-built")
         self.assertEqual(code, 2)
@@ -220,6 +234,48 @@ class OnAHandWrittenDist(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("MISS: cannot be reached from the home page", out)
 
+    def test_percent_encoded_link_finds_a_file_with_a_non_ascii_name(self):
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/caf%C3%A9">Café</a></main>',
+            "a.html": '<main><a href="/caf%C3%A9">Café</a></main>',
+            "café.html": "<main>Café</main>",
+        })
+        code, out, _ = run(dist, "/café", *HOST, "--no-hub")
+        self.assertEqual(code, 0, out)
+
+    def test_malformed_link_is_named_on_stderr_and_not_counted(self):
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><a href="https://[">broken</a> <a href="/p">P</a></main>',
+            "p.html": "<main>P</main>",
+        })
+        code, out, err = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("warning: ignored the malformed link 'https://[' on /a", err)
+
+    def test_link_inside_a_template_is_not_counted(self):
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><template><a href="/p">P</a></template></main>',
+            "p.html": "<main>P</main>",
+        })
+        code, out, _ = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 1)
+        self.assertIn("MISS: only 1 page links here, 2 needed", out)
+
+    def test_markup_left_open_does_not_hide_the_links_after_it(self):
+        # <p> and <li> are never closed, and <header> is closed late: the body link still counts
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/b">B</a></main>',
+            "a.html": '<main><header><nav><a href="/x">X</a></nav></header><p>One<p>Two <a href="/p">P</a><ul><li>L</ul></main>',
+            "b.html": '<main><ul><li><a href="/p">P</a><li>Next</ul></main>',
+            "x.html": "<main>X</main>",
+            "p.html": "<main>P</main>",
+        })
+        code, out, _ = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 0, out)
+        self.assertIn("2 pages link here (2 needed), 2 from their body", out)
+
     def test_page_argument_with_a_closing_slash_names_the_same_page(self):
         dist = self.make({
             "index.html": '<main><a href="/a">A</a> <a href="/b">B</a></main>',
@@ -233,29 +289,38 @@ class OnAHandWrittenDist(unittest.TestCase):
 class ThroughTheCommandInTheSkill(unittest.TestCase):
     """Rule 9: run the command the way the skill's "A new page" section writes it."""
 
-    def command_words(self):
+    def documented_command(self):
         with open(os.path.join(SKILL, "SKILL.md"), encoding="utf-8") as f:
             text = f.read()
         section = text.split("## A new page", 1)[1].split("\n## ", 1)[0]
         block = re.search(r"```bash\n(.*?)```", section, re.S).group(1)
-        return shlex.split(block.replace("\\\n", " "))
+        return " ".join(block.replace("\\\n", " ").split())
 
-    def test_the_documented_command_runs_on_a_built_site(self):
-        words = self.command_words()
-        self.assertEqual(words[0], "python3")
-        self.assertEqual(words[1], "${CLAUDE_SKILL_DIR}/scripts/check_page_links.py")
-        self.assertEqual(words[2:4], ["dist", "/<page-path>"])
-        # the documented flags: --site <host>, then (--hub /<hub path> | --no-hub)
-        self.assertIn("--site", words)
-        self.assertEqual(words[words.index("--site") + 1], "https://<host>")
-        for flag in ("--hub", "--no-hub"):
-            self.assertIn(flag, " ".join(words))
-        argv = ["built", "/hub/spoke-ok", "--site", "https://example.com", "--hub", "/hub"]
-        code, out, err = run(*argv, cwd=SITE)           # the folder stands where the command says `dist`
+    def argv_for(self, hub_branch):
+        """The documented command with its placeholders filled in and one hub branch picked."""
+        cmd = self.documented_command()
+        self.assertIn("(--hub /<hub-path> | --no-hub)", cmd)
+        cmd = cmd.replace("(--hub /<hub-path> | --no-hub)", hub_branch)
+        for placeholder, value in (("/<page-path>", "/hub/spoke-ok"), ("https://<host>", "https://example.com"),
+                                   ("/<hub-path>", "/hub")):
+            cmd = cmd.replace(placeholder, value)
+        words = shlex.split(cmd)
+        # the script's own name is spelled with the variable Claude Code fills in; the folder
+        # stands where the command says `dist`
+        self.assertEqual(words[:2], ["python3", "$" + "{CLAUDE_SKILL_DIR}/scripts/check_page_links.py"])
+        self.assertEqual(words[2], "dist")
+        self.assertNotIn("<", cmd)
+        return ["built"] + words[3:]
+
+    def test_the_documented_command_with_a_hub_runs_on_a_built_site(self):
+        code, out, err = run(*self.argv_for("--hub /hub"), cwd=SITE)
         self.assertEqual(code, 0, out + err)
-        argv[-2:] = ["--no-hub"]
-        code, out, err = run(*argv, cwd=SITE)
+        self.assertIn("/hub/spoke-ok: hub /hub", out)
+
+    def test_the_documented_command_without_a_hub_runs_on_a_built_site(self):
+        code, out, err = run(*self.argv_for("--no-hub"), cwd=SITE)
         self.assertEqual(code, 0, out + err)
+        self.assertIn("/hub/spoke-ok: no hub", out)
 
 
 if __name__ == "__main__":

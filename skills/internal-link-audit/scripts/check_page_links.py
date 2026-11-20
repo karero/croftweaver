@@ -11,14 +11,15 @@
 
 Exit 0: all met. Exit 1: each miss is listed, with the pages that link here. Exit 2: the check
 cannot judge (no dist/, no file for the page or the hub, neither --hub nor --no-hub, or --hub given
-and the page has no <main>). An <a> with a `hidden` attribute, or inside an element that has one,
-is not counted; CSS is not read. Standard library only; Python 3.9 or newer.
+and the page has no <main>). An <a> with a `hidden` attribute, or inside an element that has one
+or inside a <template>, is not counted; CSS is not read, and a <base href> is not applied. Standard library only; Python 3.9 or newer.
 """
 import argparse
 import os
 import sys
+import unicodedata
 from html.parser import HTMLParser
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import unquote, urljoin, urlsplit
 
 NEEDED = 2          # pages that must link here (L1)
 MAX_DEPTH = 3       # clicks from home (L3)
@@ -33,9 +34,12 @@ def fold_host(host):
     return host[4:] if host.startswith("www.") else host
 
 
-def fold_path(path):
-    """A page's key: leading slash, no closing slash (home is "/")."""
-    path = "/" + path.lstrip("/")
+def fold_path(path, decode=False):
+    """A page's key: leading slash, no closing slash (home is "/"), composed (NFC) letters.
+    A link's path is also percent-decoded, so /caf%C3%A9 finds the file café.html."""
+    if decode:
+        path = unquote(path)
+    path = "/" + unicodedata.normalize("NFC", path).lstrip("/")
     return path.rstrip("/") or "/"
 
 
@@ -65,7 +69,7 @@ class Links(HTMLParser):
             return
         if tag == "main":
             self.has_main = True
-        self.stack.append((tag, "hidden" in a, tag == "main", tag in NOT_BODY))
+        self.stack.append((tag, "hidden" in a or tag == "template", tag == "main", tag in NOT_BODY))
 
     def handle_endtag(self, tag):
         if tag in VOID or all(t != tag for t, _, _, _ in self.stack):
@@ -96,18 +100,23 @@ def read_site(dist, site_host):
                 continue
             full = os.path.join(root, name)
             key, address = served_address(os.path.relpath(full, dist))
-            with open(full, encoding="utf-8") as f:
+            with open(full, encoding="utf-8", errors="replace") as f:
                 parser = Links()
                 parser.feed(f.read())
                 parser.close()
             base = "https://" + site_host + address
             edges = []
             for href, in_main, body in parser.links:
-                u = urlsplit(urljoin(base, href.strip()))
-                if u.scheme not in ("http", "https") or fold_host(u.hostname) != site_host:
+                try:
+                    u = urlsplit(urljoin(base, href.strip()))
+                    host = u.hostname
+                except ValueError:      # such as https://[ : not a link a browser can follow
+                    print("warning: ignored the malformed link %r on %s" % (href, key), file=sys.stderr)
                     continue
-                edges.append((fold_path(u.path), in_main, body))
-            pages[key] = (parser.has_main, edges)
+                if u.scheme not in ("http", "https") or fold_host(host) != site_host:
+                    continue
+                edges.append((fold_path(u.path, decode=True), in_main, body))
+            pages[fold_path(key)] = (parser.has_main, edges)
     return pages
 
 
@@ -152,6 +161,8 @@ def main(argv=None):
     page = fold_path(args.page)
     hub = fold_path(args.hub) if args.hub else None
     pages = read_site(args.dist, site_host)
+    if "/" not in pages:
+        return cannot("no built file for the home page in %s (index.html)" % args.dist)
     if page not in pages:
         return cannot("no built file for %s in %s" % (page, args.dist))
     if hub and hub not in pages:
@@ -209,4 +220,8 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except OSError as e:                # an unreadable file is "cannot judge", never "misses"
+        print("cannot judge: %s" % e, file=sys.stderr)
+        sys.exit(2)

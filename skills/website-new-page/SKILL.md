@@ -116,10 +116,11 @@ sentences of the brief; nothing here is a second review of the copy.
   `noindex` or `nosnippet` on the page, and no robots.txt rule that blocks its path for the search
   bots Step 4 names. Leave Steps 1 and 2 (a new page is not indexed yet), the monitoring sections,
   training-bot choices and Cloudflare settings: the last two are the owner's site decisions. Put
-  the table in the PR, each row Pass or Fail.
+  the table in the PR, each row Pass, Fail, or n/a with its reason where the row does not apply to
+  this page (no FAQ, no table).
 - *`internal-link-audit`.* Hand over to that skill and follow its section "A new page": it holds
   the bar, the command and what to do with each exit. The brief's Links field says whether the
-  page has a hub.
+  page has a hub. Put the script's output in the PR as printed.
 - *Fixes* go in the same PR. A link fix that adds a sentence the owner has not approved goes to
   the owner first; a markup fix does not. After any fix, rebuild and run step 7 and this step
   again: the PR's evidence comes from the final build.
@@ -252,8 +253,9 @@ the whole page. The section table, checked by the reviewer against the saved old
 - The page document says "approved by the owner" with a date, and its draft is the text on the page.
 - `check_page_text.py` exits 0, or its list of changed sentences is in the PR and the owner has read it.
 - `check_page_links.py` (run as `internal-link-audit` says) exits 0, or each miss it lists is in
-  the PR with the owner's reason to accept it.
-- The PR holds `ai-seo`'s table for the built page; each Fail is fixed or accepted by the owner.
+  the PR with the owner's reason to accept it, or it exited 2 and the PR says why, marked "not run".
+- The PR holds `ai-seo`'s table for the built page; each Fail on a row that applies is fixed or
+  accepted by the owner.
 - The PR holds the site-wide report's ORPHANS, THIN and DEEP counts; or its failure message and
   exit status, marked "not run"; or says the site has no `scripts/check_internal_links.sh`.
 - The link sentences the build added to other pages match the brief's Links field, checked by
