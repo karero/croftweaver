@@ -79,10 +79,10 @@ else
   fail "&amp; decoding: exit $rc, curl was asked for [$urls], out: $out"
 fi
 
-# check_internal_links.sh on a built dist/ of five pages. /about and /team link to each other and
-# to /lp/a; /lp/spring, /lp/summer (exempt, one in each quote style) and /lost (not exempt) have
-# no inbound link. Expected by hand: orphans = /lost only; 2 pages with >=2 inbound links
-# (/about and /team are linked from "/" and from each other); the exempt pages are in neither list.
+# check_internal_links.sh on a built dist/ of six pages: "/", /about and /team (linked from "/" and
+# from each other, so /about and /team have 2 inbound links each), /lp/spring and /lp/summer
+# (exempt, one in each quote style) and /lost (not exempt); the last three have no inbound link.
+# Expected by hand: orphans = /lost only; 2 pages with >=2 inbound links; exempt pages in neither list.
 IL="$ROOT/skills/new-website/templates/astro/scripts/check_internal_links.sh"
 site intlinks
 mkdir -p "$S/dist" "$S/tests"
@@ -111,6 +111,31 @@ if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && printf '%s' "$o
   ok "internal links: a one-line ORPHAN_EXEMPT exempts its own entry only"
 else
   fail "internal links, one-line set: exit $rc, out: $out"
+fi
+
+# The exempt list read exactly: entries with an apostrophe inside double quotes, a comment holding
+# "])", and a literal after the closing "])" on the same line. Only the listed pages are exempt.
+mkdir -p "$S/dist/lp" "$S/dist/x"
+printf '<p>x</p>\n' >"$S/dist/lp/mother's-day.html"
+printf '<p>x</p>\n' >"$S/dist/lp/mother.html"
+printf "const ORPHAN_EXEMPT = new Set<string>([\n  \"/lp/mother's-day\",  // not this one ]) either\n  '/lp/summer', '/lp/spring']); const ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
+orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
+if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && printf '%s' "$orph" | grep -q '^/lp/mother$' \
+   && ! printf '%s' "$orph" | grep -q "^/lp/mother's-day$" && ! printf '%s' "$orph" | grep -qE '^/lp/(spring|summer)$'; then
+  ok "internal links: the exempt list stops at its own closing \"])\", keeps an apostrophe, ignores a comment's \"])\""
+else
+  fail "internal links, exact exempt list: exit $rc, orphans: $orph"
+fi
+
+# An exempt page that other pages do link to is a healthy page: it counts as OK.
+printf '<a href="/lp/spring">s</a>\n' >"$S/dist/about.html"; printf '<a href="/lp/spring">s</a><a href="/about">a</a>\n' >"$S/dist/team.html"
+printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/spring']);\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q '^## OK: 2 page(s)'; then
+  ok "internal links: an exempt page with two inbound links counts as OK"
+else
+  fail "internal links, exempt page with inbound links: exit $rc, out: $out"
 fi
 
 if [ "$fails" -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi
