@@ -82,21 +82,25 @@ fi
 # check_internal_links.sh on a built dist/ of six pages: "/", /about and /team (linked from "/" and
 # from each other, so /about and /team have 2 inbound links each), /lp/spring and /lp/summer
 # (exempt, one in each quote style) and /lost (not exempt); the last three have no inbound link.
-# Expected by hand: orphans = /lost only; 2 pages with >=2 inbound links; exempt pages in neither list.
+# Plus the starter's 404 page, which nothing links to and which is never an orphan. /lost is built
+# as lost/index.html (a page in a folder), and the exempt list holds a commented-out '/lost' line,
+# which exempts nothing.
+# Expected by hand: orphans = /lost only; 2 pages with >=2 inbound links; exempt pages and /404 in neither list.
 IL="$ROOT/skills/new-website/templates/astro/scripts/check_internal_links.sh"
 site intlinks
 mkdir -p "$S/dist" "$S/tests"
 printf '<a href="/about">a</a><a href="/team">t</a>\n' >"$S/dist/index.html"
 printf '<a href="/team">t</a>\n' >"$S/dist/about.html"
 printf '<a href="/about">a</a>\n' >"$S/dist/team.html"
-for pg in lp-spring lp-summer lost; do printf '<p>x</p>\n' >"$S/dist/$pg.html"; done
-mkdir -p "$S/dist/lp" && mv "$S/dist/lp-spring.html" "$S/dist/lp/spring.html" && mv "$S/dist/lp-summer.html" "$S/dist/lp/summer.html"
-printf "const ORPHAN_EXEMPT = new Set<string>([\n  '/lp/spring',  // single quotes\n  \"/lp/summer\",  // double quotes\n]);\n" >"$S/tests/orphans.spec.ts"
+for pg in lp-spring lp-summer 404; do printf '<p>x</p>\n' >"$S/dist/$pg.html"; done
+mkdir -p "$S/dist/lp" "$S/dist/lost" && mv "$S/dist/lp-spring.html" "$S/dist/lp/spring.html" && mv "$S/dist/lp-summer.html" "$S/dist/lp/summer.html" \
+  && printf '<p>x</p>\n' >"$S/dist/lost/index.html"
+printf "const ORPHAN_EXEMPT = new Set<string>([\n  '/lp/spring',  // single quotes\n  \"/lp/summer\",  // double quotes\n  // '/lost',\n]);\n" >"$S/tests/orphans.spec.ts"
 out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
 orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
-if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && ! printf '%s' "$orph" | grep -q '/lp/' \
+if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && ! printf '%s' "$orph" | grep -q '/lp/\|/404' \
    && printf '%s' "$out" | grep -q 'ORPHANS.*(1)' && printf '%s' "$out" | grep -q '^## OK: 2 page(s)'; then
-  ok "internal links: exempt pages (both quote styles) are no orphans; /lost is the one orphan"
+  ok "internal links: exempt pages (both quote styles) and /404 are no orphans; /lost (a folder page, named only in a comment) is the one orphan"
 else
   fail "internal links: exit $rc, out: $out"
 fi
