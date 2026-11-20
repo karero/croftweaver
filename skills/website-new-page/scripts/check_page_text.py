@@ -6,7 +6,7 @@ Compares a page document's draft (markdown, the part under "## Draft") with the 
 Both sides are folded first: whitespace (non-breaking spaces too), HTML entities, Unicode
 composition (NFC) and typographic quotes. Nothing else is folded, so a changed dash or word shows up.
 
-  python3 check_page_text.py PAGE-DOCUMENT.md BUILT.html [--title-suffix " | Site"] [--skip nav,footer,.byline]
+  python3 check_page_text.py PAGE-DOCUMENT.md BUILT.html [--title-suffix " | Site"] [--skip nav,footer,.vh,.sr-only,.visually-hidden,.byline]
 
 Exit 0: the build kept the text. Exit 1: it differs, and every changed sentence is listed.
 Exit 2: the input could not be read or is not shaped as this script expects (said on stderr).
@@ -27,6 +27,8 @@ INLINE = {"a", "abbr", "b", "bdi", "bdo", "cite", "code", "data", "del", "dfn", 
           "kbd", "mark", "q", "s", "samp", "small", "span", "strong", "sub", "sup", "time", "u",
           "var", "wbr", "label", "svg"}
 VOID = {"br", "hr", "img", "input", "meta", "link", "wbr", "source", "col", "area", "base", "embed"}
+# Site chrome, and the classes that hold screen-reader-only text such as "(opens in a new tab)".
+DEFAULT_SKIP = "nav,footer,aside,.vh,.sr-only,.visually-hidden"
 
 QUOTES = str.maketrans({"‘": "'", "’": "'", "‚": "'", "‛": "'",
                         "“": '"', "”": '"', "„": '"', "‟": '"'})
@@ -352,9 +354,11 @@ def main(argv):
     ap.add_argument("document", help="the page document (markdown); its '## Draft' section is the approved text")
     ap.add_argument("built", help="the built page (HTML)")
     ap.add_argument("--title-suffix", default="", help="text the site adds to every <title>, e.g. ' | Site'")
-    ap.add_argument("--skip", default="nav,footer,aside",
-                    help="tags, or .classes, whose text is site chrome, not page copy "
-                         "(default: nav,footer,aside; '' for none), e.g. nav,footer,.byline. "
+    ap.add_argument("--skip", default=DEFAULT_SKIP,
+                    help="tags, or .classes, whose text is site chrome or screen-reader-only text, "
+                         "not page copy (default: " + DEFAULT_SKIP + "; '' for none). "
+                         "Your list replaces the default, so repeat the hidden classes: "
+                         "nav,footer,.vh,.sr-only,.visually-hidden,.byline. "
                          "A block element ends the text around it; an inline one is cut out of its sentence")
     args = ap.parse_args(argv)
     try:

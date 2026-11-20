@@ -382,5 +382,67 @@ class InlineElementsInsideASentence(Base):
         self.assertEqual(code, 0, out)
 
 
+class HiddenTextSkippedByDefault(Base):
+    """Screen-reader-only text is never copy the owner approved, so a plain run ignores it.
+
+    Every case enters through the command line with no --skip, as the builder runs it. The markup is
+    written by hand in the shape of the external-link component (see InlineElementsInsideASentence).
+    """
+
+    HEAD = InlineElementsInsideASentence.HEAD
+    DOC = InlineElementsInsideASentence.DOC
+
+    def page(self, cls, tag="span"):
+        link = ('<a href="{h}" target="_blank" rel="noopener">{t}<{tag} class="{c}"> (opens in a new tab)</{tag}></a>')
+        body = ("<p>Sam also runs " + link.format(h="https://events.example.com", t="Bread Club", c=cls, tag=tag)
+                + ", a monthly meetup. Read the " + link.format(h="https://rules.example.com", t="Flour Rules", c=cls, tag=tag)
+                + ". Then go on.</p>")
+        return self.write("p.html", self.HEAD + "<main><h1>Meetups</h1>" + body + "</main></body></html>")
+
+    def cli(self, page, *flags, doc=None):
+        draft = self.write("d.md", doc or self.DOC)
+        return subprocess.run([sys.executable, "-I", SCRIPT, draft, page, *flags], capture_output=True, text=True)
+
+    def test_each_hidden_class_leaves_the_sentence_as_approved(self):
+        # Why: before, every external link gave one false CHANGED and one false ADDED line.
+        for cls in ("vh", "sr-only", "visually-hidden"):
+            with self.subTest(cls=cls):
+                r = self.cli(self.page(cls))
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertIn("built: 4 sentences", r.stdout)
+
+    def test_a_hidden_class_next_to_other_classes_is_skipped_too(self):
+        r = self.cli(self.page("sr-only extra"))
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_hidden_block_between_paragraphs_is_skipped(self):
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nFirst part.\n\nSecond part.\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>First part.</p>'
+                          '<div class="sr-only">Skip to the form</div><p>Second part.</p></main></body></html>')
+        r = self.cli(page, doc=doc)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+
+    def test_a_class_that_only_starts_like_a_hidden_one_is_still_read(self):
+        # Why: the match is on the whole class name; visible copy must never be skipped by accident.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nHello.\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>Hello.</p><p class="vh-note">Extra copy.</p></main></body></html>')
+        r = self.cli(page, doc=doc)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("Extra copy.", r.stdout)
+
+    def test_an_explicit_skip_replaces_the_default_list(self):
+        # Why: documented behaviour; an owner who names only .byline gets only .byline, so the help
+        # text and SKILL.md say to repeat the hidden classes.
+        r = self.cli(self.page("vh"), "--skip", "nav,.byline")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("(opens in a new tab)", r.stdout)
+
+    def test_the_help_names_the_default_hidden_classes(self):
+        r = self.cli(self.page("vh"), "--help")
+        self.assertEqual(r.returncode, 0)
+        flat = " ".join(r.stdout.split())
+        self.assertIn("nav,footer,aside,.vh,.sr-only,.visually-hidden", flat)
+
+
 if __name__ == "__main__":
     unittest.main()
