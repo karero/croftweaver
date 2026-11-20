@@ -130,6 +130,10 @@ jobs:
       # runs after the icon script because it draws icons with it.
       - name: The favicon guard (skills/new-website/scripts/tests/favicon-guard.test.mjs)
         run: MAKE_ICONS_NODE_MODULES="$PWD/node_modules" node --test ../../scripts/tests/favicon-guard.test.mjs
+      # playwright.config.ts's cloud fallback: which browser a headless run launches, with the
+      # browser folders made by hand.
+      - name: The Playwright cloud fallback (skills/new-website/scripts/tests/playwright-config.test.mjs)
+        run: MAKE_ICONS_NODE_MODULES="$PWD/node_modules" node --test ../../scripts/tests/playwright-config.test.mjs
       # The template is a subfolder of this repo, the way a site can sit inside a bigger
       # repo. The install's "prepare" script must then leave this repo's git hooks alone:
       # pointed at a scripts/hooks this repo does not have, git runs no hooks at all.

@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.34
+# template-version: 0.36
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -71,7 +71,7 @@ config_text() { # <folder>
 # What the site's Workers config says about its domain, for the folder given. A Workers config is
 # a .json or .jsonc file in the root that holds `assets` and no `pages_build_output_dir` (as the
 # move tools find it). Prints `none` (no such file: a Pages site), `route` (a custom_domain
-# route in its root `routes`), `noroute`, or `error <file>: <why>` for a Wrangler file that is
+# route in its root `routes`), `noroute <file>` (the last Workers config it read), or `error <file>: <why>` for a Wrangler file that is
 # not JSON with comments. Comments are dropped outside strings, then a comma before a closing
 # } or ] (Wrangler accepts one), then JSON.parse.
 workers_state() { # <folder>
@@ -114,7 +114,7 @@ workers_state() { # <folder>
       if (!conf || typeof conf !== "object" || !("assets" in conf) || "pages_build_output_dir" in conf) continue;
       const routes = Array.isArray(conf.routes) ? conf.routes : [];
       if (routes.some((r) => r && r.custom_domain === true)) { state = "route"; break; }
-      state = "noroute";
+      state = "noroute " + f;
     }
     console.log(state);
   ' || echo "error: could not read the Wrangler config (is node on the PATH?)"
@@ -161,13 +161,18 @@ probe_site() { # <site address>
 }
 
 # The `site:` address in the astro.config.mjs text given, one trailing slash removed; empty if none.
+# The key must start its name: `website:` or `subsite:` is another key, not the site's address.
+# The text is read as bytes, so the answer is the same in every locale; a byte above 127 before
+# `site:` counts as part of a longer name, like a letter, unless it ends one of JavaScript's white-space
+# characters (no-break space, BOM, line separator and the other Unicode spaces).
 # A misconfigured SITE.url ('https://x.com/') would build 'https://x.com//build.txt', which is
 # NOT reliably safe (varies by host; some hosts 307-redirect a double slash). curl -L below now
 # follows such redirects, but keep the normalization.
 site_of() { # <astro.config.mjs text>
-  local s
-  s="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/site:[[:space:]]*['\"]//" | head -1 || true)"
-  printf '%s\n' "${s%/}"
+  ( LC_ALL=C; export LC_ALL
+    local s hi=$'\200-\377' ws=$'\302\240|\357\273\277|\341\232\200|\342\200[\200-\212\250\251\257]|\342\201\237|\343\200\200'
+    s="$(grep -oE "(^|[^[:alnum:]_\$.$hi-]|$ws)site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null | sed -E "s/^.{0,3}site:[[:space:]]*['\"]//" | head -1 || true)"
+    printf '%s\n' "${s%/}" )
 }
 
 # none, one or many `site:` addresses in the astro.config.mjs text given, counting every match, so
@@ -175,17 +180,22 @@ site_of() { # <astro.config.mjs text>
 # commented: the text before the one match does not end in plain code (js_state), so the build
 # may use another address, or ship cannot tell; it checks none.
 site_count() { # <astro.config.mjs text>
-  local h pre
-  h="$(grep -oE "site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
-  case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
-  # The counted match starts at the text's first occurrence of $h: an earlier one would itself
-  # be a match, and grep would have counted it first.
-  pre="${1%%"$h"*}"
-  case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac
+  ( LC_ALL=C; export LC_ALL
+    local h b pre hi=$'\200-\377' ws=$'\302\240|\357\273\277|\341\232\200|\342\200[\200-\212\250\251\257]|\342\201\237|\343\200\200'
+    h="$(grep -oEb "(^|[^[:alnum:]_\$.$hi-]|$ws)site:[[:space:]]*['\"]https?://[^'\"]+" <<<"$1" 2>/dev/null || true)"
+    case "$h" in '') echo none; return ;; *$'\n'*) echo many; return ;; esac
+    # grep -b says where the match starts: "byte offset:match" (GNU and BSD grep alike), so cut the text
+    # by bytes (LC_ALL=C). The match may begin with the one character (up to three bytes) before `site:`, which belongs to
+    # the text before the key: a quote that opens a string, the / of */. The x keeps $( ) from
+    # stripping a final newline of that text.
+    b="${h#*:}"; b="${b%%site:*}"
+    pre="$(printf '%s%sx' "${1:0:${h%%:*}}" "$b")"; pre="${pre%x}"
+    case "$(js_state "$pre")" in code) echo one ;; *) echo commented ;; esac )
 }
 
 # Where JavaScript text ends: code, comment or string. It follows '…', "…" and `…` strings
-# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments. A / that opens no comment, a regex
+# (a \ at a line's end continues one; a CRLF line is read as LF), // and /* */ comments (a // comment
+# also ends at a Unicode line separator, U+2028 or U+2029). A / that opens no comment, a regex
 # literal or a division, it does not try to read: it answers "slash", and ship checks nothing.
 # The | ends the text on a character of its own, so a line comment that closed at a final
 # newline is not reported.
@@ -196,7 +206,7 @@ js_state() { # <text>
       for (i = 1; i <= length($0) && st != "slash"; i++) {
         c = substr($0, i, 1); d = substr($0, i, 2)
         if (st == "code") {
-          if (d == "//") { st = "line"; break }
+          if (d == "//") { st = "line"; k = match(substr($0, i), /\342\200[\250\251]/); if (!k) break; st = "code"; i += k + 1; continue }
           if (d == "/*") { st = "block"; i++ }
           else if (c == "/") st = "slash"
           else if (c == "\047") st = "sq"; else if (c == "\"") st = "dq"; else if (c == "`") st = "tpl"
@@ -1166,13 +1176,14 @@ case "$wstate" in
     echo "  cannot tell whether the site has its domain yet and did not check the live site."
     echo "  Fix that file; nothing else was changed."
     exit 1 ;;
-  noroute)
+  noroute\ *)
+    wfile="${wstate#noroute }"
     if [ -n "$site" ]; then
       probe="$(probe_site "$site")"
       case "$probe" in
         served) ;;
         notserved)
-          finish "✓ Sent. This Worker has no domain yet (wrangler.jsonc has no custom_domain route), so there is no live address to check; the change is checked at launch."
+          finish "✓ Sent. This Worker has no domain yet ($wfile has no custom_domain route), so there is no live address to check; the change is checked at launch."
           exit 0 ;;
         *)
           echo ""
@@ -1206,7 +1217,7 @@ if [ -z "$site" ]; then
 fi
 # The one "ship again": a commit that changes one line of $again_file (a kit-owned text file, not
 # part of the build), so the commit has a changed file for a build to see; build watch paths that
-# do not list that file still skip it (PUBLISHING.md says so). The push below sends it to main and to
+# do not list that file still skip it (the commit message and PUBLISHING.md say so). The push below sends it to main and to
 # production. Folder mode makes it on `main` and only if the folder is as the checks at the start
 # left it; worktree mode makes it in the temporary copy. No hook runs for the commit (hooksPath
 # points at nothing): the pre-push gate runs for the push. Says why and returns 1 when the commit
@@ -1216,7 +1227,7 @@ ship_again() {
   msg="ship again: one changed line in $again_file, so Cloudflare builds this site again
 
 Written by npm run ship when the live site still served the old build after about 3 minutes.
-Only $again_file changes. Build watch paths that do not list that file skip this commit (see PUBLISHING.md)."
+Only $again_file changes. Build watch paths in Cloudflare that do not list that file skip this commit."
   stamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)" || return 1
   if [ "$from_github" = 1 ]; then
     dir="$wt"
@@ -1232,7 +1243,7 @@ Only $again_file changes. Build watch paths that do not list that file skip this
     echo "✗ Not shipping again: $again_file is a link, or this site's git ignores it, so ship will not write it."
     return 1
   fi
-  if ! { printf '%s\n' "Last 'ship again': $stamp (written by npm run ship; see PUBLISHING.md)" > "$dir/$again_file" \
+  if ! { printf '%s\n' "Last 'ship again': $stamp (written by npm run ship)" > "$dir/$again_file" \
          && git -c core.hooksPath="$push_status/no-hooks" -C "$dir" add -- "$again_file" \
          && git -c core.hooksPath="$push_status/no-hooks" -C "$dir" commit -q --no-verify -m "$msg"; }; then
     restore_again_file "$id"
@@ -1322,6 +1333,7 @@ while [ "$i" -lt "$limit" ]; do
     echo "  not have started a production build for this commit (the cause is not known), or it is slow."
     echo "  'ship again' makes one small commit on 'main' (one line of $again_file changes), pushes it to"
     echo "  'main' and 'production' (the pre-push gate runs again) and waits again. Any other answer leaves the wait as it is."
+    echo "  If GitHub refuses direct pushes to 'main', it refuses this push too: neither branch changes, and ship ends there and says what to check in Cloudflare."
     if [ "$live_n" = 0 ]; then
       q_stop="Nothing was pushed ('production' already had ${id:0:12}); nothing more was done."
     else

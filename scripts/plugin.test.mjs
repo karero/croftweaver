@@ -560,6 +560,17 @@ test('the content checker checks when run through a symlink, and says ok only fo
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('the content checker refuses a plugin.json that is not one JSON object, and passes the real one', () => {
+  const run = (input, file = '.claude-plugin/plugin.json') => spawnSync('node', [path.join(REPO, 'scripts', 'check_directory_files.mjs'), file], { input, encoding: 'utf8' });
+  const bad = run('{invalid json');
+  assert.deepEqual([bad.status, /^is not valid JSON \(/.test(bad.stdout)], [1, true], bad.stdout);
+  for (const text of ['[]\n', '"x"\n', 'null\n', '12\n']) assert.deepEqual([run(text).status, run(text).stdout.trim()], [1, 'is not a JSON object'], text);
+  const real = fs.readFileSync(path.join(REPO, 'pointer', 'plugin.json'));
+  assert.deepEqual([run(real).status, run(real).stdout.trim()], [0, 'ok']);
+  // Only the manifest is parsed: other text files stay free-form, so a README of `{` still passes.
+  assert.deepEqual([run('{invalid json', 'README.md').status, run('{invalid json', 'README.md').stdout.trim()], [0, 'ok']);
+});
+
 test('the pointer plugin carries the kit\'s name and number, metadata only, and a privacy link to a heading the README has', () => {
   const kit = JSON.parse(read('.claude-plugin', 'plugin.json'));
   const pointer = JSON.parse(read('pointer', 'plugin.json'));
@@ -822,6 +833,8 @@ test('a release that would put anything but the five plain files (four text, one
     ['U+0080 as the README', five.map((e) => (e[1] === 'README.md' ? [e[0], e[1], Buffer.from([0xc2, 0x80])] : e)), /::error::README\.md in the directory tree holds a control character/],
     ['an icon whose IHDR overruns the file', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.from('89504e470d0a1a0a0000000d494844520000000049454e44ae426082', 'hex')] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: /],
     ['an icon with one checksum byte flipped', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], flipByte(PNG('i'), 8 + 12 + 13 - 1)] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the IHDR chunk fails its checksum/],
+    ['a plugin.json that is not JSON', five.map((e) => (e[1] === '.claude-plugin/plugin.json' ? [e[0], e[1], '{invalid json'] : e)), /::error::\.claude-plugin\/plugin\.json in the directory tree is not valid JSON \(/],
+    ['a plugin.json that is a JSON array', five.map((e) => (e[1] === '.claude-plugin/plugin.json' ? [e[0], e[1], '[]\n'] : e)), /::error::\.claude-plugin\/plugin\.json in the directory tree is not a JSON object/],
     ['an icon with bytes after IEND', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], Buffer.concat([PNG('i'), Buffer.from('x')])] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: bytes after IEND/],
     ['an icon whose image data is not zlib', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', Buffer.from('not zlib at all'))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data is not valid zlib/],
     ['an icon whose image data inflates to nothing', five.map((e) => (e[1] === '.claude-plugin/icon.png' ? [e[0], e[1], pngWith('IDAT', zlib.deflateSync(Buffer.alloc(0)))] : e)), /::error::\.claude-plugin\/icon\.png in the directory tree is not a whole PNG: the image data does not fill its rows/],
@@ -881,6 +894,24 @@ test('--compare tells a new version number from every other change of the five f
   assert.deepEqual(compare(execNewVersion), ['.claude-plugin/plugin.json']);
   assert.deepEqual(compare(tree({ license: 'MIT 2' })), ['LICENSE']);
   assert.deepEqual(compare(tree({ readme: 'r2', skill: 's2' })), ['README.md', 'skills/get-croftweaver/SKILL.md']);
+  // A "version" key below the root is not the release number: it is a change the trial must see.
+  const nested = (v, root = '0.36.0') => `{\n  "name": "croftweaver",\n  "version": "${root}",\n  "author": {\n    "name": "a",\n    "version": "${v}"\n  }\n}\n`;
+  const withManifest = (text) => makeTree([['100644', '.claude-plugin/icon.png', PNG('icon')], ['100644', '.claude-plugin/plugin.json', text],
+    ['100644', 'LICENSE', 'MIT'], ['100644', 'README.md', 'r'], ['100644', 'skills/get-croftweaver/SKILL.md', 's']]);
+  const compareTo = (from, to) => { const r = script('--compare', withManifest(from), withManifest(to)); assert.equal(r.status, 0, r.log); return r.out.split('\n'); };
+  const PATH_ = ['.claude-plugin/plugin.json'];
+  assert.deepEqual(compareTo(nested('1'), nested('2')), PATH_);
+  // With a nested "version" present, a new root number alone is still only a new number, and beside a nested change it is not.
+  assert.deepEqual(compareTo(nested('1'), nested('1', '0.37.0')), ['version only']);
+  assert.deepEqual(compareTo(nested('1'), nested('2', '0.37.0')), PATH_);
+  // A text that does not read back as written (a repeated key, a number past 2^53) is a change, not "version only".
+  const dup = (n) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "author": {"name": "${n}", "name": "a"}\n}\n`;
+  assert.deepEqual(compareTo(dup('b'), dup('c')), PATH_);
+  const big = (n) => `{\n  "name": "croftweaver",\n  "version": "0.36.0",\n  "build": ${n}\n}\n`;
+  assert.deepEqual(compareTo(big('9007199254740992'), big('9007199254740993')), PATH_);
+  // The manifest the directory really holds reads back as written, so its new number stays "version only".
+  const real = fs.readFileSync(new URL('../pointer/plugin.json', import.meta.url), 'utf8');
+  assert.deepEqual(compareTo(real, real.replace(/"version": "[^"]*"/, '"version": "99.0.0"')), ['version only']);
   // A new number does not hide another change.
   assert.deepEqual(compare(tree({ version: '0.37.0', license: 'MIT 2' })), ['.claude-plugin/plugin.json', 'LICENSE']);
   // A file gone, a file added.

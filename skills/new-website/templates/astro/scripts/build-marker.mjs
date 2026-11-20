@@ -23,16 +23,20 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 // Astro's default icons, from withastro/astro examples/*/public (blob ids in the names of the
 // fixtures in the toolkit's tests). An SVG is known by the opening of its outline path with all
-// whitespace dropped, so line endings, re-indenting and svgo do not hide it; an ICO is a
-// bitmap and is known by its SHA-256. The 2023 drawing and the 2022 one; the 2026 ICO (a PNG
-// with an .ico name) and the 2021 one. The maintainer's release runbook (step 1b) checks these
-// against Astro's examples before each release.
+// whitespace dropped, so line endings and re-indenting do not hide it, in the forms svgo gives it:
+// as Astro writes it (relative commands, which svgo 4.1.0 keeps) and with absolute commands
+// (svgo's `forceAbsolutePath`); an ICO is a bitmap and is known by its SHA-256. The 2023 drawing
+// and the 2022 one; the 2026 ICO (a PNG with an .ico name) and the 2021 one. The maintainer's release runbook (step 1b) checks the
+// relative forms against Astro's examples before each release; the absolute ones are svgo's output for them.
 const ASTRO_SVG_OPENINGS = [
   'M50.478.5a75.175.1000-28.56.9l24.2-65.7c.7-21.9-3.23.4-3.2h29c1.502.71.23.43.2l24.265.7s-11.6-7-28.5-7L6745.5',
   'M22.254h-8.5a11000-.96.73l-5.5419.4a.5.5000.62.62l5.05-1.44',
+  'M50.478.5A75.175.100021.985.4L46.119.7C46.817.74816.549.516.5H78.5C8016.581.217.781.919.7L106.185.4S94.578.477.678.4L6745.5',
+  'M22.254H13.75A1100012.794.73L7.2524.13A.5.50007.8724.75L12.9223.31',
 ];
 const ASTRO_ICO_HASHES = [
   '09d2ac08d8cca9b6e1f90221f345a8c4dd0371c64a0dc52b6f96fc589b1e3d67',
@@ -40,12 +44,15 @@ const ASTRO_ICO_HASHES = [
 ];
 
 const isAstroSvg = (buf) => {
-  // Comments are not drawn, so Astro's path inside one is not Astro's icon. A closed CDATA section
-  // or <?…?> is kept whole, so a "<!--" inside one cannot swallow a real path that follows.
-  const flat = buf.toString('utf8')
-    .replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, (m) => (m.startsWith('<!--') ? '' : m))
-    .replace(/\s/g, '');
-  return ASTRO_SVG_OPENINGS.some((opening) => flat.includes(opening));
+  // Comments, CDATA text and <?…?> are not drawn, so Astro's path inside one is not Astro's icon.
+  // One pass takes all three out, so a "<!--" inside CDATA or <?…?> cannot swallow a real path.
+  const text = buf.toString('utf8').replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, '');
+  // Only a d="…" attribute draws: Astro's path as text in <metadata>, <desc> or CDATA is not the icon.
+  for (const m of text.matchAll(/\sd\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    const d = (m[1] ?? m[2]).replace(/\s/g, '');
+    if (ASTRO_SVG_OPENINGS.some((opening) => d.includes(opening))) return true;
+  }
+  return false;
 };
 const isAstroIco = (buf) => ASTRO_ICO_HASHES.includes(createHash('sha256').update(buf).digest('hex'));
 const isAstro = (kind, buf) => (kind === 'svg' ? isAstroSvg(buf) : isAstroIco(buf));
@@ -78,6 +85,9 @@ function startsLikeSvg(buf) {
 }
 const startsLikeIco = (buf) => buf.length >= 4 && buf.readUInt16LE(0) === 0 && buf.readUInt16LE(2) === 1;
 
+// A site may have left make-icons.mjs out (its icons are its own files); then its line is not given.
+const hasMakeIcons = existsSync(fileURLToPath(new URL('make-icons.mjs', import.meta.url)));
+
 function astroMessage(shown, publicName, kind, stopped) {
   const own = kind === 'svg' ? 'an SVG' : 'an ICO';
   return [
@@ -85,9 +95,11 @@ function astroMessage(shown, publicName, kind, stopped) {
     stopped
       ? '  A site must not go live with it. This build was stopped, so nothing from it can be published.'
       : '  A site must not go live with it. Replace it, then publish again.',
-    "  New site: node scripts/make-icons.mjs --setup  (draws the site's letter on its colour).",
-    '  If --setup says the icons are not ones it made (an older Astro icon), run it with --replace',
-    '  instead: only for a site with no icons of its own.',
+    ...(hasMakeIcons ? [
+      "  New site: node scripts/make-icons.mjs --setup  (draws the site's letter on its colour).",
+      '  If --setup says the icons are not ones it made (an older Astro icon), run it with --replace',
+      '  instead: only for a site with no icons of its own.',
+    ] : ['  (This site has no scripts/make-icons.mjs.)']),
     '  A site with a logo or icons of its own: the website-brand-kit skill, given the logo,',
     `  or replace ${publicName} by hand with ${own} of the site's own.`,
     stopped ? '  Then build again.' : '  Google may keep showing the old icon for some weeks.',
