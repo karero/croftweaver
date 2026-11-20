@@ -35,6 +35,11 @@ illustration. "None" is an answer; say why.
 only**. Ideas-only input may suggest questions to research. It never backs a claim, a citation or
 a link unless the owner reclassifies it after the source has been read.
 
+**Links.** The page's hub, or "none" and why. The pages that will link here, with the sentence
+each gets (the owner approves these sentences at the go, like the rest). The hub and sibling pages
+this page links to. <!-- Hint: include a page that already ranks. The page's own back-link
+sentence belongs in the Draft; a breadcrumb component is named in `--skip`. -->
+
 **Claims.** One row per claim a reader could check.
 
 | Claim | Source (a page the reader can open) | Owner sign-off needed? |

@@ -166,7 +166,7 @@ Two more name a few commands:
 
 `website-content-guide`, `website-positioning`, `website-story`, `website-tagline`,
 `website-testimonials`, `website-launch-check`, `astro-i18n-setup`, `website-positioning-check`, `website-qa`,
-`website-review`, `internal-link-audit`, `og-images`, `website-seo-geo`, `double-knuth`,
+`website-review`, `internal-link-audit` (also a Python script that reads `dist/`; no network call, no key), `og-images`, `website-seo-geo`, `double-knuth`,
 `website-contact-form`, `website-hero-carousel`, `website-scorecard` and `website-brand-kit` run commands such as
 `npm run build`, `npm test`, `npm run verify`, `npm run og`, `git status`, `git log` and
 `git diff` in the site's folder. Some copy template files into the site. All of this stays
@@ -317,8 +317,11 @@ an "Email Tap" event there, as a click on an email address does.
   your site's folder and has a fresh pair of eyes read it: a subagent or a new conversation of
   your own assistant, or, if you chose it, the outside reviewers of `independent-review`. It
   then runs `check_page_text.py`, which reads the page document and the built page in your
-  folder and prints the differences. It makes no network call and needs no key. The research
-  step has the assistant read the top search results for your page's topic.
+  folder and prints the differences. It then hands the built page to `ai-seo`
+  (instructions only) and to `internal-link-audit`, whose `check_page_links.py` reads the built
+  `dist/` in your folder and prints which of the page's links are missing. Neither script
+  makes a network call or needs a key. The research step has the assistant read the top search
+  results for your page's topic.
 - **`website-permissions`** copies `.claude/settings.json` and the sync hook script it
   registers (`git-stand.mjs`, which runs `git fetch`) into the site (see
   [What runs without asking](#what-runs-without-asking)).

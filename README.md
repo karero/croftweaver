@@ -559,7 +559,8 @@ skills/            the suite skills (canonical)
                    copied to every site, runs only when a second person joins)
   website-new-page (adding or rewriting a page: one page document with the brief and the full
                    draft, a content review for the reader, search and originality, the
-                   owner's go on the exact sentences, then a check that the build kept the text;
+                   owner's go on the exact sentences, then a check that the build kept the text
+                   and a hand-over of the built page to ai-seo and internal-link-audit;
                    copied to every site, never runs unasked)
   independent-review, double-knuth, seo-reposition   (review gates + SEO
                    repositioning: cross-model PLAN/DIFF review via

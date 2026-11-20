@@ -1,0 +1,15 @@
+---
+import Base from '../../layouts/Base.astro';
+const crumbs = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Hub', item: 'https://example.com/hub' },
+    { '@type': 'ListItem', position: 2, name: 'Spoke without back-link' },
+  ],
+};
+---
+<Base title="Spoke without back-link" schemas={[crumbs]}>
+  <h1>Spoke without back-link</h1>
+  <p>This page names its hub only in the JSON-LD above. Back to the <a href="/">home page</a>.</p>
+</Base>

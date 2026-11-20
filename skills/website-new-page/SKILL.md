@@ -4,9 +4,9 @@ description: >
   Add a page to a site, or rewrite one, so it is worth reading and findable before it is built.
   Writes one page document (a brief, then the full draft), has a fresh pair of eyes judge it for
   the reader, for search and AI answers, and for originality, takes the owner's go on the exact
-  sentences, builds, then checks the build kept the approved text. It calls the checks other
-  skills own (website-seo-geo, ai-seo, seo-audit, copywriting, search-console-insights,
-  website-review) and does not repeat them. Use for a new page, a new article, a page rewrite,
+  sentences, builds, checks the build kept the approved text, then hands the built page to ai-seo
+  and internal-link-audit. It calls the checks other skills own (website-seo-geo, seo-audit,
+  copywriting, search-console-insights, website-review) and does not repeat them. Use for a new page, a new article, a page rewrite,
   or "is this page any good". Trigger phrases: "add a page", "new page", "write a page about",
   "new article", "rewrite this page", "this page feels thin", "what should this page rank for",
   "review the draft before we build it", "move this page from the old site".
@@ -83,7 +83,7 @@ open, each with your recommendation. Their go covers the exact sentences, not an
 "approved by the owner on <date>" at the top of the page document.
 
 **6. Build** the page and everything the site wants around it: the route, `llms.txt`, the share
-card, an inbound link from a page that already ranks, and the schema (`FAQPage` where there is a
+card, the links the brief's Links field names, and the schema (`FAQPage` where there is a
 FAQ). Tests should check that contract, the sentences the site marks as locked (its
 `AGENTS.md` or `CLAUDE.md` says which), and the claims-table rows the owner signed off. They need
 not pin all of the body copy: the next step watches it.
@@ -100,10 +100,31 @@ its `<main>` (the whole body if there is none), after folding whitespace, HTML e
 typographic quotes. Dashes and every other character are compared as written. Exit
 0 means the build kept the text. Exit 1 lists every changed sentence: put that list in the PR for
 the owner to read, as it is. Components that add their own text (a byline, a button) are named
-with `--skip`, as tags or `.classes`; if the check names a sentence the owner did not approve,
+with `--skip`, as tags or `.classes` (a breadcrumb component too: its words and the hub link
+sentence belong to the build, so step 7 does not list them as added text); if the check names a sentence the owner did not approve,
 that is the finding. Exit 2 means the check could not read its input.
 
-**8. Review the code** with the site's usual review (`website-review`, or `independent-review`'s
+**8. Hand the built page to `ai-seo`, then to `internal-link-audit`.** Build fresh first
+(`npm run build`), so both read the page as it ships. The owner's go covers the text and the link
+sentences of the brief; nothing here is a second review of the copy.
+
+- *`ai-seo`.* Run its **Step 3** table ("Content Extractability Check") on the built page, every
+  row answered on the build and none carried over from step 4 or 7: step 7 shows the sentences
+  survived, not their order, headings, tables or links. Then its **Step 4** robots.txt check for
+  this page's path only. Look at what only the build shows: the JSON-LD the page emits (its
+  `headline` or `name` without the title suffix; FAQPage questions equal to the visible FAQ), no
+  `noindex` or `nosnippet` on the page, and no robots.txt rule that blocks its path for the search
+  bots Step 4 names. Leave Steps 1 and 2 (a new page is not indexed yet), the monitoring sections,
+  training-bot choices and Cloudflare settings: the last two are the owner's site decisions. Put
+  the table in the PR, each row Pass or Fail.
+- *`internal-link-audit`.* Hand over to that skill and follow its section "A new page": it holds
+  the bar, the command and what to do with each exit. The brief's Links field says whether the
+  page has a hub.
+- *Fixes* go in the same PR. A link fix that adds a sentence the owner has not approved goes to
+  the owner first; a markup fix does not. After any fix, rebuild and run step 7 and this step
+  again: the PR's evidence comes from the final build.
+
+**9. Review the code** with the site's usual review (`website-review`, or `independent-review`'s
 diff gate where the owner has chosen it). By now the copy has been judged, so this round checks
 the build.
 
@@ -148,7 +169,7 @@ redirect like a page.
 of the saved old page, and does the draft still answer each query that earned the old page clicks?
 
 **5. The go** lists every dropped section by its old heading and every dropped query by name, each
-with its reason, and the owner's go covers them by name. Put the two four-week windows (step 9) and
+with its reason, and the owner's go covers them by name. Put the two four-week windows (step 10) and
 their dates into the note.
 
 **6. Build** writes the redirect when the address changes. With the `wordpress-inspector` skill's
@@ -160,7 +181,7 @@ yourself, without the two `#` header lines (they say the file is regenerated).
 Read the script's counts and exit code first. The script refuses to write over a file it did not write. After
 go-live, run that skill's `check_move.py old.txt <new site> --moves moves.csv` and read its report.
 
-**9. The four-week check.** The page document records two fixed windows of 28 days. *Before* ends
+**10. The four-week check.** The page document records two fixed windows of 28 days. *Before* ends
 the day before go-live and is pulled on the old address. *After* starts the day after go-live and is
 pulled on the new address. Pull each with `gsc_query.py --site <property> --page <address> --start <day> --end <day>
 --by-date --no-csv --pages-csv <window>-pages.csv`, so a rerun reads the same days and the report says whether the window is
@@ -230,5 +251,12 @@ the whole page. The section table, checked by the reviewer against the saved old
 
 - The page document says "approved by the owner" with a date, and its draft is the text on the page.
 - `check_page_text.py` exits 0, or its list of changed sentences is in the PR and the owner has read it.
+- `check_page_links.py` (run as `internal-link-audit` says) exits 0, or each miss it lists is in
+  the PR with the owner's reason to accept it.
+- The PR holds `ai-seo`'s table for the built page; each Fail is fixed or accepted by the owner.
+- The PR holds the site-wide report's ORPHANS, THIN and DEEP counts; or its failure message and
+  exit status, marked "not run"; or says the site has no `scripts/check_internal_links.sh`.
+- The link sentences the build added to other pages match the brief's Links field, checked by
+  reading them, and the PR says so.
 - The site's own checks and review are green.
 - You say plainly what you did not check: whether the page ranks, which only time shows.
