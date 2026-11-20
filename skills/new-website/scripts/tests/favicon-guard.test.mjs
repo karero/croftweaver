@@ -179,6 +179,8 @@ for (const [where, wrap] of [
   ['<metadata>', (p) => `<metadata>${p}</metadata>`],
   ['<desc>', (p) => `<desc>${p}</desc>`],
   ['a CDATA section', (p) => `<style><![CDATA[${p}]]></style>`],
+  ['a d="…" written in a CDATA section', (p) => `<style><![CDATA[ d="${p}" ]]></style>`],
+  ['a d="…" written in <?…?>', (p) => `<?note d="${p}"?>`],
 ]) {
   test(`Astro's path inside ${where} of the site's own icon does not stop the build`, () => {
     const own = ownIcons().svg.toString('utf8').replace(/(<svg[^>]*>)/, `$1${wrap(astroPath())}`);

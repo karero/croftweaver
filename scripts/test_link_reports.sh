@@ -8,6 +8,9 @@
 # a build the script cannot audit stops it with exit 1 and a message, and that the URL it
 # fetches has & where the HTML has &amp;.
 #
+# The internal-link report is run on built pages too: a page ORPHAN_EXEMPT names (either quote
+# style) is not an orphan and is not counted as having two inbound links, and an unlisted one still is.
+#
 # Usage: bash scripts/test_link_reports.sh
 set -u
 command -v git >/dev/null 2>&1 || { echo "FAIL test_link_reports.sh needs git"; exit 1; }
@@ -74,6 +77,40 @@ if [ "$rc" -eq 0 ] && [ "$urls" = "$(printf 'https://a.invalid/p?x=1&y=2\nhttps:
   ok "&amp; and &#x26; in a link reach the server as &; exit 0, 2 links healthy"
 else
   fail "&amp; decoding: exit $rc, curl was asked for [$urls], out: $out"
+fi
+
+# check_internal_links.sh on a built dist/ of five pages. /about and /team link to each other and
+# to /lp/a; /lp/spring, /lp/summer (exempt, one in each quote style) and /lost (not exempt) have
+# no inbound link. Expected by hand: orphans = /lost only; 2 pages with >=2 inbound links
+# (/about and /team are linked from "/" and from each other); the exempt pages are in neither list.
+IL="$ROOT/skills/new-website/templates/astro/scripts/check_internal_links.sh"
+site intlinks
+mkdir -p "$S/dist" "$S/tests"
+printf '<a href="/about">a</a><a href="/team">t</a>\n' >"$S/dist/index.html"
+printf '<a href="/team">t</a>\n' >"$S/dist/about.html"
+printf '<a href="/about">a</a>\n' >"$S/dist/team.html"
+for pg in lp-spring lp-summer lost; do printf '<p>x</p>\n' >"$S/dist/$pg.html"; done
+mkdir -p "$S/dist/lp" && mv "$S/dist/lp-spring.html" "$S/dist/lp/spring.html" && mv "$S/dist/lp-summer.html" "$S/dist/lp/summer.html"
+printf "const ORPHAN_EXEMPT = new Set<string>([\n  '/lp/spring',  // single quotes\n  \"/lp/summer\",  // double quotes\n]);\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
+orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
+if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && ! printf '%s' "$orph" | grep -q '/lp/' \
+   && printf '%s' "$out" | grep -q 'ORPHANS.*(1)' && printf '%s' "$out" | grep -q '^## OK: 2 page(s)'; then
+  ok "internal links: exempt pages (both quote styles) are no orphans and not counted OK; /lost is the one orphan"
+else
+  fail "internal links: exit $rc, out: $out"
+fi
+
+# The set written on one line: only its own entry is exempt, and a '/x' literal further down the
+# file is not (the range of lines that is read ends at the first "])").
+printf "const ORPHAN_EXEMPT = new Set<string>(['/lp/spring']);\nconst ROOT = '/lost';\n" >"$S/tests/orphans.spec.ts"
+out="$(cd "$S" && bash "$IL" 2>&1 </dev/null)"; rc=$?
+orph="$(printf '%s\n' "$out" | sed -n '/^## ORPHANS/,/^## THIN/p')"
+if [ "$rc" -eq 0 ] && printf '%s' "$orph" | grep -q '^/lost$' && printf '%s' "$orph" | grep -q '^/lp/summer$' \
+   && ! printf '%s' "$orph" | grep -q '^/lp/spring$'; then
+  ok "internal links: a one-line ORPHAN_EXEMPT exempts its own entry only"
+else
+  fail "internal links, one-line set: exit $rc, out: $out"
 fi
 
 if [ "$fails" -ne 0 ]; then echo "$fails check(s) FAILED"; exit 1; fi

@@ -2,11 +2,6 @@ import { test, expect } from '@playwright/test';
 import { PAGES } from './_helpers';
 import { SITE } from '../src/config';
 
-// Every route in PAGES returns 200, and every internal link on it resolves to a
-// 200 with no redirect hop (clean URLs only). Links written as absolute production
-// URLs (https://site.tld/about) and page-relative ones (about, ../about) are
-// internal too — they get the same check.
-// Catches dead links and renamed pages before users do.
 const stripWww = (host: string) => host.replace(/^www\./, '');
 
 // The path + query an href points at on this site, or null when it is a pure
@@ -38,6 +33,11 @@ test('navigation — internalTarget reads page-relative, root-relative and produ
   expect(at('mailto:a@b.c')).toBeNull();
 });
 
+// Every route in PAGES returns 200, and every internal link on it resolves to a
+// 200 with no redirect hop (clean URLs only). Links written as absolute production
+// URLs (https://site.tld/about) and page-relative ones (about, ../about) are
+// internal too — they get the same check.
+// Catches dead links and renamed pages before users do.
 for (const path of PAGES) {
   test(`navigation — ${path} loads and its internal links resolve`, async ({ page, request, baseURL }) => {
     const res = await page.goto(path);

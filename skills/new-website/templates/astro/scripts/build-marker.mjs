@@ -30,8 +30,8 @@ import { fileURLToPath } from 'node:url';
 // whitespace dropped, so line endings and re-indenting do not hide it, in the forms svgo gives it:
 // as Astro writes it (relative commands, which svgo 4.1.0 keeps) and with absolute commands
 // (svgo's `forceAbsolutePath`); an ICO is a bitmap and is known by its SHA-256. The 2023 drawing
-// and the 2022 one; the 2026 ICO (a PNG with an .ico name) and the 2021 one. The maintainer's release runbook (step 1b) checks these
-// against Astro's examples before each release.
+// and the 2022 one; the 2026 ICO (a PNG with an .ico name) and the 2021 one. The maintainer's release runbook (step 1b) checks the
+// relative forms against Astro's examples before each release; the absolute ones are svgo's output for them.
 const ASTRO_SVG_OPENINGS = [
   'M50.478.5a75.175.1000-28.56.9l24.2-65.7c.7-21.9-3.23.4-3.2h29c1.502.71.23.43.2l24.265.7s-11.6-7-28.5-7L6745.5',
   'M22.254h-8.5a11000-.96.73l-5.5419.4a.5.5000.62.62l5.05-1.44',
@@ -44,10 +44,9 @@ const ASTRO_ICO_HASHES = [
 ];
 
 const isAstroSvg = (buf) => {
-  // Comments are not drawn, so Astro's path inside one is not Astro's icon. A closed CDATA section
-  // or <?…?> is kept whole, so a "<!--" inside one cannot swallow a real path that follows.
-  const text = buf.toString('utf8')
-    .replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, (m) => (m.startsWith('<!--') ? '' : m));
+  // Comments, CDATA text and <?…?> are not drawn, so Astro's path inside one is not Astro's icon.
+  // One pass takes all three out, so a "<!--" inside CDATA or <?…?> cannot swallow a real path.
+  const text = buf.toString('utf8').replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, '');
   // Only a d="…" attribute draws: Astro's path as text in <metadata>, <desc> or CDATA is not the icon.
   for (const m of text.matchAll(/\sd\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
     const d = (m[1] ?? m[2]).replace(/\s/g, '');

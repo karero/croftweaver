@@ -96,11 +96,11 @@ INBOUND=$(awk -F'\t' '$1!=$2 && !seen[$1 SUBSEP $2]++ { cnt[$1]++ }
 EXEMPT="/404"
 if [ -f tests/orphans.spec.ts ]; then
   EXEMPT="$EXEMPT
-$(sed -n '/ORPHAN_EXEMPT = new Set/,/\]);/p' tests/orphans.spec.ts | sed 's#//.*##' | grep -oE "'/[^']*'" | tr -d "'")"
+$(awk '/ORPHAN_EXEMPT = new Set/ { on = 1 } on { print } on && /\]\)/ { exit }' tests/orphans.spec.ts | sed 's#//.*##' | grep -oE "['\"]/[^'\"]*['\"]" | tr -d "'\"")"
 fi
 
 # Orphans = pages that received zero inbound edges (and aren't the home root).
-orphans=""; thin=""
+orphans=""; thin=""; nok=0
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   [ "$p" = "/" ] && continue
@@ -119,6 +119,8 @@ $p
     one=$(awk -F'\t' -v t="$p" '$1==t && $1!=$2 {print $2; exit}' "$LINKS")
     thin="$thin$p  <-  $one
 "
+  else
+    nok=$((nok+1))
   fi
 done < <(sort -u "$PAGESF")
 
@@ -173,7 +175,7 @@ else
   printf '(none)\n'
 fi
 
-printf '\n## OK: %d page(s) with ≥2 inbound links (home + orphan/thin excluded)\n' "$((NPAGES - norphan - nthin - 1))"
+printf '\n## OK: %d page(s) with ≥2 inbound links (home, exempt, orphan and thin pages excluded)\n' "$nok"
 
 # Click-depth is an ORTHOGONAL axis (a page can be both thin AND deep), so it's
 # reported separately rather than folded into the inbound-count partition above.
