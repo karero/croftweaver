@@ -1,12 +1,12 @@
 # Fixtures for check_page_links.py
 
-`astro-7.4.13_built-site/dist/` is a real `astro build` (Astro 7.4.13) of the kit's starter with
+`astro-7.4.13_built-site/built/` is Astro's `dist/` from a real `astro build` (Astro 7.4.13) of the kit's starter with
 31 pages added or kept, each shaped for one case in `test_check_page_links.py`. The sources of the
 added pages are in `site-src/` (`pages/` and `layouts/Plain.astro`; `Plain.astro` is a layout with
 no `<main>`). Two edits were made to the starter's `Base.astro`, which is not copied here: a
 `before-main` and an `after-main` slot around `<main id="main">`, and a footer link to
 `/footer-only` on every page. The site is made up (`https://example.com`); every page holds
-placeholder text. The build was trimmed, and nothing else was edited: each `<style>` block and
+placeholder text. The folder is not named `dist` because the repo's `.gitignore` skips that name. The build was trimmed, and nothing else was edited: each `<style>` block and
 each inline script without `type="application/ld+json"` was removed.
 
 The cases, by path:

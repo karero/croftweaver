@@ -19,7 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SKILL = os.path.abspath(os.path.join(HERE, "..", ".."))
 SCRIPT = os.path.join(SKILL, "scripts", "check_page_links.py")
 SITE = os.path.join(HERE, "fixtures", "astro-7.4.13_built-site")
-DIST = os.path.join(SITE, "dist")
+DIST = os.path.join(SITE, "built")      # not "dist": the repo ignores folders of that name
 HOST = ["--site", "https://example.com"]
 
 
@@ -250,8 +250,8 @@ class ThroughTheCommandInTheSkill(unittest.TestCase):
         self.assertEqual(words[words.index("--site") + 1], "https://<host>")
         for flag in ("--hub", "--no-hub"):
             self.assertIn(flag, " ".join(words))
-        argv = ["dist", "/hub/spoke-ok", "--site", "https://example.com", "--hub", "/hub"]
-        code, out, err = run(*argv, cwd=SITE)           # `dist` resolves against the site folder
+        argv = ["built", "/hub/spoke-ok", "--site", "https://example.com", "--hub", "/hub"]
+        code, out, err = run(*argv, cwd=SITE)           # the folder stands where the command says `dist`
         self.assertEqual(code, 0, out + err)
         argv[-2:] = ["--no-hub"]
         code, out, err = run(*argv, cwd=SITE)
