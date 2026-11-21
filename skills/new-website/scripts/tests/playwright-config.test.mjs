@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpus, tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,13 +18,23 @@ const NODE_MODULES = process.env.MAKE_ICONS_NODE_MODULES;
 assert.ok(NODE_MODULES && existsSync(path.join(NODE_MODULES, '@playwright', 'test')),
   'set MAKE_ICONS_NODE_MODULES to the starter\'s node_modules (npm ci in templates/astro)');
 
-// The launch options the config gives a run, with Playwright's browsers in `ms` and the cloud's in `cloud`.
-function launchOptions(ms, cloud) {
+// A module run before the config that makes it see another host: Node's platform and build, and the chip os.cpus() names.
+function fakeHost({ platform, arch, cpu }) {
+  return `data:text/javascript,${encodeURIComponent(`import os from 'node:os'; import { syncBuiltinESMExports } from 'node:module';
+Object.defineProperty(process, 'platform', { value: ${JSON.stringify(platform)} });
+Object.defineProperty(process, 'arch', { value: ${JSON.stringify(arch)} });
+os.cpus = () => [{ model: ${JSON.stringify(cpu ?? 'Virtual CPU')} }];
+syncBuiltinESMExports();`)}`;
+}
+
+// The launch options the config gives a run, with Playwright's browsers in `ms` and the cloud's in `cloud`,
+// on this machine or on the host `fake` describes.
+function launchOptions(ms, cloud, fake) {
   const site = mkdtempSync(path.join(tmpdir(), 'pwconf-'));
   cpSync(path.join(TEMPLATE, 'playwright.config.ts'), path.join(site, 'playwright.config.ts'));
   symlinkSync(NODE_MODULES, path.join(site, 'node_modules'));
   const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, SITE_TEST_CLOUD_BROWSERS: cloud };
-  const r = spawnSync(process.execPath, ['--input-type=module', '-e',
+  const r = spawnSync(process.execPath, [...(fake ? ['--import', fakeHost(fake)] : []), '--input-type=module', '-e',
     "const m = await import('./playwright.config.ts'); console.log(JSON.stringify(m.default.use.launchOptions));"],
   { cwd: site, encoding: 'utf8', env });
   assert.equal(r.status, 0, r.stderr);
@@ -45,7 +55,8 @@ const HOST = {
   'linux-x64': 'chrome-headless-shell-linux64', 'linux-arm64': 'chrome-headless-shell-linux-arm64',
   'darwin-x64': 'chrome-headless-shell-mac-x64', 'darwin-arm64': 'chrome-headless-shell-mac-arm64',
   'win32-x64': 'chrome-headless-shell-win64',
-}[`${process.platform}-${process.arch}`];
+}[process.platform === 'darwin' ? `darwin-${cpus().some((cpu) => cpu.model.includes('Apple')) ? 'arm64' : 'x64'}`
+  : process.platform === 'win32' ? 'win32-x64' : `${process.platform}-${process.arch}`]; // Playwright picks a Mac's folder by its chip
 const EXE = process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome-headless-shell';
 const OTHER = HOST === 'chrome-headless-shell-win64' ? 'chrome-headless-shell-linux64' : 'chrome-headless-shell-win64';
 assert.ok(HOST, `no shell folder known for ${process.platform}-${process.arch}: add it here and to the config`);
@@ -126,4 +137,29 @@ test('this platform\'s folder holds a directory where the executable should be: 
   const w = world();
   mkdirSync(path.join(w.shell, HOST, EXE), { recursive: true });
   assert.deepEqual(launchOptions(w.ms, w.cloud), { executablePath: w.cloudShell });
+});
+
+// Playwright chooses the folder by the machine, not by Node's build: a Mac by its chip, Windows always win64.
+function keptOn(fake, folder, exe = 'chrome-headless-shell') {
+  const w = world();
+  mkdirSync(path.join(w.shell, folder), { recursive: true });
+  writeFileSync(path.join(w.shell, folder, exe), '');
+  return [launchOptions(w.ms, w.cloud, fake), w.cloudShell];
+}
+
+test('an Intel Node on an Apple-chip Mac (Rosetta): the config keeps the arm64 shell Playwright installs there', () => {
+  assert.deepEqual(keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Apple M2' }, 'chrome-headless-shell-mac-arm64')[0], {});
+});
+
+test('an Intel Node on an Apple-chip Mac with only the x64 shell: the config launches the cloud\'s own, as Playwright would not use it', () => {
+  const [options, cloudShell] = keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Apple M2' }, 'chrome-headless-shell-mac-x64');
+  assert.deepEqual(options, { executablePath: cloudShell });
+});
+
+test('an Intel Mac: the config keeps the x64 shell', () => {
+  assert.deepEqual(keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz' }, 'chrome-headless-shell-mac-x64')[0], {});
+});
+
+test('Windows on an ARM chip: the config keeps the win64 shell Playwright installs there', () => {
+  assert.deepEqual(keptOn({ platform: 'win32', arch: 'arm64' }, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe')[0], {});
 });

@@ -1,6 +1,7 @@
 import { chromium, defineConfig, devices } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs';
+import { cpus } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -35,7 +36,12 @@ function expectedHeadlessBuild(): string {
   return m ? `${m[1]}chromium_headless_shell-${m[2]}` : full;
 }
 // The folder holds the shell when this platform's subfolder has the executable as a file. The names
-// are Playwright's (its registry's paths, checked by the starter's test); the key is Node's, so an odd host counts as having none.
+// are Playwright's (its registry's paths, checked by the starter's test); an odd host counts as having none.
+// The key follows Playwright's choice of folder, not Node's build: a Mac by its chip, so an Intel
+// Node on an Apple chip (Rosetta) still finds the arm64 shell, and any Windows machine as x64.
+const HOST_KEY = process.platform === 'darwin'
+  ? (cpus().some((cpu) => cpu.model.includes('Apple')) ? 'darwin-arm64' : 'darwin-x64')
+  : process.platform === 'win32' ? 'win32-x64' : `${process.platform}-${process.arch}`;
 const SHELL_PATH: Record<string, [string, string]> = {
   'linux-x64': ['chrome-headless-shell-linux64', 'chrome-headless-shell'],
   'linux-arm64': ['chrome-headless-shell-linux-arm64', 'chrome-headless-shell'],
@@ -46,7 +52,7 @@ const SHELL_PATH: Record<string, [string, string]> = {
 function hasHeadlessShell(folder: string): boolean {
   if (!existsSync(folder)) return false;
   if (!statSync(folder).isDirectory()) return true; // expectedHeadlessBuild() fell back to the full browser's file
-  const [dir, exe] = SHELL_PATH[`${process.platform}-${process.arch}`] ?? [];
+  const [dir, exe] = SHELL_PATH[HOST_KEY] ?? [];
   const file = dir && join(folder, dir, exe);
   return !!file && existsSync(file) && statSync(file).isFile();
 }
