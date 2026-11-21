@@ -40,6 +40,16 @@ function expectedShell(ms) {
   return path.join(ms, `chromium_headless_shell-${m[1]}`);
 }
 
+// This machine's shell folder, written out by hand (not read from the config), and one that is some other platform's.
+const HOST = {
+  'linux-x64': 'chrome-headless-shell-linux64', 'linux-arm64': 'chrome-headless-shell-linux-arm64',
+  'darwin-x64': 'chrome-headless-shell-mac-x64', 'darwin-arm64': 'chrome-headless-shell-mac-arm64',
+  'win32-x64': 'chrome-headless-shell-win64',
+}[`${process.platform}-${process.arch}`];
+const EXE = process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome-headless-shell';
+const OTHER = HOST === 'chrome-headless-shell-win64' ? 'chrome-headless-shell-linux64' : 'chrome-headless-shell-win64';
+assert.ok(HOST, `no shell folder known for ${process.platform}-${process.arch}: add it here and to the config`);
+
 function world() {
   const root = mkdtempSync(path.join(tmpdir(), 'pwworld-'));
   const ms = path.join(root, 'ms');
@@ -54,8 +64,8 @@ function world() {
 
 test('the pinned shell is installed: the config keeps it', () => {
   const w = world();
-  mkdirSync(path.join(w.shell, 'chrome-headless-shell-linux64'), { recursive: true });
-  writeFileSync(path.join(w.shell, 'chrome-headless-shell-linux64', 'chrome-headless-shell'), '');
+  mkdirSync(path.join(w.shell, HOST), { recursive: true });
+  writeFileSync(path.join(w.shell, HOST, EXE), '');
   assert.deepEqual(launchOptions(w.ms, w.cloud), {});
 });
 
@@ -66,7 +76,7 @@ test('the pinned shell is missing: the config launches the cloud\'s own', () => 
 
 test('the pinned shell\'s folder is there but holds no executable (a partial install): the config launches the cloud\'s own', () => {
   const w = world();
-  mkdirSync(path.join(w.shell, 'chrome-headless-shell-linux64'), { recursive: true });
+  mkdirSync(path.join(w.shell, HOST), { recursive: true });
   writeFileSync(path.join(w.shell, 'INSTALLATION_COMPLETE'), '');
   assert.deepEqual(launchOptions(w.ms, w.cloud), { executablePath: w.cloudShell });
 });
@@ -74,4 +84,17 @@ test('the pinned shell\'s folder is there but holds no executable (a partial ins
 test('the pinned shell is missing and there is no cloud folder: nothing changes', () => {
   const w = world();
   assert.deepEqual(launchOptions(w.ms, path.join(path.dirname(w.cloud), 'none')), {});
+});
+
+test('the shell sits under another platform\'s folder (copied from another machine): the config launches the cloud\'s own', () => {
+  const w = world();
+  mkdirSync(path.join(w.shell, OTHER), { recursive: true });
+  writeFileSync(path.join(w.shell, OTHER, EXE), '');
+  assert.deepEqual(launchOptions(w.ms, w.cloud), { executablePath: w.cloudShell });
+});
+
+test('this platform\'s folder holds a directory where the executable should be: the config launches the cloud\'s own', () => {
+  const w = world();
+  mkdirSync(path.join(w.shell, HOST, EXE), { recursive: true });
+  assert.deepEqual(launchOptions(w.ms, w.cloud), { executablePath: w.cloudShell });
 });

@@ -34,12 +34,21 @@ function expectedHeadlessBuild(): string {
   const m = /^(.*[\\/])chromium-(\d+)[\\/]/.exec(full);
   return m ? `${m[1]}chromium_headless_shell-${m[2]}` : full;
 }
-// The folder holds the shell when one of its subfolders (chrome-headless-shell-<platform>) has the executable.
+// The folder holds the shell when this platform's subfolder has the executable as a file. The names
+// are Playwright's own (its registry's chrome-headless-shell paths); another platform's folder, or an unknown platform, does not count.
+const SHELL_PATH: Record<string, [string, string]> = {
+  'linux-x64': ['chrome-headless-shell-linux64', 'chrome-headless-shell'],
+  'linux-arm64': ['chrome-headless-shell-linux-arm64', 'chrome-headless-shell'],
+  'darwin-x64': ['chrome-headless-shell-mac-x64', 'chrome-headless-shell'],
+  'darwin-arm64': ['chrome-headless-shell-mac-arm64', 'chrome-headless-shell'],
+  'win32-x64': ['chrome-headless-shell-win64', 'chrome-headless-shell.exe'],
+};
 function hasHeadlessShell(folder: string): boolean {
   if (!existsSync(folder)) return false;
   if (!statSync(folder).isDirectory()) return true; // expectedHeadlessBuild() fell back to the full browser's file
-  return readdirSync(folder, { withFileTypes: true }).some((d) => d.isDirectory()
-    && ['chrome-headless-shell', 'chrome-headless-shell.exe'].some((exe) => existsSync(join(folder, d.name, exe))));
+  const [dir, exe] = SHELL_PATH[`${process.platform}-${process.arch}`] ?? [];
+  const file = dir && join(folder, dir, exe);
+  return !!file && existsSync(file) && statSync(file).isFile();
 }
 function cloudChromium(): string | undefined {
   if (hasHeadlessShell(expectedHeadlessBuild()) || !existsSync(CLOUD_BROWSERS)) return undefined;
