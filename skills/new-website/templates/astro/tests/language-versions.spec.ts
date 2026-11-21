@@ -25,7 +25,7 @@ const sameSite = (url: string) => new URL(url, SITE.url).origin === new URL(SITE
 const byValue = (a: string, b: string) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
 
 test('language versions of a page stay in step', async ({ page }) => {
-  test.setTimeout(120_000 + 3_000 * PAGES.length); // the default, plus room for a visit to every page
+  test.setTimeout(120_000 + 3_000 * PAGES.length); // room for a visit to every page
   const route = new Map<string, string>(PAGES.map((p) => [key(p), p]));
   const seen = new Map<string, Seen>();
   for (const path of PAGES) {

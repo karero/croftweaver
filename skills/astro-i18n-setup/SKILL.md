@@ -171,8 +171,8 @@ page in several languages, and an edit to it is an edit to every version.
   section replaced by another of the same shape, an image swapped for another, a number moved
   to another sentence, a reworded sentence with no number. The edit itself must cover those.
   It reads the body without `nav`, `header`, `footer`, `script`, `style`, `template` and
-  `noscript` It compares versions on this
-  site only: an alternate on another domain is left out, so check that one by hand.
+  `noscript`. It compares versions on this site only: an alternate on another domain is left
+  out, so check that one by hand.
 - **`data-versions-exempt="why"`** on a plain HTML element (a `<p>`, a `<section>`) for text
   one language needs, such as a phone line for German callers. The reason is required: an
   empty one fails the test. The element and everything in it is left out of the comparison.
