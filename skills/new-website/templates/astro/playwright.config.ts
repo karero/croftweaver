@@ -37,8 +37,8 @@ function expectedHeadlessBuild(): string {
 }
 // The folder holds the shell when this platform's subfolder has the executable as a file. The names
 // are Playwright's (its registry's paths, checked by the starter's test); an odd host counts as having none.
-// The key follows Playwright's choice of folder, not Node's build: a Mac by its chip, so an Intel
-// Node on an Apple chip (Rosetta) still finds the arm64 shell, and any Windows machine as x64.
+// The key follows Playwright's choice of folder, not Node's build: arm64 on a Mac whose os.cpus()
+// names an Apple chip, whatever Node's build, and x64 on any Windows machine.
 const HOST_KEY = process.platform === 'darwin'
   ? (cpus().some((cpu) => cpu.model.includes('Apple')) ? 'darwin-arm64' : 'darwin-x64')
   : process.platform === 'win32' ? 'win32-x64' : `${process.platform}-${process.arch}`;
