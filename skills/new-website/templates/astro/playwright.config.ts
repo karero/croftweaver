@@ -35,7 +35,7 @@ function expectedHeadlessBuild(): string {
   return m ? `${m[1]}chromium_headless_shell-${m[2]}` : full;
 }
 // The folder holds the shell when this platform's subfolder has the executable as a file. The names
-// are Playwright's own (its registry's chrome-headless-shell paths); another platform's folder, or an unknown platform, does not count.
+// are Playwright's (its registry's paths, checked by the starter's test); the key is Node's, so an odd host counts as having none.
 const SHELL_PATH: Record<string, [string, string]> = {
   'linux-x64': ['chrome-headless-shell-linux64', 'chrome-headless-shell'],
   'linux-arm64': ['chrome-headless-shell-linux-arm64', 'chrome-headless-shell'],

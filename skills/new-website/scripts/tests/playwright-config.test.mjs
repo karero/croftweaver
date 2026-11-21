@@ -50,6 +50,16 @@ const EXE = process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome
 const OTHER = HOST === 'chrome-headless-shell-win64' ? 'chrome-headless-shell-linux64' : 'chrome-headless-shell-win64';
 assert.ok(HOST, `no shell folder known for ${process.platform}-${process.arch}: add it here and to the config`);
 
+// The path Playwright itself launches the headless shell from, read from its "Executable doesn't exist at <path>" error.
+function shellPathPlaywrightWants(ms) {
+  const r = spawnSync(process.execPath, ['-e',
+    "require('@playwright/test').chromium.launch().catch((e) => console.log(e.message))"],
+  { cwd: NODE_MODULES, encoding: 'utf8', env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms } });
+  const m = /Executable doesn't exist at (.+)/.exec(r.stdout);
+  assert.ok(m, `no path in Playwright's launch error: ${r.stdout}${r.stderr}`);
+  return m[1].trim();
+}
+
 function world() {
   const root = mkdtempSync(path.join(tmpdir(), 'pwworld-'));
   const ms = path.join(root, 'ms');
@@ -66,6 +76,15 @@ test('the pinned shell is installed: the config keeps it', () => {
   const w = world();
   mkdirSync(path.join(w.shell, HOST), { recursive: true });
   writeFileSync(path.join(w.shell, HOST, EXE), '');
+  assert.deepEqual(launchOptions(w.ms, w.cloud), {});
+});
+
+test('a shell at the path Playwright itself asks for is kept (the folder names match Playwright\'s)', () => {
+  const w = world();
+  const wanted = shellPathPlaywrightWants(w.ms);
+  assert.equal(wanted, path.join(w.shell, HOST, EXE));
+  mkdirSync(path.dirname(wanted), { recursive: true });
+  writeFileSync(wanted, '');
   assert.deepEqual(launchOptions(w.ms, w.cloud), {});
 });
 
