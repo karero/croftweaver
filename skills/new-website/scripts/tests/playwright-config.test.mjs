@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,10 +51,10 @@ const OTHER = HOST === 'chrome-headless-shell-win64' ? 'chrome-headless-shell-li
 assert.ok(HOST, `no shell folder known for ${process.platform}-${process.arch}: add it here and to the config`);
 
 // The path Playwright itself launches the headless shell from, read from its "Executable doesn't exist at <path>" error.
-function shellPathPlaywrightWants(ms) {
+function shellPathPlaywrightWants(ms, hostOverride) {
   const r = spawnSync(process.execPath, ['-e',
     "require('@playwright/test').chromium.launch().catch((e) => console.log(e.message))"],
-  { cwd: NODE_MODULES, encoding: 'utf8', env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms } });
+  { cwd: NODE_MODULES, encoding: 'utf8', env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, ...(hostOverride && { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostOverride }) } });
   const m = /Executable doesn't exist at (.+)/.exec(r.stdout);
   assert.ok(m, `no path in Playwright's launch error: ${r.stdout}${r.stderr}`);
   return m[1].trim();
@@ -86,6 +86,16 @@ test('a shell at the path Playwright itself asks for is kept (the folder names m
   mkdirSync(path.dirname(wanted), { recursive: true });
   writeFileSync(wanted, '');
   assert.deepEqual(launchOptions(w.ms, w.cloud), {});
+});
+
+test('every folder name in the config\'s table is the one Playwright asks for on that platform', () => {
+  const config = readFileSync(path.join(TEMPLATE, 'playwright.config.ts'), 'utf8');
+  const hosts = { 'linux-x64': 'ubuntu24.04-x64', 'linux-arm64': 'ubuntu24.04-arm64', 'darwin-x64': 'mac14', 'darwin-arm64': 'mac14-arm64', 'win32-x64': 'win64' };
+  for (const [key, override] of Object.entries(hosts)) {
+    const row = new RegExp(`'${key}': \\['([^']+)', '([^']+)'\\]`).exec(config);
+    assert.ok(row, `no table row for ${key} in playwright.config.ts`);
+    assert.deepEqual(shellPathPlaywrightWants(world().ms, override).split(/[\\/]/).slice(-2), [row[1], row[2]], key);
+  }
 });
 
 test('the pinned shell is missing: the config launches the cloud\'s own', () => {
