@@ -18,12 +18,14 @@ const NODE_MODULES = process.env.MAKE_ICONS_NODE_MODULES;
 assert.ok(NODE_MODULES && existsSync(path.join(NODE_MODULES, '@playwright', 'test')),
   'set MAKE_ICONS_NODE_MODULES to the starter\'s node_modules (npm ci in templates/astro)');
 
-// A module run before the config that makes it see another host: Node's platform and build, and the chip os.cpus() names.
+// A module run before the config (or Playwright) that makes it see another host: Node's platform and build, the chip
+// os.cpus() names, and a macOS 15 kernel, as Playwright gives the arm64 folder only from macOS 11.
 function fakeHost({ platform, arch, cpu }) {
   return `data:text/javascript,${encodeURIComponent(`import os from 'node:os'; import { syncBuiltinESMExports } from 'node:module';
 Object.defineProperty(process, 'platform', { value: ${JSON.stringify(platform)} });
 Object.defineProperty(process, 'arch', { value: ${JSON.stringify(arch)} });
 os.cpus = () => [{ model: ${JSON.stringify(cpu ?? 'Virtual CPU')} }];
+os.release = () => '24.0.0';
 syncBuiltinESMExports();`)}`;
 }
 
@@ -62,8 +64,8 @@ const OTHER = HOST === 'chrome-headless-shell-win64' ? 'chrome-headless-shell-li
 assert.ok(HOST, `no shell folder known for ${process.platform}-${process.arch}: add it here and to the config`);
 
 // The path Playwright itself launches the headless shell from, read from its "Executable doesn't exist at <path>" error.
-function shellPathPlaywrightWants(ms, hostOverride) {
-  const r = spawnSync(process.execPath, ['-e',
+function shellPathPlaywrightWants(ms, hostOverride, fake) {
+  const r = spawnSync(process.execPath, [...(fake ? ['--import', fakeHost(fake)] : []), '-e',
     "require('@playwright/test').chromium.launch().catch((e) => console.log(e.message))"],
   { cwd: NODE_MODULES, encoding: 'utf8', env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, ...(hostOverride && { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostOverride }) } });
   const m = /Executable doesn't exist at (.+)/.exec(r.stdout);
@@ -140,26 +142,35 @@ test('this platform\'s folder holds a directory where the executable should be: 
 });
 
 // Playwright chooses the folder by the machine, not by Node's build: a Mac by its chip, Windows always win64.
+// Each case also asks Playwright, on the same fake host, which folder it launches from.
 function keptOn(fake, folder, exe = 'chrome-headless-shell') {
   const w = world();
+  const wanted = shellPathPlaywrightWants(w.ms, undefined, fake).split(/[\\/]/).slice(-2); // before the shell exists
   mkdirSync(path.join(w.shell, folder), { recursive: true });
   writeFileSync(path.join(w.shell, folder, exe), '');
-  return [launchOptions(w.ms, w.cloud, fake), w.cloudShell];
+  return [launchOptions(w.ms, w.cloud, fake), w.cloudShell, wanted];
 }
 
 test('an Intel Node on an Apple-chip Mac (Rosetta): the config keeps the arm64 shell Playwright installs there', () => {
-  assert.deepEqual(keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Apple M2' }, 'chrome-headless-shell-mac-arm64')[0], {});
+  const [options, , wanted] = keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Apple M2' }, 'chrome-headless-shell-mac-arm64');
+  assert.deepEqual(wanted, ['chrome-headless-shell-mac-arm64', 'chrome-headless-shell']);
+  assert.deepEqual(options, {});
 });
 
 test('an Intel Node on an Apple-chip Mac with only the x64 shell: the config launches the cloud\'s own, as Playwright would not use it', () => {
-  const [options, cloudShell] = keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Apple M2' }, 'chrome-headless-shell-mac-x64');
+  const [options, cloudShell, wanted] = keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Apple M2' }, 'chrome-headless-shell-mac-x64');
+  assert.deepEqual(wanted, ['chrome-headless-shell-mac-arm64', 'chrome-headless-shell']);
   assert.deepEqual(options, { executablePath: cloudShell });
 });
 
 test('an Intel Mac: the config keeps the x64 shell', () => {
-  assert.deepEqual(keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz' }, 'chrome-headless-shell-mac-x64')[0], {});
+  const [options, , wanted] = keptOn({ platform: 'darwin', arch: 'x64', cpu: 'Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz' }, 'chrome-headless-shell-mac-x64');
+  assert.deepEqual(wanted, ['chrome-headless-shell-mac-x64', 'chrome-headless-shell']);
+  assert.deepEqual(options, {});
 });
 
 test('Windows on an ARM chip: the config keeps the win64 shell Playwright installs there', () => {
-  assert.deepEqual(keptOn({ platform: 'win32', arch: 'arm64' }, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe')[0], {});
+  const [options, , wanted] = keptOn({ platform: 'win32', arch: 'arm64' }, 'chrome-headless-shell-win64', 'chrome-headless-shell.exe');
+  assert.deepEqual(wanted, ['chrome-headless-shell-win64', 'chrome-headless-shell.exe']);
+  assert.deepEqual(options, {});
 });
