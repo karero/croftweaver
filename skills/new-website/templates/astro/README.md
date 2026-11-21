@@ -46,7 +46,7 @@ scripts/wire-hooks.mjs           # run by "prepare" on every `npm install`, whic
 scripts/verify.mjs               # `npm run verify`: CI's install, check, build and test in one command; the pre-push hook runs it
 scripts/orphan-exempt.mjs        # reads orphan-exempt.txt for tests/orphans.spec.ts and scripts/check_internal_links.sh
 scripts/make-icons.mjs           # setup runs it once (`--setup`): draws the site's first letter into the seven icon files, recorded in scripts/icons-made.json
-tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,icons,phone-images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,tables,served-build,workers-config}.spec.ts
+tests/_helpers.ts  tests/{a11y,seo,navigation,anchors,orphans,images,icons,phone-images,tone,positioning,placeholders,privacy-host,email,links,llms-coverage,tables,served-build,workers-config,language-versions}.spec.ts
 tests/fixtures/               # captures of real tool output that a check reads (workers-builds-2026-11-08.txt, axe-core-4.14.0-playwright-4.14.0-incomplete.json)
 tests/check_ship_push.sh      # offline gate: ship.sh's publish-failure diagnosis, and its ship.fromGitHub mode on throwaway local repos (pre-push hook + CI)
 tests/check_analytics_gate.sh # counter self-test, CSP check, builds as Pages and as Workers Builds would: off in all with USE_ANALYTICS = false (as shipped), or on only when the branch being built (CF_PAGES_BRANCH, else Workers Builds' WORKERS_CI_BRANCH) is PROD_BRANCH; it skips a site still in analytics server mode (the suite's own CI)

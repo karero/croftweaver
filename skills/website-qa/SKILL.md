@@ -48,6 +48,12 @@ cosmetics; red → green → commit.
   listing any unreachable page. Deliberately-unlinked pages opt out in `orphan-exempt.txt`.
   Offline. The judgment-side report (inbound count, thin pages, where to add links) is
   the `internal-link-audit` skill.
+- `language-versions.spec.ts` — a page that lists versions in other languages (hreflang) keeps
+  the same shape in every one: any number of versions, compared on heading count per level and
+  image count (a difference fails), and on numbers (a difference is a warning, passes, and is
+  told to the owner in chat). It also fails when the versions of a set do not list the same
+  versions. Text that belongs to one language opts out with `data-versions-exempt="why"`. A
+  site with no hreflang links skips it and says so. Offline.
 - `llms-coverage.spec.ts` — `public/llms.txt` matches `PAGES`: a page missing from the file and
   an entry for a page that is gone both fail. `LLMS_EXEMPT` opts a page out, with a reason.
   Whether an entry's wording still fits its page is a `website-review` judgment. Offline.

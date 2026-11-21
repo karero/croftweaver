@@ -232,6 +232,14 @@ applies there; instead of steps 2 to 4, only this:
   language-specific list is in `tests/_helpers.ts`; read it before writing copy.
   House style beyond the test: one form of address per site (German: du or Sie,
   never mixed).
+- **A page in several languages.** If a page lists versions in other languages (hreflang:
+  `alternates` on `Base`, or the site's i18n routing), a change to one version goes into every
+  version in the same pull request. Wording may differ; sections, facts, numbers and images
+  may not. Text that belongs to one language only gets `data-versions-exempt="why"`. Run
+  `npx playwright test tests/language-versions.spec.ts` before the edit and again after it:
+  fix a failure; for each `⚠ language versions:` warning, tell the owner in plain words which
+  numbers differ and whether the edit made the difference, ask whether that is meant, and list
+  the answers in the pull request.
 - **Alt text (`alt`):** describes the image factually for people who cannot see it.
 - **Meta description:** 140 to 160 characters (the test allows 120 to 160), says what
   the page offers and for whom.

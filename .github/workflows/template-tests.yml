@@ -236,6 +236,121 @@ jobs:
           printf '%s\n' "$out" | grep -Fq '/ci-unlinked' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the failure does not name /ci-unlinked"; exit 1; }
           git checkout -- tests/_helpers.ts
           rm src/pages/ci-unlinked.astro
+      # tests/language-versions.spec.ts is green or skipped on the shipped starter, so a run alone
+      # cannot show that each rule still fires. First the starter itself: no page names a version,
+      # so the spec must skip and say why. Then fixture pages, a set of three (/ci-lv, /ci-lv-de,
+      # /ci-lv-fr) and a set of two (/ci-lv2, /ci-lv2-de): each case changes one thing and reads
+      # the JSON report of the spec's one test (status, error, warning annotations, stderr), so a
+      # test that fails or warns for another reason does not pass. Headings, images, an empty
+      # reason, a version left out of a set and an alternate that is no page must go red; numbers
+      # must only warn, and the warning must be printed as well as recorded. The fixtures and
+      # tests/_helpers.ts are put back afterwards. seo.spec.ts is not run on the fixtures: its
+      # per-page head test and its distinct-card test would fail for reasons of their own.
+      - name: The language versions spec fires on each rule
+        run: |
+          NO_SETS='No page names versions in other languages (hreflang), so there is nothing to compare'
+          check_js='
+            const fs = require("fs");
+            const [file, want, errParts, warnParts, notInErr, skipReason] = process.argv.slice(1);
+            const r = JSON.parse(fs.readFileSync(file, "utf8"));
+            const tests = [];
+            const walk = (s) => { (s.specs || []).forEach((sp) => tests.push(...sp.tests)); (s.suites || []).forEach(walk); };
+            r.suites.forEach(walk);
+            const bad = [];
+            if (tests.length !== 1) bad.push("expected one test, the report has " + tests.length);
+            const t = tests[0] || { status: "none", annotations: [], results: [] };
+            const results = t.results || [];
+            const err = results.map((x) => ((x.errors || []).map((e) => e.message).join("\n")) || (x.error && x.error.message) || "").join("\n");
+            const stderr = results.map((x) => (x.stderr || []).map((c) => c.text).join("")).join("\n");
+            const stdout = results.map((x) => (x.stdout || []).map((c) => c.text).join("")).join("\n");
+            const warns = (t.annotations || []).filter((a) => a.type === "warning").map((a) => a.description || "");
+            if (t.status !== want) bad.push("test status " + t.status + ", wanted " + want);
+            const parts = (s) => (s && s !== "-" ? s.split("|") : []);
+            for (const p of parts(errParts)) if (!err.includes(p)) bad.push("the error does not say " + JSON.stringify(p));
+            for (const p of parts(notInErr)) if (err.includes(p)) bad.push("the error says " + JSON.stringify(p));
+            if (warnParts === "none") {
+              if (warns.length || stderr.includes("⚠ language versions:")) bad.push("a number warning was recorded or printed");
+            } else if (warnParts && warnParts !== "-") {
+              if (!stderr.includes("⚠ language versions:")) bad.push("no ⚠ language versions: line on stderr");
+              for (const text of [warns.join("\n"), stderr]) {
+                if (!text.includes("Tell the site" + String.fromCharCode(39) + "s owner in plain words")) bad.push("a warning lacks the sentence that tells the owner");
+                for (const p of parts(warnParts)) if (!text.includes(p)) bad.push("a warning does not name " + JSON.stringify(p));
+              }
+              if (!warns.length) bad.push("no warning annotation");
+            }
+            if (skipReason) {
+              const skip = (t.annotations || []).find((a) => a.type === "skip");
+              if (!skip || skip.description !== skipReason) bad.push("the skip reason is " + JSON.stringify(skip && skip.description));
+              if (!stdout.includes(skipReason)) bad.push("the line was not printed");
+            }
+            if (bad.length) { console.log(bad.join("\n")); console.log("--- error:\n" + err.slice(0, 1500)); console.log("--- warnings:\n" + warns.join("\n---\n")); process.exit(1); }
+          '
+          lv_run() {   # lv_run <report file>: one run of the spec, JSON to the file
+            CI= npx playwright test tests/language-versions.spec.ts --reporter=json > "$1" || true
+          }
+          lv_check() { # lv_check <case> <status> <error parts, | apart> <warning parts, | apart or none> [not in error] [skip reason]
+            lv_run lv-case.json
+            node -e "$check_js" lv-case.json "$2" "$3" "$4" "${5:-}" "${6:-}" || { echo "::error::language versions, case \"$1\": see the lines above"; exit 1; }
+            echo "ok: $1"
+          }
+          # The starter itself, before any fixture is written: no versions, so skip and say why.
+          lv_run lv-skip.json
+          node -e "$check_js" lv-skip.json skipped - none "" "$NO_SETS" || { echo "::error::the spec did not skip, with its reason and its printed line, on a starter with no versions"; exit 1; }
+          echo "ok: a site with no versions skips and says why"
+          lv_alts() {  # lv_alts <x-default path> <path code>...
+            local d="$1" out=""; shift
+            while [ "$#" -ge 2 ]; do out="$out{ hreflang: '$2', href: '$1' }, "; shift 2; done
+            printf "[%s{ hreflang: 'x-default', href: '%s' }]" "$out" "$d"
+          }
+          lv_page() {  # lv_page <slug> <lang> <alternates> <body>
+            printf -- '---\nimport Base from "../layouts/Base.astro";\n---\n<Base lang="%s" title="CI language versions" description="Fixture page for the language versions spec" alternates={%s}>\n%s\n</Base>\n' "$2" "$3" "$4" > "src/pages/$1.astro"
+          }
+          perl -pi -e "s|^  '/privacy',|  '/privacy',\n  '/ci-lv',\n  '/ci-lv-de',\n  '/ci-lv-fr',\n  '/ci-lv2',\n  '/ci-lv2-de',|" tests/_helpers.ts
+          if ! grep -q "^  '/ci-lv2-de'," tests/_helpers.ts; then echo "::error::the edit of tests/_helpers.ts did not apply"; exit 1; fi
+          nnbsp="$(printf '\342\200\257')"   # U+202F, the narrow no-break space French writes in 1 200
+          H2B='<h2>Second</h2>'
+          IMG='<img src="/images/og/default.jpg" alt="Fixture" width="10" height="10">'
+          reset() {    # every case starts from versions in step, written in each language's way
+            en='<h1>Language versions</h1><h2>First</h2>'"$H2B"'<p>80 to 120 attendees, 1,200 in all, on 19 November 2026, 18:30</p>'
+            de='<h1>Sprachversionen</h1><h2>Erstens</h2>'"$H2B"'<p>80 bis 120 Teilnehmende, 1.200 insgesamt, am 19. November 2026, 18:30</p>'
+            fr='<h1>Versions linguistiques</h1><h2>Premier</h2>'"$H2B"'<p>80 à 120 participants, 1'"$nnbsp"'200 au total, le 19 novembre 2026, 18 h 30</p>'
+            en2='<h1>Second page</h1><h2>Only</h2><p>80 to 120 attendees</p>'
+            de2='<h1>Zweite Seite</h1><h2>Einziger</h2><p>80 bis 120 Teilnehmende</p>'
+            a_en="$(lv_alts /ci-lv /ci-lv en /ci-lv-de de /ci-lv-fr fr)"
+            a_de="$a_en"; a_fr="$a_en"
+            a_en2="$(lv_alts /ci-lv2 /ci-lv2 en /ci-lv2-de de)"; a_de2="$a_en2"
+          }
+          write_pages() {
+            lv_page ci-lv en "$a_en" "$en"; lv_page ci-lv-de de "$a_de" "$de"; lv_page ci-lv-fr fr "$a_fr" "$fr"
+            lv_page ci-lv2 en "$a_en2" "$en2"; lv_page ci-lv2-de de "$a_de2" "$de2"
+          }
+          # A case: reset, change what it changes, write the pages, run and read the report.
+          reset; write_pages
+          lv_check "versions in step, numbers written three ways" expected - none
+          reset; de='<h1>Sprachversionen</h1><h2>Erstens</h2>'"$H2B"'<p>80 to 120 attendees, 1,200 in all, on 19 November 2026, 18:30</p>'; write_pages
+          lv_check "versions in step, same numbers spelled the same" expected - none
+          reset; fr="${fr/"$H2B"/}"; write_pages
+          lv_check "an h2 missing on one of three versions" unexpected "/ci-lv-fr has 1 h2|/ci-lv has 2 h2|/ci-lv-de has 2 h2" none
+          reset; de="$de$IMG"; write_pages
+          lv_check "an image on one version only" unexpected "/ci-lv-de has 1|/ci-lv has 0" none
+          reset; de='<h1>Sprachversionen</h1><h2>Erstens</h2>'"$H2B"'<p>100 bis 150 Teilnehmende, 1.200 insgesamt, am 19. November 2026, 18:30</p>'; write_pages
+          lv_check "a number changed on one version" expected - "/ci-lv|/ci-lv-de|80|120|100|150"
+          reset; de="$de"'<section data-versions-exempt="German callers only"><h2>Anrufe</h2><p>089 1234567</p></section>'; write_pages
+          lv_check "text that belongs to one language, marked" expected - none
+          reset; de="$de"'<section><h2>Anrufe</h2><p>089 1234567</p></section>'; write_pages
+          lv_check "the same text unmarked" unexpected "/ci-lv-de has 3 h2|/ci-lv has 2 h2" "089|1234567"
+          reset; de="$de"'<section data-versions-exempt=""><h2>Anrufe</h2></section>'; write_pages
+          lv_check "a mark with no reason" unexpected "/ci-lv-de|data-versions-exempt with no reason" none "Headings differ"
+          reset; fr="${fr/"$H2B"/}"; de2='<h1>Zweite Seite</h1><h2>Einziger</h2><p>80 bis 150 Teilnehmende</p>'; write_pages
+          lv_check "a failing set beside a set that only warns" unexpected "/ci-lv-fr has 1 h2" "/ci-lv2|150" "/ci-lv2"
+          reset; a_de="$(lv_alts /ci-lv /ci-lv-de de /ci-lv en)"; a_fr="$(lv_alts /ci-lv /ci-lv-fr fr /ci-lv en)"; write_pages
+          lv_check "a version that leaves out another of its set" unexpected "/ci-lv-de leaves out /ci-lv-fr|/ci-lv-fr leaves out /ci-lv-de" none
+          # What seo.spec.ts already accepts there: every link is answered. The new spec is the guard.
+          CI= npx playwright test tests/seo.spec.ts -g "twin-page hreflang" --reporter=line || { echo "::error::seo.spec.ts failed on a set whose links are all answered, so this case no longer shows the gap the new spec closes"; exit 1; }
+          reset; a_en="$(lv_alts /ci-lv /ci-lv en /ci-lv-de de /ci-lv-fr fr /ci-lv-xx es)"; write_pages
+          lv_check "an alternate that is no PAGES route" unexpected "/ci-lv-xx" none
+          git checkout -- tests/_helpers.ts
+          rm -f src/pages/ci-lv.astro src/pages/ci-lv-de.astro src/pages/ci-lv-fr.astro src/pages/ci-lv2.astro src/pages/ci-lv2-de.astro lv-skip.json lv-case.json
       # The legal-page guard in tests/placeholders.spec.ts is green on the shipped starter,
       # so a run alone cannot show that it still fires. Take the notice off /privacy while the
       # page stays listed and no answer is recorded: its test must go red, and so must a
