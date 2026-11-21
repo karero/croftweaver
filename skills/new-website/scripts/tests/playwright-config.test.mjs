@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,26 @@ function expectedShell(ms) {
   return path.join(ms, `chromium_headless_shell-${m[1]}`);
 }
 
+// This machine's shell folder, written out by hand (not read from the config), and one that is some other platform's.
+const HOST = {
+  'linux-x64': 'chrome-headless-shell-linux64', 'linux-arm64': 'chrome-headless-shell-linux-arm64',
+  'darwin-x64': 'chrome-headless-shell-mac-x64', 'darwin-arm64': 'chrome-headless-shell-mac-arm64',
+  'win32-x64': 'chrome-headless-shell-win64',
+}[`${process.platform}-${process.arch}`];
+const EXE = process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome-headless-shell';
+const OTHER = HOST === 'chrome-headless-shell-win64' ? 'chrome-headless-shell-linux64' : 'chrome-headless-shell-win64';
+assert.ok(HOST, `no shell folder known for ${process.platform}-${process.arch}: add it here and to the config`);
+
+// The path Playwright itself launches the headless shell from, read from its "Executable doesn't exist at <path>" error.
+function shellPathPlaywrightWants(ms, hostOverride) {
+  const r = spawnSync(process.execPath, ['-e',
+    "require('@playwright/test').chromium.launch().catch((e) => console.log(e.message))"],
+  { cwd: NODE_MODULES, encoding: 'utf8', env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, ...(hostOverride && { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostOverride }) } });
+  const m = /Executable doesn't exist at (.+)/.exec(r.stdout);
+  assert.ok(m, `no path in Playwright's launch error: ${r.stdout}${r.stderr}`);
+  return m[1].trim();
+}
+
 function world() {
   const root = mkdtempSync(path.join(tmpdir(), 'pwworld-'));
   const ms = path.join(root, 'ms');
@@ -54,9 +74,28 @@ function world() {
 
 test('the pinned shell is installed: the config keeps it', () => {
   const w = world();
-  mkdirSync(path.join(w.shell, 'chrome-headless-shell-linux64'), { recursive: true });
-  writeFileSync(path.join(w.shell, 'chrome-headless-shell-linux64', 'chrome-headless-shell'), '');
+  mkdirSync(path.join(w.shell, HOST), { recursive: true });
+  writeFileSync(path.join(w.shell, HOST, EXE), '');
   assert.deepEqual(launchOptions(w.ms, w.cloud), {});
+});
+
+test('a shell at the path Playwright itself asks for is kept (the folder names match Playwright\'s)', () => {
+  const w = world();
+  const wanted = shellPathPlaywrightWants(w.ms);
+  assert.equal(wanted, path.join(w.shell, HOST, EXE));
+  mkdirSync(path.dirname(wanted), { recursive: true });
+  writeFileSync(wanted, '');
+  assert.deepEqual(launchOptions(w.ms, w.cloud), {});
+});
+
+test('every folder name in the config\'s table is the one Playwright asks for on that platform', () => {
+  const config = readFileSync(path.join(TEMPLATE, 'playwright.config.ts'), 'utf8');
+  const hosts = { 'linux-x64': 'ubuntu24.04-x64', 'linux-arm64': 'ubuntu24.04-arm64', 'darwin-x64': 'mac14', 'darwin-arm64': 'mac14-arm64', 'win32-x64': 'win64' };
+  for (const [key, override] of Object.entries(hosts)) {
+    const row = new RegExp(`'${key}': \\['([^']+)', '([^']+)'\\]`).exec(config);
+    assert.ok(row, `no table row for ${key} in playwright.config.ts`);
+    assert.deepEqual(shellPathPlaywrightWants(world().ms, override).split(/[\\/]/).slice(-2), [row[1], row[2]], key);
+  }
 });
 
 test('the pinned shell is missing: the config launches the cloud\'s own', () => {
@@ -66,7 +105,7 @@ test('the pinned shell is missing: the config launches the cloud\'s own', () => 
 
 test('the pinned shell\'s folder is there but holds no executable (a partial install): the config launches the cloud\'s own', () => {
   const w = world();
-  mkdirSync(path.join(w.shell, 'chrome-headless-shell-linux64'), { recursive: true });
+  mkdirSync(path.join(w.shell, HOST), { recursive: true });
   writeFileSync(path.join(w.shell, 'INSTALLATION_COMPLETE'), '');
   assert.deepEqual(launchOptions(w.ms, w.cloud), { executablePath: w.cloudShell });
 });
@@ -74,4 +113,17 @@ test('the pinned shell\'s folder is there but holds no executable (a partial ins
 test('the pinned shell is missing and there is no cloud folder: nothing changes', () => {
   const w = world();
   assert.deepEqual(launchOptions(w.ms, path.join(path.dirname(w.cloud), 'none')), {});
+});
+
+test('the shell sits under another platform\'s folder (copied from another machine): the config launches the cloud\'s own', () => {
+  const w = world();
+  mkdirSync(path.join(w.shell, OTHER), { recursive: true });
+  writeFileSync(path.join(w.shell, OTHER, EXE), '');
+  assert.deepEqual(launchOptions(w.ms, w.cloud), { executablePath: w.cloudShell });
+});
+
+test('this platform\'s folder holds a directory where the executable should be: the config launches the cloud\'s own', () => {
+  const w = world();
+  mkdirSync(path.join(w.shell, HOST, EXE), { recursive: true });
+  assert.deepEqual(launchOptions(w.ms, w.cloud), { executablePath: w.cloudShell });
 });
