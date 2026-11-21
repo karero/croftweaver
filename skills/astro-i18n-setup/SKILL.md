@@ -105,10 +105,11 @@ routing setup above is more machinery than the job needs. The default kit
 `Base.astro` ships an optional `alternates` prop instead — no astro.config changes,
 no locale prefixes, no `LOCALES`:
 
-Give each paired page its own localized slug (see "Localized slugs" in
+Give each version of a page its own localized slug (see "Localized slugs" in
 `seo-audit/references/international-seo.md`) — e.g. `/ai-events-munich` (EN) and
-`/ai-treffen-muenchen` (DE) — and pass BOTH pages the full cluster, including a
-self-referencing entry and `x-default`:
+`/ai-treffen-muenchen` (DE) — and pass EVERY version the full cluster, including a
+self-referencing entry and `x-default`. Two languages are the example; a third or
+fourth version adds one entry to every version's cluster:
 
 ```astro
 <!-- /ai-events-munich (EN page) -->
@@ -127,12 +128,13 @@ self-referencing entry and `x-default`:
 ```
 
 `tests/seo.spec.ts`'s twin-page reciprocity check (in the default suite) enforces
-that both halves agree: a self-referencing entry equal to the canonical, no dead
+that the versions agree: a self-referencing entry equal to the canonical, no dead
 same-site targets, and A→B implies B→A. Forgetting the cluster on one twin — the
 exact bug that shipped live on a real site built from this kit (an English event
 page with no `alternates`, so its German twin's hreflang went unreciprocated,
 which makes Google ignore the pair) — now fails the build. Also add a visible
-`<a href="/ai-treffen-muenchen" lang="de" hreflang="de">Deutsch</a>` near the
+link to each other version, e.g.
+`<a href="/ai-treffen-muenchen" lang="de" hreflang="de">Deutsch</a>`, near the
 nav/footer: `alternates` only talks to crawlers, not visitors.
 
 Pick the heavy path (everything above this section) when most of the site is
@@ -141,6 +143,46 @@ path for a few one-off translated pages. Don't mix both on the same SITE: a
 localized-slug twin can't be expressed in ROUTES (non-default locales map to
 `/prefix` paths there), so on a heavy site a light-path page fails i18n.spec's
 completeness check by design.
+
+## Keeping language versions in step
+
+Applies to both paths: a page that lists versions in other languages (hreflang) is one
+page in several languages, and an edit to it is an edit to every version.
+
+- **A change to any version goes into every version, in the same pull request.** Not only a
+  change to the main language: sections, facts, numbers, images, dates. The pull request names
+  every version it touched.
+- **What may differ:** wording and idiom, how a number or date is written, examples chosen
+  for the reader, links to sources in the reader's language, translated anchor ids.
+- **Before and after an edit, run `npx playwright test tests/language-versions.spec.ts`.**
+  Run it both times, so you can say which differences the edit made and which were there
+  already. Fix a failure. Tell the owner each `⚠ language versions:` warning in chat, one set
+  at a time, in plain words ("The English and German versions of /x now have different
+  numbers: 100 and 150 only on the English page, 80 and 120 only on the German one. Is that
+  meant?"), and ask whether it is meant. Not meant: make the same change on every version.
+  Meant: offer to mark the sentence `data-versions-exempt="why"`, so the owner is not asked
+  again; if the owner declines, ask again next time. List each set, its numbers and the
+  owner's answer in the pull request description. A warning in the run's output is not
+  telling the owner.
+- **What the test reads, and what it cannot.** It compares every version of a set, any
+  number of them, on counts: it fails a version with more or fewer headings at a level, or
+  more or fewer images, and it warns on numbers that appear a different number of times. It
+  also fails when the versions of a set do not list the same versions. A change that keeps the counts passes: a
+  section replaced by another of the same shape, an image swapped for another, a number moved
+  to another sentence, a reworded sentence with no number. The edit itself must cover those.
+  It reads the body without `nav`, `header`, `footer`, `script`, `style`, `template` and
+  `noscript`. It compares versions on this site only: an alternate on another domain is left
+  out, so check that one by hand.
+- **`data-versions-exempt="why"`** on a plain HTML element (a `<p>`, a `<section>`) for text
+  one language needs, such as a phone line for German callers. The reason is required: an
+  empty one fails the test. The element and everything in it is left out of the comparison.
+  Known false alarms in the number warning, listed though the versions agree: the same number
+  written "1000" in one version and "1.000" in another, a 12-hour time against a 24-hour time,
+  a number written as a word in one language. Write them alike, or mark them.
+- **Adding a version:** add it to the cluster of every existing version. The test fails when
+  the versions of a set disagree about the set: the new version names the others and one of
+  them does not name it. It cannot see a new version that names only itself and that no
+  other version names (A = {A, B}, B = {A, B}, C = {C} passes: C is in no set).
 
 ## What it changes
 
