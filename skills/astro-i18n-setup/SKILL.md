@@ -166,12 +166,13 @@ page in several languages, and an edit to it is an edit to every version.
   telling the owner.
 - **What the test reads, and what it cannot.** It compares every version of a set, any
   number of them, on counts: it fails a version with more or fewer headings at a level, or
-  more or fewer images, and it warns on numbers the others lack. It also fails when the
-  versions of a set do not list the same versions. A change that keeps the counts passes: a
+  more or fewer images, and it warns on numbers that appear a different number of times. It
+  also fails when the versions of a set do not list the same versions. A change that keeps the counts passes: a
   section replaced by another of the same shape, an image swapped for another, a number moved
   to another sentence, a reworded sentence with no number. The edit itself must cover those.
   It reads the body without `nav`, `header`, `footer`, `script`, `style`, `template` and
-  `noscript`.
+  `noscript` It compares versions on this
+  site only: an alternate on another domain is left out, so check that one by hand.
 - **`data-versions-exempt="why"`** on a plain HTML element (a `<p>`, a `<section>`) for text
   one language needs, such as a phone line for German callers. The reason is required: an
   empty one fails the test. The element and everything in it is left out of the comparison.

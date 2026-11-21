@@ -11,6 +11,7 @@ import { SITE } from '../src/config';
 // What it reads: the body without nav, header, footer, script, style, template, noscript and
 // anything inside an element marked data-versions-exempt="why" (a reason is required).
 // Numbers are digit groups, so 1,200 / 1.200 / 1 200 match. Wording, ids and links may differ.
+// Only versions on this site are compared; an alternate on another domain is left out.
 
 const NO_SETS = 'No page names versions in other languages (hreflang), so there is nothing to compare';
 const FIX = 'Make the same change on every version, or mark text that belongs to one language with `data-versions-exempt="why"` on an HTML element.';
@@ -24,7 +25,7 @@ const sameSite = (url: string) => new URL(url, SITE.url).origin === new URL(SITE
 const byValue = (a: string, b: string) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0);
 
 test('language versions of a page stay in step', async ({ page }) => {
-  test.slow(); // one visit to every page
+  test.setTimeout(120_000 + 3_000 * PAGES.length); // the default, plus room for a visit to every page
   const route = new Map<string, string>(PAGES.map((p) => [key(p), p]));
   const seen = new Map<string, Seen>();
   for (const path of PAGES) {
@@ -55,11 +56,6 @@ test('language versions of a page stay in step', async ({ page }) => {
   }
   const sets = new Map<string, string[]>(); // one entry per distinct set of 2 or more versions
   for (const members of listed.values()) if (members.size >= 2) sets.set([...members].sort().join(' '), [...members]);
-  if (!sets.size) {
-    console.log(NO_SETS);
-    test.skip(true, NO_SETS);
-  }
-
   const failures: string[] = [];
   const name = (url: string) => route.get(url) ?? url;
   for (const [path, s] of seen) {
@@ -81,6 +77,11 @@ test('language versions of a page stay in step', async ({ page }) => {
     }
   }
   failures.push(...leftOut);
+  // Skip only a site with nothing wrong: a bad link or an empty reason is reported even with no set.
+  if (!sets.size && !failures.length) {
+    console.log(NO_SETS);
+    test.skip(true, NO_SETS);
+  }
 
   for (const members of sets.values()) {
     const pages = members.map((u) => route.get(u)).filter((p): p is string => !!p);

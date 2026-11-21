@@ -244,8 +244,9 @@ jobs:
       # test that fails or warns for another reason does not pass. Headings, images, an empty
       # reason, a version left out of a set and an alternate that is no page must go red; numbers
       # must only warn, and the warning must be printed as well as recorded. The fixtures and
-      # tests/_helpers.ts are put back afterwards. seo.spec.ts is not run on the fixtures: its
-      # per-page head test and its distinct-card test would fail for reasons of their own.
+      # tests/_helpers.ts are put back afterwards. Of seo.spec.ts only the twin-page test runs on
+      # the fixtures: its per-page head test and its distinct-card test would fail for reasons of
+      # their own.
       - name: The language versions spec fires on each rule
         run: |
           NO_SETS='No page names versions in other languages (hreflang), so there is nothing to compare'
@@ -349,6 +350,11 @@ jobs:
           CI= npx playwright test tests/seo.spec.ts -g "twin-page hreflang" --reporter=line || { echo "::error::seo.spec.ts failed on a set whose links are all answered, so this case no longer shows the gap the new spec closes"; exit 1; }
           reset; a_en="$(lv_alts /ci-lv /ci-lv en /ci-lv-de de /ci-lv-fr fr /ci-lv-xx es)"; write_pages
           lv_check "an alternate that is no PAGES route" unexpected "/ci-lv-xx" none
+          # No page names a set, but one names a page that does not exist, and one has an empty reason: red, not skipped.
+          reset; a_en="$(lv_alts /ci-lv /ci-lv-xx es)"; a_de='[]'; a_fr='[]'; a_en2='[]'; a_de2='[]'; write_pages
+          lv_check "a link to no page, with no set named" unexpected "/ci-lv-xx" none
+          reset; en2='<h1>Second page</h1><p data-versions-exempt="">80 to 120 attendees</p>'; a_en='[]'; a_de='[]'; a_fr='[]'; a_en2='[]'; a_de2='[]'; write_pages
+          lv_check "an empty reason, with no set named" unexpected "data-versions-exempt with no reason" none
           git checkout -- tests/_helpers.ts
           rm -f src/pages/ci-lv.astro src/pages/ci-lv-de.astro src/pages/ci-lv-fr.astro src/pages/ci-lv2.astro src/pages/ci-lv2-de.astro lv-skip.json lv-case.json
       # The legal-page guard in tests/placeholders.spec.ts is green on the shipped starter,
