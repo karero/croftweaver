@@ -37,11 +37,16 @@ function expectedHeadlessBuild(): string {
 }
 // The folder holds the shell when this platform's subfolder has the executable as a file. The names
 // are Playwright's (its registry's paths, checked by the starter's test); an odd host counts as having none.
-// The key follows Playwright's choice of folder, not Node's build: arm64 on a Mac whose os.cpus()
-// names an Apple chip, whatever Node's build, and x64 on any Windows machine.
-const HOST_KEY = process.platform === 'darwin'
-  ? (cpus().some((cpu) => cpu.model.includes('Apple')) ? 'darwin-arm64' : 'darwin-x64')
-  : process.platform === 'win32' ? 'win32-x64' : `${process.platform}-${process.arch}`;
+// The key follows Playwright's choice of folder, not Node's build: the platform named in
+// PLAYWRIGHT_HOST_PLATFORM_OVERRIDE when it is set, else arm64 on a Mac whose os.cpus() names an
+// Apple chip, whatever Node's build, and x64 on any Windows machine.
+const PLATFORM_OVERRIDE = process.env.PLAYWRIGHT_HOST_PLATFORM_OVERRIDE;
+const HOST_KEY = PLATFORM_OVERRIDE
+  ? (PLATFORM_OVERRIDE === 'win64' ? 'win32-x64'
+    : `${PLATFORM_OVERRIDE.startsWith('mac') ? 'darwin' : 'linux'}-${PLATFORM_OVERRIDE.endsWith('arm64') ? 'arm64' : 'x64'}`)
+  : process.platform === 'darwin'
+    ? (cpus().some((cpu) => cpu.model.includes('Apple')) ? 'darwin-arm64' : 'darwin-x64')
+    : process.platform === 'win32' ? 'win32-x64' : `${process.platform}-${process.arch}`;
 const SHELL_PATH: Record<string, [string, string]> = {
   'linux-x64': ['chrome-headless-shell-linux64', 'chrome-headless-shell'],
   'linux-arm64': ['chrome-headless-shell-linux-arm64', 'chrome-headless-shell'],

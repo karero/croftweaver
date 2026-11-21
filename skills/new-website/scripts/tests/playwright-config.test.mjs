@@ -31,11 +31,12 @@ syncBuiltinESMExports();`)}`;
 
 // The launch options the config gives a run, with Playwright's browsers in `ms` and the cloud's in `cloud`,
 // on this machine or on the host `fake` describes.
-function launchOptions(ms, cloud, fake) {
+function launchOptions(ms, cloud, fake, hostOverride) {
   const site = mkdtempSync(path.join(tmpdir(), 'pwconf-'));
   cpSync(path.join(TEMPLATE, 'playwright.config.ts'), path.join(site, 'playwright.config.ts'));
   symlinkSync(NODE_MODULES, path.join(site, 'node_modules'));
-  const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, SITE_TEST_CLOUD_BROWSERS: cloud };
+  const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, SITE_TEST_CLOUD_BROWSERS: cloud,
+    ...(hostOverride && { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostOverride }) };
   const r = spawnSync(process.execPath, [...(fake ? ['--import', fakeHost(fake)] : []), '--input-type=module', '-e',
     "const m = await import('./playwright.config.ts'); console.log(JSON.stringify(m.default.use.launchOptions));"],
   { cwd: site, encoding: 'utf8', env });
@@ -108,6 +109,17 @@ test('every folder name in the config\'s table is the one Playwright asks for on
     const row = new RegExp(`'${key}': \\['([^']+)', '([^']+)'\\]`).exec(config);
     assert.ok(row, `no table row for ${key} in playwright.config.ts`);
     assert.deepEqual(shellPathPlaywrightWants(world().ms, override).split(/[\\/]/).slice(-2), [row[1], row[2]], key);
+  }
+});
+
+test('Playwright\'s platform named in PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: the config keeps a shell where Playwright looks for that platform, and only there', () => {
+  for (const override of ['ubuntu24.04-x64', 'debian12-arm64', 'mac14', 'mac15-arm64', 'win64']) {
+    const w = world();
+    const wanted = shellPathPlaywrightWants(w.ms, override); // before the shell exists
+    assert.deepEqual(launchOptions(w.ms, w.cloud, undefined, override), { executablePath: w.cloudShell }, `${override}, no shell`);
+    mkdirSync(path.dirname(wanted), { recursive: true });
+    writeFileSync(wanted, '');
+    assert.deepEqual(launchOptions(w.ms, w.cloud, undefined, override), {}, override);
   }
 });
 
