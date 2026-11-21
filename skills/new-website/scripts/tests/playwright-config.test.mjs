@@ -18,6 +18,9 @@ const NODE_MODULES = process.env.MAKE_ICONS_NODE_MODULES;
 assert.ok(NODE_MODULES && existsSync(path.join(NODE_MODULES, '@playwright', 'test')),
   'set MAKE_ICONS_NODE_MODULES to the starter\'s node_modules (npm ci in templates/astro)');
 
+// The environment every child gets: Playwright's platform override only where a test names one.
+const { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: _ambient, ...BASE_ENV } = process.env;
+
 // A module run before the config (or Playwright) that makes it see another host: Node's platform and build, the chip
 // os.cpus() names, and a macOS 15 kernel, as Playwright gives the arm64 folder only from macOS 11.
 function fakeHost({ platform, arch, cpu }) {
@@ -35,7 +38,7 @@ function launchOptions(ms, cloud, fake, hostOverride) {
   const site = mkdtempSync(path.join(tmpdir(), 'pwconf-'));
   cpSync(path.join(TEMPLATE, 'playwright.config.ts'), path.join(site, 'playwright.config.ts'));
   symlinkSync(NODE_MODULES, path.join(site, 'node_modules'));
-  const env = { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, SITE_TEST_CLOUD_BROWSERS: cloud,
+  const env = { ...BASE_ENV, PLAYWRIGHT_BROWSERS_PATH: ms, SITE_TEST_CLOUD_BROWSERS: cloud,
     ...(hostOverride && { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostOverride }) };
   const r = spawnSync(process.execPath, [...(fake ? ['--import', fakeHost(fake)] : []), '--input-type=module', '-e',
     "const m = await import('./playwright.config.ts'); console.log(JSON.stringify(m.default.use.launchOptions));"],
@@ -47,7 +50,7 @@ function launchOptions(ms, cloud, fake, hostOverride) {
 // The folder name Playwright expects for the headless shell, read from where it puts the full browser.
 function expectedShell(ms) {
   const r = spawnSync(process.execPath, ['-e', "console.log(require('@playwright/test').chromium.executablePath())"],
-    { cwd: NODE_MODULES, encoding: 'utf8', env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms } });
+    { cwd: NODE_MODULES, encoding: 'utf8', env: { ...BASE_ENV, PLAYWRIGHT_BROWSERS_PATH: ms } });
   const m = /chromium-(\d+)[\\/]/.exec(r.stdout);
   assert.ok(m, `no chromium-<revision> in ${r.stdout}`);
   return path.join(ms, `chromium_headless_shell-${m[1]}`);
@@ -68,7 +71,7 @@ assert.ok(HOST, `no shell folder known for ${process.platform}-${process.arch}: 
 function shellPathPlaywrightWants(ms, hostOverride, fake) {
   const r = spawnSync(process.execPath, [...(fake ? ['--import', fakeHost(fake)] : []), '-e',
     "require('@playwright/test').chromium.launch().catch((e) => console.log(e.message))"],
-  { cwd: NODE_MODULES, encoding: 'utf8', env: { ...process.env, PLAYWRIGHT_BROWSERS_PATH: ms, ...(hostOverride && { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostOverride }) } });
+  { cwd: NODE_MODULES, encoding: 'utf8', env: { ...BASE_ENV, PLAYWRIGHT_BROWSERS_PATH: ms, ...(hostOverride && { PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: hostOverride }) } });
   const m = /Executable doesn't exist at (.+)/.exec(r.stdout);
   assert.ok(m, `no path in Playwright's launch error: ${r.stdout}${r.stderr}`);
   return m[1].trim();
