@@ -11,3 +11,11 @@ two things together, one of them unlikely. It fails loudly (IndexError, TypeErro
 Note for the reader: the subagent counts the flag flip as an ordinary change, not an unlikely
 event. The case is therefore "one ordinary change plus one unlikely event", not "two unlikely
 events"; the check it answers, "no ordinary reading", holds. The case was run as written, once.
+
+## Correction after the Codex Light review of this record (2026-11-22)
+
+The check was wrong. `build_order` stores the caller's `items` list as it is. A caller that
+enables `GIFT_NOTES`, builds an order, then clears the cart list leaves `order["items"]` empty, and
+`receipt_header` raises `IndexError` (Codex reproduced it). No bypass of `build_order` is needed.
+Two of the three T1b runs raised the aliasing as a RISK. The fresh subagent read the code and did
+not find this path, so "a fresh reader finds no ordinary reading" is not a test of one.
