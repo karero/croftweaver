@@ -80,8 +80,8 @@ commit, after. undo is the way back.
   -h, --help             this text
 
 Exit status: 0 finished; 1 something failed or was refused (the report says what); 2 the command
-was wrong; 3 waiting for a yes; 4 run the same command again. A run of the other commands that finds
-the site's folder writes move-run/status.html, which says where the move stands.
+was wrong; 3 waiting for a yes; 4 run the same command again. Most runs of the other commands also
+write move-run/status.html, which says where the move stands.
 `;
 
 // A word the owner or an assistant may have pasted by mistake, a token among them, can follow any
@@ -95,7 +95,7 @@ export function parseArgs(argv) {
     if (a === '-h' || a === '--help') opts.help = true;
     else if (a === '--confirm') {
       const v = argv[++i];
-      if (v === undefined || v.startsWith('-')) throw new UsageError(v === undefined ? '--confirm needs a value.' : `--confirm needs a value. ${PASTED_TOKEN}`);
+      if (v === undefined || v.startsWith('-')) throw new UsageError(`--confirm needs a value. ${PASTED_TOKEN}`);
       opts.confirm = v;
     } else if (a.startsWith('-')) throw new UsageError(`unknown option: only --confirm <code> and --help exist. ${PASTED_TOKEN}`);
     else if (opts.cmd === null) opts.cmd = a;

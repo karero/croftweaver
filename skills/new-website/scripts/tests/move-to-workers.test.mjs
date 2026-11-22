@@ -3981,12 +3981,12 @@ describe('token-link: the link that opens Cloudflare\'s token page filled in', (
       ['token-link', PASTED], ['token-link', ID.toUpperCase()], ['token-link', 'me@example.com'], ['token-link', `${ID}0`], ['token-link', 'g'.repeat(32)],
       ['token-link', ID, PASTED], ['token-link', `-${PASTED}`], ['token-link', ID, `-${PASTED}`], ['token-link', '--confirm', PASTED],
       ['check', 'token-link', PASTED], ['move', PASTED], ['check', PASTED], [PASTED], [PASTED, ID], [`-${PASTED}`], ['--confirm', PASTED, 'move'], ['move', '--confirm', PASTED],
-      ['--confirm', PASTED], ['check', ID], ['token-link'], ['move', '--confirm'], [],
+      ['--confirm', PASTED], ['token-link', PASTED, '--confirm'], [PASTED, '--confirm'], ['check', ID], ['move', '--confirm'], ['token-link'], [],
     ];
     for (const args of cases) {
       assert.throws(() => parseArgs(args), (e) => {
-        // A pasted token may sit in any of these: every refusal but the two with nothing pasted says what to do about it.
-        const nothingPasted = args.length === 0 || (args.length === 1 && args[0] === 'token-link') || args.at(-1) === '--confirm';
+        // A pasted token may sit in any of these: every refusal but the two with nothing given says what to do about it.
+        const nothingPasted = args.length === 0 || (args.length === 1 && args[0] === 'token-link');
         if (!nothingPasted) assert.ok(e.message.includes(`it is now in this conversation: delete it at ${TOKEN_PAGE_URL}`), `"${e.message}" lacks the token advice`);
         for (const a of args) if (a.length > 3 && !['token-link', '--confirm'].includes(a)) assert.ok(!e.message.includes(a), `"${e.message}" repeats ${a}`);
         return true;

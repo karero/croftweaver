@@ -13,8 +13,10 @@ Plan: the hub's `move-token/PLAN.md` (rows 1.1 and 1.2), plan-gated there. Artif
 |---|---|---|---|
 | 1 | Codex, melious, fresh-eyes | 2 / 1 / 8 | recovery advice missing on parser refusals; a help claim `token-link` breaks; an account-ID shape taken from one account |
 | 2 | Codex, melious, fresh-eyes (round's change only) | 2 / 2 / 2 | `--confirm <word>` with no command had no advice; the footer's status-page promise; the new pointer named one file; a deletion pointer on the launch-first refusal |
+| 3 | Codex, melious, fresh-eyes (round's change only) | 2 / 1 / 1 | a pasted word before a trailing `--confirm` got no advice (the round-2 exemption); the footer still promised a status page |
 
 Round 1 tokens: Codex 79,548 (146 s), melious 66,275 (440 s), fresh-eyes 146,685 (119 s).
+Round 3 tokens: Codex 49,442 (121 s), melious 29,096 (252 s), fresh-eyes 101,461 (81 s). Round 3 was `--verify` on `a43fe9a2..c96f1a38`.
 Round 2 tokens: Codex 54,303 (152 s), melious 22,579 (178 s), fresh-eyes 105,426 (112 s). Round 2 was `--verify` on the delta `870e3381..a43fe9a2`.
 
 ## Round 1 findings
@@ -50,3 +52,15 @@ a finding; the PR says what was and was not seen live.
 
 Codex noted that `make check` does not run the move suite. That is right: the suite is `make test-cloudflare-check`,
 which `.github/workflows/clean.yml` runs. Both were run on the final head.
+
+## Round 3 findings
+
+| Id | Sev | Source | Finding | Status |
+|---|---|---|---|---|
+| R3-01 | BUG | Codex, melious, fresh-eyes | `token-link <word> --confirm` and `<word> --confirm` refused with no advice: the round-2 fix left the advice off whenever `--confirm` came last, and the test exempted every argument list ending in `--confirm` | fixed by removing the exemption: `--confirm needs a value` always carries the advice (it says "if what you gave was a token", so it is harmless when nothing was); the test exempts only `[]` and `['token-link']` and adds both shapes |
+| R3-02 | BUG / RISK | Codex BUG; melious, fresh-eyes RISK | The footer still said every run that finds the folder writes the status page; one that stops at a non-GitHub remote does not | fixed: footer says "most runs … also write"; the line that prints the page's path when none was written is older than this change: BUGLOG row |
+| R3-03 | NIT | melious | The test comment said "the two" with nothing pasted | fixed with R3-01 |
+| R3-04 | NIT | fresh-eyes | The `--confirm` branch read as one long ternary | gone with R3-01 |
+
+Rounds 1 to 3 each found the parser's advice incomplete in a new shape. Round 3's fix removes the special case that
+caused the last two, so the rule is now: every refusal after any argument carries the advice.
