@@ -238,36 +238,32 @@ Logos, icons, and illustrations. AI generation has limits here.
 ## Key visuals: one photo style for the whole site
 
 For the main picture of each page ("a key visual in the same style as the others"). The owner
-makes the pictures in her own image tool; the style and a prompt template live in the site's
+makes the pictures in her own image tool. The style and a prompt template live in the site's
 `BRAND.md`, under `## Imagery style (do / don't)`, as `### Photo style` and `### Prompt template
-for a key visual`. Examples, the six headings and the check: [references/key-visual.md](references/key-visual.md).
+for a key visual`. The six headings, the check and an example: [references/key-visual.md](references/key-visual.md).
 
-1. **Look for the style.** If both subsections are in `BRAND.md`, go to step 5.
-2. **Pictures but no style:** read it off the pictures, not off the owner's wishes. Write it under
-   six headings (scene; people; clothes and props; light and colour; framing and shape; avoid),
-   then check every line against every picture. A line a picture breaks is changed, or that
-   picture is named in the line as an exception. A readable real brand goes under Avoid.
-3. **Show her the style in plain words.** When she agrees, write the style and a prompt template
-   with blanks into `BRAND.md` (add the Imagery heading if the site has none). Where a new line
-   disagrees with the Do/Don't lines or with older prompts in the file, ask her which holds and
-   write only that: one style per site.
-4. **No pictures yet:** write a first prompt from `BRAND.md`'s Imagery lines and `POSITIONING.md`.
-   Ask her to make three or four and pick one (the Batch Generation Workflow in
-   [ai-image-prompting.md](references/ai-image-prompting.md)). Write the style from the picture she picked and
-   what she likes in it, marked "from one picture".
-5. **A picture for a new page:** fill the template's blanks and give her the prompt. Change
-   nothing else, and do not read the pictures again. The shape is a blank: the template's shape is the default,
-   and the page's slot (its component or CSS) decides it when it differs.
-6. **Check every picture that comes back, before it goes on a page.**
-   - It breaks a line of the style: name the line and ask her to change the style, keep the
-     picture as an exception, or make it again. Write her answer in `BRAND.md`.
-   - It shows a readable real brand (a name on a van, an airline's livery): do not put it on the
-     page. She makes it again or has the brand edited out. An exception never lets a real brand in.
+1. **Is the style in `BRAND.md`?** Then go to step 4.
+2. **Read it off the pictures,** under six headings (scene; people; clothes and props; light and
+   colour; framing and shape; avoid). Check every line against every picture: change a line a
+   picture breaks, or name that picture as an exception. With no pictures yet, she makes three
+   or four and picks one ([ai-image-prompting.md](references/ai-image-prompting.md), Batch
+   Generation Workflow); write the style from it, marked "from one picture".
+3. **Show her the style in plain words.** When she agrees, write it and a prompt template with
+   blanks into `BRAND.md`. Where a new line disagrees with the Do/Don't lines or older prompts
+   there, ask her which holds and write only that: one style per site.
+4. **A picture for a new page:** fill the template's blanks and change nothing else; do not read
+   the pictures again. The shape is a blank: the template's shape is the default, the page's slot
+   (its component or CSS) decides when it differs.
+5. **Check each picture that comes back, before it goes on a page.**
+   - It breaks a line: name the line and ask her to change the style, keep the picture as an
+     exception, or make it again. Write her answer in `BRAND.md`.
+   - It shows a readable real brand (a name on a van, an airline's livery): not on the page. She
+     makes it again or has the brand edited out. An exception never lets a real brand in.
    - It shows a face she says is a real person: not on the page until she confirms she has their
-     consent. You cannot tell whether a face belongs to a real person; it rests on her word.
-7. **Other places this touches.** `sizes` for the picture is `website-qa`'s width sweep, measured in
-   a browser. Photos that take turns are `website-hero-carousel` (a site has it only on request:
-   if it is missing, say it can be added); its photos can be made from the template.
+     consent. You cannot tell whether a face is a real person's; it rests on her word.
+
+Photos that take turns are `website-hero-carousel` (a site has it only on request: if it is
+missing, say it can be added).
 
 ---
 
