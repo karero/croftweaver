@@ -1,0 +1,31 @@
+diff --git a/t1b/pricing.py b/t1b/pricing.py
+new file mode 100644
+index 0000000..c2a215a
+--- /dev/null
++++ b/t1b/pricing.py
+@@ -0,0 +1,25 @@
++"""Cart totals and order receipts for the checkout page."""
++
++GIFT_NOTES = False   # shops opt in to gift notes; no shop has
++
++
++def total_cents(items):
++    """items: list of (price_string, quantity), price like "19.99"."""
++    total = 0
++    for price, qty in items:
++        total += int(float(price) * 100) * qty
++    return total
++
++
++def build_order(order_id, items):
++    """items: list of (name, price_string, quantity). The only place an order is made."""
++    if not items:
++        raise ValueError("an order needs at least one item")
++    return {"id": order_id, "items": items,
++            "total": total_cents([(p, q) for _, p, q in items])}
++
++
++def receipt_header(order):
++    if GIFT_NOTES:
++        return f"Gift: {order['items'][0][0]}"
++    return f"Order {order['id']}"

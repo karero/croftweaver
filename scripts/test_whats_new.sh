@@ -490,5 +490,31 @@ has   "L13 no usable skills stamp either: the stamp warns"     "warning: no stam
 cp "$P11/tests/TESTS-VERSION" "$T/out"; TODAY="$(sed -n 's/^copied: //p' "$T/out")"
 has   "L13 ... and keeps a note of the gap"                    "# $TODAY: not compared with the suite, so files the site lacks may be unlisted: no stamp in $P11 names a baseline this clone has"
 
+# S13: a changed workers-config.spec.ts says that taking it can mean a wrangler.jsonc edit that
+# changes the deploy (the BUGLOG row of 2026-11-16). The real spec is copied; the words are
+# written out here, so a deleted arm, or one moved behind the tests/* arm, leaves the specifics
+# nothing to match. The spec must still name each key the note lists and the rule that picks the
+# configs it reads, or the note has drifted. This reads the spec's text; that the spec enforces them
+# is the starter's own test run.
+S13="$T/suite13" P13="$T/site13"
+mkdir -p "$S13/scripts" "$S13/$A/tests" "$P13/.claude/skills" "$P13/tests"
+cp "$HERE/whats-new.sh" "$S13/scripts/"
+$git -C "$S13" init -q && $git -C "$S13" commit -qm base --allow-empty
+BASE13="$($git -C "$S13" rev-parse HEAD)"
+cp "$HERE/../$A/tests/workers-config.spec.ts" "$S13/$A/tests/"
+$git -C "$S13" add -A && $git -C "$S13" commit -qm later
+stamp "$P13/.claude/skills/SUITE-VERSION" "$BASE13"
+stamp "$P13/tests/TESTS-VERSION" "$BASE13"
+report "$S13" "$P13" "S13 a site without the Workers config spec"
+for key in "conf.main" "conf.workers_dev" "conf.preview_urls" "'./dist'" "'assets' in conf" "'pages_build_output_dir' in conf" '/\.jsonc?$/'; do
+  if grep -qF -- "$key" "$S13/$A/tests/workers-config.spec.ts"; then printf 'ok   S13 the spec still checks: %s\n' "$key"
+  else printf 'FAIL S13 the spec no longer checks what the note names: %s\n' "$key"; fails=$((fails+1)); fi
+done
+for part in "tests/workers-config.spec.ts (site copy: tests/workers-config.spec.ts" "editing wrangler.jsonc" "changes the deploy" \
+            "workers_dev: false" "preview_urls: true" "a Pages site skips it"; do
+  if grep -F "  tests/workers-config.spec.ts (site copy" "$T/out" | grep -qF -- "$part"; then printf 'ok   S13 the note says: %s\n' "$part"
+  else printf 'FAIL S13 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
+done
+
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed" >&2; exit 1; }
 echo "all whats-new missing-file and import tests passed"

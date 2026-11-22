@@ -1,0 +1,30 @@
+diff --git a/t1/pricing.py b/t1/pricing.py
+new file mode 100644
+index 0000000..a50cd7d
+--- /dev/null
++++ b/t1/pricing.py
+@@ -0,0 +1,24 @@
++"""Cart totals and cart saving for the checkout page."""
++import json
++import os
++
++CART_DIR = "/var/lib/shop/carts"
++
++
++def total_cents(items):
++    """items: list of (price_string, quantity), price like "19.99"."""
++    total = 0
++    for price, qty in items:
++        total += int(float(price) * 100) * qty
++    return total
++
++
++def save_cart(cart_id, items):
++    """Writes the cart so a reader never sees half a file: temp file, then rename."""
++    if not cart_id.isalnum():
++        raise ValueError(f"bad cart id {cart_id!r}")
++    path = os.path.join(CART_DIR, f"{cart_id}.json")
++    tmp = path + ".tmp"
++    with open(tmp, "x") as f:          # "x": fail if the temp file already exists
++        json.dump(items, f)
++    os.replace(tmp, path)

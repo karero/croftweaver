@@ -1,0 +1,21 @@
+diff --git a/t2/records.py b/t2/records.py
+new file mode 100644
+index 0000000..af5df90
+--- /dev/null
++++ b/t2/records.py
+@@ -0,0 +1,15 @@
++"""Length-prefixed records for the export file."""
++import struct
++
++
++def write_record(f, payload: bytes):
++    f.write(struct.pack("<I", len(payload) & 0xFFFFFFFF))
++    f.write(payload)
++
++
++def read_record(f):
++    head = f.read(4)
++    if not head:
++        return None
++    (length,) = struct.unpack("<I", head)
++    return f.read(length)

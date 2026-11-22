@@ -1,0 +1,20 @@
+diff --git a/t5/stats.py b/t5/stats.py
+new file mode 100644
+index 0000000..582b598
+--- /dev/null
++++ b/t5/stats.py
+@@ -0,0 +1,14 @@
++"""Small helpers for the progress page."""
++
++
++def ratio(done, total):
++    """done / total as a fraction."""
++    return done / total
++
++
++def progress_line(items):
++    """The one caller. Each item has a .done flag."""
++    if not items:
++        return "nothing to do"
++    done = sum(1 for i in items if i.done)
++    return f"{ratio(done, len(items)):.0%} done"

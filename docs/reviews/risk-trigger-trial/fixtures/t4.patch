@@ -1,0 +1,33 @@
+diff --git a/t4/account.py b/t4/account.py
+new file mode 100644
+index 0000000..ef93c8c
+--- /dev/null
++++ b/t4/account.py
+@@ -0,0 +1,9 @@
++class InsufficientFunds(Exception):
++    pass
++
++
++def withdraw(balance, amount):
++    """Returns the new balance; refuses to overdraw."""
++    if amount > balance:
++        raise InsufficientFunds(f"balance {balance}, asked {amount}")
++    return balance - amount
+diff --git a/t4/test_account.py b/t4/test_account.py
+new file mode 100644
+index 0000000..bbcad10
+--- /dev/null
++++ b/t4/test_account.py
+@@ -0,0 +1,12 @@
++from account import InsufficientFunds, withdraw
++
++
++def test_overdraft_is_refused():
++    try:
++        withdraw(10, 20)
++    except InsufficientFunds:
++        pass
++
++
++def test_normal_withdrawal():
++    assert withdraw(50, 20) == 30
