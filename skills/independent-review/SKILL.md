@@ -172,8 +172,13 @@ Codex's effort for any run.
    does when it runs (a timeout firing, a killed client, a lock held, what a migration
    rewrites) gets a run on a throwaway or test instance, never production, sent in that file
    as a READ: the command, the instance and its version, the time, and the output verbatim,
-   secrets replaced as above. A claim that cannot be run, such as a plan's claim about code not
-   yet written, says "not tested" in the artifact itself.
+   secrets replaced as above. A claim about a page's layout (a width, a padding, where an element
+   sits) gets that run too, in a real browser on a local build or a preview: the computed value
+   at each width it names (a phone and a desktop width when it names none) and on each side of
+   any breakpoint that could change it, with the
+   script and the browser's version, since a later CSS rule can override the one a quote of the
+   stylesheet shows. A claim that cannot be run, such as a plan's claim about code
+   not yet written, says "not tested" in the artifact itself.
    Send the same file every round its claims are under review; a
    quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
