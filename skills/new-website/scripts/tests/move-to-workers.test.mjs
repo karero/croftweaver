@@ -333,6 +333,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. src/config.ts gives the address lenas-backstube.example, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet,'), r.text);
     assert.ok(!r.text.includes("site's own domain"), r.text);
+    assert.ok(r.text.includes('Then make a new token with `node move-to-workers.mjs token-link <your account ID>`, and in its Zone policy choose Specific zone and the domain.'), r.text);
   });
   test('S1b: a token without DNS Edit, where a listed zone is the parent of the address, names that zone', async () => {
     const zones = recipe();
@@ -3980,12 +3981,13 @@ describe('token-link: the link that opens Cloudflare\'s token page filled in', (
       ['token-link', PASTED], ['token-link', ID.toUpperCase()], ['token-link', 'me@example.com'], ['token-link', `${ID}0`], ['token-link', 'g'.repeat(32)],
       ['token-link', ID, PASTED], ['token-link', `-${PASTED}`], ['token-link', ID, `-${PASTED}`], ['token-link', '--confirm', PASTED],
       ['check', 'token-link', PASTED], ['move', PASTED], ['check', PASTED], [PASTED], [PASTED, ID], [`-${PASTED}`], ['--confirm', PASTED, 'move'], ['move', '--confirm', PASTED],
-      ['check', ID], ['token-link'], [],
+      ['--confirm', PASTED], ['check', ID], ['token-link'], ['move', '--confirm'], [],
     ];
     for (const args of cases) {
       assert.throws(() => parseArgs(args), (e) => {
         // A pasted token may sit in any of these: every refusal but the two with nothing pasted says what to do about it.
-        if (args.length > 0 && !(args.length === 1 && args[0] === 'token-link')) assert.ok(e.message.includes(`it is now in this conversation: delete it at ${TOKEN_PAGE_URL}`), `"${e.message}" lacks the token advice`);
+        const nothingPasted = args.length === 0 || (args.length === 1 && args[0] === 'token-link') || args.at(-1) === '--confirm';
+        if (!nothingPasted) assert.ok(e.message.includes(`it is now in this conversation: delete it at ${TOKEN_PAGE_URL}`), `"${e.message}" lacks the token advice`);
         for (const a of args) if (a.length > 3 && !['token-link', '--confirm'].includes(a)) assert.ok(!e.message.includes(a), `"${e.message}" repeats ${a}`);
         return true;
       }, args.join(' '));
@@ -4002,7 +4004,7 @@ describe('token-link: the link that opens Cloudflare\'s token page filled in', (
     const r = await run(['token-link', PASTED]);
     assert.match(r.stderr, /that is not an account ID/);
     assert.match(r.stderr, /Ctrl\+K .*Copy account ID/);
-    assert.match(r.stderr, /If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6/);
+    assert.match(r.stderr, /If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6 of the move guide \(docs\/MOVE-TO-WORKERS\.md\) or in the token section of CLOUDFLARE_MOVE\.md instead\./);
     for (const args of [['check', PASTED], ['token-link', ID, PASTED], [PASTED], ['token-link', `-${PASTED}`]]) {
       assert.match((await run(args)).stderr, /it is now in this conversation: delete it at https:\/\/dash\.cloudflare\.com\/profile\/api-tokens and make a new one\./, args.join(' '));
     }

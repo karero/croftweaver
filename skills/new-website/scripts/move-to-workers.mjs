@@ -80,8 +80,8 @@ commit, after. undo is the way back.
   -h, --help             this text
 
 Exit status: 0 finished; 1 something failed or was refused (the report says what); 2 the command
-was wrong; 3 waiting for a yes; 4 run the same command again. After every run of the other commands,
-move-run/status.html says where the move stands.
+was wrong; 3 waiting for a yes; 4 run the same command again. A run of the other commands that finds
+the site's folder writes move-run/status.html, which says where the move stands.
 `;
 
 // A word the owner or an assistant may have pasted by mistake, a token among them, can follow any
@@ -95,7 +95,7 @@ export function parseArgs(argv) {
     if (a === '-h' || a === '--help') opts.help = true;
     else if (a === '--confirm') {
       const v = argv[++i];
-      if (v === undefined || v.startsWith('-')) throw new UsageError(`--confirm needs a value. ${PASTED_TOKEN}`);
+      if (v === undefined || v.startsWith('-')) throw new UsageError(v === undefined ? '--confirm needs a value.' : `--confirm needs a value. ${PASTED_TOKEN}`);
       opts.confirm = v;
     } else if (a.startsWith('-')) throw new UsageError(`unknown option: only --confirm <code> and --help exist. ${PASTED_TOKEN}`);
     else if (opts.cmd === null) opts.cmd = a;
@@ -103,12 +103,12 @@ export function parseArgs(argv) {
     else throw new UsageError(`an extra word after the command: give one command (token-link takes one account ID). ${PASTED_TOKEN}`);
   }
   if (opts.help) return opts;
-  if (!COMMANDS.includes(opts.cmd)) throw new UsageError(opts.cmd ? `unknown command: it is not one of ${COMMANDS.join(', ')}. ${PASTED_TOKEN}` : `give the command: ${COMMANDS.join(', ')}`);
+  if (!COMMANDS.includes(opts.cmd)) throw new UsageError(opts.cmd ? `unknown command: it is not one of ${COMMANDS.join(', ')}. ${PASTED_TOKEN}` : `give the command: ${COMMANDS.join(', ')}${argv.length ? ` ${PASTED_TOKEN}` : ''}`);
   if (opts.confirm !== null && !['move', 'undo'].includes(opts.cmd)) throw new UsageError(`--confirm belongs to move and undo. ${PASTED_TOKEN}`);
   if (opts.confirm !== null && !/^[0-9a-f]{16}$/.test(opts.confirm)) throw new UsageError(`--confirm takes the 16-character code the question printed. ${PASTED_TOKEN}`);
   if (opts.cmd === 'token-link' && opts.accountId === null) throw new UsageError(`token-link needs your account ID. ${ACCOUNT_ID_HELP}`);
   if (opts.cmd === 'token-link' && !ACCOUNT_ID.test(opts.accountId)) {
-    throw new UsageError(`that is not an account ID. ${ACCOUNT_ID_HELP} ${PASTED_TOKEN} If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6 of the move guide (docs/MOVE-TO-WORKERS.md) instead.`);
+    throw new UsageError(`that is not an account ID. ${ACCOUNT_ID_HELP} ${PASTED_TOKEN} If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6 of the move guide (docs/MOVE-TO-WORKERS.md) or in the token section of CLOUDFLARE_MOVE.md instead.`);
   }
   return opts;
 }

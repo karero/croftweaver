@@ -6,14 +6,16 @@ started by the Croftweaver manager and made the branch. Gate id 20261122T163024Z
 
 Plan: the hub's `move-token/PLAN.md` (rows 1.1 and 1.2), plan-gated there. Artifact: each round
 `git diff c0477040...HEAD -- . ':(exclude)docs/reviews/'`, with the plan's scenario list and the live look
-(`move-token/evidence/LIVE-LOOK.md`) as evidence. Evidence per round: `make check`, and the 305-test
-move suite.
+(`move-token/evidence/LIVE-LOOK.md`) as evidence. Evidence per round: `make check` and
+`make test-cloudflare-check` (which holds the move suite).
 
 | Round | Reviewers | BUG / RISK / NIT | What came back |
 |---|---|---|---|
 | 1 | Codex, melious, fresh-eyes | 2 / 1 / 8 | recovery advice missing on parser refusals; a help claim `token-link` breaks; an account-ID shape taken from one account |
+| 2 | Codex, melious, fresh-eyes (round's change only) | 2 / 2 / 2 | `--confirm <word>` with no command had no advice; the footer's status-page promise; the new pointer named one file; a deletion pointer on the launch-first refusal |
 
 Round 1 tokens: Codex 79,548 (146 s), melious 66,275 (440 s), fresh-eyes 146,685 (119 s).
+Round 2 tokens: Codex 54,303 (152 s), melious 22,579 (178 s), fresh-eyes 105,426 (112 s). Round 2 was `--verify` on the delta `870e3381..a43fe9a2`.
 
 ## Round 1 findings
 
@@ -34,3 +36,17 @@ Round 1 tokens: Codex 79,548 (146 s), melious 66,275 (440 s), fresh-eyes 146,685
 UNVERIFIABLE in round 1 (both seats): Cloudflare's form, key handling and account-ID shape, which rest on one
 account's live look and one docs page, and the suite results, which a read-only seat could not rerun. Neither is
 a finding; the PR says what was and was not seen live.
+
+## Round 2 findings
+
+| Id | Sev | Source | Finding | Status |
+|---|---|---|---|---|
+| R2-01 | BUG | Codex; melious NIT; fresh-eyes NIT | `--confirm <word>` with no command refused with no "delete it" advice; `move --confirm` with nothing after it carried the advice though nothing was given | fixed: advice on "give the command" when anything was given, left off `--confirm needs a value` when no value follows; both cases in the S5 loop |
+| R2-02 | BUG | Codex; fresh-eyes NIT | The footer still promised a status page after every other run; none is written when the run stops at the command line or finds no checkout | fixed: "a run of the other commands that finds the site's folder writes move-run/status.html" |
+| R2-03 | RISK | Codex, melious, fresh-eyes | The account-ID refusal's pointer named only `docs/MOVE-TO-WORKERS.md`, which an installed skill does not hold | fixed: names the guide's section 6 and CLOUDFLARE_MOVE.md's token section; the test pins the whole sentence |
+| R2-04 | RISK | fresh-eyes | Leaving "still works" off the launch-first refusal also left no pointer to delete a live token | refuted: that refusal sends her to launch the site, not to a new token; the same token is the one she uses after the launch; plan S2 asks for the line only where she is sent to a new token; if the token ends first, `check` says so and names the page |
+| R2-05 | NIT | melious | No test pinned the rewritten "Then make a new token with …" sentence | fixed: asserted in the S1 domain-not-listed test |
+| R2-06 | NIT | fresh-eyes | The child-process argument runs repeat shapes the parser loop covers | declined: they enter through the real command line, which the parser loop does not (Rule 9) |
+
+Codex noted that `make check` does not run the move suite. That is right: the suite is `make test-cloudflare-check`,
+which `.github/workflows/clean.yml` runs. Both were run on the final head.
