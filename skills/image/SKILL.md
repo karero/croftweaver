@@ -253,7 +253,8 @@ for a key visual`. The six headings, the check and an example: [references/key-v
    there, ask her which holds and write only that: one style per site.
 4. **A picture for a new page:** fill the template's blanks and change nothing else; do not read
    the pictures again. The shape is a blank: the template's shape is the default, the page's slot
-   (its component or CSS) decides when it differs.
+   (its component or CSS) decides when it differs. A picture in the wrong shape is made again; the
+   picture changes, the page's layout does not.
 5. **Check each picture that comes back, before it goes on a page.**
    - It breaks a line: name the line and ask her to change the style, keep the picture as an
      exception, or make it again. Write her answer in `BRAND.md`.
