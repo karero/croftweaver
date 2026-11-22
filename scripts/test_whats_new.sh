@@ -492,7 +492,8 @@ has   "L13 ... and keeps a note of the gap"                    "# $TODAY: not co
 
 # S13: a changed workers-config.spec.ts says that taking it can mean a wrangler.jsonc edit that
 # changes the deploy (the BUGLOG row of 2026-11-16). The real spec is copied; the words are
-# written out here, so a deleted arm, or one moved behind the tests/* arm, leaves nothing to match.
+# written out here, so a deleted arm, or one moved behind the tests/* arm, leaves the specifics
+# nothing to match. The spec must still check each key the note names, or the note has drifted.
 S13="$T/suite13" P13="$T/site13"
 mkdir -p "$S13/scripts" "$S13/$A/tests" "$P13/.claude/skills" "$P13/tests"
 cp "$HERE/whats-new.sh" "$S13/scripts/"
@@ -503,6 +504,10 @@ $git -C "$S13" add -A && $git -C "$S13" commit -qm later
 stamp "$P13/.claude/skills/SUITE-VERSION" "$BASE13"
 stamp "$P13/tests/TESTS-VERSION" "$BASE13"
 report "$S13" "$P13" "S13 a site without the Workers config spec"
+for key in "conf.main" "conf.workers_dev" "conf.preview_urls" "'./dist'"; do
+  if grep -qF -- "$key" "$S13/$A/tests/workers-config.spec.ts"; then printf 'ok   S13 the spec still checks: %s\n' "$key"
+  else printf 'FAIL S13 the spec no longer checks what the note names: %s\n' "$key"; fails=$((fails+1)); fi
+done
 for part in "tests/workers-config.spec.ts (site copy: tests/workers-config.spec.ts" "editing wrangler.jsonc" "changes the deploy" \
             "workers_dev: false" "preview_urls: true" "a Pages site skips it"; do
   if grep -F "  tests/workers-config.spec.ts (site copy" "$T/out" | grep -qF -- "$part"; then printf 'ok   S13 the note says: %s\n' "$part"

@@ -178,7 +178,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: Check the starter's Node floor (engines inside Astro's, the lockfile and the docs agree)
         run: bash scripts/check_node_floor.sh
       - name: Check the guard fails on each way the floor can drift
@@ -193,7 +193,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: Stop unless this really is Node 24
         run: |
           node -e 'process.exit(process.versions.node.split(".")[0] === "24" ? 0 : 1)' || { echo "::error::this job is meant to run Node 24, not $(node -v)"; exit 1; }
@@ -205,7 +205,7 @@ jobs:
           npm run check
           npm run build
   starter-node-22:
-    # The starter's engines also admit Node 22 (^22.23.5), the oldest line it supports. As the Node 24
+    # The starter's engines also admit Node 22, the oldest line it supports. As the Node 24
     # job above, plus the Playwright suite, because a break on 22 that only npm test shows would
     # reach a site owner first.
     runs-on: ubuntu-latest
@@ -214,11 +214,12 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
-      - name: Stop unless this is Node 22.23.5 or a later 22
-        # The 24 job checks the major only; here the minor and patch matter, as the floor is ^22.23.5.
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
+      - name: Stop unless this is Node 22 at or above the starter's floor
+        # The 24 job checks the major only; here the minor and patch matter. The floor is read from the
+        # starter's engines, so a new floor needs no edit here, and dropping Node 22 from engines stops the job.
         run: |
-          node -e 'const [a, b, c] = process.versions.node.split(".").map(Number); process.exit(a === 22 && (b > 23 || (b === 23 && c >= 5)) ? 0 : 1)' || { echo "::error::this job is meant to run Node 22.23.5 or a later 22, not $(node -v)"; exit 1; }
+          node -e 'const m = /\^22\.(\d+)\.(\d+)/.exec(require("./skills/new-website/templates/astro/package.json").engines.node); if (!m) { console.error("the starter engines no longer admit Node 22: remove this job"); process.exit(1); } const [a, b, c] = process.versions.node.split(".").map(Number); process.exit(a === 22 && (b > +m[1] || (b === +m[1] && c >= +m[2])) ? 0 : 1)' || { echo "::error::this job needs Node 22 at or above the starter's engines floor, not $(node -v)"; exit 1; }
       - name: Install, type-check, build and test the starter
         run: |
           cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
@@ -300,7 +301,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: Check the site pre-push hook gates, skips and blocks the right pushes, and is wired only at a repo's root, by a line that holds no shell syntax
         run: |
           command -v node >/dev/null || { echo "::error::no node here: the test would skip its prepare cases"; exit 1; }
@@ -320,7 +321,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: Check the site's Claude Code sync hook reports news, failures and retries correctly
         run: |
           command -v node >/dev/null || { echo "::error::no node here: the test would skip"; exit 1; }
@@ -384,7 +385,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: The canary's script came out CRLF, so this checkout converts
         shell: bash
         run: |
@@ -465,7 +466,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: An install of the starter, to borrow its sharp from
         run: |
           cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
@@ -596,7 +597,7 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: Run the create-croftweaver tests (stub of the release download on 127.0.0.1, no real requests)
         working-directory: packages/create-croftweaver
         run: node --test
@@ -611,7 +612,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: Run the plugin tests
         run: make test-plugin
   macos-stock-tools:
@@ -633,7 +634,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version-file: skills/new-website/templates/astro/.nvmrc
-          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
       - name: Put macOS's own bash, awk, sed, tr and grep first on PATH
         run: |
           stock="$RUNNER_TEMP/stock-tools"; mkdir -p "$stock"

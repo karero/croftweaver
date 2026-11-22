@@ -209,11 +209,12 @@
 #                                    other seats.
 #   MELIOUS_MAX_TOKENS (96000)       max_tokens for the reply; a reasoning model's thinking counts.
 #   MELIOUS_API_TIMEOUT (3600)       seconds curl allows the Melious request.
-#   MELIOUS_SPEED_LIMIT (200)        bytes a second the Melious stream must average over
-#   MELIOUS_SPEED_TIME (180)         this many seconds, or curl ends the request, so a stream
-#                                    that slows to a trickle does not hold the round for the
-#                                    whole timeout. Whole numbers from 1; the time also covers
-#                                    the wait for the first byte.
+#   MELIOUS_SPEED_LIMIT (1500)       bytes a second; if curl's rate (over its last few seconds)
+#   MELIOUS_SPEED_TIME (180)         stays under it for this many seconds on end, curl ends the
+#                                    request, so a slow steady stream does not hold the round for
+#                                    the whole timeout. A stream that bursts above the limit now
+#                                    and then is not caught. Whole numbers from 1 to 7 digits; the
+#                                    time also covers the wait for the first byte.
 #   MELIOUS_BASE_URL (https://api.melious.ai/v1)  the API root (tests point it at a local server).
 #   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
 #                                    CLI's own default model. Used only when
@@ -1718,11 +1719,13 @@ run_melious() {
     ''|*[!0-9]*|0*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a whole number from 1" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;;
   esac
   [ ${#max} -le 7 ] || { echo "MELIOUS_MAX_TOKENS=\"$max\" is implausibly large" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1; }
-  local spd="${MELIOUS_SPEED_LIMIT:-200}" spt="${MELIOUS_SPEED_TIME:-180}"
+  local spd="${MELIOUS_SPEED_LIMIT:-1500}" spt="${MELIOUS_SPEED_TIME:-180}"
   case "$spd" in ''|*[!0-9]*|0*) spd=""; esac
   case "$spt" in ''|*[!0-9]*|0*) spt=""; esac
+  [ ${#spd} -le 7 ] || spd=""
+  [ ${#spt} -le 7 ] || spt=""
   if [ -z "$spd" ] || [ -z "$spt" ]; then
-    echo "MELIOUS_SPEED_LIMIT=\"${MELIOUS_SPEED_LIMIT:-}\" and MELIOUS_SPEED_TIME=\"${MELIOUS_SPEED_TIME:-}\" must each be a whole number from 1" >"$RAW_DIR/melious.err"
+    echo "MELIOUS_SPEED_LIMIT=\"${MELIOUS_SPEED_LIMIT:-1500}\" and MELIOUS_SPEED_TIME=\"${MELIOUS_SPEED_TIME:-180}\" must each be a whole number from 1 to 7 digits" >"$RAW_DIR/melious.err"
     WHY="bad MELIOUS_SPEED_LIMIT or MELIOUS_SPEED_TIME"; return 1
   fi
   url="${url%/}/chat/completions"
@@ -1752,7 +1755,7 @@ run_melious() {
   if [ $rc -ne 0 ]; then
     if [ $rc -eq 28 ] && grep -q 'Operation too slow' "$RAW_DIR/melious.err"; then
       # The speed floor ended the request (curl's own words; exit 28 is also the time limit).
-      printf 'Error: the stream from %s fell under %s B/s for %s s (curl exit 28); any part that came is in melious.resp\n' "$url" "$spd" "$spt" >>"$RAW_DIR/melious.err"
+      printf 'Error: the stream from %s stayed under %s B/s for %s s (curl exit 28); any part that came is in melious.resp\n' "$url" "$spd" "$spt" >>"$RAW_DIR/melious.err"
       WHY="curl exit 28, stream stalled (under $spd B/s for $spt s)"
     elif [ -s "$resp" ]; then
       # Part of a reply came in, then the connection broke (a reset after 38 minutes of a runaway
