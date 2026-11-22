@@ -24,8 +24,8 @@ carries the usual shape as its default.
 For every line and every picture, in writing: is this true of this picture? Yes or no, never
 "mostly". A line a picture breaks is changed, or the picture is named in it as an exception
 ("except `photo-4`, outdoors"). Look in each picture for text, logos, liveries and faces: a
-readable real brand goes under **Avoid**, and an exception never lets it onto a page; a face that
-may be a real person is asked about before the style is written.
+readable real brand goes under **Avoid**, and an exception never lets it onto a page; faces are asked
+about once (real people? then her confirmed consent) before the style is written.
 
 ## Example
 
@@ -39,10 +39,10 @@ Made up: a bakery, `baeckerei-petra.de`, three key visuals.
   camera; `photo-3` (a customer smiling into it) is an exception.
 - **Clothes and props:** white aprons, flour on hands, wooden boards, baskets, paper bags.
 - **Light and colour:** soft window light from the left, warm, slightly muted; no flash.
-- **Framing and shape:** medium shot at eye level; wide strip, about 3:2, where the page gives
+- **Framing and shape:** medium shot at eye level; landscape, 3:2, where the page gives
   no other shape.
 - **Avoid:** posed stock smiles; readable text or logos (flour sacks and vans included); real
-  people without their written consent.
+  people without their consent.
 
 ### Prompt template for a key visual
 > Candid documentary-style photo, [shape, default 3:2 landscape]. [Place in the shop or kitchen]

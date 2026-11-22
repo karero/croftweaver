@@ -149,7 +149,7 @@ Best for teams with design systems or pixel-perfect needs.
 The image at the top of every post. Sets tone, improves shareability, required for OG/social previews.
 
 If the site's `BRAND.md` has a photo style, start from its prompt template instead of the pattern
-below (see Key visuals).
+below (see Key visuals); the shape stays the hero's (1200x630 when it is also the OG image).
 
 1. **Define the concept** — what visual metaphor represents the topic?
 2. **Generate with AI** — use Flux or Gemini for photorealistic, Ideogram if text needed
@@ -242,7 +242,8 @@ makes the pictures in her own image tool. The style and a prompt template live i
 `BRAND.md`, under `## Imagery style (do / don't)`, as `### Photo style` and `### Prompt template
 for a key visual`. The six headings, the check and an example: [references/key-visual.md](references/key-visual.md).
 
-1. **Is the style in `BRAND.md`?** Then go to step 4.
+1. **Are the style and the template in `BRAND.md`?** Then go to step 4. Only the style: write the
+   template from it (step 3).
 2. **Read it off the pictures,** under six headings (scene; people; clothes and props; light and
    colour; framing and shape; avoid). Check every line against every picture: change a line a
    picture breaks, or name that picture as an exception. With no pictures yet, she makes three
@@ -260,8 +261,8 @@ for a key visual`. The six headings, the check and an example: [references/key-v
      exception, or make it again. Write her answer in `BRAND.md`.
    - It shows a readable real brand (a name on a van, an airline's livery): not on the page. She
      makes it again or has the brand edited out. An exception never lets a real brand in.
-   - It shows a face she says is a real person: not on the page until she confirms she has their
-     consent. You cannot tell whether a face is a real person's; it rests on her word.
+   - It shows faces: ask her once whether they are real people. If so, not on the page until she
+     confirms she has their consent. You cannot tell from the picture; it rests on her word.
 
 Photos that take turns are `website-hero-carousel` (a site has it only on request: if it is
 missing, say it can be added).
