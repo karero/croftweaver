@@ -143,7 +143,9 @@ summary names what is missing, as in `melious SKIPPED (curl not found)`.
   what the seat may run, change that file.
   The seat names no default: unset, it makes no call.
 - **Budget:** `MELIOUS_MAX_TOKENS` (default 96000; a reasoning model ran out at 48000 on a
-  27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s). A
+  27 KB diff, and finished at 96000 in 296-1624 s; `MELIOUS_API_TIMEOUT` defaults to 3600 s; a stream that averages under
+  `MELIOUS_SPEED_LIMIT` (200) bytes a second for `MELIOUS_SPEED_TIME` (180) seconds is ended and
+  the seat reported as stalled). A
   model whose output cap is lower answers with an error, quoted in the FAILED section: lower the
   budget for it. A reasoning model can still spend all of it thinking and return no text; the
   seat fails and says so. Raise it and run again.

@@ -209,6 +209,11 @@
 #                                    other seats.
 #   MELIOUS_MAX_TOKENS (96000)       max_tokens for the reply; a reasoning model's thinking counts.
 #   MELIOUS_API_TIMEOUT (3600)       seconds curl allows the Melious request.
+#   MELIOUS_SPEED_LIMIT (200)        bytes a second the Melious stream must average over
+#   MELIOUS_SPEED_TIME (180)         this many seconds, or curl ends the request, so a stream
+#                                    that slows to a trickle does not hold the round for the
+#                                    whole timeout. Whole numbers from 1; the time also covers
+#                                    the wait for the first byte.
 #   MELIOUS_BASE_URL (https://api.melious.ai/v1)  the API root (tests point it at a local server).
 #   AGY_MODEL      (unset)           Antigravity CLI model override — unset runs the
 #                                    CLI's own default model. Used only when
@@ -1713,6 +1718,13 @@ run_melious() {
     ''|*[!0-9]*|0*) echo "MELIOUS_MAX_TOKENS=\"$max\" is not a whole number from 1" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1 ;;
   esac
   [ ${#max} -le 7 ] || { echo "MELIOUS_MAX_TOKENS=\"$max\" is implausibly large" >"$RAW_DIR/melious.err"; WHY="bad MELIOUS_MAX_TOKENS"; return 1; }
+  local spd="${MELIOUS_SPEED_LIMIT:-200}" spt="${MELIOUS_SPEED_TIME:-180}"
+  case "$spd" in ''|*[!0-9]*|0*) spd=""; esac
+  case "$spt" in ''|*[!0-9]*|0*) spt=""; esac
+  if [ -z "$spd" ] || [ -z "$spt" ]; then
+    echo "MELIOUS_SPEED_LIMIT=\"${MELIOUS_SPEED_LIMIT:-}\" and MELIOUS_SPEED_TIME=\"${MELIOUS_SPEED_TIME:-}\" must each be a whole number from 1" >"$RAW_DIR/melious.err"
+    WHY="bad MELIOUS_SPEED_LIMIT or MELIOUS_SPEED_TIME"; return 1
+  fi
   url="${url%/}/chat/completions"
   local mark; mark="$(melious_marker)"
   printf '%s\n\nOutput format for this reply: put your final answer after a line that holds exactly %s and nothing else, and write nothing after the final answer.\n' \
@@ -1733,12 +1745,16 @@ run_melious() {
   key="$(melious_key)"
   # No key: stdin is empty and curl sends no Authorization header (the proxy may add one).
   code="$(if [ -n "$key" ]; then printf 'Authorization: Bearer %s\n' "$key"; fi \
-    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-3600}" -o "$resp" -w '%{http_code}' \
+    | curl -sS --max-time "${MELIOUS_API_TIMEOUT:-3600}" --speed-limit "$spd" --speed-time "$spt" -o "$resp" -w '%{http_code}' \
       -H @- -H 'Content-Type: application/json' --data-binary @"$body" "$url" \
       2>"$RAW_DIR/melious.err")"; rc=$?
   key=""
   if [ $rc -ne 0 ]; then
-    if [ -s "$resp" ]; then
+    if [ $rc -eq 28 ] && grep -q 'Operation too slow' "$RAW_DIR/melious.err"; then
+      # The speed floor ended the request (curl's own words; exit 28 is also the time limit).
+      printf 'Error: the stream from %s fell under %s B/s for %s s (curl exit 28); any part that came is in melious.resp\n' "$url" "$spd" "$spt" >>"$RAW_DIR/melious.err"
+      WHY="curl exit 28, stream stalled (under $spd B/s for $spt s)"
+    elif [ -s "$resp" ]; then
       # Part of a reply came in, then the connection broke (a reset after 38 minutes of a runaway
       # reply, #165): the host was reachable, so the network policy is not the cause.
       printf 'Error: the reply from %s broke off (curl exit %s); the part that came is in melious.resp\n' "$url" "$rc" >>"$RAW_DIR/melious.err"

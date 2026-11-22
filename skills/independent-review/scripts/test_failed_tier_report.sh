@@ -350,7 +350,7 @@ mkdir -p "$T/bin2"; cp "$T/bin/codex" "$T/bin/curl" "$T/bin2/"
 run() {
   local name="$1"; shift
   mkdir -p "$T/$name.marks"
-  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
+  env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u MELIOUS_SPEED_LIMIT -u MELIOUS_SPEED_TIME -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
     PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 \
     REVIEW_RAW_DIR="$T/$name.raw" STUB_MARKS="$T/$name.marks" STUB_TAG="$STUB_TAG" STUB_FIXTURES="$HERE/fixtures" "$@" \
     >"$T/$name.out" 2>"$T/$name.err"
@@ -1454,7 +1454,7 @@ check "mparallel: Melious started while codex was still running" \
   sh -c '[ -e "$1/codex-done" ] && [ ! -e "$1/melious-after-codex" ]' _ "$T/mparallel.marks"
 # Stopping the script stops a fallback started after ollama failed, as it does the pair.
 mkdir -p "$T/mstop.marks"
-env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
+env -u CODEX_MODEL -u CODEX_EFFORT -u REVIEW_LOG -u XDG_STATE_HOME -u OLLAMA_API_KEY -u OLLAMA_TRANSPORT -u OLLAMA_MODEL -u OLLAMA_HOST -u AGY_MODEL -u MELIOUS_API_KEY -u MELIOUS_MAX_TOKENS -u MELIOUS_BASE_URL -u MELIOUS_ENV_FILE -u MELIOUS_API_TIMEOUT -u MELIOUS_SPEED_LIMIT -u MELIOUS_SPEED_TIME -u SECOND_SEAT -u GIT_DIR -u GIT_WORK_TREE \
   PATH="$T/bin:$PATH" HOME="$T/u" WITH_ANTIGRAVITY=0 REVIEW_RAW_DIR="$T/mstop.raw" STUB_MARKS="$T/mstop.marks" STUB_TAG="$STUB_TAG" \
   CODEX_STUB=slow OLLAMA_STUB=429 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=stubborn MELIOUS_API_KEY=stub-stopkey \
   bash "$SCRIPT" "$T/change.diff" --base none >"$T/mstop.out" 2>"$T/mstop.err" &
@@ -1929,6 +1929,50 @@ PY
     check "oreal: ...and the review is read" has oreal.out "- BUG: real curl ollama"
   fi
   kill "$echo_pid" 2>/dev/null; wait "$echo_pid" 2>/dev/null
+
+  # A stream that slows to a trickle (2026-11-02: replies of reasoning only, an hour held open).
+  # The server sends one chunk, then nothing for 25 s, then a finished review. The speed floor
+  # (set here to 2 s so the case is quick) must end the request first; without the floor the
+  # review arrives whole after 25 s and the seat is counted, so this case fails if the flags go.
+  cat >"$T/stall.py" <<'PY'
+import http.server, os, socketserver, sys, time
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        self.send_response(200); self.end_headers()
+        try:
+            self.wfile.write(b'data: {"choices":[{"index":0,"delta":{"reasoning_content":"thinking"}}]}\n\n')
+            self.wfile.flush()
+            time.sleep(25)
+            self.wfile.write(b'data: {"choices":[{"index":0,"delta":{"content":"- BUG: late review"}}]}\n\n'
+                             b'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
+        except OSError:
+            pass
+    def log_message(self, *a): pass
+class S(http.server.HTTPServer):
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = "127.0.0.1", self.server_address[1]
+s = S(("127.0.0.1", 0), H)
+with open(sys.argv[1] + ".tmp", "w") as f:
+    f.write(str(s.server_address[1]))
+os.replace(sys.argv[1] + ".tmp", sys.argv[1])
+s.handle_request()
+PY
+  python3 "$T/stall.py" "$T/stall.port" 2>"$T/stall.err" & stall_pid=$!
+  i=0; while [ ! -s "$T/stall.port" ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
+  if [ ! -s "$T/stall.port" ]; then
+    echo "FAIL mstall: the stalling server wrote no port in 30 s; its stderr:"; sed 's/^/    /' "$T/stall.err"; fails=$((fails+1))
+  else
+    run mstall PATH="$RC_PATH" NO_PROXY=127.0.0.1 no_proxy=127.0.0.1 MELIOUS_MODEL="$MELIOUS_OK" \
+      MELIOUS_SPEED_LIMIT=1000 MELIOUS_SPEED_TIME=2 \
+      MELIOUS_BASE_URL="http://127.0.0.1:$(cat "$T/stall.port")/v1" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+    check "mstall: a stalled stream is ended by the speed floor and named" has mstall.out "melious FAILED (curl exit 28, stream stalled (under 1000 B/s for 2 s))"
+    check "mstall: ...and the late review is not taken" sh -c '! grep -qF "late review" "$1"' _ "$T/mstall.out"
+  fi
+  kill "$stall_pid" 2>/dev/null; wait "$stall_pid" 2>/dev/null
+  run mbadspeed MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_SPEED_TIME=0 bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+  check "mbadspeed: a bad speed setting is refused, nothing sent" has mbadspeed.out "melious FAILED (bad MELIOUS_SPEED_LIMIT or MELIOUS_SPEED_TIME)"
 else
   echo "SKIP: the real-curl cases need curl and a python3 that can import http.server. The -H @- path was NOT checked against real curl."
 fi

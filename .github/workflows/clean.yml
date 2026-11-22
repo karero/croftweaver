@@ -204,6 +204,34 @@ jobs:
           npm ci --no-audit --no-fund
           npm run check
           npm run build
+  starter-node-22:
+    # The starter's engines also admit Node 22 (^22.23.5), the oldest line it supports. As the Node 24
+    # job above, plus the Playwright suite, because a break on 22 that only npm test shows would
+    # reach a site owner first.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          check-latest: true  # a cached older Node of that major is not enough: engines needs its security release
+      - name: Stop unless this is Node 22.23.5 or a later 22
+        # The 24 job checks the major only; here the minor and patch matter, as the floor is ^22.23.5.
+        run: |
+          node -e 'const [a, b, c] = process.versions.node.split(".").map(Number); process.exit(a === 22 && (b > 23 || (b === 23 && c >= 5)) ? 0 : 1)' || { echo "::error::this job is meant to run Node 22.23.5 or a later 22, not $(node -v)"; exit 1; }
+      - name: Install, type-check, build and test the starter
+        run: |
+          cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
+          cd "$RUNNER_TEMP/starter"
+          npm ci --no-audit --no-fund
+          npm run check
+          npm run build
+          # The icons spec needs the icons setup makes: the site's name set, then the script's --setup.
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
+          npx playwright install --with-deps chromium
+          npm test
   skill-budgets:
     runs-on: ubuntu-latest
     steps:
