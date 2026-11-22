@@ -229,7 +229,9 @@ an "Email Tap" event there, as a click on an email address does.
   Its `scripts/move-to-workers.mjs` is for moving a live site's domain from its Pages project
   to its Worker, and back with `undo` (`references/CLOUDFLARE_MOVE.md` says when). It uses a
   short-lived token you make, from `CLOUDFLARE_API_TOKEN` or from the site's `.dev.vars`, which
-  it reads only if git ignores that file. It reads your zone and its DNS records, the Pages
+  it reads only if git ignores that file. Its `token-link` command prints a link that opens
+  Cloudflare's token page filled in: it reads only `src/config.ts` in the folder you run it in, sends no
+  request and writes no file. It reads your zone and its DNS records, the Pages
   project and the Worker's domains through Cloudflare's API; the repository's branches and
   checks on GitHub; and your site's own pages. Once a run has found that `origin` is on GitHub,
   it writes a status page to `move-run/`, a folder in your site; it puts a `.gitignore` holding
