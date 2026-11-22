@@ -81,16 +81,20 @@ const dropNotDrawn = (text) => {
     const lt = text.indexOf('<', at);
     if (lt === -1) return out + text.slice(at);
     out += text.slice(at, lt);
-    let next = -1;
     const marker = markerAt(text, lt);
-    const named = /^<(desc|title|metadata)(?=[\s/>])/.exec(text.slice(lt, lt + 12));
+    const named = marker ? null : /^<(desc|title|metadata)(?=[\s/>])/.exec(text.slice(lt, lt + 12));
+    if (!marker && !named) { out += '<'; at = lt + 1; continue; }
+    let next = -1;
     if (marker) {
       next = afterMarker(text, lt, marker);
-    } else if (named) {
+    } else {
       const tagEnd = afterTag(text, lt + named[0].length);
       if (tagEnd !== -1) next = text[tagEnd - 2] === '/' ? tagEnd : afterElement(text, tagEnd, named[1]);
     }
-    if (next === -1) { out += '<'; at = lt + 1; } else at = next;
+    // One that never closes ends the scan and the rest is read as written, so a file of many
+    // (which no viewer draws) costs one pass, and the guard still sees any path after it.
+    if (next === -1) return out + text.slice(lt);
+    at = next;
   }
 };
 
