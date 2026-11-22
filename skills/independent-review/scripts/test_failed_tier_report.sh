@@ -1986,11 +1986,12 @@ PY
 else
   echo "SKIP: the real-curl cases need curl and a python3 that can import http.server. The -H @- path was NOT checked against real curl."
 fi
-# The speed settings are checked before any request, so this needs no curl.
+# The speed settings are refused before any request; the suite's stub curl is first on PATH, so
+# the host needs no curl of its own to pass api_tools_ok.
 run mbadspeed MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_SPEED_TIME=0 bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbadspeed: a bad speed setting is refused, nothing sent" has mbadspeed.out "melious FAILED (bad MELIOUS_SPEED_LIMIT or MELIOUS_SPEED_TIME)"
 run mbadspeed2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_SPEED_LIMIT=00 bash "$SCRIPT" "$T/change.diff" --base none --seat melious
-check "mbadspeed: a zero written 00 is refused too" has mbadspeed2.out "melious FAILED (bad MELIOUS_SPEED_LIMIT or MELIOUS_SPEED_TIME)"
+check "mbadspeed2: a zero written 00 is refused too" has mbadspeed2.out "melious FAILED (bad MELIOUS_SPEED_LIMIT or MELIOUS_SPEED_TIME)"
 
 # 35. A Perl older than 5.10 (2026-10-06). The API transports need 5.10 and check for it before
 #     sending anything, so they are skipped. The CLI transport has no version check, so its output

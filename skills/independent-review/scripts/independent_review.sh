@@ -209,8 +209,8 @@
 #                                    other seats.
 #   MELIOUS_MAX_TOKENS (96000)       max_tokens for the reply; a reasoning model's thinking counts.
 #   MELIOUS_API_TIMEOUT (3600)       seconds curl allows the Melious request.
-#   MELIOUS_SPEED_LIMIT (1500)       bytes a second; if curl's rate (over its last few seconds)
-#   MELIOUS_SPEED_TIME (180)         stays under it for this many seconds on end, curl ends the
+#   MELIOUS_SPEED_LIMIT (1500)       bytes a second; if the rate curl sees over
+#   MELIOUS_SPEED_TIME (180)         the last SPEED_TIME seconds is under it, curl ends the
 #                                    request, so a slow steady stream does not hold the round for
 #                                    the whole timeout. A stream that bursts above the limit now
 #                                    and then is not caught. Whole numbers from 1 to 7 digits; the
