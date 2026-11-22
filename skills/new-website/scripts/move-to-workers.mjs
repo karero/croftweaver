@@ -80,12 +80,13 @@ commit, after. undo is the way back.
   -h, --help             this text
 
 Exit status: 0 finished; 1 something failed or was refused (the report says what); 2 the command
-was wrong; 3 waiting for a yes; 4 run the same command again. After every run, move-run/status.html
-says where the move stands.
+was wrong; 3 waiting for a yes; 4 run the same command again. After every run of the other commands,
+move-run/status.html says where the move stands.
 `;
 
 // A word the owner or an assistant may have pasted by mistake, a token among them, can follow any
 // command word, so no refusal below repeats a word it was given.
+const PASTED_TOKEN = `If what you gave was a token, it is now in this conversation: delete it at ${TOKEN_PAGE} and make a new one.`;
 const ACCOUNT_ID_HELP = 'An account ID is 32 characters, the digits 0 to 9 and the letters a to f. In the Cloudflare dashboard press Ctrl+K (Cmd+K on a Mac), type "Copy account ID", choose it, and paste the result.';
 export function parseArgs(argv) {
   const opts = { cmd: null, confirm: null, accountId: null, help: false };
@@ -94,20 +95,20 @@ export function parseArgs(argv) {
     if (a === '-h' || a === '--help') opts.help = true;
     else if (a === '--confirm') {
       const v = argv[++i];
-      if (v === undefined || v.startsWith('-')) throw new UsageError('--confirm needs a value');
+      if (v === undefined || v.startsWith('-')) throw new UsageError(`--confirm needs a value. ${PASTED_TOKEN}`);
       opts.confirm = v;
-    } else if (a.startsWith('-')) throw new UsageError('unknown option: only --confirm <code> and --help exist');
+    } else if (a.startsWith('-')) throw new UsageError(`unknown option: only --confirm <code> and --help exist. ${PASTED_TOKEN}`);
     else if (opts.cmd === null) opts.cmd = a;
     else if (opts.cmd === 'token-link' && opts.accountId === null) opts.accountId = a;
-    else throw new UsageError('an extra word after the command: give one command (token-link takes one account ID)');
+    else throw new UsageError(`an extra word after the command: give one command (token-link takes one account ID). ${PASTED_TOKEN}`);
   }
   if (opts.help) return opts;
-  if (!COMMANDS.includes(opts.cmd)) throw new UsageError(opts.cmd ? `unknown command: it is not one of ${COMMANDS.join(', ')}` : `give the command: ${COMMANDS.join(', ')}`);
-  if (opts.confirm !== null && !['move', 'undo'].includes(opts.cmd)) throw new UsageError('--confirm belongs to move and undo');
-  if (opts.confirm !== null && !/^[0-9a-f]{16}$/.test(opts.confirm)) throw new UsageError('--confirm takes the 16-character code the question printed');
+  if (!COMMANDS.includes(opts.cmd)) throw new UsageError(opts.cmd ? `unknown command: it is not one of ${COMMANDS.join(', ')}. ${PASTED_TOKEN}` : `give the command: ${COMMANDS.join(', ')}`);
+  if (opts.confirm !== null && !['move', 'undo'].includes(opts.cmd)) throw new UsageError(`--confirm belongs to move and undo. ${PASTED_TOKEN}`);
+  if (opts.confirm !== null && !/^[0-9a-f]{16}$/.test(opts.confirm)) throw new UsageError(`--confirm takes the 16-character code the question printed. ${PASTED_TOKEN}`);
   if (opts.cmd === 'token-link' && opts.accountId === null) throw new UsageError(`token-link needs your account ID. ${ACCOUNT_ID_HELP}`);
   if (opts.cmd === 'token-link' && !ACCOUNT_ID.test(opts.accountId)) {
-    throw new UsageError(`that is not an account ID. ${ACCOUNT_ID_HELP} If what you gave was a token, it is now in this conversation: delete it at ${TOKEN_PAGE} and make a new one.`);
+    throw new UsageError(`that is not an account ID. ${ACCOUNT_ID_HELP} ${PASTED_TOKEN} If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6 of the move guide (docs/MOVE-TO-WORKERS.md) instead.`);
   }
   return opts;
 }
@@ -805,16 +806,18 @@ async function zoneRefusal(ctx, zones, reaching) {
     : [];
   const a = await siteAddress(ctx.git);
   const own = a && zones.map((z) => z.name).filter((n) => a.host === n || a.host.endsWith(`.${n}`)).sort((x, y) => y.length - x.length)[0];
+  let sendsToNewToken = true; // the launch-first branch sends her to the launch guide, not to a new token
   if (a && !own && /\.(pages|workers)\.dev$/.test(a.host)) {
+    sendsToNewToken = false;
     lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address https://${a.host}, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says (the kit has no guide yet for launching straight onto a Worker); if it has one, put it in SITE.url.`);
   } else if (a && !own) {
-    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address ${a.host}, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet, or it is in an account this token cannot see. If it is not on Cloudflare yet, put it there first. Then ${NEW_TOKEN.replace('Make a new one', 'make a new token').replace(/\.$/, '')}, and in its Zone policy choose Specific zone and the domain.`);
+    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address ${a.host}, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet, or it is in an account this token cannot see. If it is not on Cloudflare yet, put it there first. Then make a new token with ${TOKEN_LINK_CMD}, and in its Zone policy choose Specific zone and the domain.`);
   } else if (reaching.length) {
     lines.push(`${NEW_TOKEN} In its Zone policy, change All zones to Specific zone and choose ${own ?? 'your domain'}. A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
   } else {
     lines.push(`This token cannot edit the DNS of any zone it lists. ${NEW_TOKEN} It fills in Zone Read and DNS Edit; in its Zone policy choose Specific zone and ${own ?? 'your domain'}.`);
   }
-  lines.push(STILL_WORKS);
+  if (sendsToNewToken) lines.push(STILL_WORKS);
   return new Stop(1, ...lines);
 }
 
@@ -2124,12 +2127,12 @@ function cmdTokenLink(opts, io, say) {
     `  Token name: ${name}`,
     "  Account policy: your one account, shown by its name (not All accounts, and not a string of letters and digits), with Cloudflare Pages: Edit and Workers Scripts: Edit",
     '  Zone policy: Zone: Read and DNS: Edit',
-    'The policy boxes say "Write" where the rows and the summary say "Edit": it is the same permission. If a row is missing, or the form is empty, use the clicks in section 6 of the move guide (MOVE-TO-WORKERS.md).', '',
+    'The policy boxes say "Write" where the rows and the summary say "Edit": it is the same permission. If a row is missing, or the form is empty, use the clicks in section 6 of the move guide (docs/MOVE-TO-WORKERS.md) or in the token section of CLOUDFLARE_MOVE.md.', '',
     'Two things are yours to choose:',
     '  1. In the Zone policy, change All zones to Specific zone and choose your domain.',
     '  2. Under Token expiration, choose 7 days. The page starts on No expiration.',
     'Then choose Continue to summary, look again, create the token and copy it.');
-  if (!host) say('', 'The token name has no domain: src/config.ts was not found here, or its SITE.url is not a plain address. Run this in the site\'s folder to put the domain in the name.');
+  if (!host) say('', 'The token name has no domain: src/config.ts could not be read here, or its SITE.url is not a plain address. Run this in the site\'s folder to put the domain in the name.');
   return 0;
 }
 

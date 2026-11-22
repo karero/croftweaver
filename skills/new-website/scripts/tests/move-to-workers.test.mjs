@@ -15,8 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMPTY_BODY, ENABLED_LINE, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
-import { parseArgs } from '../move-to-workers.mjs';
+import { EMPTY_BODY, ENABLED_LINE, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, parseArgs, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -388,6 +387,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     const r = await run('https://lenas-backstube.pages.dev', withoutSite());
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('src/config.ts gives the address https://lenas-backstube.pages.dev, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says'), r.text);
+    assert.doesNotMatch(r.text, /still works/, 'this refusal sends her to the launch guide, not to a new token');
   });
   test('S3: a token that reaches four zones names them, shows the permissions, and names the site zone to keep', async () => {
     const site = recipe().find((z) => z.name === ZONE.name);
@@ -3926,7 +3926,7 @@ describe('token-link: the link that opens Cloudflare\'s token page filled in', (
     assert.equal(r.params.get('zoneId'), 'all');
     assert.equal(r.params.get('name'), 'Croftweaver move www.lenas-backstube.example 2026-11-22 16:05 UTC delete when done');
     // What the owner is told to look for and to choose herself.
-    assert.match(r.text, /Zone Read|Zone: Read and DNS: Edit/);
+    assert.match(r.text, /Zone policy: Zone: Read and DNS: Edit/);
     assert.match(r.text, /Cloudflare Pages: Edit and Workers Scripts: Edit/);
     assert.match(r.text, /change All zones to Specific zone/);
     assert.match(r.text, /choose 7 days/);
@@ -3984,6 +3984,8 @@ describe('token-link: the link that opens Cloudflare\'s token page filled in', (
     ];
     for (const args of cases) {
       assert.throws(() => parseArgs(args), (e) => {
+        // A pasted token may sit in any of these: every refusal but the two with nothing pasted says what to do about it.
+        if (args.length > 0 && !(args.length === 1 && args[0] === 'token-link')) assert.ok(e.message.includes(`it is now in this conversation: delete it at ${TOKEN_PAGE_URL}`), `"${e.message}" lacks the token advice`);
         for (const a of args) if (a.length > 3 && !['token-link', '--confirm'].includes(a)) assert.ok(!e.message.includes(a), `"${e.message}" repeats ${a}`);
         return true;
       }, args.join(' '));
@@ -4000,6 +4002,10 @@ describe('token-link: the link that opens Cloudflare\'s token page filled in', (
     const r = await run(['token-link', PASTED]);
     assert.match(r.stderr, /that is not an account ID/);
     assert.match(r.stderr, /Ctrl\+K .*Copy account ID/);
+    assert.match(r.stderr, /If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6/);
+    for (const args of [['check', PASTED], ['token-link', ID, PASTED], [PASTED], ['token-link', `-${PASTED}`]]) {
+      assert.match((await run(args)).stderr, /it is now in this conversation: delete it at https:\/\/dash\.cloudflare\.com\/profile\/api-tokens and make a new one\./, args.join(' '));
+    }
     assert.match(r.stderr, /If what you gave was a token, it is now in this conversation: delete it at https:\/\/dash\.cloudflare\.com\/profile\/api-tokens and make a new one\./);
     assert.match((await run(['token-link'])).stderr, /token-link needs your account ID/);
   });
@@ -4047,14 +4053,14 @@ syncBuiltinESMExports();
     // The recorder itself can fire: the same preload, run over a script that makes each of the calls.
     const probe = path.join(scratch, 'iso-probe.mjs');
     writeFileSync(probe, `
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import net from 'node:net';
 import dgram from 'node:dgram';
-for (const f of [() => fetch('http://127.0.0.1:9/'), () => execFileSync('true'), () => spawnSync('true'), () => net.connect(9, '127.0.0.1'), () => new net.Socket().connect(9, '127.0.0.1'), () => dgram.createSocket('udp4')]) { try { await f(); } catch {} }
+for (const f of [() => fetch('http://127.0.0.1:9/'), () => execFileSync('true'), () => spawnSync('true'), () => spawn('true'), () => net.connect(9, '127.0.0.1'), () => new net.Socket().connect(9, '127.0.0.1'), () => dgram.createSocket('udp4')]) { try { await f(); } catch {} }
 `);
     await exec([probe]);
     const seen = readFileSync(path.join(rec, 'calls.txt'), 'utf8');
-    for (const what of ['fetch', 'net.Socket.prototype.connect', 'dgram.createSocket', 'child_process.execFileSync', 'child_process.spawnSync']) assert.ok(seen.includes(`${what}\n`), `the recorder missed ${what}: ${seen}`);
+    for (const what of ['fetch', 'net.Socket.prototype.connect', 'dgram.createSocket', 'child_process.execFileSync', 'child_process.spawnSync', 'child_process.spawn']) assert.ok(seen.includes(`${what}\n`), `the recorder missed ${what}: ${seen}`);
   });
 
   // S2, S3: the refusals that send her to a new token.
