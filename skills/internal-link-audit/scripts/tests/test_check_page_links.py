@@ -344,6 +344,58 @@ class OnAHandWrittenDist(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("2 pages link here (2 needed), 2 from their body", out)
 
+    def test_open_li_or_p_left_unclosed_does_not_hide_the_sibling_that_follows(self):
+        # HTML ends an <li> or <p> when the next one starts: a `hidden` on the first is not the second's.
+        for name, body in (("li", '<ul><li hidden><a href="/x">X</a><li><a href="/p">P</a></ul>'),
+                           ("p", '<p hidden><a href="/x">X</a><p><a href="/p">P</a>')):
+            with self.subTest(tag=name):
+                dist = self.make({
+                    "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+                    "a.html": "<main>%s</main>" % body,
+                    "x.html": "<main>X</main>",
+                    "p.html": "<main>P</main>",
+                })
+                code, out, _ = run(dist, "/p", *HOST, "--no-hub")
+                self.assertEqual(code, 0, out)
+                self.assertIn("2 pages link here (2 needed), 2 from their body", out)
+
+    def test_hidden_li_still_hides_its_own_link(self):
+        dist = self.make({
+            "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+            "a.html": '<main><ul><li><a href="/x">X</a><li hidden><a href="/p">P</a></ul></main>',
+            "x.html": "<main>X</main>",
+            "p.html": "<main>P</main>",
+        })
+        code, out, _ = run(dist, "/p", *HOST, "--no-hub")
+        self.assertEqual(code, 1)
+        self.assertIn("MISS: only 1 page links here, 2 needed", out)
+
+    def test_link_with_a_backslash_is_not_counted_and_is_named_on_stderr(self):
+        # A browser reads "\\" as "/": the first goes to other.test, the second to /a/p, never to /p.
+        for href in ("https://other.test\\@example.com/p", "/a\\p"):
+            with self.subTest(href=href):
+                dist = self.make({
+                    "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+                    "a.html": '<main><a href="%s">P</a></main>' % href,
+                    "p.html": "<main>P</main>",
+                })
+                code, out, err = run(dist, "/p", *HOST, "--no-hub")
+                self.assertEqual(code, 1, out)
+                self.assertIn("MISS: only 1 page links here, 2 needed", out)
+                self.assertIn("warning: ignored the link %r on /a: a backslash in its address" % href, err)
+
+    def test_backslash_after_the_query_or_fragment_is_part_of_it_and_the_link_counts(self):
+        for href in ("/p?q=\\", "/p#a\\b"):
+            with self.subTest(href=href):
+                dist = self.make({
+                    "index.html": '<main><a href="/a">A</a> <a href="/p">P</a></main>',
+                    "a.html": '<main><a href="%s">P</a></main>' % href,
+                    "p.html": "<main>P</main>",
+                })
+                code, out, err = run(dist, "/p", *HOST, "--no-hub")
+                self.assertEqual(code, 0, out + err)
+                self.assertNotIn("backslash", err)
+
     def test_page_argument_with_a_closing_slash_names_the_same_page(self):
         dist = self.make({
             "index.html": '<main><a href="/a">A</a> <a href="/b">B</a></main>',

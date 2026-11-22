@@ -10,13 +10,16 @@
   python3 check_page_links.py dist /new-page --site https://example.com (--hub /hub | --no-hub)
 
 Exit 0: all met. Exit 1: each miss is listed, with the pages that link here. Exit 2: the check
-cannot judge (no dist/, no file for the page or the hub, neither --hub nor --no-hub, --hub given
-and the page has no <main>, a folder it cannot read, two files that serve one address, or a page
-with a <base> element, which it does not apply). An <a> with a `hidden` attribute, or inside an element that has one
-or inside a <template>, is not counted; CSS is not read. Standard library only; Python 3.9 or newer.
+cannot judge (no dist/, a --site with no host, no file for the page or the hub, neither --hub nor
+--no-hub, --hub given and the page has no <main>, a folder it cannot read, two files that serve one
+address, or a page with a <base> element, which it does not apply). An <a> with a `hidden`
+attribute, or inside an element that has one or inside a <template>, is not counted, nor is one
+with a backslash before its `?` or `#` (a browser reads it as a slash, so where it goes is not what
+this check reads); CSS is not read. Standard library only; Python 3.9 or newer.
 """
 import argparse
 import os
+import re
 import sys
 from html.parser import HTMLParser
 from urllib.parse import unquote, urljoin, urlsplit
@@ -74,6 +77,8 @@ class Links(HTMLParser):
                 self.links.append((a["href"], in_main, body))
         if tag in VOID:
             return
+        if tag in ("li", "p") and self.stack and self.stack[-1][0] == tag:
+            self.stack.pop()                    # HTML ends an open <li> or <p> when the next one starts
         if tag == "main":
             self.has_main = True
         self.stack.append((tag, "hidden" in a or tag == "template", tag == "main", tag in NOT_BODY))
@@ -122,6 +127,9 @@ def read_site(dist, site_host):
             base = "https://" + site_host + address
             edges = []
             for href, in_main, body in parser.links:
+                if "\\" in re.split("[?#]", href, maxsplit=1)[0]:     # a browser reads it as "/": urlsplit names another host
+                    print("warning: ignored the link %r on %s: a backslash in its address" % (href, key), file=sys.stderr)
+                    continue
                 try:
                     u = urlsplit(urljoin(base, href.strip()))
                     host = u.hostname

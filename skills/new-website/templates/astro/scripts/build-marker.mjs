@@ -43,11 +43,64 @@ const ASTRO_ICO_HASHES = [
   '5af608ecd60d93abd453f78896e95a7c8c0a2c632a92a10e57f19423f333bc46',
 ];
 
+// Text a viewer never sees drawn: comments, CDATA, <?…?> and the content of <desc>, <title> and
+// <metadata>. A marker inside another is only text (a "<!--" or a "</desc>" in CDATA), and a quoted
+// attribute value may hold a ">", so the scan reads left to right and not by one regular expression.
+const NOT_DRAWN = [['<!--', '-->'], ['<![CDATA[', ']]>'], ['<?', '?>']];
+const markerAt = (text, at) => NOT_DRAWN.find(([open]) => text.startsWith(open, at));
+const afterMarker = (text, at, [open, shut]) => {
+  const close = text.indexOf(shut, at + open.length);
+  return close === -1 ? -1 : close + shut.length;
+};
+const afterTag = (text, from) => {   // the index after the ">" that ends the tag, or -1
+  let quote = '';
+  for (let i = from; i < text.length; i++) {
+    if (quote) { if (text[i] === quote) quote = ''; }
+    else if (text[i] === '"' || text[i] === "'") quote = text[i];
+    else if (text[i] === '>') return i + 1;
+  }
+  return -1;
+};
+const afterElement = (text, from, name) => {   // the index after </name>, or -1
+  for (let lt = text.indexOf('<', from); lt !== -1; lt = text.indexOf('<', lt + 1)) {
+    const marker = markerAt(text, lt);
+    if (marker) {
+      const next = afterMarker(text, lt, marker);
+      if (next === -1) return -1;
+      lt = next - 1;
+    } else if (text.startsWith('</' + name, lt) && /[\s>]/.test(text[lt + 2 + name.length] ?? '')) {
+      return afterTag(text, lt + 2 + name.length);
+    }
+  }
+  return -1;
+};
+const dropNotDrawn = (text) => {
+  let out = '';
+  let at = 0;
+  for (;;) {
+    const lt = text.indexOf('<', at);
+    if (lt === -1) return out + text.slice(at);
+    out += text.slice(at, lt);
+    const marker = markerAt(text, lt);
+    const named = marker ? null : /^<(desc|title|metadata)(?=[\s/>])/.exec(text.slice(lt, lt + 12));
+    if (!marker && !named) { out += '<'; at = lt + 1; continue; }
+    let next = -1;
+    if (marker) {
+      next = afterMarker(text, lt, marker);
+    } else {
+      const tagEnd = afterTag(text, lt + named[0].length);
+      if (tagEnd !== -1) next = text[tagEnd - 2] === '/' ? tagEnd : afterElement(text, tagEnd, named[1]);
+    }
+    // One that never closes ends the scan and the rest is read as written, so a file of many
+    // (which no viewer draws) costs one pass, and the guard still sees any path after it.
+    if (next === -1) return out + text.slice(lt);
+    at = next;
+  }
+};
+
 const isAstroSvg = (buf) => {
-  // Comments, CDATA text and <?…?> are not drawn, so Astro's path inside one is not Astro's icon.
-  // One pass takes all three out, so a "<!--" inside CDATA or <?…?> cannot swallow a real path.
-  const text = buf.toString('utf8').replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, '');
-  // Only a d="…" attribute draws: Astro's path as text in <metadata>, <desc> or CDATA is not the icon.
+  const text = dropNotDrawn(buf.toString('utf8'));
+  // Only a d="…" attribute draws: Astro's path as text in CDATA or in an element left in is not the icon.
   for (const m of text.matchAll(/\sd\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
     const d = (m[1] ?? m[2]).replace(/\s/g, '');
     if (ASTRO_SVG_OPENINGS.some((opening) => d.includes(opening))) return true;

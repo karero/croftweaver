@@ -143,6 +143,14 @@ const REFUSED_SVG = [
     .replace(/(<svg[^>]*>)/, '$1<metadata><![CDATA[<!--]]></metadata>').replace('</svg>', '<!-- end --></svg>')],
   ['the 2023 logo with a "<!--" in <?…?> before it and a comment after', () => astroText('svg2023')
     .replace(/(<svg[^>]*>)/, '$1<?note <!-- ?>').replace('</svg>', '<!-- end --></svg>')],
+  // A self-closing <title/> has no content to drop: it must not run on to a later </title>.
+  ['the 2023 logo between a self-closing <title/> and a later <title>', () => astroText('svg2023')
+    .replace(/(<svg[^>]*>)/, '$1<title/>').replace('</svg>', '<title>Logo</title></svg>')],
+  ['the 2023 logo between a self-closing <title data-note=">"/> and a later <title>', () => astroText('svg2023')
+    .replace(/(<svg[^>]*>)/, '$1<title data-note=">"/>').replace('</svg>', '<title>Logo</title></svg>')],
+  // An element that never closes drops nothing: the path after it is still read.
+  ['the 2023 logo after an unclosed <desc>', () => astroText('svg2023').replace(/(<svg[^>]*>)/, '$1<desc>')],
+  ['the 2023 logo after an unclosed <!--', () => astroText('svg2023').replace(/(<svg[^>]*>)/, '$1<!-- ')],
 ];
 const REFUSED_ICO = [
   ['the 2026 icon (a PNG with an .ico name)', () => astro('ico2026')],
@@ -181,6 +189,12 @@ for (const [where, wrap] of [
   ['a CDATA section', (p) => `<style><![CDATA[${p}]]></style>`],
   ['a d="…" written in a CDATA section', (p) => `<style><![CDATA[ d="${p}" ]]></style>`],
   ['a d="…" written in <?…?>', (p) => `<?note d="${p}"?>`],
+  ['a d="…" written in <desc>', (p) => `<desc>Example d="${p}"</desc>`],
+  ['a d="…" written in <title>', (p) => `<title>Example d='${p}'</title>`],
+  ['a d="…" written in <metadata>', (p) => `<metadata><note d="${p}"/></metadata>`],
+  ['a d="…" written in <desc> after a self-closing <title/>', (p) => `<title/><desc>d="${p}"</desc>`],
+  ['a d="…" in a <desc> whose CDATA holds a "</desc>"', (p) => `<desc><![CDATA[</desc> d="${p}"]]></desc>`],
+  ['a d="…" in a <desc> whose comment holds a "</desc>"', (p) => `<desc><!-- </desc> -->d="${p}"</desc>`],
 ]) {
   test(`Astro's path inside ${where} of the site's own icon does not stop the build`, () => {
     const own = ownIcons().svg.toString('utf8').replace(/(<svg[^>]*>)/, `$1${wrap(astroPath())}`);
@@ -191,6 +205,17 @@ for (const [where, wrap] of [
     assert.ok(existsSync(path.join(dir, 'dist', 'build.txt')));
   });
 }
+
+// A file of many unclosed elements is read in one pass: a quadratic scan took a minute on 300 KB.
+test('many unclosed <desc> and <!-- in the site\'s own icon do not stall the build', () => {
+  const junk = '<desc>'.repeat(20_000) + '<!-- '.repeat(20_000);
+  const own = ownIcons().svg.toString('utf8').replace(/(<svg[^>]*>)/, `$1${junk}`);
+  const dir = distWith({ 'favicon.svg': own });
+  const r = spawnSync(process.execPath, [SCRIPT], {
+    cwd: dir, encoding: 'utf8', env: cleanEnv({ CF_PAGES_COMMIT_SHA: MARKER_SHA }), timeout: 30_000,
+  });
+  assert.equal(r.status, 0, r.stderr);
+});
 
 test('a site without scripts/make-icons.mjs is not told to run it', () => {
   const dir = distWith({ 'favicon.svg': astro('svg2023') });
