@@ -204,6 +204,37 @@ jobs:
           npm ci --no-audit --no-fund
           npm run check
           npm run build
+  starter-node-22:
+    # The starter's engines also admit Node 22, the oldest line it supports. As the Node 24
+    # job above, plus the Playwright suite, because a break on 22 that only npm test shows would
+    # reach a site owner first.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          check-latest: true  # a cached older Node 22 may sit under the engines floor
+      - name: Stop unless this Node is inside the starter's engines range
+        # The 24 job checks the major only; here the minor and patch matter. check_node_floor.sh reads
+        # the range, so a new floor needs no edit here. It refuses a range it cannot read (exit 2).
+        run: |
+          r=$(node -p 'require("./skills/new-website/templates/astro/package.json").engines.node')
+          a=$(bash scripts/check_node_floor.sh --admits "$r" "$(node -p process.versions.node)") || { echo "::error::cannot judge $(node -v) against engines \"$r\": $a"; exit 1; }
+          [ "$a" = yes ] || { echo "::error::$(node -v) is outside the starter's engines \"$r\": raise Node, or remove this job if engines dropped Node 22"; exit 1; }
+      - name: Install, type-check, build and test the starter
+        run: |
+          cp -R skills/new-website/templates/astro "$RUNNER_TEMP/starter"
+          cd "$RUNNER_TEMP/starter"
+          npm ci --no-audit --no-fund
+          npm run check
+          npm run build
+          # The icons spec needs the icons setup makes: the site's name set, then the script's --setup.
+          perl -pi -e "s/^  name: 'Example',/  name: 'Example Site',/" src/config.ts
+          grep -q "^  name: 'Example Site'," src/config.ts
+          node scripts/make-icons.mjs --setup
+          npx playwright install --with-deps chromium
+          npm test
   skill-budgets:
     runs-on: ubuntu-latest
     steps:
