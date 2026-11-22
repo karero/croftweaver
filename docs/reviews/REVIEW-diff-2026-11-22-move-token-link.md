@@ -14,9 +14,11 @@ Plan: the hub's `move-token/PLAN.md` (rows 1.1 and 1.2), plan-gated there. Artif
 | 1 | Codex, melious, fresh-eyes | 2 / 1 / 8 | recovery advice missing on parser refusals; a help claim `token-link` breaks; an account-ID shape taken from one account |
 | 2 | Codex, melious, fresh-eyes (round's change only) | 2 / 2 / 2 | `--confirm <word>` with no command had no advice; the footer's status-page promise; the new pointer named one file; a deletion pointer on the launch-first refusal |
 | 3 | Codex, melious, fresh-eyes (round's change only) | 2 / 1 / 1 | a pasted word before a trailing `--confirm` got no advice (the round-2 exemption); the footer still promised a status page |
+| 4 | Codex, melious (`--verify`, earned by `parser-advice` and `status-footer`) | 0 / 0 / 0 | clean: both seats confirmed the round-3 fix and found nothing new |
 
 Round 1 tokens: Codex 79,548 (146 s), melious 66,275 (440 s), fresh-eyes 146,685 (119 s).
 Round 3 tokens: Codex 49,442 (121 s), melious 29,096 (252 s), fresh-eyes 101,461 (81 s). Round 3 was `--verify` on `a43fe9a2..c96f1a38`.
+Round 4 tokens: Codex 36,584 (92 s), melious 16,983 (129 s); no fresh-eyes pass (the skill asks for one in rounds 1 to 3). Gate total in the log: 855,067 tokens for rounds 1 to 4, fresh-eyes included.
 Round 2 tokens: Codex 54,303 (152 s), melious 22,579 (178 s), fresh-eyes 105,426 (112 s). Round 2 was `--verify` on the delta `870e3381..a43fe9a2`.
 
 ## Round 1 findings
@@ -64,3 +66,13 @@ which `.github/workflows/clean.yml` runs. Both were run on the final head.
 
 Rounds 1 to 3 each found the parser's advice incomplete in a new shape. Round 3's fix removes the special case that
 caused the last two, so the rule is now: every refusal after any argument carries the advice.
+
+## Round 4 and close
+
+Round 4 was a `--verify` of the round-3 fix with the manager's go (the manager's words: a confirmation, and stop and
+report if a BUG came back). It came back clean from both seats; the gate closes. The cut recorded for the repeated kind:
+the per-shape exemptions in `parseArgs` became one rule (every refusal after any argument carries the paste advice;
+only no arguments and `token-link` alone do not), and the footer's exact status-page rule became "most runs".
+
+Not run by a seat: the suites (read-only seats). Run by the author on the final head: `make test-cloudflare-check`,
+`scripts/check_clean.sh`, `scripts/check_buglog_rows.sh`, and `make check` (see the PR).
