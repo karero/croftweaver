@@ -1,0 +1,17 @@
+diff --git a/t3/files.py b/t3/files.py
+new file mode 100644
+index 0000000..cad36a1
+--- /dev/null
++++ b/t3/files.py
+@@ -0,0 +1,11 @@
++"""Serves files from the download folder."""
++import os
++
++ROOT = "/srv/downloads"
++
++
++def serve(name):
++    """name comes from the URL path. Returns the file's bytes."""
++    clean = name.replace("../", "")
++    with open(os.path.join(ROOT, clean), "rb") as f:
++        return f.read()
