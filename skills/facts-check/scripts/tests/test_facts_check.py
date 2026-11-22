@@ -406,30 +406,53 @@ class Positioning(unittest.TestCase):
         s = self.surfaces(self.PAGE)
         self.assertEqual(s["title"], "CX outsourcing | Acme")
         self.assertEqual(s["desc"], "Flexible CX outsourcing for retailers.")
-        # all h1s, then the intro: the first <p> of <main>, not the header's
+        # all h1s, then the intro: the <p> right after the <h1>, not the header's first <p>
         self.assertEqual(s["h1"], "Help when you need it \u00b7 On-demand CX outsourcing for retail.")
         self.assertIn("Careers at Acme", s["body"])
 
     def test_intro_falls_back_to_article_then_page(self):
-        self.assertTrue(self.surfaces("<article><p>A</p></article><p>B</p>")["h1"].endswith("A"))
-        self.assertTrue(self.surfaces("<div><p>B<div>x</div></div>")["h1"].endswith("B"))
-        # a <main> without a <p> gives no intro, as in the starter test
-        self.assertEqual(self.surfaces("<p>B</p><main><h1>H</h1></main>")["h1"], "H \u00b7 ")
+        self.assertTrue(self.surfaces("<article><h1>H</h1><p>A</p></article><h1>H</h1><p>B</p>")["h1"].endswith("A"))
+        self.assertTrue(self.surfaces("<div><h1>H</h1><p>B<div>x</div></div>")["h1"].endswith("B"))
+        # a <main> without a <p> right after its <h1> gives no intro, as in the starter test
+        self.assertEqual(self.surfaces("<h1>H</h1><p>B</p><main><h1>H</h1></main>")["h1"], "H \u00b7 H \u00b7 ")
 
     def test_a_paragraph_ends_where_the_browser_ends_it(self):
         # review findings: the intro ran on past a </div> or a new <li> that closes the <p>
-        self.assertEqual(self.surfaces("<main><div><p>Short intro</div><a>term</a></main>")["h1"],
-                         " \u00b7 Short intro")
-        self.assertEqual(self.surfaces("<main><ul><li><p>first<li>term</ul></main>")["h1"], " \u00b7 first")
-        self.assertEqual(self.surfaces("<main><p>one<pre>term</pre></main>")["h1"], " \u00b7 one")
+        self.assertEqual(self.surfaces("<main><div><h1>H</h1><p>Short intro</div><a>term</a></main>")["h1"],
+                         "H \u00b7 Short intro")
+        self.assertEqual(self.surfaces("<main><ul><li><h1>H</h1><p>first<li>term</ul></main>")["h1"], "H \u00b7 first")
+        self.assertEqual(self.surfaces("<main><h1>H</h1><p>one<pre>term</pre></main>")["h1"], "H \u00b7 one")
         # inline markup inside the paragraph stays part of it
-        self.assertEqual(self.surfaces("<main><p>a <a>b</a> <span>c</span></p></main>")["h1"],
-                         " \u00b7 a b c")
+        self.assertEqual(self.surfaces("<main><h1>H</h1><p>a <a>b</a> <span>c</span></p></main>")["h1"],
+                         "H \u00b7 a b c")
 
     def test_only_the_first_main_counts(self):
         # review finding: a later <main> supplied the intro the starter test would not see
         html = "<main><h1>H</h1></main><dialog><main><p>term</p></main></dialog>"
         self.assertEqual(self.surfaces(html)["h1"], "H \u00b7 ")
+
+    def test_the_intro_is_the_paragraph_right_after_the_h1_not_a_label_above_it(self):
+        # the starter test reads main.querySelector('h1 + p'): a term only in an eyebrow above the
+        # <h1> must not count, or a site with an eyebrow on every page passes a page that fails there
+        s = self.surfaces("<main><p>zq-term</p><h1>Title</h1><p>The line under it.</p></main>")
+        self.assertEqual(s["h1"], "Title \u00b7 The line under it.")
+        self.assertEqual(fc.check_positioning(s, {"h1": ["zq-term"]}), ["<h1>/intro needs \u201czq-term\u201d"])
+        self.assertEqual(fc.check_positioning(s, {"h1": ["line under"]}), [])
+
+    def test_the_paragraph_must_be_the_next_element_sibling_of_the_h1(self):
+        # What h1 + p does and does not match: text and comments between are no elements; an element
+        # between (void, skipped, or any other), a wrapper around the <h1>, or a <p> before it are not.
+        intro = lambda html: self.surfaces("<main>" + html + "</main>")["h1"].split(" \u00b7 ", 1)[-1]
+        self.assertEqual(intro("<h1>H</h1> text <!-- c --> <p>x</p>"), "x")
+        self.assertEqual(intro("<h1>H</h1><p>a</p><p>b</p>"), "a")
+        self.assertEqual(intro("<p>a</p><h1>H</h1><p>b</p>"), "b")
+        self.assertEqual(intro("<p>eyebrow<h1>H</h1><p>b"), "b")  # the omitted </p> is the browser's to supply
+        for between in ("<img>", "<br>", "<svg></svg>", "<script></script>", "<div></div>", "<h2>S</h2>",
+                        '<script type="application/ld+json">{}</script>', "<template></template>"):
+            with self.subTest(between=between):
+                self.assertEqual(self.surfaces("<main><h1>H</h1>" + between + "<p>x</p></main>")["h1"], "H \u00b7 ")
+        self.assertEqual(self.surfaces("<main><div><h1>H</h1></div><p>x</p></main>")["h1"], "H \u00b7 ")
+        self.assertEqual(self.surfaces("<main><h1>H</h1><div><p>x</p></div></main>")["h1"], "H \u00b7 ")
 
     def test_title_is_the_first_title_and_keeps_no_break_spaces(self):
         # review finding: every <title> was joined and no-break spaces collapsed
@@ -472,7 +495,7 @@ class MorePlaces(unittest.TestCase):
             '<link rel="canonical" href="https://oldname.example/en/"></head><body>'
             '<img src="team.jpg" alt="Our 30,000 agents at the Old Name GmbH summit">'
             '<a href="/blog/2024/30000-agents">read more</a>'
-            '<template><p>Old Name GmbH</p></template><main><p>Intro text.</p></main></body></html>')
+            '<main><template><h1>T</h1><p>Old Name GmbH</p></template><h1>Acme</h1><p>Intro text.</p></main></body></html>')
 
     def rows(self, fact_list, phrases):
         p = fc.PageText()
@@ -493,9 +516,9 @@ class MorePlaces(unittest.TestCase):
     def test_template_and_noscript_content_is_not_page_structure(self):
         # outside review finding: a <p> inside <template> took the intro's place
         p, _ = self.rows([], [])
-        self.assertEqual(p.surfaces()["h1"], " \u00b7 Intro text.")
+        self.assertEqual(p.surfaces()["h1"], "Acme \u00b7 Intro text.")
         q = fc.PageText()
-        q.feed("<noscript><p>Enable JS</p><img alt='Old Name GmbH'></noscript><p>Real intro</p>")
+        q.feed("<noscript><h1>X</h1><p>Enable JS</p><img alt='Old Name GmbH'></noscript><h1>H</h1><p>Real intro</p>")
         self.assertTrue(q.surfaces()["h1"].endswith("Real intro"))
         self.assertNotIn("image alt text", q.locations())
 
@@ -1005,11 +1028,11 @@ PAGES = {
         '<script type="application/ld+json">{"@type":"Organization","description":"30,000 agents"}</script>'
         "<style>.x{width:2000px}</style><script>var agents = 99999;</script></head>"
         '<body><div class="stat"><span>27.000+</span><span>Agenten</span></div>'
-        "<p>Trusted by 120 clients. Founded in 2016.</p>"
+        "<p>Welcome</p><h1>Acme</h1><p>Trusted by 120 clients. Founded in 2016.</p>"
         "<p>We were the Old Name GmbH.</p></body></html>"),
     "/about": ("text/html",
         "<html><head><title>About</title></head><body>"
-        "<h2>70+</h2><p>clients from startups to large firms</p>"
+        "<h1>70+</h1><p>clients from startups to large firms</p>"
         "<p>An NPS of 72.</p></body></html>"),
     "/brochure.pdf": ("application/pdf", "%PDF-1.4"),
     "/llms.txt": ("text/plain; charset=utf-8", "# Acme\n> Formerly Old Name GmbH. 30,000 agents.\n"),
@@ -1215,7 +1238,7 @@ class FullRun(unittest.TestCase):
 
     def test_positioning_on_the_stub_site(self):
         facts = self.facts(facts=[], retired_phrases=[], positioning={
-            "rules": [{"pages": "/", "audience": "buyers",  # no h1 here: the intro counts
+            "rules": [{"pages": "/", "audience": "buyers",  # the h1 is "Acme": the intro counts
                        "title": ["agents"], "desc": ["agents"], "h1": [["clients", "customers"]]},
                       {"pages": "/about", "audience": "buyers", "term": "clients"}],
             "exempt": ["/private/*"]})

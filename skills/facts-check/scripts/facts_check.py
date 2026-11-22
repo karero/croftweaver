@@ -47,7 +47,7 @@ Each tied number is OK (the approved value or one in `also_accept`), OUTDATED (i
 
 Positioning (optional `positioning` block): rules map address paths (`/en/business/*`) to
 an audience and a term. The term must appear in the <title>, the meta description and the
-<h1> or intro paragraph, the rule the starter's tests/positioning.spec.ts enforces; or
+<h1> or the intro, the <p> right after the <h1>, the rule the starter's tests/positioning.spec.ts enforces; or
 clauses per surface (title, desc, h1, body), each a phrase or a list of alternatives. The
 first matching rule wins. A page that lost its term is a finding; a page with no rule and
 not exempt is listed as a warning.
@@ -586,16 +586,19 @@ class PageText(HTMLParser):
         self._in_title = False
         self._in_ldjson = False
         self._ld_buf: List[str] = []
-        # For the positioning check: every <h1>, and the intro, the first <p> of <main>
-        # (else of <article>, else of the page), chosen as the starter's positioning test does.
-        # Only the first <main> and the first <article> count, and the first <p> in each,
-        # as with document.querySelector('main').querySelector('p'). A stack of open
-        # elements tells where a <p> ends when its </p> is left out.
+        # For the positioning check: every <h1>, and the intro, the first <p> of <main> that
+        # directly follows an <h1> (else of <article>, else of the page), chosen as the starter's
+        # positioning test does. Only the first <main> and the first <article> count, and the
+        # first such <p> in each, as with document.querySelector('main').querySelector('h1 + p').
+        # A stack of open elements tells where a <p> ends when its </p> is left out, and
+        # _kids[d] holds the tag of the last child closed in the element at stack depth d - 1
+        # (depth 0: the page), which is the previous element sibling of the next one opened there.
         self.h1s: List[str] = []
         self._h1_depth = 0
         self._h1_buf: List[str] = []
         self._titles = 0
         self._stack: List[str] = []
+        self._kids: List[Optional[str]] = [None]
         self._first_at: Dict[str, Optional[int]] = {"main": None, "article": None}
         self._saw = {"main": False, "article": False}
         self.first_p: Dict[str, Optional[str]] = {"main": None, "article": None, "body": None}
@@ -608,8 +611,11 @@ class PageText(HTMLParser):
         if tag == "script" and a.get("type", "").lower() == "application/ld+json" and not self._skip:
             self._in_ldjson = True
             self._ld_buf = []
+            self._kids[len(self._stack)] = tag
             return
         if tag in SKIP_TAGS:
+            if not self._skip:
+                self._kids[len(self._stack)] = tag
             self._skip += 1
             return
         if self._skip:
@@ -637,15 +643,20 @@ class PageText(HTMLParser):
             self._h1_depth += 1
             if self._h1_depth == 1:
                 self._h1_buf = []
-        elif tag == "p" and self._p_buf is None:
-            slots = [k for k in ("main", "article")
-                     if self._first_at[k] is not None and self.first_p[k] is None]
-            if self.first_p["body"] is None:
-                slots.append("body")
-            if slots:
-                self._p_buf, self._p_slots, self._p_at = [], slots, len(self._stack)
-        if tag not in VOID_TAGS:
+        elif tag == "p":
+            self._p_at = len(self._stack)  # any <p> can be the one a later start tag closes
+            if self._kids[len(self._stack)] == "h1":
+                slots = [k for k in ("main", "article")
+                         if self._first_at[k] is not None and self.first_p[k] is None]
+                if self.first_p["body"] is None:
+                    slots.append("body")
+                if slots:
+                    self._p_buf, self._p_slots = [], slots
+        if tag in VOID_TAGS:
+            self._kids[len(self._stack)] = tag
+        else:
             self._stack.append(tag)
+            self._kids.append(None)
         if tag == "title":
             self._in_title = True
             self._titles += 1
@@ -711,17 +722,21 @@ class PageText(HTMLParser):
         for k, at in self._first_at.items():
             if at is not None and i <= at:
                 self._first_at[k] = None  # only the first <main>/<article> is ever read
+        tag = self._stack[i]
         del self._stack[i:]
+        del self._kids[i + 1:]
+        self._kids[i] = tag
 
     def _end_p(self):
-        text = "".join(self._p_buf or [])
-        for slot in self._p_slots:
-            self.first_p[slot] = text
+        if self._p_buf is not None:
+            text = "".join(self._p_buf)
+            for slot in self._p_slots:
+                self.first_p[slot] = text
         self._p_buf, self._p_slots, self._p_at = None, [], None
 
     def surfaces(self) -> Dict[str, str]:
         """The four places the positioning check reads, as the starter's test reads them."""
-        if self._p_buf is not None:
+        if self._p_at is not None:
             self._end_p()
         if self._h1_depth:
             self.h1s.append("".join(self._h1_buf))

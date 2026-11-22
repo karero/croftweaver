@@ -206,15 +206,16 @@ Add a `positioning` block to the facts file (the facts list can then stay empty)
   it should believe you. The company itself (name, category, facts) stays the same for
   all of them.
 - **`term`**: the shorthand. The phrase must appear in the `<title>`, the meta
-  description, and the `<h1>` or the intro paragraph (so the heading can stay human).
+  description, and the `<h1>` or the intro, the paragraph right under it (so the heading can stay human).
 - **Or per surface**: `title`, `desc`, `h1`, `body`, each a list of clauses that must
   all match. A clause is a phrase, or a list of phrases of which any one is enough. Use
   it where a page's surfaces legitimately differ. `body` checks the whole page text.
 - **`exempt`**: legal and utility pages that own no term. Every other page with no rule
   is listed under "Pages with no positioning rule": a warning, not a finding.
 
-Matching ignores case. The intro is the first `<p>` of `<main>` (else of `<article>`, else
-of the page), as in the starter's test. A page that lost its term is a finding (exit 1, and
+Matching ignores case. The intro is the `<p>` right after an `<h1>` in `<main>` (else in
+`<article>`, else in the page), as in the starter's test: a label above the heading is not
+the intro. A page that lost its term is a finding (exit 1, and
 the `positioning_lost` column of the history file); the report names each surface and the
 phrase it needs. Whether the page or the term changes is the team's call.
 
