@@ -148,7 +148,7 @@ const REFUSED_SVG = [
     .replace(/(<svg[^>]*>)/, '$1<title/>').replace('</svg>', '<title>Logo</title></svg>')],
   ['the 2023 logo between a self-closing <title data-note=">"/> and a later <title>', () => astroText('svg2023')
     .replace(/(<svg[^>]*>)/, '$1<title data-note=">"/>').replace('</svg>', '<title>Logo</title></svg>')],
-  // An element that never closes drops nothing: the path after it still draws.
+  // An element that never closes drops nothing: the path after it is still read.
   ['the 2023 logo after an unclosed <desc>', () => astroText('svg2023').replace(/(<svg[^>]*>)/, '$1<desc>')],
   ['the 2023 logo after an unclosed <!--', () => astroText('svg2023').replace(/(<svg[^>]*>)/, '$1<!-- ')],
 ];
