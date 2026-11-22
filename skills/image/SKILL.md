@@ -264,7 +264,7 @@ for a key visual`. Examples, the six headings and the check: [references/key-vis
    - It shows a readable real brand (a name on a van, an airline's livery): do not put it on the
      page. She makes it again or has the brand edited out. An exception never lets a real brand in.
    - It shows a face she says is a real person: not on the page until she confirms she has their
-     consent. You cannot tell a real face from a made-up one; it rests on her word.
+     consent. You cannot tell whether a face belongs to a real person; it rests on her word.
 7. **Other places this touches.** `sizes` for the picture is `website-qa`'s width sweep, measured in
    a browser. Photos that take turns are `website-hero-carousel` (a site has it only on request:
    if it is missing, say it can be added); its photos can be made from the template.
