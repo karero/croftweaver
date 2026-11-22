@@ -1,4 +1,4 @@
-# Trial result (2026-11-22): the plan is dropped as written
+# Trial result (2026-11-22): inconclusive, the plan is parked
 
 Codex, 3 runs per cell, the plan's wording (after) against origin/main's (before).
 
@@ -12,8 +12,8 @@ T5 is the one case with a rare, loud failure and no ordinary reading: `- NIT (ra
 sentence in 3/3 runs. T1 and T1b, the two cases built to test a rare case that Codex leaves out,
 both turned out to have an ordinary reading, so neither shows that Codex fails to report one.
 
-The plan is dropped on the terms agreed before the rewrite: one rewrite, 2/3 or better, no second
-rewrite. Read that as a rule kept, not as proof that the wording fails.
+The plan is parked on the terms agreed before the rewrite: one rewrite, 2/3 or better, no second
+rewrite. Read that as a rule kept, not as proof that the wording fails: the trial is inconclusive.
 
 ## A different approach?
 

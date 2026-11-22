@@ -1,4 +1,4 @@
-> **Tried and dropped (2026-11-22).** The live Codex trial failed its bar; see `docs/reviews/risk-trigger-trial/RESULT.md`. Do not build this plan as written.
+> **Parked after an inconclusive trial (2026-11-22).** The live Codex trial missed its bar, but both test cases had an ordinary reading; see `docs/reviews/risk-trigger-trial/RESULT.md`. Do not build this plan as written.
 
 # Plan: independent-review — a RISK must name an ordinary input or change
 
