@@ -44,10 +44,12 @@ const ASTRO_ICO_HASHES = [
 ];
 
 const isAstroSvg = (buf) => {
-  // Comments, CDATA text and <?…?> are not drawn, so Astro's path inside one is not Astro's icon.
-  // One pass takes all three out, so a "<!--" inside CDATA or <?…?> cannot swallow a real path.
-  const text = buf.toString('utf8').replace(/<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->/g, '');
-  // Only a d="…" attribute draws: Astro's path as text in <metadata>, <desc> or CDATA is not the icon.
+  // Comments, CDATA text, <?…?> and the content of <desc>, <title> and <metadata> are not drawn, so
+  // Astro's path inside one is not Astro's icon. One pass takes them all out, so a "<!--" inside
+  // CDATA or <?…?> cannot swallow a real path, and a self-closing <title/> ends where it says.
+  const text = buf.toString('utf8').replace(
+    /<!\[CDATA\[[\s\S]*?\]\]>|<\?[\s\S]*?\?>|<!--[\s\S]*?-->|<(?:desc|title|metadata)(?=[\s/>])[^>]*\/>|<(desc|title|metadata)(?=[\s/>])[^>]*>[\s\S]*?<\/\1\s*>/g, '');
+  // Only a d="…" attribute draws: Astro's path as text in CDATA or in an element left in is not the icon.
   for (const m of text.matchAll(/\sd\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
     const d = (m[1] ?? m[2]).replace(/\s/g, '');
     if (ASTRO_SVG_OPENINGS.some((opening) => d.includes(opening))) return true;

@@ -143,6 +143,9 @@ const REFUSED_SVG = [
     .replace(/(<svg[^>]*>)/, '$1<metadata><![CDATA[<!--]]></metadata>').replace('</svg>', '<!-- end --></svg>')],
   ['the 2023 logo with a "<!--" in <?…?> before it and a comment after', () => astroText('svg2023')
     .replace(/(<svg[^>]*>)/, '$1<?note <!-- ?>').replace('</svg>', '<!-- end --></svg>')],
+  // A self-closing <title/> has no content to drop: it must not run on to a later </title>.
+  ['the 2023 logo between a self-closing <title/> and a later <title>', () => astroText('svg2023')
+    .replace(/(<svg[^>]*>)/, '$1<title/>').replace('</svg>', '<title>Logo</title></svg>')],
 ];
 const REFUSED_ICO = [
   ['the 2026 icon (a PNG with an .ico name)', () => astro('ico2026')],
@@ -181,6 +184,10 @@ for (const [where, wrap] of [
   ['a CDATA section', (p) => `<style><![CDATA[${p}]]></style>`],
   ['a d="…" written in a CDATA section', (p) => `<style><![CDATA[ d="${p}" ]]></style>`],
   ['a d="…" written in <?…?>', (p) => `<?note d="${p}"?>`],
+  ['a d="…" written in <desc>', (p) => `<desc>Example d="${p}"</desc>`],
+  ['a d="…" written in <title>', (p) => `<title>Example d='${p}'</title>`],
+  ['a d="…" written in <metadata>', (p) => `<metadata><note d="${p}"/></metadata>`],
+  ['a d="…" written in <desc> after a self-closing <title/>', (p) => `<title/><desc>d="${p}"</desc>`],
 ]) {
   test(`Astro's path inside ${where} of the site's own icon does not stop the build`, () => {
     const own = ownIcons().svg.toString('utf8').replace(/(<svg[^>]*>)/, `$1${wrap(astroPath())}`);
