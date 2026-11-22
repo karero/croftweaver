@@ -173,7 +173,9 @@ Codex's effort for any run.
    rewrites) gets a run on a throwaway or test instance, never production, sent in that file
    as a READ: the command, the instance and its version, the time, and the output verbatim,
    secrets replaced as above. A claim that cannot be run, such as a plan's claim about code not
-   yet written, says "not tested" in the artifact itself.
+   yet written, says "not tested" in the artifact itself. A claim about a page's layout (a width,
+   a padding, where an element sits) is such a claim: measure it in a real browser at the widths
+   it names and send the measurement, since a later CSS rule can override the one a quote shows.
    Send the same file every round its claims are under review; a
    quote in the PR text reaches no seat. For a DIFF
    gate at Normal or High depth, write the change's record prose — its changelog entry, a
