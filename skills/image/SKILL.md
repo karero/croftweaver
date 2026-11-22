@@ -1,6 +1,6 @@
 ---
 name: image
-description: "When the user wants to create, generate, edit, or optimize images for marketing — blog heroes, social graphics, product mockups, profile banners, listing visuals, or brand assets. Also use when the user mentions 'AI image generation,' 'generate an image,' 'create a graphic,' 'product mockup,' 'hero image,' 'social media graphic,' 'banner image,' 'cover photo,' 'profile banner,' 'listing screenshot,' 'Flux,' 'Midjourney,' 'DALL-E,' 'GPT Image,' 'Ideogram,' 'Gemini image,' 'Canva,' 'Figma,' 'image optimization,' 'compress images,' 'WebP,' or 'OG image.' Use this for general-purpose marketing image creation and optimization. For per-page social share cards (OG images), see og-images."
+description: "When the user wants to create, generate, edit, or optimize images for marketing — blog heroes, social graphics, product mockups, profile banners, listing visuals, or brand assets. Also use when the user mentions 'AI image generation,' 'generate an image,' 'create a graphic,' 'product mockup,' 'hero image,' 'social media graphic,' 'banner image,' 'cover photo,' 'profile banner,' 'listing screenshot,' 'Flux,' 'Midjourney,' 'DALL-E,' 'GPT Image,' 'Ideogram,' 'Gemini image,' 'Canva,' 'Figma,' 'image optimization,' 'compress images,' 'WebP,' 'OG image,' 'key visual,' 'main picture of a page,' 'photo style,' 'pictures in the same style,' or 'Titelbild.' Use this for general-purpose marketing image creation and optimization. For per-page social share cards (OG images), see og-images. For photos that take turns, see website-hero-carousel."
 metadata:
   version: 1.0.0
 ---
@@ -148,6 +148,9 @@ Best for teams with design systems or pixel-perfect needs.
 
 The image at the top of every post. Sets tone, improves shareability, required for OG/social previews.
 
+If the site's `BRAND.md` has a photo style, start from its prompt template instead of the pattern
+below (see Key visuals).
+
 1. **Define the concept** — what visual metaphor represents the topic?
 2. **Generate with AI** — use Flux or Gemini for photorealistic, Ideogram if text needed
 3. **Specify 1200x630** (works for both hero and OG image) or **1920x1080** for full-width
@@ -229,6 +232,42 @@ Logos, icons, and illustrations. AI generation has limits here.
 | Illustrations | Good for style exploration | Depends | AI for concepts, finalize in design tool |
 | Favicons | No | Yes | Derive from logo |
 | Social icons | No | Yes | Use platform-provided assets |
+
+---
+
+## Key visuals: one photo style for the whole site
+
+For the main picture of each page ("a key visual in the same style as the others"). The owner
+makes the pictures in her own image tool; the style and a prompt template live in the site's
+`BRAND.md`, under `## Imagery style (do / don't)`, as `### Photo style` and `### Prompt template
+for a key visual`. Examples, the six headings and the check: [references/key-visual.md](references/key-visual.md).
+
+1. **Look for the style.** If both subsections are in `BRAND.md`, go to step 5.
+2. **Pictures but no style:** read it off the pictures, not off the owner's wishes. Write it under
+   six headings (scene; people; clothes and props; light and colour; framing and shape; avoid),
+   then check every line against every picture. A line a picture breaks is changed, or that
+   picture is named in the line as an exception. A readable real brand goes under Avoid.
+3. **Show her the style in plain words.** When she agrees, write the style and a prompt template
+   with blanks into `BRAND.md` (add the Imagery heading if the site has none). Where a new line
+   disagrees with the Do/Don't lines or with older prompts in the file, ask her which holds and
+   write only that: one style per site.
+4. **No pictures yet:** write a first prompt from `BRAND.md`'s Imagery lines and `POSITIONING.md`.
+   Ask her to make three or four and pick one (the Batch Generation Workflow in
+   [ai-image-prompting.md](references/ai-image-prompting.md)). Write the style from the picture she picked and
+   what she likes in it, marked "from one picture".
+5. **A picture for a new page:** fill the template's blanks and give her the prompt. Change
+   nothing else, and do not read the pictures again. The shape is a blank: the template's shape is the default,
+   and the page's slot (its component or CSS) decides it when it differs.
+6. **Check every picture that comes back, before it goes on a page.**
+   - It breaks a line of the style: name the line and ask her to change the style, keep the
+     picture as an exception, or make it again. Write her answer in `BRAND.md`.
+   - It shows a readable real brand (a name on a van, an airline's livery): do not put it on the
+     page. She makes it again or has the brand edited out. An exception never lets a real brand in.
+   - It shows a face she says is a real person: not on the page until she confirms she has their
+     consent. You cannot tell a real face from a made-up one; it rests on her word.
+7. **Other places this touches.** `sizes` for the picture is `website-qa`'s width sweep, measured in
+   a browser. Photos that take turns are `website-hero-carousel` (a site has it only on request:
+   if it is missing, say it can be added); its photos can be made from the template.
 
 ---
 
