@@ -15,7 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { EMPTY_BODY, ENABLED_LINE, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
+import { EMPTY_BODY, ENABLED_LINE, Stop, pagesRedirectBody, blankJsonc, compare, confirmCode, esc, gate, headerNames, main, makeApi, parseArgs, runProgram, takeLock, makeSiteFetch, parseJsonc, pathList, renderStatus, routesOf, setRoutes } from '../move-to-workers.mjs';
 import { ACCOUNT, OWNER, REPO, TOKEN, ZONE, deployment } from './cloudflare-stub.mjs';
 import { HOSTS, SITE, SUBDOMAIN, VERSION_HOST, WORKER, fillerRuns, makeFetch, makeWorld, platformOf, spend, unfinishedWorkersRun, withoutWorkersRun } from './move-stub.mjs';
 
@@ -285,9 +285,9 @@ describe('1: the token', () => {
   });
   test('a token that ends more than eight days out is refused; one with no end is too', async () => {
     const far = scenario({ world: { token: { status: 'active', expires_on: new Date(Date.now() + 10 * 86_400_000).toISOString() } } });
-    assert.match((await far.go(['check'])).text, /7 days at most/);
+    assert.match((await far.go(['check'])).text, /7 days at most\. It still works until you delete it: https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\..*token-link.*choose 7 days/);
     const none = scenario({ world: { token: { status: 'active' } } });
-    assert.match((await none.go(['check'])).text, /no end date.*end date 7 days from today/);
+    assert.match((await none.go(['check'])).text, /no end date\. It still works until you delete it.*token-link.*choose 7 days/);
   });
   test('a first move and a first undo refuse with under an hour left; a later run only warns', async () => {
     const soon = { token: { status: 'active', expires_on: new Date(Date.now() + 30 * 60_000).toISOString() } };
@@ -333,6 +333,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. src/config.ts gives the address lenas-backstube.example, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet,'), r.text);
     assert.ok(!r.text.includes("site's own domain"), r.text);
+    assert.ok(r.text.includes('Then make a new token with `node move-to-workers.mjs token-link <your account ID>`, and in its Zone policy choose Specific zone and the domain.'), r.text);
   });
   test('S1b: a token without DNS Edit, where a listed zone is the parent of the address, names that zone', async () => {
     const zones = recipe();
@@ -340,12 +341,12 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     site.permissions = site.permissions.filter((p) => !/^#(dns_records|zone_settings):/.test(p));
     const r = await run('https://www.lenas-backstube.example', zones);
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to lenas-backstube.example.\n'), r.text);
+    assert.ok(r.text.includes('Stopped: This token cannot edit the DNS of any zone it lists. Make a new one with `node move-to-workers.mjs token-link <your account ID>`. It fills in Zone Read and DNS Edit; in its Zone policy choose Specific zone and lenas-backstube.example.\nIt still works until you delete it: https://dash.cloudflare.com/profile/api-tokens.\n'), r.text);
   });
   test("S1c: the template's own example.com is no address: the refusal keeps today's words", async () => {
     const r = await run('', withoutSite(), { 'src/config.ts': TEMPLATE_CONFIG });
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make a new one with `node move-to-workers.mjs token-link <your account ID>`. It fills in Zone Read and DNS Edit; in its Zone policy choose Specific zone and your domain.\nIt still works until you delete it: https://dash.cloudflare.com/profile/api-tokens.\n"), r.text);
   });
   test('S1d: a src/config.ts with CRLF line ends and the url on the brace line is still read', async () => {
     const files = config('https://lenas-backstube.example');
@@ -362,7 +363,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.ok(nested.includes("  url: 'https://help.example',"), 'the nested url was not written');
     const r = await run('', withoutSite(), { 'src/config.ts': nested });
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make a new one with `node move-to-workers.mjs token-link <your account ID>`. It fills in Zone Read and DNS Edit; in its Zone policy choose Specific zone and your domain.\nIt still works until you delete it: https://dash.cloudflare.com/profile/api-tokens.\n"), r.text);
     assert.ok(!r.text.includes('help.example'), r.text);
   });
   test('S1f: a SITE on one line gives the old words, not the url of an object after it', async () => {
@@ -371,7 +372,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.ok(oneLine.includes("export const SUPPORT = {\n  url: 'https://help.example',"), 'the one-line SITE was not written');
     const r = await run('', withoutSite(), { 'src/config.ts': oneLine });
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make a new one with `node move-to-workers.mjs token-link <your account ID>`. It fills in Zone Read and DNS Edit; in its Zone policy choose Specific zone and your domain.\nIt still works until you delete it: https://dash.cloudflare.com/profile/api-tokens.\n"), r.text);
     assert.ok(!r.text.includes('help.example'), r.text);
   });
   test('S1g: a template string in SITE gives the old words, not a url line inside it', async () => {
@@ -380,13 +381,14 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.ok(tpl.includes("\n  url: 'https://help.example' for help`"), 'the template string was not written');
     const r = await run('', withoutSite(), { 'src/config.ts': tpl });
     assert.equal(r.code, 1, r.text);
-    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to the site's own domain.\n"), r.text);
+    assert.ok(r.text.includes("Stopped: This token cannot edit the DNS of any zone it lists. Make a new one with `node move-to-workers.mjs token-link <your account ID>`. It fills in Zone Read and DNS Edit; in its Zone policy choose Specific zone and your domain.\nIt still works until you delete it: https://dash.cloudflare.com/profile/api-tokens.\n"), r.text);
     assert.ok(!r.text.includes('help.example'), r.text);
   });
   test('S2: a pages.dev address is not a domain of its own, and the site launches first', async () => {
     const r = await run('https://lenas-backstube.pages.dev', withoutSite());
     assert.equal(r.code, 1, r.text);
     assert.ok(r.text.includes('src/config.ts gives the address https://lenas-backstube.pages.dev, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says'), r.text);
+    assert.doesNotMatch(r.text, /still works/, 'this refusal sends her to the launch guide, not to a new token');
   });
   test('S3: a token that reaches four zones names them, shows the permissions, and names the site zone to keep', async () => {
     const site = recipe().find((z) => z.name === ZONE.name);
@@ -395,7 +397,7 @@ describe('1: what a refused token and an unfinished stage 1 say', () => {
     assert.ok(r.text.includes('Stopped: Cloudflare lists DNS Edit for this token in 4 zones (other-1.example, other-2.example, other-3.example, lenas-backstube.example).\n'), r.text);
     // By hand from the two captures: the 2026-11-08 zones list DNS Edit and Read, the site zone adds zone settings Read.
     assert.ok(r.text.includes('\nCloudflare lists these permissions in them: #dns_records:edit, #dns_records:read, #zone_settings:read.\n'), r.text);
-    assert.ok(r.text.includes('\nMake one limited to lenas-backstube.example (Zone Resources: that one domain).'), r.text);
+    assert.ok(r.text.includes('\nMake a new one with `node move-to-workers.mjs token-link <your account ID>`. In its Zone policy, change All zones to Specific zone and choose lenas-backstube.example.'), r.text);
   });
   test('S4: check lists the stage 1 gaps after a refused token', async () => {
     const r = await run('https://lenas-backstube.example', withoutSite(), unfinished);
@@ -835,7 +837,7 @@ describe('3: move, after and undo', () => {
       const passed = ok.text.split('\n').find((l) => l.startsWith('After passed:'));
       assert.equal(passed, `After passed: ${list} ${serve} the Worker and ${match} the recording. The move stays open, so undo works until the Pages project is retired.`);
       // The move stays open, so the token line must not tell her to delete it without a word about undo.
-      assert.match(ok.text, /If you will not undo soon, delete the API token now: https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\. An undo later needs a new token, made the same way\./);
+      assert.match(ok.text, /If you will not undo soon, delete the API token now: https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\. An undo later needs a new token: `node move-to-workers\.mjs token-link <your account ID>` prints the link\./);
 
       const uq = await s.go(['undo']);
       assert.equal(uq.code, 3, uq.text);
@@ -3884,5 +3886,256 @@ describe('move on a protected main (P1 to P6)', () => {
     git(work, 'merge', '--squash', '-q', 'undo');
     git(work, 'commit', '-q', '--allow-empty', '-m', 'undo squashed');
     assert.deepEqual(routesOf(parseJsonc(readFileSync(file, 'utf8')), 'workers.jsonc'), HOSTS, 'the routes stay');
+  });
+});
+
+// ---------------------------------------------------------------- the move token's link (move-token plan, S1 to S7)
+
+describe('token-link: the link that opens Cloudflare\'s token page filled in', () => {
+  const ID = '0123456789abcdef0123456789abcdef'; // made up; the shape L4 recorded: 32 lowercase hex
+  const TOKEN_PAGE_URL = 'https://dash.cloudflare.com/profile/api-tokens';
+  const NEW_ONE = 'Make a new one with `node move-to-workers.mjs token-link <your account ID>`.';
+  const PASTED = 'cfut_Sup3rSecretTokenValue0123456789'; // a pasted token
+  // A site folder holding only src/config.ts, as `url` says (undefined: no url line).
+  const folder = (url) => {
+    const dir = mkdtempSync(path.join(scratch, 'tl-'));
+    mkdirSync(path.join(dir, 'src'));
+    writeFileSync(path.join(dir, 'src', 'config.ts'), `export const SITE = {\n  name: 'Lenas Backstube',\n${url === undefined ? '' : `  url: '${url}',\n`}};\n`);
+    return dir;
+  };
+  const link = async (args, { cwd, now = Date.parse('2026-11-22T16:05:30Z') } = {}) => {
+    const out = [];
+    const code = await main(args, { cwd, now: () => now, say: (...l) => { out.push(...l); } });
+    const text = out.join('\n');
+    const url = out.find((l) => l.startsWith(`${TOKEN_PAGE_URL}?`));
+    return { code, text, url, params: url ? new URL(url).searchParams : null };
+  };
+  const tokenZones = () => { // the same capture the token tests above use
+    const zones = JSON.parse(readFileSync(path.join(HERE, 'fixtures', 'cloudflare-token', 'cloudflare-api-zones-list-move-token-2026-11-04.json'), 'utf8')).result;
+    const site = zones.find((z) => z.permissions.includes('#dns_records:edit'));
+    Object.assign(site, { id: ZONE.id, name: ZONE.name, account: { ...ACCOUNT } });
+    return { zones, site };
+  };
+  const KEYS = [{ key: 'zone', type: 'read' }, { key: 'dns', type: 'edit' }, { key: 'page', type: 'edit' }, { key: 'workers_scripts', type: 'edit' }];
+
+  test('S1: the link, decoded, holds the four rows at their levels, the account, all zones and the name with date and time', async () => {
+    const r = await link(['token-link', ID], { cwd: folder('https://www.lenas-backstube.example') });
+    assert.equal(r.code, 0, r.text);
+    assert.deepEqual([...r.params.keys()], ['permissionGroupKeys', 'accountId', 'zoneId', 'name']);
+    assert.deepEqual(JSON.parse(r.params.get('permissionGroupKeys')), KEYS);
+    assert.equal(r.params.get('accountId'), ID);
+    assert.equal(r.params.get('zoneId'), 'all');
+    assert.equal(r.params.get('name'), 'Croftweaver move www.lenas-backstube.example 2026-11-22 16:05 UTC delete when done');
+    // What the owner is told to look for and to choose herself.
+    assert.match(r.text, /Zone policy: Zone: Read and DNS: Edit/);
+    assert.match(r.text, /Cloudflare Pages: Edit and Workers Scripts: Edit/);
+    assert.match(r.text, /change All zones to Specific zone/);
+    assert.match(r.text, /choose 7 days/);
+    assert.match(r.text, /not All accounts/);
+    assert.match(r.text, /Open only a link this command printed/);
+  });
+
+  test('S6: a minute later the name differs and nothing else; the same minute prints the same link', async () => {
+    const cwd = folder('https://lenas-backstube.example');
+    const a = await link(['token-link', ID], { cwd, now: Date.parse('2026-11-22T16:05:00Z') });
+    const same = await link(['token-link', ID], { cwd, now: Date.parse('2026-11-22T16:05:59Z') });
+    const later = await link(['token-link', ID], { cwd, now: Date.parse('2026-11-22T16:06:00Z') });
+    assert.equal(a.url, same.url);
+    assert.notEqual(a.url, later.url);
+    assert.equal(later.params.get('name'), 'Croftweaver move lenas-backstube.example 2026-11-22 16:06 UTC delete when done');
+    for (const k of ['permissionGroupKeys', 'accountId', 'zoneId']) assert.equal(a.params.get(k), later.params.get(k));
+  });
+
+  test('a SITE.url with &, # or = adds no parameter to the link, and an unusable host stays out of the name', async () => {
+    for (const url of ['https://a.example/?x=1&y=2#z', 'https://a.example&evil=1', 'https://a.example#evil=1', 'https://a.example=evil', 'https://a.example/%26evil%3D1']) {
+      const r = await link(['token-link', ID], { cwd: folder(url) });
+      assert.equal(r.code, 0, `${url}: ${r.text}`);
+      assert.deepEqual([...r.params.keys()], ['permissionGroupKeys', 'accountId', 'zoneId', 'name'], url);
+      assert.ok(!r.url.includes('evil'), `${url}: ${r.url}`);
+    }
+    const plain = await link(['token-link', ID], { cwd: folder('https://a.example/?x=1&y=2#z') });
+    assert.match(plain.params.get('name'), /^Croftweaver move a\.example 2026-11-22/);
+    const odd = await link(['token-link', ID], { cwd: folder('https://a.example&evil=1') });
+    assert.equal(odd.params.get('name'), 'Croftweaver move 2026-11-22 16:05 UTC delete when done');
+    assert.match(odd.text, /name has no domain/);
+  });
+
+  test('a folder with no src/config.ts, or none with a url, still prints the link, with no domain in the name', async () => {
+    const empty = await link(['token-link', ID], { cwd: mkdtempSync(path.join(scratch, 'tl-')) });
+    assert.equal(empty.code, 0, empty.text);
+    assert.equal(empty.params.get('name'), 'Croftweaver move 2026-11-22 16:05 UTC delete when done');
+    assert.match(empty.text, /name has no domain/);
+    const noUrl = await link(['token-link', ID], { cwd: folder(undefined) });
+    assert.equal(noUrl.params.get('name'), 'Croftweaver move 2026-11-22 16:05 UTC delete when done');
+  });
+
+  test('--help names the command', async () => {
+    const out = [];
+    assert.equal(await main(['--help'], { say: (...l) => { out.push(...l); } }), 0);
+    assert.match(out.join('\n'), /token-link <account ID>/);
+  });
+
+  // S5. Every refusal leaves out what it was given.
+  test('S5: parseArgs refuses a wrong command line without repeating any word of it', () => {
+    const cases = [
+      ['token-link', PASTED], ['token-link', ID.toUpperCase()], ['token-link', 'me@example.com'], ['token-link', `${ID}0`], ['token-link', 'g'.repeat(32)],
+      ['token-link', ID, PASTED], ['token-link', `-${PASTED}`], ['token-link', ID, `-${PASTED}`], ['token-link', '--confirm', PASTED],
+      ['check', 'token-link', PASTED], ['move', PASTED], ['check', PASTED], [PASTED], [PASTED, ID], [`-${PASTED}`], ['--confirm', PASTED, 'move'], ['move', '--confirm', PASTED],
+      ['--confirm', PASTED], ['token-link', PASTED, '--confirm'], [PASTED, '--confirm'], ['check', ID], ['move', '--confirm'], ['token-link'], [],
+    ];
+    for (const args of cases) {
+      assert.throws(() => parseArgs(args), (e) => {
+        // A pasted token may sit in any of these: every refusal but the two with nothing given says what to do about it.
+        const nothingPasted = args.length === 0 || (args.length === 1 && args[0] === 'token-link');
+        if (!nothingPasted) assert.ok(e.message.includes(`it is now in this conversation: delete it at ${TOKEN_PAGE_URL}`), `"${e.message}" lacks the token advice`);
+        for (const a of args) if (a.length > 3 && !['token-link', '--confirm'].includes(a)) assert.ok(!e.message.includes(a), `"${e.message}" repeats ${a}`);
+        return true;
+      }, args.join(' '));
+    }
+  });
+
+  test('S5: a token pasted for the account ID is refused (exit 2) with where the ID is and what to do about the token, run as a person runs it', async () => {
+    const run = (args) => new Promise((resolve) => execFile(process.execPath, [path.join(SCRIPTS, 'move-to-workers.mjs'), ...args], { cwd: folder('https://lenas-backstube.example'), env: { ...gitEnv, CLOUDFLARE_API_TOKEN: '' } }, (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr })));
+    for (const args of [['token-link', PASTED], ['token-link', ID, PASTED], ['token-link', `-${PASTED}`], [PASTED], ['check', PASTED], ['token-link', 'check', PASTED]]) {
+      const r = await run(args);
+      assert.equal(r.code, 2, `${args.join(' ')}: ${r.stdout}${r.stderr}`);
+      assert.ok(!`${r.stdout}${r.stderr}`.includes(PASTED), `${args.join(' ')} printed its argument`);
+    }
+    const r = await run(['token-link', PASTED]);
+    assert.match(r.stderr, /that is not an account ID/);
+    assert.match(r.stderr, /Ctrl\+K .*Copy account ID/);
+    assert.match(r.stderr, /If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6 of the move guide \(docs\/MOVE-TO-WORKERS\.md\) or in the token section of CLOUDFLARE_MOVE\.md instead\./);
+    for (const args of [['check', PASTED], ['token-link', ID, PASTED], [PASTED], ['token-link', `-${PASTED}`]]) {
+      assert.match((await run(args)).stderr, /it is now in this conversation: delete it at https:\/\/dash\.cloudflare\.com\/profile\/api-tokens and make a new one\./, args.join(' '));
+    }
+    assert.match(r.stderr, /If what you gave was a token, it is now in this conversation: delete it at https:\/\/dash\.cloudflare\.com\/profile\/api-tokens and make a new one\./);
+    assert.match((await run(['token-link'])).stderr, /token-link needs your account ID/);
+  });
+
+  test('as a person runs it: node move-to-workers.mjs token-link <id> prints the link and exits 0', async () => {
+    const r = await new Promise((resolve) => execFile(process.execPath, [path.join(SCRIPTS, 'move-to-workers.mjs'), 'token-link', ID], { cwd: folder('https://lenas-backstube.example'), env: { ...gitEnv, CLOUDFLARE_API_TOKEN: '' } }, (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr })));
+    assert.equal(r.code, 0, r.stderr);
+    const url = r.stdout.split('\n').find((l) => l.startsWith(`${TOKEN_PAGE_URL}?`));
+    assert.ok(url, r.stdout);
+    const params = new URL(url).searchParams;
+    assert.deepEqual(JSON.parse(params.get('permissionGroupKeys')), KEYS);
+    assert.equal(params.get('accountId'), ID);
+    assert.match(params.get('name'), /^Croftweaver move lenas-backstube\.example \d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC delete when done$/);
+  });
+
+  test('it runs before the preparation: no network, no child process, no file, with no git checkout, no token and an empty home', async () => {
+    const cwd = mkdtempSync(path.join(scratch, 'iso-cwd-'));
+    const home = mkdtempSync(path.join(scratch, 'iso-home-'));
+    const rec = mkdtempSync(path.join(scratch, 'iso-rec-'));
+    const preload = path.join(scratch, 'iso-preload.mjs');
+    writeFileSync(preload, `
+import { appendFileSync } from 'node:fs';
+import cp from 'node:child_process';
+import net from 'node:net';
+import dgram from 'node:dgram';
+import { syncBuiltinESMExports } from 'node:module';
+const note = (what) => { appendFileSync(process.env.ISO_REC + '/calls.txt', what + '\\n'); throw new Error('recorded: ' + what); };
+globalThis.fetch = () => note('fetch');
+net.Socket.prototype.connect = () => note('net.Socket.prototype.connect');
+dgram.createSocket = () => note('dgram.createSocket');
+for (const k of ['exec', 'execFile', 'execFileSync', 'execSync', 'fork', 'spawn', 'spawnSync']) cp[k] = () => note('child_process.' + k);
+syncBuiltinESMExports();
+`);
+    const list = (d) => readdirSync(d, { recursive: true }).sort();
+    const env = { PATH: process.env.PATH, HOME: home, USERPROFILE: home, ISO_REC: rec };
+    const exec = (args) => new Promise((resolve) => execFile(process.execPath, ['--import', pathToFileURL(preload).href, ...args], { cwd, env }, (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr })));
+    const cwdBefore = list(cwd);
+    const homeBefore = list(home);
+    const r = await exec([path.join(SCRIPTS, 'move-to-workers.mjs'), 'token-link', ID]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout, new RegExp(`^${TOKEN_PAGE_URL.replace(/\./g, '\\.')}\\?`, 'm'));
+    assert.deepEqual(list(rec), [], 'a call was recorded');
+    assert.deepEqual(list(cwd), cwdBefore);
+    assert.deepEqual(list(home), homeBefore);
+    // The recorder itself can fire: the same preload, run over a script that makes each of the calls.
+    const probe = path.join(scratch, 'iso-probe.mjs');
+    writeFileSync(probe, `
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import net from 'node:net';
+import dgram from 'node:dgram';
+for (const f of [() => fetch('http://127.0.0.1:9/'), () => execFileSync('true'), () => spawnSync('true'), () => spawn('true'), () => net.connect(9, '127.0.0.1'), () => new net.Socket().connect(9, '127.0.0.1'), () => dgram.createSocket('udp4')]) { try { await f(); } catch {} }
+`);
+    await exec([probe]);
+    const seen = readFileSync(path.join(rec, 'calls.txt'), 'utf8');
+    for (const what of ['fetch', 'net.Socket.prototype.connect', 'dgram.createSocket', 'child_process.execFileSync', 'child_process.spawnSync', 'child_process.spawn']) assert.ok(seen.includes(`${what}\n`), `the recorder missed ${what}: ${seen}`);
+  });
+
+  // S2, S3: the refusals that send her to a new token.
+  test('S2: a token that is not active, or that Cloudflare refuses to verify, says to delete it if it is still listed and names token-link', async () => {
+    const revoked = await scenario({ world: { token: { status: 'disabled', expires_on: new Date(Date.now() + 3 * 86_400_000).toISOString() } } }).go(['check']);
+    const s = scenario();
+    s.w.refuse['GET /user/tokens/verify'] = 401;
+    const refused = await s.go(['check']);
+    for (const r of [revoked, refused]) {
+      assert.equal(r.code, 1, r.text);
+      assert.ok(r.text.includes(`If it is still on the token page, delete it there: ${TOKEN_PAGE_URL}. ${NEW_ONE}`), r.text);
+      assert.doesNotMatch(r.text, /still works/, 'a token Cloudflare no longer accepts does not "still work"');
+    }
+  });
+
+  test('S2: a token with no end date, one that ends too late and one that has ended each name the page, token-link and 7 days', async () => {
+    const still = `It still works until you delete it: ${TOKEN_PAGE_URL}. ${NEW_ONE}`;
+    const none = await scenario({ world: { token: { status: 'active' } } }).go(['check']);
+    assert.equal(none.code, 1, none.text);
+    assert.ok(none.text.includes(`This token has no end date. ${still} Under Token expiration choose 7 days.`), none.text);
+    const far = await scenario({ world: { token: { status: 'active', expires_on: new Date(Date.now() + 10 * 86_400_000).toISOString() } } }).go(['check']);
+    assert.ok(far.text.includes(`7 days at most. ${still} Under Token expiration choose 7 days.`), far.text);
+    const ended = await scenario({ world: { token: { status: 'active', expires_on: new Date(Date.now() - 3_600_000).toISOString() } } }).go(['check']);
+    assert.equal(ended.code, 1, ended.text);
+    assert.ok(ended.text.includes(`This token has ended. If it is still on the token page, delete it there: ${TOKEN_PAGE_URL}. ${NEW_ONE}`), ended.text);
+    assert.doesNotMatch(ended.text, /still works/);
+    for (const r of [none, far, ended]) assert.doesNotMatch(r.text, /same link|from the link/);
+  });
+
+  test('S2: every other refusal that sends her to a new token says the refused one still works until she deletes it', async () => {
+    const soon = await (await recorded({ world: { token: { status: 'active', expires_on: new Date(Date.now() + 30 * 60_000).toISOString() } } })).go(['move']);
+    assert.equal(soon.code, 1, soon.text);
+    assert.ok(soon.text.includes(`${NEW_ONE} The old one still works until it ends or you delete it: ${TOKEN_PAGE_URL}.`), soon.text);
+    const list = scenario();
+    list.w.refuse['GET /zones'] = 403;
+    const zones = await list.go(['check']);
+    assert.equal(zones.code, 1, zones.text);
+    assert.ok(zones.text.includes(`${NEW_ONE} It still works until you delete it: ${TOKEN_PAGE_URL}.`), zones.text);
+    const tz = tokenZones();
+    delete tz.zones[0].permissions;
+    const unsaid = await scenario({ world: { zones: tz.zones } }).go(['check']);
+    assert.ok(unsaid.text.includes(`${NEW_ONE} It still works until you delete it: ${TOKEN_PAGE_URL}.`), unsaid.text);
+  });
+
+  test('S2: with no token at all, the refusal names token-link as the way to make one', async () => {
+    const r = await scenario({ tokenValue: '' }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('Make the token with `node move-to-workers.mjs token-link <your account ID>`: it prints a link that opens Cloudflare\'s token page filled in.'), r.text);
+    assert.doesNotMatch(r.text, /The move section says how to make it/);
+  });
+
+  test('S3: All zones left on a token that reaches several domains: the page\'s own words, no "Zone Resources", and the token still works', async () => {
+    const { zones } = tokenZones();
+    zones[0].permissions = [...zones[0].permissions, '#dns_records:edit', '#dns_records:read', '#zone:read'];
+    const r = await scenario({ world: { zones } }).go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.ok(r.text.includes('In its Zone policy, change All zones to Specific zone and choose your domain.'), r.text);
+    assert.ok(r.text.includes(`It still works until you delete it: ${TOKEN_PAGE_URL}.`), r.text);
+    assert.doesNotMatch(r.text, /Zone Resources|Account Resources/);
+  });
+
+  test('S4/D7: a missing Pages or Workers Scripts permission names the page row and the account that holds the site', async () => {
+    const pages = scenario();
+    pages.w.refuse['GET /accounts/:id/pages/projects'] = 403;
+    const p = await pages.go(['check']);
+    assert.equal(p.code, 1, p.text);
+    assert.match(p.text, /refused to list the account's Pages projects.*needs Cloudflare Pages Edit on the account that holds this site, and it may have been made for another account\./);
+    assert.ok(p.text.includes(`${NEW_ONE} It still works until you delete it: ${TOKEN_PAGE_URL}.`), p.text);
+    const workers = scenario();
+    workers.w.refuse['GET /accounts/:id/workers/domains'] = 403;
+    const w = await workers.go(['check']);
+    assert.equal(w.code, 1, w.text);
+    assert.match(w.text, /did not list the Worker domains.*needs Workers Scripts Edit \(not the row called just Workers\) on the account that holds this site/);
+    assert.doesNotMatch(w.text, /the Workers permission the move section names/);
   });
 });

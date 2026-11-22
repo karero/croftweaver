@@ -5,11 +5,13 @@
 //
 //   node move-to-workers.mjs check | record | after
 //   node move-to-workers.mjs move | undo [--confirm <code>]
+//   node move-to-workers.mjs token-link <account ID>
 //
 // `move` and `undo` print their question and a code and end with 3; the same command with
 // --confirm <code> makes the changes. Needs Node 18 or newer and nothing from npm. Exit status: 0
 // finished, 1 failed or refused, 2 the command was wrong, 3 waiting for a yes, 4 run the same
-// command again.
+// command again. `token-link` needs no token and makes no call: it prints the link that opens
+// Cloudflare's token page filled in for the move token.
 import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, linkSync, mkdirSync, openSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -39,6 +41,16 @@ const NEVER_COMPARED = ['date', 'age', 'cf-ray', 'cf-cache-status', 'server-timi
 const BUILD_FILES = ['/build.txt', '/build-state.txt'];
 const ADDRESS_TYPES = ['A', 'AAAA', 'CNAME']; // the records a host's address can be, as opposed to mail and text
 const REDIRECTS = [301, 302, 303, 307, 308];
+const COMMANDS = ['check', 'record', 'move', 'undo', 'after', 'token-link'];
+const ACCOUNT_ID = /^[0-9a-f]{32}$/; // the shape Cloudflare's "Copy account ID" gives (read live, 2026-11-22)
+const TOKEN_PAGE = 'https://dash.cloudflare.com/profile/api-tokens';
+const TOKEN_LINK_CMD = '`node move-to-workers.mjs token-link <your account ID>`';
+const NEW_TOKEN = `Make a new one with ${TOKEN_LINK_CMD}.`;
+// Refusing a token does not revoke it: the owner has to delete it.
+const STILL_WORKS = `It still works until you delete it: ${TOKEN_PAGE}.`;
+// The four rows of the move token, as Cloudflare's template link names them (a key that matches no
+// permission group is dropped by the page without a word, so the guide tells the owner to look).
+const TOKEN_KEYS = [{ key: 'zone', type: 'read' }, { key: 'dns', type: 'edit' }, { key: 'page', type: 'edit' }, { key: 'workers_scripts', type: 'edit' }];
 
 export class UsageError extends Error {}
 export class Stop extends Error { // the run ends here with `code`; `lines` say why
@@ -51,6 +63,7 @@ class Deadline extends Error {
 }
 
 const USAGE = `Usage: node move-to-workers.mjs check|record|move|undo|after [--confirm <code>]
+       node move-to-workers.mjs token-link <account ID>
 
 Run it in the site's folder, with the token in CLOUDFLARE_API_TOKEN or in .dev.vars (a file git
 ignores). The order is check, record, move (twice: the question, then --confirm), push the route
@@ -61,31 +74,42 @@ commit, after. undo is the way back.
   move                   attach the hosts to the Worker; with --confirm <code> it makes the changes
   undo                   give the hosts back to the Pages project; with --confirm <code> likewise
   after                  check the live site against the recording once the commit is pushed
+  token-link <account ID>  print the link that opens Cloudflare's token page filled in for the
+                         move token; it needs no token and makes no call
   --confirm <code>       the code of the question the owner said yes to
   -h, --help             this text
 
 Exit status: 0 finished; 1 something failed or was refused (the report says what); 2 the command
-was wrong; 3 waiting for a yes; 4 run the same command again. After every run, move-run/status.html
-says where the move stands.
+was wrong; 3 waiting for a yes; 4 run the same command again. Most runs of the other commands also
+write move-run/status.html, which says where the move stands.
 `;
 
+// A word the owner or an assistant may have pasted by mistake, a token among them, can follow any
+// command word, so no refusal below repeats a word it was given.
+const PASTED_TOKEN = `If what you gave was a token, it is now in this conversation: delete it at ${TOKEN_PAGE} and make a new one.`;
+const ACCOUNT_ID_HELP = 'An account ID is 32 characters, the digits 0 to 9 and the letters a to f. In the Cloudflare dashboard press Ctrl+K (Cmd+K on a Mac), type "Copy account ID", choose it, and paste the result.';
 export function parseArgs(argv) {
-  const opts = { cmd: null, confirm: null, help: false };
+  const opts = { cmd: null, confirm: null, accountId: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-h' || a === '--help') opts.help = true;
     else if (a === '--confirm') {
       const v = argv[++i];
-      if (v === undefined || v.startsWith('-')) throw new UsageError('--confirm needs a value');
+      if (v === undefined || v.startsWith('-')) throw new UsageError(`--confirm needs a value. ${PASTED_TOKEN}`);
       opts.confirm = v;
-    } else if (a.startsWith('-')) throw new UsageError(`unknown option ${a}`);
+    } else if (a.startsWith('-')) throw new UsageError(`unknown option: only --confirm <code> and --help exist. ${PASTED_TOKEN}`);
     else if (opts.cmd === null) opts.cmd = a;
-    else throw new UsageError(`unexpected "${a}": give one command`);
+    else if (opts.cmd === 'token-link' && opts.accountId === null) opts.accountId = a;
+    else throw new UsageError(`an extra word after the command: give one command (token-link takes one account ID). ${PASTED_TOKEN}`);
   }
   if (opts.help) return opts;
-  if (!['check', 'record', 'move', 'undo', 'after'].includes(opts.cmd)) throw new UsageError(opts.cmd ? `unknown command "${opts.cmd}"` : 'give the command: check, record, move, undo or after');
-  if (opts.confirm !== null && !['move', 'undo'].includes(opts.cmd)) throw new UsageError('--confirm belongs to move and undo');
-  if (opts.confirm !== null && !/^[0-9a-f]{16}$/.test(opts.confirm)) throw new UsageError('--confirm takes the 16-character code the question printed');
+  if (!COMMANDS.includes(opts.cmd)) throw new UsageError(opts.cmd ? `unknown command: it is not one of ${COMMANDS.join(', ')}. ${PASTED_TOKEN}` : `give the command: ${COMMANDS.join(', ')}${argv.length ? ` ${PASTED_TOKEN}` : ''}`);
+  if (opts.confirm !== null && !['move', 'undo'].includes(opts.cmd)) throw new UsageError(`--confirm belongs to move and undo. ${PASTED_TOKEN}`);
+  if (opts.confirm !== null && !/^[0-9a-f]{16}$/.test(opts.confirm)) throw new UsageError(`--confirm takes the 16-character code the question printed. ${PASTED_TOKEN}`);
+  if (opts.cmd === 'token-link' && opts.accountId === null) throw new UsageError(`token-link needs your account ID. ${ACCOUNT_ID_HELP}`);
+  if (opts.cmd === 'token-link' && !ACCOUNT_ID.test(opts.accountId)) {
+    throw new UsageError(`that is not an account ID. ${ACCOUNT_ID_HELP} ${PASTED_TOKEN} If Cloudflare's Copy account ID gave you exactly this, use the clicks in section 6 of the move guide (docs/MOVE-TO-WORKERS.md) or in the token section of CLOUDFLARE_MOVE.md instead.`);
+  }
   return opts;
 }
 
@@ -509,7 +533,7 @@ async function readToken(root, git, env) {
   const fromEnv = (env.CLOUDFLARE_API_TOKEN ?? '').trim();
   if (fromEnv) return fromEnv;
   const file = path.join(root, '.dev.vars');
-  if (!existsSync(file)) throw new Stop(1, 'No token: set CLOUDFLARE_API_TOKEN for this session, or put CLOUDFLARE_API_TOKEN=… in .dev.vars (a file git ignores). The move section says how to make it.');
+  if (!existsSync(file)) throw new Stop(1, `No token: set CLOUDFLARE_API_TOKEN for this session, or put CLOUDFLARE_API_TOKEN=… in .dev.vars (a file git ignores). Make the token with ${TOKEN_LINK_CMD}: it prints a link that opens Cloudflare's token page filled in.`);
   if ((await git('ls-files', '--error-unmatch', '--', '.dev.vars')).code === 0) throw new Stop(1, 'git tracks .dev.vars, so a token in it would be committed. The file was not read. Stop tracking it (git rm --cached .dev.vars) and make a new token.');
   if ((await git('check-ignore', '-q', '--', '.dev.vars')).code !== 0) throw new Stop(1, '.dev.vars is not ignored by git, so the next commit could take the token with it. The file was not read. Add .dev.vars to .gitignore, then run this again.');
   const m = /^\s*CLOUDFLARE_API_TOKEN\s*=\s*["']?([^"'\s]+)["']?\s*$/m.exec(readFileSync(file, 'utf8'));
@@ -726,7 +750,7 @@ async function prepare(opts, io, run) {
 
   // The Pages project: the account's project whose source is this repository.
   const projects = await allPages(ctx.api, `/accounts/${ctx.account.id}/pages/projects`);
-  if (!projects.items) throw new Stop(1, `Cloudflare refused to list the account's Pages projects: ${cfWords(projects.r)}. The token needs Cloudflare Pages Edit.`);
+  if (!projects.items) throw new Stop(1, `Cloudflare refused to list the account's Pages projects: ${cfWords(projects.r)}. The token needs Cloudflare Pages Edit on the account that holds this site, and it may have been made for another account. ${NEW_TOKEN} ${STILL_WORKS}`);
   const mine = projects.items.filter((p) => p.source?.type === 'github'
     && String(p.source.config?.owner).toLowerCase() === gh.owner.toLowerCase() && String(p.source.config?.repo_name).toLowerCase() === gh.repo.toLowerCase());
   if (mine.length > 1) throw new Stop(1, `${mine.length} Pages projects are built from ${ctx.repository}: ${mine.map((p) => p.name).join(', ')}. The script moves a site with one.`);
@@ -760,8 +784,11 @@ async function prepare(opts, io, run) {
 // It chooses the words of a zone refusal only, never the zone.
 async function siteAddress(git) {
   const r = await git('show', 'HEAD:src/config.ts');
-  if (r.code !== 0) return null;
-  const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(r.stdout)?.[1];
+  return r.code === 0 ? siteHost(r.stdout) : null;
+}
+// The same read, of the text of src/config.ts.
+function siteHost(text) {
+  const site = /^export const SITE\s*=\s*\{([^]*?)^\}/m.exec(text)?.[1];
   if (site === undefined || /[{}`]/.test(site)) return null; // only the template's flat form; a nested or one-line SITE, or a template string, gives the old words
   const url = /^[ \t]*url:[ \t]*['"]([^'"\n]+)['"]/m.exec(site)?.[1];
   let host;
@@ -779,15 +806,18 @@ async function zoneRefusal(ctx, zones, reaching) {
     : [];
   const a = await siteAddress(ctx.git);
   const own = a && zones.map((z) => z.name).filter((n) => a.host === n || a.host.endsWith(`.${n}`)).sort((x, y) => y.length - x.length)[0];
+  let sendsToNewToken = true; // the launch-first branch sends her to the launch guide, not to a new token
   if (a && !own && /\.(pages|workers)\.dev$/.test(a.host)) {
+    sendsToNewToken = false;
     lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address https://${a.host}, which is not a domain of its own. If the site has no domain yet, it launches first, as CLOUDFLARE_FIRST_DEPLOY.md says (the kit has no guide yet for launching straight onto a Worker); if it has one, put it in SITE.url.`);
   } else if (a && !own) {
-    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address ${a.host}, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet, or it is in an account this token cannot see. If it is not on Cloudflare yet, put it there first. Then make the token with Zone Read and DNS Edit, Zone Resources set to it.`);
+    lines.push(`${reaching.length ? '' : 'This token cannot edit the DNS of any zone it lists. '}src/config.ts gives the address ${a.host}, and no zone this token lists is that domain or a parent of it. The domain may not be on Cloudflare yet, or it is in an account this token cannot see. If it is not on Cloudflare yet, put it there first. Then make a new token with ${TOKEN_LINK_CMD}, and in its Zone policy choose Specific zone and the domain.`);
   } else if (reaching.length) {
-    lines.push(`Make one limited to ${own ?? "the site's own zone"} (Zone Resources: ${own ? 'that one domain' : 'your one domain'}). A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
+    lines.push(`${NEW_TOKEN} In its Zone policy, change All zones to Specific zone and choose ${own ?? 'your domain'}. A token narrowed just now may need a few minutes before Cloudflare shows the change.`);
   } else {
-    lines.push(`This token cannot edit the DNS of any zone it lists. Make one with the permissions Zone Read and DNS Edit, with Zone Resources set to ${own ?? "the site's own domain"}.`);
+    lines.push(`This token cannot edit the DNS of any zone it lists. ${NEW_TOKEN} It fills in Zone Read and DNS Edit; in its Zone policy choose Specific zone and ${own ?? 'your domain'}.`);
   }
+  if (sendsToNewToken) lines.push(STILL_WORKS);
   return new Stop(1, ...lines);
 }
 
@@ -795,17 +825,17 @@ async function zoneRefusal(ctx, zones, reaching) {
 async function checkToken(ctx) {
   const verify = await ctx.api('GET', '/user/tokens/verify');
   if (verify.status === 0) throw new Stop(1, `Cloudflare did not answer the token check (${verify.error ?? 'no answer'}). That is the connection, not the token: check this computer's connection, then run this again.`);
-  if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended: make a new one from the same link.`);
+  if (!ok(verify) || verify.body?.result?.status !== 'active') throw new Stop(1, `Cloudflare did not accept the token (${ok(verify) ? `its status is ${verify.body?.result?.status}` : cfWords(verify)}). It may be revoked, or have ended. If it is still on the token page, delete it there: ${TOKEN_PAGE}. ${NEW_TOKEN}`);
   const ends = Date.parse(verify.body.result.expires_on ?? '');
-  if (!Number.isFinite(ends)) throw new Stop(1, 'This token has no end date. Make one with an end date 7 days from today, and delete this one.');
-  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. 7 days at most: make one that ends within 7 days, and delete this one.`);
+  if (!Number.isFinite(ends)) throw new Stop(1, `This token has no end date. ${STILL_WORKS} ${NEW_TOKEN} Under Token expiration choose 7 days.`);
+  if (ends - ctx.now() > MAX_TOKEN_MS) throw new Stop(1, `This token ends on ${verify.body.result.expires_on.slice(0, 10)}. 7 days at most. ${STILL_WORKS} ${NEW_TOKEN} Under Token expiration choose 7 days.`);
   ctx.tokenLeftMs = ends - ctx.now();
-  if (ctx.tokenLeftMs <= 0) throw new Stop(1, 'This token has ended. Make a new one from the same link.');
+  if (ctx.tokenLeftMs <= 0) throw new Stop(1, `This token has ended. If it is still on the token page, delete it there: ${TOKEN_PAGE}. ${NEW_TOKEN}`);
   const zones = await allPages(ctx.api, '/zones', 50, { totals: true });
-  if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). Make a new token from the link.`);
+  if (!zones.items) throw new Stop(1, `Cloudflare refused to list the token's zones (${cfWords(zones.r)}). ${NEW_TOKEN} ${STILL_WORKS}`);
   // The Workers permission lists every zone of the account, so the zone count says nothing. The site's
   // zone is the one whose `permissions` list DNS Edit; no other permission counts.
-  for (const z of zones.items) if (!Array.isArray(z.permissions)) throw new Stop(1, `Cloudflare did not say what this token may do in the zone ${z.name}. Make a new token from the link.`);
+  for (const z of zones.items) if (!Array.isArray(z.permissions)) throw new Stop(1, `Cloudflare did not say what this token may do in the zone ${z.name}. ${NEW_TOKEN} ${STILL_WORKS}`);
   const reaching = zones.items.filter((z) => z.permissions.includes('#dns_records:edit'));
   if (reaching.length > 1) throw await zoneRefusal(ctx, zones.items, reaching);
   const zone = reaching[0];
@@ -874,7 +904,7 @@ async function readLive(ctx) {
   // One page: the list must hold every domain the answer counts, and its own count must match what it holds.
   const held = pd.body.result.length;
   if (held !== info.total_count || (info.count !== undefined && info.count !== held)) throw new Stop(1, `Cloudflare's list of the Pages project's domains holds ${held} domains but says it counts ${info.count ?? 'none'} on this page and ${info.total_count} in all. The script does not decide from a list that disagrees with itself: do the move in the Cloudflare dashboard.`);
-  if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs the Workers permission the move section names.`);
+  if (!ok(wd) || !Array.isArray(wd.body?.result)) throw new Stop(1, `Cloudflare did not list the Worker domains: ${cfWords(wd)}. The token needs Workers Scripts Edit (not the row called just Workers) on the account that holds this site, and it may have been made for another account. ${NEW_TOKEN} ${STILL_WORKS}`);
   const records = [];
   for (const [i, d] of dns.entries()) {
     const h = ctx.hosts[i];
@@ -1627,7 +1657,7 @@ async function switchCommand(ctx, run, dir) { // dir: 'move' | 'undo'
   st.track ??= { move: {}, undo: {} };
   const first = !Object.values(st.track[dir] ?? {}).some((t) => t.leftAt); // first until a host has left its platform
   if (!toWorker && !st.open) throw new Stop(1, 'No move is open, so there is nothing to undo.');
-  if (first && ctx.tokenLeftMs < MIN_LEFT_MS) throw new Stop(1, `The token has less than an hour left (${Math.round(ctx.tokenLeftMs / 60_000)} minutes), too little for a ${dir}. Make a new one from the same link.`);
+  if (first && ctx.tokenLeftMs < MIN_LEFT_MS) throw new Stop(1, `The token has less than an hour left (${Math.round(ctx.tokenLeftMs / 60_000)} minutes), too little for a ${dir}. ${NEW_TOKEN} The old one still works until it ends or you delete it: ${TOKEN_PAGE}.`);
   if (!first && ctx.tokenLeftMs < MIN_LEFT_MS) say(`Warning: the token has ${Math.round(ctx.tokenLeftMs / 60_000)} minutes left.`);
   const confirming = ctx.opts.confirm !== null;
   const firstMove = toWorker && !st.open;
@@ -1994,9 +2024,9 @@ async function cmdAfter(ctx, run) {
     saveState(ctx.stateDir, st);
     const many = ctx.hosts.length > 1;
     say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'serve' : 'serves'} the Worker and ${many ? 'match' : 'matches'} the recording. The move stays open, so undo works until the Pages project is retired.`);
-    say('If you will not undo soon, delete the API token now: https://dash.cloudflare.com/profile/api-tokens. An undo later needs a new token, made the same way.');
+    say(`If you will not undo soon, delete the API token now: ${TOKEN_PAGE}. An undo later needs a new token: ${TOKEN_LINK_CMD} prints the link.`);
     folder.forEach((l) => say(l));
-    run.next = 'Nothing more for this script. Delete the API token now if you will not undo soon (an undo later needs a new one). Keep the Pages project 14 days, then retire it as the move section says.';
+    run.next = 'Nothing more for this script. Delete the API token now if you will not undo soon (an undo later needs a new one, made with token-link). Keep the Pages project 14 days, then retire it as the move section says.';
     run.done = true;
   } else {
     st.open = false;
@@ -2073,6 +2103,39 @@ function writeStatus(ctx0, run, io, code, st, errLines) {
 
 // ---------------------------------------------------------------- running it
 
+// token-link: the link that opens Cloudflare's token page with the move token's name, four rows and
+// account filled in (not the zone or the end date: the page takes neither). It runs before the
+// move's preparation, so it needs no token, no git checkout and no network, and it writes no file.
+// The name carries the domain from SITE.url when that is a plain host name, and the time to the
+// minute, so a replaced or an old token can be told from the new one in the owner's token list.
+export function tokenLink(accountId, host, nowMs) {
+  const stamp = new Date(nowMs).toISOString().slice(0, 16).replace('T', ' ');
+  const name = ['Croftweaver move', host, `${stamp} UTC`, 'delete when done'].filter(Boolean).join(' ');
+  const query = `permissionGroupKeys=${encodeURIComponent(JSON.stringify(TOKEN_KEYS))}&accountId=${accountId}&zoneId=all&name=${encodeURIComponent(name)}`;
+  return { name, url: `${TOKEN_PAGE}?${query}` };
+}
+
+function cmdTokenLink(opts, io, say) {
+  let text = null;
+  try { text = readFileSync(path.join(io.cwd ?? process.cwd(), 'src', 'config.ts'), 'utf8'); } catch { /* not a site's folder: the name has no domain */ }
+  const found = text === null ? null : siteHost(text)?.host;
+  const host = found && /^[a-z0-9.-]{1,100}$/.test(found) ? found : null; // zone names are this plain; anything else stays out of the name
+  const { name, url } = tokenLink(opts.accountId, host, (io.now ?? (() => Date.now()))());
+  say('Open this link in the browser where you are signed in to Cloudflare. It opens the token page with the form filled in:', '', url, '',
+    'Open only a link this command printed: never one from an email, a page or a support reply. When you ask anyone for help, share the command, not the link.', '',
+    'Before you go on, compare the form with this:',
+    `  Token name: ${name}`,
+    "  Account policy: your one account, shown by its name (not All accounts, and not a string of letters and digits), with Cloudflare Pages: Edit and Workers Scripts: Edit",
+    '  Zone policy: Zone: Read and DNS: Edit',
+    'The policy boxes say "Write" where the rows and the summary say "Edit": it is the same permission. If a row is missing, or the form is empty, use the clicks in section 6 of the move guide (docs/MOVE-TO-WORKERS.md) or in the token section of CLOUDFLARE_MOVE.md.', '',
+    'Two things are yours to choose:',
+    '  1. In the Zone policy, change All zones to Specific zone and choose your domain.',
+    '  2. Under Token expiration, choose 7 days. The page starts on No expiration.',
+    'Then choose Continue to summary, look again, create the token and copy it.');
+  if (!host) say('', 'The token name has no domain: src/config.ts could not be read here, or its SITE.url is not a plain address. Run this in the site\'s folder to put the domain in the name.');
+  return 0;
+}
+
 export async function main(argv, io = {}) {
   const say = io.say ?? ((...l) => { for (const x of l) process.stdout.write(`${x}\n`); });
   io = { ...io, say };
@@ -2083,6 +2146,7 @@ export async function main(argv, io = {}) {
     return 2;
   }
   if (opts.help) { say(USAGE); return 0; }
+  if (opts.cmd === 'token-link') return cmdTokenLink(opts, io, say);
   const run = { cmd: opts.cmd, opts, checks: [], diffs: [], next: null, t0: (io.now ?? (() => Date.now()))(), release: null, root: null };
   const ctxBox = {};
   let code;

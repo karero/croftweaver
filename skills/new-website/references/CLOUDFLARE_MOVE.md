@@ -75,7 +75,7 @@ computer, and a second computer would not know the move had begun.
 3. **Switch.** `move`, and `undo` if you want to go back.
 4. **Check on the domain.** `after`.
 5. **Clean up (later, not this script).** Delete the token if you will not undo soon; an undo
-   later needs a new one, made the same way. Keep the Pages project 14 days in
+   later needs a new one: `token-link` prints the link. Keep the Pages project 14 days in
    case you want `undo`, then retire it as a step of its own. Only then do
    `functions/_middleware.ts` and the Pages config go. Retiring it is **not tested yet**: this page has no steps for it, so leave the Pages project alone.
 
@@ -88,8 +88,29 @@ token has no Workers Scripts permission, the script's error on the Worker domain
 this section. A token with Workers Scripts at Read is not stopped early (read from the code, not run): check that
 the row says Edit (step 3 below).
 
-Walk the User through the page one step at a time. These labels are as seen on 2026-11-17;
-Cloudflare moves things, so search for the name if one differs:
+**The link first.** Ask the User for her account ID: in the Cloudflare dashboard she presses
+Ctrl+K (Cmd+K on a Mac), types `Copy account ID`, chooses the result and pastes the 32 letters and
+digits to you. Run, in the site's folder:
+
+```bash
+node "$SKILLS_ROOT/new-website/scripts/move-to-workers.mjs" token-link <account ID>
+```
+
+It needs no token and makes no request. It prints one link and the rows to compare. Give her the
+link as printed; never build a link yourself or alter one. She signs in to Cloudflare first, then
+opens it. The form holds the name, the four rows and her account. Have her check that: four rows
+(Zone Read and DNS Edit in the Zone policy; Cloudflare Pages Edit and Workers Scripts Edit in the
+Account policy), her account's name in the Account policy (not All accounts, not a string of letters
+and digits), and no row missing (a missing row means Cloudflare renamed one: use the clicks below).
+Then she does the two things the link cannot: **Specific zone** and her domain in the Zone policy
+(nothing checks this for an account with one domain), and **7 days** under Token expiration. The
+page's cards say Write where its rows and summary say Edit: they mean the same. She looks at the
+summary page, creates the token and copies it. If the script refuses what she pasted, it does not
+repeat it; if that was a token, it is in the chat now: she deletes it and makes a new one.
+
+If the link opens an empty form, walk her through the page one step at a time. These labels are as
+read on 2026-11-22 on the plain Create Token page; Cloudflare moves things, so search for the name
+if one differs:
 1. My Profile → API Tokens → **Create Token**.
 2. **Token name:** any name she will know again.
 3. **Start from scratch** → **Start with an Account policy**. Next to **Include**, the account
@@ -101,9 +122,9 @@ Cloudflare moves things, so search for the name if one differs:
    **DNS** → **Edit**.
 5. **Token expiration:** **7 days**. The page starts on No expiration.
 6. Before **Continue to summary**, she looks over the form: the four rows, one account, one
-   domain, 7 days. Then **Continue to summary**, and the same look at the summary page. Then she
-   creates the token and copies it. The summary page and what follows it were not looked at on
-   2026-11-17: give no labels for them.
+   domain, 7 days. Then **Continue to summary**, and the same look at the summary page (it lists the
+   name, the end date, her domain with Zone: Read and DNS: Edit, and her account with Cloudflare
+   Pages: Edit and Workers Scripts: Edit). Then she chooses **Create Token** and copies it. What the page shows after that was not looked at: give no labels for it.
 
 Say why there are two tokens: the build token has no end date and any package in a build can
 read it, so it must not hold DNS Edit or Pages Edit; the move token holds them for 7 days, and the
@@ -281,7 +302,7 @@ network, and `move-run/` is ignored by git. Tell the User where it is.
 
 - Once `after` passes, delete the token if you will not undo soon: https://dash.cloudflare.com/profile/api-tokens.
   The move stays open for `undo` while the Pages project is kept, and an undo later needs a new
-  token, made the same way. After an `undo` that `after` has closed, delete the token.
+  token: `token-link` prints the link. After an `undo` that `after` has closed, delete the token.
 - Look at the live site once in a browser.
 - Wait 14 days before retiring the Pages project; that is a step of its own, not this script,
   and **not tested yet**: until a later kit release gives the steps, keep it.

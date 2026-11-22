@@ -102,8 +102,48 @@ Why a second token, beside the one Workers Builds uses? That one has no end date
 in a build can read it, so it must not be able to change your DNS or your Pages project. The move
 token can, so it ends after 7 days, and you delete it once you will not go back (section 10).
 
-**The clicks.** These are the labels as seen on 2026-11-17. Cloudflare moves things, so search for
-the name if one differs.
+**The quick way: a link.** The script builds a link that opens Cloudflare's token page with the name,
+the four permissions and your account already filled in. You then choose two things yourself and
+create the token.
+
+1. Find your account ID. In the Cloudflare dashboard press Ctrl+K (Cmd+K on a Mac), type
+   `Copy account ID` and choose the result. It copies 32 letters and digits.
+2. Give that ID to your assistant. It runs this command in your site's folder, with the ID in place
+   of `<account ID>`:
+
+   ```bash
+   node "$SKILLS_ROOT/new-website/scripts/move-to-workers.mjs" token-link <account ID>
+   ```
+
+   The script needs no token and makes no request to Cloudflare. It prints one link, and the rows to
+   compare. Run it again on any later day for a new link (an undo after the move needs a new token).
+3. Sign in to Cloudflare first, then open the link in the same browser. A link opened while signed
+   out sends you to the sign-in page, and the form may come up empty afterwards: open the link again.
+4. Look at the form before you change anything. It must show **four rows**: in the Zone policy,
+   **Zone Read** and **DNS Edit**; in the Account policy, **Cloudflare Pages Edit** and **Workers
+   Scripts Edit**. The Account policy must name your account, not All accounts and not a string of
+   letters and digits (that means the ID was wrong). If a row is missing, Cloudflare has
+   renamed something: use the clicks below, and tell the toolkit's maintainer. The policy cards say
+   **Write** where the rows and the summary say **Edit**: they mean the same.
+5. In the Zone policy, change **All zones** to **Specific zone** and choose your domain. The link
+   cannot fill this in, and nothing checks it when you have only one domain, so do not skip it.
+6. Under **Token expiration** choose **7 days**. The page starts on No expiration, and the link cannot
+   change that.
+7. Choose **Continue to summary**. It lists the name, the end date (7 days from today), your domain
+   with **Zone: Read** and **DNS: Edit**, and your whole account with **Cloudflare Pages: Edit** and
+   **Workers Scripts: Edit**. If it matches, choose **Create Token** and copy the token.
+
+Open only a link that this command printed. A link in an email, on a web page or in a reply to a
+support request can look the same and ask for more. When you ask for help, share the command, not
+the link.
+
+If you paste something that is not an account ID, the script refuses it and does not repeat it. If
+what you pasted was a token, it is now in your conversation with the assistant: delete it at
+https://dash.cloudflare.com/profile/api-tokens and make a new one.
+
+**The clicks.** Use these if the link does not open the filled form. They are the labels as read on
+2026-11-22 on the plain Create Token page. Cloudflare moves things, so search for the name if one
+differs.
 
 1. Open https://dash.cloudflare.com/profile/api-tokens (My Profile → API Tokens) and choose
    **Create Token**.
@@ -121,8 +161,8 @@ the name if one differs.
 5. **Token expiration:** choose **7 days**. The page starts on No expiration.
 6. Before you choose **Continue to summary**, look over the form: the four rows, your one
    account, your one domain, 7 days. Then choose **Continue to summary** and look again on the
-   summary page. Then create the token and copy it. The summary page and what follows it were
-   not looked at on 2026-11-17, so this guide gives no labels for them.
+   summary page (the lines are listed under the link above). Then choose **Create Token** and copy
+   the token. What the page shows after that was not looked at, so this guide gives no labels for it.
 
 You make it; your assistant puts it where the script reads it (a variable for the session, or
 a `.dev.vars` file that git ignores). It never goes in a file git tracks. Delete it afterwards
@@ -142,7 +182,7 @@ waiting on the day if it is missed.
   of that commit deploys it. In the first live move the build token lacked this row, and the
   route commit's build passed once it was added (not tested without it). Your assistant
   cannot check this: the move token cannot read other tokens. You look, on the token's page.
-- [ ] **The move token is made** (above): 7 days, one account, one zone. `check` refuses a token that
+- [ ] **The move token is made** (above, from the `token-link` link or by the clicks): 7 days, one account, one zone. `check` refuses a token that
   is not active, has no end date or one more than 8 days away, or has DNS Edit in no zone or in
   more than one. It does not see whether Pages and Workers Scripts are set to Edit, or which
   accounts the token reaches, so look over the form, and then the summary page, before you create
@@ -220,7 +260,7 @@ the name if one differs.
    → Deployments, and the Worker's builds. A late build can move a host back.
 2. Your assistant runs plain `undo`. It writes the undo commit and ends with a question and a
    `--confirm` code; here that question goes unanswered, and the status page's "waiting for your
-   yes" is wrong. If it refuses over the token, make a new one the same way. If it names a build or
+   yes" is wrong. If it refuses over the token, make a new one with `token-link` (section 6). If it names a build or
    says to run it again, your assistant waits as it says and runs it again; for anything else
    ("Another run … holds" among them), stop. Start step 3 only when your assistant tells you the undo commit is written.
 3. For each host: take it off the Worker (Workers & Pages → the Worker → Settings → Domains),
@@ -240,7 +280,7 @@ going forward by hand.
 ## 10. Afterwards
 
 - Delete the token unless you may go back soon: https://dash.cloudflare.com/profile/api-tokens.
-  An undo later needs a new one.
+  An undo later needs a new one: `token-link` (section 6) prints the link again.
 - Look at the site once in a browser.
 - Keep the old Pages project. Retiring it is **not tested yet**: leave it until a later kit
   release gives the steps.

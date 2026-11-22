@@ -1,3 +1,5 @@
+> **Parked after an inconclusive trial (2026-11-22).** The live Codex trial missed its bar, but both test cases had an ordinary reading; see `docs/reviews/risk-trigger-trial/RESULT.md`. Do not build this plan as written.
+
 # Plan: independent-review — a RISK must name an ordinary input or change
 
 Base `origin/main` c0477040 · review depth: PLAN gate, Codex and GLM 5.3 (it changes the prompt
