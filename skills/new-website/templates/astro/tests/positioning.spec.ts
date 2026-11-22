@@ -13,8 +13,9 @@ import { PAGES } from './_helpers';
 //   • an array of phrases     — ANY ONE of them must be present (OR-group / alternatives)
 // So  title: ['mobile app technology', ['React Native vs Flutter vs Native', 'RN vs Flutter']]
 // means the <title> must contain "mobile app technology" AND one of the two comparison
-// phrasings. `h1` clauses are matched against the <h1> OR the intro paragraph (so the H1 can
-// stay human). Omitted surfaces are not checked.
+// phrasings. `h1` clauses are matched against the <h1> OR the intro, the <p> right after the
+// <h1> (so the H1 can stay human; an eyebrow <p> above the <h1> is not the intro). Omitted
+// surfaces are not checked.
 //
 // Two map forms:
 //   • Shorthand   { term, body? }                 — the term is required in title, desc, and
@@ -90,7 +91,7 @@ test.describe('positioning spine', () => {
           description:
             document.querySelector('meta[name="description"]')?.getAttribute('content') || '',
           h1s: Array.from(document.querySelectorAll('h1')).map((h) => h.textContent || ''),
-          intro: txt(main.querySelector('p')),
+          intro: txt(main.querySelector('h1 + p')), // the <p> right after the <h1>, not an eyebrow above it
           bodyText: (document.body as HTMLElement).innerText || '',
         };
       });

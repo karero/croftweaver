@@ -395,6 +395,26 @@ jobs:
           fi
           printf '%s\n' "$out" | grep -Fq 'https://cdn.example.net/favicon.svg' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the test failed, but not on the moved link"; exit 1; }
           git checkout -- src/layouts/Base.astro
+      # tests/positioning.spec.ts is green on the shipped starter (its POSITIONING map is empty),
+      # so a run alone cannot show which paragraph it reads as the intro. Declare a term for the
+      # home page on the <h1> surface only, then put an eyebrow <p> above the <h1>. The term in the
+      # eyebrow alone must go red: the intro is the <p> right after the <h1>. The same term in that
+      # <p> must pass, eyebrow or no. The files are put back afterwards.
+      - name: The positioning spec reads the paragraph right after the h1
+        run: |
+          perl -pi -e "s|^  // '/': \{ term: .*|  '/': { h1: ['zq-owned-term'] },|" tests/positioning.spec.ts
+          perl -pi -e 's|^    <h1>|    <p>zq-owned-term</p>\n    <h1>|' src/pages/index.astro
+          grep -q "^  '/': { h1: \['zq-owned-term'\] }," tests/positioning.spec.ts || { echo "::error::the edit of tests/positioning.spec.ts did not apply"; exit 1; }
+          grep -q '^    <p>zq-owned-term</p>$' src/pages/index.astro || { echo "::error::the edit of index.astro did not apply"; exit 1; }
+          if out="$(CI= npx playwright test tests/positioning.spec.ts -g 'carried on /' --reporter=line 2>&1)"; then
+            printf '%s\n' "$out" | tail -n 6; echo "::error::the term in an eyebrow above the h1 passed as the intro"; exit 1
+          fi
+          printf '%s\n' "$out" | grep -Fq '<h1>/intro needs "zq-owned-term"' || { printf '%s\n' "$out" | tail -n 30; echo "::error::the test failed, but not on the missing term"; exit 1; }
+          git checkout -- src/pages/index.astro
+          perl -pi -e 's|^    <h1>|    <p>An eyebrow</p>\n    <h1>|; s|This starter page exists|zq-owned-term is in this starter page, which exists|' src/pages/index.astro
+          grep -q 'zq-owned-term is in this starter page' src/pages/index.astro || { echo "::error::the edit of index.astro did not apply"; exit 1; }
+          CI= npx playwright test tests/positioning.spec.ts -g 'carried on /' --reporter=line || { echo "::error::the term in the paragraph right after the h1 did not pass"; exit 1; }
+          git checkout -- src/pages/index.astro tests/positioning.spec.ts
       # The served-build spec in fixed setups: it must fail when the server sends another
       # build's id (dist/ only names the cause), which a normal run never shows.
       - name: The served-build spec fails on another build's id (scripts/test_served_build.sh)
