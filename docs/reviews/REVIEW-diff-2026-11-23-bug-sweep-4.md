@@ -17,8 +17,9 @@ reply's shape would be guessed).
 | 2 | Codex (`--verify`, base `a6409a60`, head `cf94859e`) | 2 / 0 / 0 | the comment still wrong for bash 3.2; prose after a `-- ` signature passed |
 | 3 | Codex (`--verify`, base `cf94859e`, head `87f86c14`) | 1 / 0 / 0 | the version line after a signature took any parenthesised prose; a second signature reset the state |
 | 4 | Codex (`--verify`, base `87f86c14`, head `aff015d1`; manager's session, `--earned-by diff-tail-parsing`) | 1 / 0 / 0 | the manager's `\S*` (kept for Git for Windows) let prose with no spaces through |
+| 5 | Codex (`--verify`, base `aff015d1`, head `ca1b3f20`; `--earned-by diff-tail-parsing --cut`) | 0 / 0 / 0 | clean; Codex ran 14 parser checks through `parse()` |
 
-Tokens and time: round 1 Codex 53,399 (137 s); round 2 41,552 (85 s); round 3 40,429 (87 s); round 4 38,366 (56 s); fresh-eyes 117,219 tokens
+Tokens and time: round 1 Codex 53,399 (137 s); round 2 41,552 (85 s); round 3 40,429 (87 s); round 4 38,366 (56 s); round 5 32,955 (64 s); fresh-eyes 117,219 tokens
 (79 s). Codex alone (REVIEW-RULES); the script's warning that the standard pair was not met applies.
 
 ## Findings
