@@ -111,17 +111,29 @@ if [ -n "$MISSING" ]; then
   echo "legitimately lack one, drop it from SCAN_NAMES_ALL/SCAN_DOCS_ALL deliberately."
   exit 1
 fi
-# packages/ (the npm installer) and pointer/ (the files the directory plugin publishes) are in
-# the repo but not in the handoff zip, where `make check` runs too, so they cannot be required
-# targets above: each is scanned where it exists. A name or an address in them reaches the
-# public repo, the npm page or the directory. (2026-10-12: packages/ was added and no check
-# read it.)
+# These paths are in the repo but not in the handoff zip, where `make check` runs too, so they
+# cannot be required targets above: each is scanned where it exists. A name or an address in
+# them reaches the public repo, the npm page or the directory. (2026-10-12: packages/ was
+# added and no check read it.) A new top-level path is not read until it is listed here; in a
+# git checkout the guard below fails on a tracked one that is not.
+PRESENT_PATHS="packages pointer .claude-plugin .agents .github .gitignore .gitattributes"
 SCAN_PRESENT=""
-for d in packages pointer; do [ -e "$d" ] && SCAN_PRESENT="${SCAN_PRESENT:+$SCAN_PRESENT }$d"; done
+for d in $PRESENT_PATHS; do [ -e "$d" ] && SCAN_PRESENT="${SCAN_PRESENT:+$SCAN_PRESENT }$d"; done
 SCAN_NAMES="$SCAN_NAMES${SCAN_PRESENT:+ $SCAN_PRESENT}"
 SCAN_DOCS="$SCAN_DOCS${SCAN_PRESENT:+ $SCAN_PRESENT}"
 fail=0
 names_checked=0 names_skipped=""
+# A tracked top-level path that no scan list names is read by no check. The zip has no git and
+# keeps the fixed lists. A name git quotes (a newline, say) matches no list and is reported.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  unscanned="$(git -c core.quotePath=false ls-files 2>/dev/null | cut -d/ -f1 | sort -u \
+    | grep -vxF -e "$(printf '%s\n' $SCAN_DOCS_ALL $SCAN_NAMES_ALL $PRESENT_PATHS)")"
+  if [ -n "$unscanned" ]; then
+    fail=1
+    echo "✗ tracked top-level paths no check reads (add each to SCAN_BASE or PRESENT_PATHS in scripts/check_clean.sh):"
+    printf '%s\n' "$unscanned" | sed 's/^/    /'
+  fi
+fi
 # grep prints a hit as file:line:text, and the filters below read the first ":<digits>:" as
 # where the file name ends. A file name holding a newline splits that line into pieces that
 # can pass for other files (an ignored one, or the list itself). One holding a colon, a digit
