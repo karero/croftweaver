@@ -72,7 +72,10 @@ write the draft** when another page (not one left out above) has a title, H1, de
 query that names the main query's subject (the thing the reader searches about: "TripIt" in
 "tripit alternative", not the site's own name, nor words every page of its kind shares), or when
 Search Console shows such a page drawing impressions for the main query. Overlap on a related
-query alone never triggers the question. Otherwise write your decision; the owner sees it at the go.
+query alone never triggers the question. When you ask, write the whole brief first, with this
+field's decision left open; then ask, naming each such page and the three decisions, and write the
+owner's answer into the field before the draft. Otherwise write your decision; the owner sees it at
+the go.
 
 Call the other skills for their own questions, and do not restate their rules here:
 
