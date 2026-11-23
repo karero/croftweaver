@@ -148,6 +148,9 @@ check "T3p a second signature: refused (exit 2)" rc_is t3w 2
 { cat "$T/t3.diff"; printf '%s\n' '-- ' '2.39.5 (Apple Git-154)'; } >"$T/t3x.diff"
 run t3x "$R/w" "$T/t3x.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
 check "T3p control: Apple's version line: runs (exit 0)" rc_is t3x 0
+{ cat "$T/t3.diff"; printf '%s\n' '-- ' '2.43.0.windows.1'; } >"$T/t3y.diff"
+run t3y "$R/w" "$T/t3y.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
+check "T3p control: Git for Windows' version line: runs (exit 0)" rc_is t3y 0
 { cat "$T/t3.diff"; printf '%s\n' '-- ' '2.43.0'; } >"$T/t3u.diff"
 run t3u "$R/w" "$T/t3u.diff" --seat codex --verify "$T/prior.md" --base "$G" --depth normal --round 2
 check "T3p control: a signature and git's version line: runs (exit 0)" rc_is t3u 0

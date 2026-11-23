@@ -100,7 +100,7 @@ sub parse {
     if ($l eq "-- " && !$tail) { ($cur, $hdr, $tail) = (undef, 0, 1); next; } # a format-patch's signature: the record ends
     # After the signature only git's version line may follow (blank lines, a next record or a next envelope aside).
     if ($tail && !$cur && length $l && $l !~ /^diff --git /) {
-      if ($tail == 1 && $l =~ /^\d+\.\d+[0-9.]*(?: \(Apple Git-\d+\))?\z/) { $tail = 2; next; }
+      if ($tail == 1 && $l =~ /^\d+\.\d+\S*(?: \(Apple Git-\d+\))?\z/) { $tail = 2; next; }
       return (undef, "text after a patch's signature, which is not part of the diff (send notes with --evidence): \"" . esc(substr($l, 0, 80)) . "\"");
     }
     return (undef, "a combined diff (diff --cc), which has no single old side") if $l =~ /^diff --(?:cc|combined) /;
