@@ -66,17 +66,18 @@ copy in full, to that outline. Drafting is cheap; reviewing copy after it is bui
 aims at the main query or a related one, and each page a "Pages serving" table there shows drawing
 impressions for one, with what it shares. Leave out the page's own versions in other languages (its
 hreflang set) and the page being rewritten. For each, write one decision: *a new page*, and what
-keeps the two apart; *extend that page instead* (the document then rewrites it); or *a new page, and
-narrow that page*, with its new title, description or sentences written out. **Ask the owner before
-you write the draft** when another page (not one left out above) has a title, H1, description or
-main query that names the main query's subject (the thing the reader searches about: "TripIt" in
-"tripit alternative", not the site's own name, nor words every page of its kind shares), or when
-Search Console shows such a page drawing impressions for the main query. Overlap on a related query
-alone never triggers the question. When you ask, write the whole brief first, leaving open only the
-decisions for the pages you ask about; then ask, naming each such page and the three decisions.
-Write the owner's answer into the field (for *narrow*, the page's new sentences too), revise every
-brief field the answer changes, then write the draft. If you do not ask, write your decisions; the
-owner sees them at the go.
+keeps the two apart; *extend that page instead* (the document then rewrites it; one page at most,
+and the others are then judged against it); or *a new page, and narrow that page*, with its new
+title, description or sentences written out. **Ask the owner before you write the draft** when
+another page (not one left out above) has a title, H1, description or main query that names the main
+query's subject (the thing the reader searches about: "TripIt" in "tripit alternative", not the
+site's own name, nor words every page of its kind shares), or when Search Console shows such a page
+drawing impressions for the main query. Overlap on a related query alone never triggers the
+question. When you ask, write the whole brief first, leaving open only the decisions for the pages
+you ask about; then ask, naming each such page and the three decisions. Write the owner's answer
+into the field (for *narrow*, the page's new sentences too), revise every brief field the answer
+changes, then write the draft. If you do not ask, write your decisions; the owner sees them at the
+go.
 
 Call the other skills for their own questions, and do not restate their rules here:
 
