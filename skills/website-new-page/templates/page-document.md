@@ -18,9 +18,10 @@ smells like nail polish", "revive a neglected starter". -->
 
 **Pages that already aim at this search.** Each page of this site whose title, H1, description or
 main query aims at the main query or a related one, or that Search Console shows drawing
-impressions for one, with what it shares. Then the decision: a new page, and what keeps the two
-apart; extend that page instead (this document then rewrites it); or a new page that narrows that
-page, with its new title, description or sentences written out. "None" is an answer.
+impressions for one, with what it shares. Not the page's own versions in other languages, nor the
+page being rewritten. Then the decision: a new page, and what keeps the two apart; extend that
+page instead (this document then rewrites it); or a new page that narrows that page, with its new
+title, description or sentences written out. "None" is an answer.
 
 **After reading.** What the reader should do next (a link, a form, a download).
 

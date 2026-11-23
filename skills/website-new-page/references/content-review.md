@@ -83,7 +83,8 @@ someone else, and does it keep that one meaning?
 > an outbound link to a commercial site with no owner sign-off; no research file, so thinness
 > cannot be judged; a page in the research file's "This site's pages" that aims at the main query
 > and is missing from the brief's field for pages that already aim at this search, or is listed
-> there with no decision (name the page); no "This site's pages" section, or one that says the
+> there with no decision (name the page); the page's own versions in other languages and the page
+> being rewritten do not count; no "This site's pages" section, or one that says the
 > list is incomplete, so competing pages cannot be checked; a claim the page itself calls its own reading, or says no source states,
 > with nothing the reader can check it against; on a moved page, a section, download, form or
 > embed of the saved old page with no row in the table; a section or query that earned clicks and

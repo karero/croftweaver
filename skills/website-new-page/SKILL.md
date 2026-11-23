@@ -45,9 +45,10 @@ Also save the site's own pages in that file, under **This site's pages**. Build 
 then the main query of each page document in `docs/pages/`. Where the site has Search Console and
 `search-console-insights` is installed, run `gsc_query.py --site <property> --query "<query>"
 --days 90 --no-csv` for the main query and for each related one, and copy each "Pages serving"
-table there. It matches the exact words only, so a page it does not return may still aim at the
-search. If the site does not build, has no sitemap, or the list is incomplete for another reason,
-say so at the top of that section: the check is then open, and the go names it.
+section there. `--query` takes one exact query string, so a page it does not return may still aim
+at the search. If a query's output has no such section, its lookup failed: say so. If the site does
+not build, has no sitemap, or the list is incomplete for another reason, say so too, at the top of
+that section: the check is then open, and the go names it.
 
 **3. Write the page document.** The brief fills its fields in plain words: the page type (an
 article that answers a question, a home page, a product or service page, a contact or legal
