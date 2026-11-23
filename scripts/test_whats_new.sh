@@ -541,7 +541,7 @@ for key in "THEMES" "tables.css"; do
   else printf 'FAIL S14 the spec no longer names what the note lists: %s\n' "$key"; fails=$((fails+1)); fi
 done
 for part in "tests/tables.spec.ts (site copy: tests/tables.spec.ts" "THEMES in tests/_helpers.ts" "src/styles/tables.css" \
-            "leave it out on purpose" "left_out:"; do
+            "leave it out on purpose" "left_out: tests/tables.spec.ts — <why>" "table styles (src/styles/tables.css"; do
   if grep -F "  tests/tables.spec.ts (site copy" "$T/out" | grep -qF -- "$part"; then printf 'ok   S14 the note says: %s\n' "$part"
   else printf 'FAIL S14 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
 done

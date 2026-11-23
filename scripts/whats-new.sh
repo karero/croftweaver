@@ -587,7 +587,7 @@ process_tests_stamp() {  # $1 = tests dir, $2 = baseline commit, $3 = baseline s
       skills/new-website/templates/astro/tests/workers-config.spec.ts)
         echo "  tests/workers-config.spec.ts (site copy: tests/workers-config.spec.ts — Workers sites only; a Pages site skips it. It checks each Workers config in the site folder (a .json or .jsonc with assets; normally wrangler.jsonc) and fails unless it has no \`main\`, \`workers_dev: false\`, \`preview_urls: true\` and assets from ./dist, so taking it can mean editing wrangler.jsonc, and that changes the deploy: \`workers_dev: false\` closes the workers.dev address, \`preview_urls: true\` turns Preview links on)" ;;
       skills/new-website/templates/astro/tests/tables.spec.ts)
-        echo "  tests/tables.spec.ts (site copy: tests/tables.spec.ts — it needs THEMES in tests/_helpers.ts and src/styles/tables.css, imported in the layout. A site without them (a dark-only site, or one with its own table styles) can leave it out on purpose: add a \`left_out:\` line for it to tests/TESTS-VERSION)" ;;
+        echo "  tests/tables.spec.ts (site copy: tests/tables.spec.ts — it expects THEMES in tests/_helpers.ts and the starter's table styles (src/styles/tables.css, imported in the layout). A site without them (a dark-only site, or one with its own table styles) can leave it out on purpose: add \`left_out: tests/tables.spec.ts — <why>\` to tests/TESTS-VERSION)" ;;
       skills/new-website/templates/astro/tests/*)
         echo "  ${f#skills/new-website/templates/astro/} (site copy: ${f#skills/new-website/templates/astro/})" ;;
       skills/new-website/templates/content-guide.md)
