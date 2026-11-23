@@ -523,5 +523,29 @@ for part in "tests/workers-config.spec.ts (site copy: tests/workers-config.spec.
   else printf 'FAIL S13 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
 done
 
+# S14: a changed tables.spec.ts says what it needs (THEMES, src/styles/tables.css) and that a site
+# without them can leave it out on purpose (the BUGLOG row of 2026-11-16). The real spec is copied;
+# the words are written out here. The spec must still name both things the note lists.
+S14="$T/suite14" P14="$T/site14"
+mkdir -p "$S14/scripts" "$S14/$A/tests" "$P14/.claude/skills" "$P14/tests"
+cp "$HERE/whats-new.sh" "$S14/scripts/"
+$git -C "$S14" init -q && $git -C "$S14" commit -qm base --allow-empty
+BASE14="$($git -C "$S14" rev-parse HEAD)"
+cp "$HERE/../$A/tests/tables.spec.ts" "$S14/$A/tests/"
+$git -C "$S14" add -A && $git -C "$S14" commit -qm later
+stamp "$P14/.claude/skills/SUITE-VERSION" "$BASE14"
+stamp "$P14/tests/TESTS-VERSION" "$BASE14"
+report "$S14" "$P14" "S14 a site without the tables spec"
+for key in "THEMES" "tables.css"; do
+  if grep -qF -- "$key" "$S14/$A/tests/tables.spec.ts"; then printf 'ok   S14 the spec still needs: %s\n' "$key"
+  else printf 'FAIL S14 the spec no longer names what the note lists: %s\n' "$key"; fails=$((fails+1)); fi
+done
+for part in "tests/tables.spec.ts (site copy: tests/tables.spec.ts" "THEMES in tests/_helpers.ts" "src/styles/tables.css" \
+            "leave it out on purpose" "left_out: tests/tables.spec.ts — <why>" "table styles (src/styles/tables.css"; do
+  if grep -F "  tests/tables.spec.ts (site copy" "$T/out" | grep -qF -- "$part"; then printf 'ok   S14 the note says: %s\n' "$part"
+  else printf 'FAIL S14 the note lacks: %s\n' "$part"; fails=$((fails+1)); fi
+done
+has "S14 the file is still listed as missing" "    MISSING: the site has no tests/tables.spec.ts"
+
 [ "$fails" -eq 0 ] || { echo "$fails test(s) failed" >&2; exit 1; }
 echo "all whats-new missing-file and import tests passed"
