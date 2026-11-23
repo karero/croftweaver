@@ -122,8 +122,12 @@ sub parse {
       }
       $i++ while $i + 1 < $n && substr($lines->[$i + 1], 0, 1) eq "\\";
       $cur->{end} = $i;
+      $cur->{hunked} = 1;
       next;
     }
+    # Prose after a record's last hunk would reach the reviewers inside the diff, unchecked.
+    return (undef, "text after the last hunk of a record, which is not part of the diff (send notes with --evidence): \"" . esc(substr($l, 0, 80)) . "\"")
+      if $cur && !$hdr && $cur->{hunked} && length $l;
     next unless $cur && $hdr;
     $cur->{end} = $i;
     if    ($l =~ /^old mode ([0-7]+)\z/)          { $cur->{om} = $1; }

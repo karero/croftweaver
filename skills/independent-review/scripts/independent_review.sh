@@ -775,7 +775,9 @@ else
       if [ "$fetch_rc" -eq 142 ]; then
         base_refuse "fetching origin's HEAD did not finish within $fetch_limit seconds, so the base of the whole change is unknown." "$local_hint"
       elif [ "$fetch_rc" -ne 0 ]; then
-        base_refuse "fetching origin's HEAD failed (exit $fetch_rc), so the base of the whole change is unknown: ${fetch_err##*$'\n'}" "$local_hint"
+        # All of git's error on one line, cut short: its last line alone often hides the cause.
+        fetch_err="$(printf '%s' "$fetch_err" | tr '\n\t' '  ' | tr -s ' ')"
+        base_refuse "fetching origin's HEAD failed (exit $fetch_rc), so the base of the whole change is unknown: ${fetch_err:0:400}" "$local_hint"
       fi
       tip="$(git -C "$top" rev-parse --verify --quiet 'FETCH_HEAD^{commit}')" \
         || base_refuse "the fetch left no FETCH_HEAD to read." "$local_hint"
@@ -1490,7 +1492,8 @@ run_agy() {
   command -v agy >/dev/null 2>&1 || return 3
   seat_fits agy "" "" || return 1   # still on argv: always the 120,000-byte limit
   local sbox out rc model="${AGY_MODEL:-}"
-  sbox="$(mktemp -d)"
+  # No folder, no run: a failed mktemp must not leave agy in the caller's folder.
+  sbox="$(mktemp -d)" || { WHY="could not make an empty folder for it (mktemp failed)"; return 1; }
   # </dev/null: if the CLI ever prompts (tool-approval y/n) inside the captured
   # subshell it would hang invisibly — an empty stdin makes it abort instead.
   # --model passed only when AGY_MODEL is set — otherwise the CLI's own default
