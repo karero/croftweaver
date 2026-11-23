@@ -143,6 +143,11 @@ $git -C "$R" add newdir HANDOFF-note.md
 expect "a new tracked top-level folder no list names: fails, and names it" 1 "    newdir" "$R"
 expect "a new tracked root file no list names: fails, and names it" 1 "    HANDOFF-note.md" "$R"
 $git -C "$R" rm -rq --cached newdir HANDOFF-note.md; rm -r "$R/newdir" "$R/HANDOFF-note.md"
+# git quotes a tracked name that holds a double quote; read as text it would name a folder that
+# does not exist, and fail a scanned one.
+printf 'plain notes\n' >"$R/docs/"'a"b.md'; $git -C "$R" add 'docs/a"b.md'
+expect "a tracked file in docs/ with a double quote in its name: passes" 0 "OK — no private names in:" "$R"
+$git -C "$R" rm -q --cached docs/'a"b.md'; rm "$R/docs/"'a"b.md'
 # The starter's licence notice is the same kind of copy, for every new site: left out by exact
 # path while it equals LICENSE, and scanned like any other file once it has drifted.
 L="skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md"
