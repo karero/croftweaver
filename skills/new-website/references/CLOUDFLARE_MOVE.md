@@ -150,9 +150,10 @@ a token with less than an hour left; any other run only warns. If the token ends
 a new one the same way and run the same command again.
 
 Put the token in `CLOUDFLARE_API_TOKEN`, or, when the assistant's shell keeps no variable from
-one command to the next, on a line `CLOUDFLARE_API_TOKEN=…` in the site's `.dev.vars`. Only the
-script reads that file, not Wrangler: a token for Wrangler goes in the shell, as
-`CLOUDFLARE_FIRST_DEPLOY.md` says. The script refuses a `.dev.vars` that git tracks or does not ignore. It never prints the token, and it
+one command to the next, on a line `CLOUDFLARE_API_TOKEN=…` in the site's `.dev.vars`. Wrangler
+does not take its login token from that file: a token for Wrangler goes in the shell, as
+`CLOUDFLARE_FIRST_DEPLOY.md` says. The script refuses a `.dev.vars` that git tracks or does not
+ignore. It never prints the token, and it
 never gives it to a program it starts (the build, `git`).
 
 ## The order

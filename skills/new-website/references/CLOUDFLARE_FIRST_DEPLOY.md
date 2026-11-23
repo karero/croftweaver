@@ -229,7 +229,8 @@ time and no GitHub connection.
   Not `.dev.vars`: that file holds the Worker's own local settings, and Cloudflare's list of
   where Wrangler reads its own variables from names the shell and a `.env` file, not
   `.dev.vars` ([system environment variables](https://developers.cloudflare.com/workers/wrangler/system-environment-variables/)).
-  Only the setup script (above) and the move script read a token from `.dev.vars`; Wrangler does not.
+  Only the setup script (above) and the move script read a token from `.dev.vars`; Wrangler does not
+  take its login token from there.
   The starter `.gitignore` also excludes `.env`, `.env.*` (but not `.env.example`) and
   `.dev.vars`, a backstop in case a copy lands in a file in a generated site.
   *(This suite repo additionally runs a `clean` CI gate that scans the distributed skill
