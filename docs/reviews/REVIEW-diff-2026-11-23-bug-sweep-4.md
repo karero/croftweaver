@@ -16,8 +16,9 @@ reply's shape would be guessed).
 | 1 | Codex (base `738a8aa2`, head `a6409a60`); fresh-eyes | 2 / 0 / 0 (Codex); 0 / 2 / 2 (fresh-eyes) | a fake `From <sha>` line after a record hid prose; a test comment contradicted bash 5 |
 | 2 | Codex (`--verify`, base `a6409a60`, head `cf94859e`) | 2 / 0 / 0 | the comment still wrong for bash 3.2; prose after a `-- ` signature passed |
 | 3 | Codex (`--verify`, base `cf94859e`, head `87f86c14`) | 1 / 0 / 0 | the version line after a signature took any parenthesised prose; a second signature reset the state |
+| 4 | Codex (`--verify`, base `87f86c14`, head `aff015d1`; manager's session, `--earned-by diff-tail-parsing`) | 1 / 0 / 0 | the manager's `\S*` (kept for Git for Windows) let prose with no spaces through |
 
-Tokens and time: round 1 Codex 53,399 (137 s); round 2 41,552 (85 s); round 3 40,429 (87 s); fresh-eyes 117,219 tokens
+Tokens and time: round 1 Codex 53,399 (137 s); round 2 41,552 (85 s); round 3 40,429 (87 s); round 4 38,366 (56 s); fresh-eyes 117,219 tokens
 (79 s). Codex alone (REVIEW-RULES); the script's warning that the standard pair was not met applies.
 
 ## Findings
@@ -31,11 +32,12 @@ Tokens and time: round 1 Codex 53,399 (137 s); round 2 41,552 (85 s); round 3 40
 | R1-05 | NIT | fresh-eyes | control characters other than newline and tab are not stripped from the fetch error | not fixed |
 | R2-01 | BUG | Codex | the comment was wrong for bash 3.2 (`cd ""` succeeds there) | fixed: comment names both shells |
 | R2-02 | BUG | Codex | after a signature line a `From` line plus prose passed | fixed: only a version line may follow a signature; a `From` after records of a non-mailbox diff is refused; tests t3s, t3t, control t3u |
-| R3-01 | BUG | Codex | the version line took any parenthesised prose; a second signature reset the state | fixed AFTER round 3, not reviewed: the line is digits and dots with an optional Apple Git suffix; a second signature is refused; tests t3v, t3w, control t3x |
+| R3-01 | BUG | Codex | the version line took any parenthesised prose; a second signature reset the state | fixed: a second signature is refused; tests t3v, t3w, controls t3x (Apple), t3y (Windows); reverting the Perl failed t3v and t3w |
+| R4-01 | BUG | Codex | `\S*` after the version accepted `2.43.0(Reviewer-note:…)` | fixed: the line is digits and dots, then optionally `.windows.N`, then optionally ` (Apple Git-N)`; test t3z. A git release candidate's line (`2.47.0.rc1`) is now refused: rare, loud, names `--evidence`. A real `git format-patch` signature from git 2.54.0 (Apple Git-157) passes |
 
 Test evidence: with the three fixes reverted, T3p (3 checks), T5's new cause check and `agynomktemp`'s naming check failed
 (that case's "agy never ran" check passes before the fix under bash 5, where `cd ""` fails); with R1-01 reverted the fake
 From case failed; with R2-02's Perl reverted t3s and t3t failed. All restored and passing (`test_base_check.sh` PASS,
 `test_failed_tier_report.sh` all checks passed up to round 1's head). Claims about those runs were UNVERIFIABLE for a
 read-only seat. The suites of round 3's head other than `test_base_check.sh` were not run again.
-The round ended with R3-01 open at review: its fix is in the final commit and has had no review.
+Rounds 4 and later ran in the manager's session, which also re-ran every suite listed above on head `e256cb2f` (all exit 0).
