@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Guard: the skill suite is a handoff artifact — no personal names, contact info, or
 # credentials may enter it. Scans skills/ + root docs (and scripts/, for names only; and
-# packages/ and pointer/, where there are any) and exits 1 (with file:line) on any hit. Wired into
+# the paths in PRESENT_PATHS, where they exist) and exits 1 (with file:line) on any hit. Wired into
 # `make check` and CI (.github/workflows/clean.yml).
 #
 # Two kinds of check:
@@ -111,17 +111,42 @@ if [ -n "$MISSING" ]; then
   echo "legitimately lack one, drop it from SCAN_NAMES_ALL/SCAN_DOCS_ALL deliberately."
   exit 1
 fi
-# packages/ (the npm installer) and pointer/ (the files the directory plugin publishes) are in
-# the repo but not in the handoff zip, where `make check` runs too, so they cannot be required
-# targets above: each is scanned where it exists. A name or an address in them reaches the
-# public repo, the npm page or the directory. (2026-10-12: packages/ was added and no check
-# read it.)
+# These paths are in the repo and not all in the handoff zip, where `make check` runs too, so
+# they cannot be required targets above: each is scanned where it exists. A name or an address
+# in them reaches the public repo, the npm page or the directory. (2026-10-12: packages/ was
+# added and no check read it.) A new top-level path is not read until it is listed here; in a
+# git checkout the guard below fails on a tracked one that is not.
+PRESENT_PATHS="packages pointer .claude-plugin .agents .github .gitignore .gitattributes"
 SCAN_PRESENT=""
-for d in packages pointer; do [ -e "$d" ] && SCAN_PRESENT="${SCAN_PRESENT:+$SCAN_PRESENT }$d"; done
+for d in $PRESENT_PATHS; do [ -e "$d" ] && SCAN_PRESENT="${SCAN_PRESENT:+$SCAN_PRESENT }$d"; done
 SCAN_NAMES="$SCAN_NAMES${SCAN_PRESENT:+ $SCAN_PRESENT}"
 SCAN_DOCS="$SCAN_DOCS${SCAN_PRESENT:+ $SCAN_PRESENT}"
 fail=0
 names_checked=0 names_skipped=""
+# A tracked top-level path that no scan list names is read by no check. The zip has no git and
+# keeps the fixed lists. Paths are read NUL-delimited, so a quote or a newline in a name is
+# not mistaken for another path.
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  tracked="$(mktemp)" || { fail=1; echo "✗ scan error (mktemp failed) — tracked top-level paths were not checked"; }
+  if [ -n "$tracked" ] && ! git ls-files -z >"$tracked" 2>/dev/null; then
+    fail=1; echo "✗ scan error (git ls-files failed) — tracked top-level paths were not checked"
+  elif [ -n "$tracked" ]; then
+    unscanned="" bad=0
+    set -f
+    while IFS= read -r -d '' f; do
+      top="${f%%/*}" ok=0
+      for p in $SCAN_DOCS_ALL $SCAN_NAMES_ALL $PRESENT_PATHS; do [ "$p" = "$top" ] && ok=1; done
+      [ "$ok" = 1 ] || { bad=1; unscanned="$unscanned$(printf '%q' "$top")"$'\n'; }
+    done <"$tracked"
+    set +f
+    if [ "$bad" = 1 ]; then
+      fail=1
+      echo "✗ tracked top-level paths no check reads (add each to SCAN_BASE or PRESENT_PATHS in scripts/check_clean.sh):"
+      printf '%s' "$unscanned" | sort -u | sed 's/^/    /'
+    fi
+  fi
+  rm -f "$tracked"
+fi
 # grep prints a hit as file:line:text, and the filters below read the first ":<digits>:" as
 # where the file name ends. A file name holding a newline splits that line into pieces that
 # can pass for other files (an ignored one, or the list itself). One holding a colon, a digit

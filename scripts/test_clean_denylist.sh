@@ -9,8 +9,9 @@
 # name reached main that way (2026-09-27). These cases pin that a worktree uses the main
 # checkout's list, that a copy with no git still skips (and says so, on its OK line too),
 # that CI's masked mode (CLEAN_MASK_NAMES=1) fails on a name without printing it,
-# that scripts/ is scanned for names without the list matching itself, that packages/ and pointer/ are
-# scanned where there is one and not missed where there is none, and that this repo's
+# that scripts/ is scanned for names without the list matching itself, that packages/, pointer/,
+# .claude-plugin/ and .gitignore are scanned where there is one and not missed where there is none,
+# that a tracked top-level path no list names fails the run, and that this repo's
 # own short name in an issue or PR reference is not a leak, under the name it has now and
 # under the one it had before the rename, and that README.md may name the maintainer, as
 # LICENSE's copyright line spells the name, while every other use of that name still fails.
@@ -74,14 +75,14 @@ rm "$R/scripts/tool.sh"
 # what was scanned, so it tells the two apart. (2026-10-12: the folder was added and no
 # check read it.)
 expect "no packages/ (the handoff zip): passes, and the OK line does not name it" 0 \
-  "docs scripts; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE" "$R"
+  "docs scripts .gitignore; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE .gitignore" "$R"
 if (cd "$R" && bash scripts/check_clean.sh 2>&1) | grep -q packages; then
   printf 'FAIL the check names packages/ in a copy that has none\n'; fails=$((fails+1))
 fi
 mkdir -p "$R/packages/x" "$R/packages/create-croftweaver"
 printf 'plain notes\n' >"$R/packages/x/file"
 expect "packages/, clean: passes, and the OK line names it in both lists" 0 \
-  "docs scripts packages; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE packages" "$R"
+  "docs scripts packages .gitignore; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE packages .gitignore" "$R"
 printf 'first tried on the zorblequux site\n' >"$R/packages/x/file"
 expect "a listed name in packages/x/file: fails" 1 "packages/x/file" "$R"
 printf 'write to bob@realmail.de\n' >"$R/packages/x/file"
@@ -114,12 +115,50 @@ rm -r "$R/packages"; : >"$R/LICENSE"
 # pointer/ drops out of the scan.
 mkdir -p "$R/pointer"; printf 'plain notes\n' >"$R/pointer/README.md"
 expect "pointer/, clean: passes, and the OK line names it in both lists" 0 \
-  "docs scripts pointer; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE pointer" "$R"
+  "docs scripts pointer .gitignore; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE pointer .gitignore" "$R"
 printf 'first tried on the zorblequux site\n' >"$R/pointer/README.md"
 expect "a listed name in pointer/README.md: fails" 1 "pointer/README.md" "$R"
 printf 'write to bob@realmail.de\n' >"$R/pointer/README.md"
 expect "an email in pointer/README.md: fails" 1 "✗ email address" "$R"
 rm -r "$R/pointer"
+# The plugin's manifests (.claude-plugin/) and the other dot paths in the repo are scanned where
+# they exist, the same way. (2026-10-12: nothing read .claude-plugin/.)
+mkdir -p "$R/.claude-plugin"; printf 'plain notes\n' >"$R/.claude-plugin/plugin.json"
+expect "a clean .claude-plugin/: passes, and the OK line names it in both lists" 0 \
+  "docs scripts .claude-plugin .gitignore; no contact info or credentials in: skills README.md THIRD-PARTY-LICENSES.md SECURITY.md Makefile docs LICENSE .claude-plugin .gitignore" "$R"
+printf 'first tried on the zorblequux site\n' >"$R/.claude-plugin/plugin.json"
+expect "a listed name in .claude-plugin/plugin.json: fails" 1 ".claude-plugin/plugin.json" "$R"
+printf 'write to bob@realmail.de\n' >"$R/.claude-plugin/plugin.json"
+expect "an email in .claude-plugin/plugin.json: fails" 1 "✗ email address" "$R"
+rm -r "$R/.claude-plugin"
+printf 'zorblequux-site/\n' >>"$R/.gitignore"
+expect "a listed name in .gitignore: fails" 1 ".gitignore" "$R"
+$git -C "$R" checkout -q -- .gitignore
+# A new tracked top-level path that no scan list names is read by no check; in a git checkout
+# that fails, so a new folder cannot go unread the way packages/ did (2026-10-13). A file
+# dropped in the root is the same case once it is tracked. The copy without git has no such
+# check: its lists are fixed.
+mkdir -p "$R/newdir"; printf 'plain notes\n' >"$R/newdir/a.md"; printf 'plain notes\n' >"$R/HANDOFF-note.md"
+expect "a new folder and a loose root file, untracked: not seen, passes" 0 "OK — no private names in:" "$R"
+$git -C "$R" add newdir HANDOFF-note.md
+expect "a new tracked top-level folder no list names: fails, and names it" 1 "    newdir" "$R"
+expect "a new tracked root file no list names: fails, and names it" 1 "    HANDOFF-note.md" "$R"
+$git -C "$R" rm -rq --cached newdir HANDOFF-note.md; rm -r "$R/newdir" "$R/HANDOFF-note.md"
+# git quotes a tracked name that holds a double quote; read as text it would name a folder that
+# does not exist, and fail a scanned one.
+printf 'plain notes\n' >"$R/docs/"'a"b.md'; $git -C "$R" add 'docs/a"b.md'
+expect "a tracked file in docs/ with a double quote in its name: passes" 0 "OK — no private names in:" "$R"
+$git -C "$R" rm -q --cached docs/'a"b.md'; rm "$R/docs/"'a"b.md'
+# A top-level name that holds spaces must equal a listed path as a whole, and one made only of
+# newlines must still be reported (it vanishes when read as text).
+nl=$'\n'
+# Each name is staged alone, so one cannot make the other's case pass.
+: >"$R/docs scripts"; $git -C "$R" add "docs scripts"
+expect "a tracked root file named 'docs scripts', the names of two listed paths: fails" 1 "    docs\\ scripts" "$R"
+$git -C "$R" rm -q --cached "docs scripts"; rm "$R/docs scripts"
+: >"$R/$nl"; $git -C "$R" add "$nl"
+expect "a tracked root file named only a newline: fails, and names it escaped" 1 "    \$'\\n'" "$R"
+$git -C "$R" rm -q --cached "$nl"; rm "$R/$nl"
 # The starter's licence notice is the same kind of copy, for every new site: left out by exact
 # path while it equals LICENSE, and scanned like any other file once it has drifted.
 L="skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md"
