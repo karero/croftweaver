@@ -131,15 +131,18 @@ if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   if [ -n "$tracked" ] && ! git ls-files -z >"$tracked" 2>/dev/null; then
     fail=1; echo "✗ scan error (git ls-files failed) — tracked top-level paths were not checked"
   elif [ -n "$tracked" ]; then
-    unscanned="" known=" $SCAN_DOCS_ALL $SCAN_NAMES_ALL $PRESENT_PATHS "
+    unscanned="" bad=0
+    set -f
     while IFS= read -r -d '' f; do
-      case "$known" in *" ${f%%/*} "*) ;; *) unscanned="$unscanned${f%%/*}"$'\n' ;; esac
+      top="${f%%/*}" ok=0
+      for p in $SCAN_DOCS_ALL $SCAN_NAMES_ALL $PRESENT_PATHS; do [ "$p" = "$top" ] && ok=1; done
+      [ "$ok" = 1 ] || { bad=1; unscanned="$unscanned$(printf '%q' "$top")"$'\n'; }
     done <"$tracked"
-    unscanned="$(printf '%s' "$unscanned" | sort -u)"
-    if [ -n "$unscanned" ]; then
+    set +f
+    if [ "$bad" = 1 ]; then
       fail=1
       echo "✗ tracked top-level paths no check reads (add each to SCAN_BASE or PRESENT_PATHS in scripts/check_clean.sh):"
-      printf '%s\n' "$unscanned" | sed 's/^/    /'
+      printf '%s' "$unscanned" | sort -u | sed 's/^/    /'
     fi
   fi
   rm -f "$tracked"

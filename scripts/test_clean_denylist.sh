@@ -148,6 +148,13 @@ $git -C "$R" rm -rq --cached newdir HANDOFF-note.md; rm -r "$R/newdir" "$R/HANDO
 printf 'plain notes\n' >"$R/docs/"'a"b.md'; $git -C "$R" add 'docs/a"b.md'
 expect "a tracked file in docs/ with a double quote in its name: passes" 0 "OK — no private names in:" "$R"
 $git -C "$R" rm -q --cached docs/'a"b.md'; rm "$R/docs/"'a"b.md'
+# A top-level name that holds spaces must equal a listed path as a whole, and one made only of
+# newlines must still be reported (it vanishes when read as text).
+nl=$'\n'
+: >"$R/docs scripts"; : >"$R/$nl"; $git -C "$R" add "docs scripts" "$nl"
+expect "a tracked root file named 'docs scripts', the names of two listed paths: fails" 1 "    docs\\ scripts" "$R"
+expect "a tracked root file named only a newline: fails" 1 "tracked top-level paths no check reads" "$R"
+$git -C "$R" rm -q --cached "docs scripts" "$nl"; rm "$R/docs scripts" "$R/$nl"
 # The starter's licence notice is the same kind of copy, for every new site: left out by exact
 # path while it equals LICENSE, and scanned like any other file once it has drifted.
 L="skills/new-website/templates/astro/CROFTWEAVER-LICENSE.md"
