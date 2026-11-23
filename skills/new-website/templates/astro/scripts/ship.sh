@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.36
+# template-version: 0.37
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -1189,6 +1189,12 @@ case "$wstate" in
           echo ""
           echo "✗ The publish went out (GitHub's production is now ${id:0:12}), but ship could not tell whether"
           echo "  the site is live: ${probe#unclear }. It did not check further. Run npm run ship again: it checks again."
+          # The probe names no HTTP status (a curl or DNS failure; probe_site drops curl's code on a failure), so point at the marker.
+          case "$probe" in
+            "unclear HTTP "*) ;;
+            *) echo "  Or check it yourself: open $build_txt in your browser. It should show"
+               echo "    $id" ;;
+          esac
           exit 1 ;;
       esac
     fi ;;

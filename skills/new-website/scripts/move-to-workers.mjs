@@ -2026,7 +2026,7 @@ async function cmdAfter(ctx, run) {
     say(`After passed: ${ctx.hosts.join(', ')} ${many ? 'serve' : 'serves'} the Worker and ${many ? 'match' : 'matches'} the recording. The move stays open, so undo works until the Pages project is retired.`);
     say(`If you will not undo soon, delete the API token now: ${TOKEN_PAGE}. An undo later needs a new token: ${TOKEN_LINK_CMD} prints the link.`);
     folder.forEach((l) => say(l));
-    run.next = 'Nothing more for this script. Delete the API token now if you will not undo soon (an undo later needs a new one, made with token-link). Keep the Pages project 14 days, then retire it as the move section says.';
+    run.next = 'Nothing more for this script. Delete the API token now if you will not undo soon (an undo later needs a new one, made with token-link). Keep the Pages project: retiring it is not tested yet, and the move guide has no steps for it.';
     run.done = true;
   } else {
     st.open = false;
@@ -2049,7 +2049,7 @@ const STAGE_NAMES = [
   ['Freeze and record', 'Nothing is merged while the move runs; what the live site serves is written down.'],
   ['Switch', 'Each host leaves the Pages project and goes to the Worker. Undo is possible.'],
   ['Check on the domain', 'The live site is compared with what was recorded.'],
-  ['Clean up', 'The token is deleted; the Pages project is retired after 14 days. Not this script.'],
+  ['Clean up', 'The token is deleted. Retiring the Pages project is not tested yet, so it stays. Not this script.'],
 ];
 
 function stageOf(st, run) {

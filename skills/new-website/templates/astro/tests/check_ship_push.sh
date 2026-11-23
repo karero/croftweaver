@@ -40,7 +40,7 @@
 # pre-push gate, and ship.sh reads that gate's output, so a nested line must never pass for
 # the outer publish's own (ship.sh leaves those lines out of everything it checks).
 #
-# template-version: 0.36   (keep in step with scripts/ship.sh's marker)
+# template-version: 0.37   (keep in step with scripts/ship.sh's marker)
 set -euo pipefail
 CDPATH= cd -- "$(dirname -- "$0")/.."
 ship="$PWD/scripts/ship.sh"
@@ -2201,12 +2201,17 @@ export default {};"
   want "... naming curl's exit status" has "curl exit 28"
   want "... and says to run it again" has "Run npm run ship again"
   want "... and is not the sent-at-launch line" lacks "$sent"
+  want "... and, with no HTTP status, sends the owner to build.txt" has "open https://ship-test.example.invalid/build.txt in your browser. It should show"
+  want "... and names the commit id to look for" has "    $m"
   workers_case w12 github "$noroute" SHIP_T_CURL_RC=7; exits 1
   want "a refused connection is unclear" has "curl exit 7"
+  want "... and sends the owner to build.txt" has "open https://ship-test.example.invalid/build.txt in your browser"
   workers_case w13 github "$noroute" SHIP_T_CURL_RC=35; exits 1
   want "a TLS fault is unclear" has "curl exit 35"
+  want "... and sends the owner to build.txt" has "open https://ship-test.example.invalid/build.txt in your browser"
   workers_case w14 github "$noroute" SHIP_T_CODE=503; exits 1
   want "a 5xx is unclear" has "HTTP 503"
+  want "... an answered 5xx needs no build.txt hint (the site did reply)" lacks "in your browser"
   workers_case w15 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENOTFOUND "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
   want "the lookup and the DNS server both say no such host: not served" last_starts "$sent"
   workers_case w15b github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=ENOTFOUND SHIP_T_RESOLVE=ENODATA "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 0
@@ -2227,6 +2232,7 @@ export default {};"
   want "... and is not the sent-at-launch line" lacks "$sent"
   workers_case w16 github "$noroute" SHIP_T_CURL_RC=6 SHIP_T_DNS=EAI_AGAIN "NODE_OPTIONS=--require $G/dns-stub.cjs"; exits 1
   want "a resolver that did not answer is unclear" has "EAI_AGAIN"
+  want "... and sends the owner to build.txt" has "open https://ship-test.example.invalid/build.txt in your browser"
   workers_case w17 github "$noroute" SHIP_T_CODE=403; exits 1
   want "a 403 (a firewall may give it) is unclear, not 'not served'" has "HTTP 403"
   want "... and is not the sent-at-launch line" lacks "$sent"
