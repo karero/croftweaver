@@ -631,6 +631,13 @@ run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff"
 check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
 check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
 check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
+# ...and with mktemp failing, agy is not run at all, and the tier says why (bash 3.2's cd ""
+# succeeds and stays put, so there agy would have run in the caller's folder; bash 5 fails the cd).
+mkdir -p "$T/nomktemp"; printf '#!/bin/sh\nexit 1\n' >"$T/nomktemp/mktemp"; chmod +x "$T/nomktemp/mktemp"
+run agynomktemp PATH="$T/nomktemp:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff" --base none --seat agy
+check "agynomktemp: the tier FAILED, naming mktemp" has agynomktemp.out "antigravity FAILED (could not make an empty folder for it (mktemp failed))"
+check "agynomktemp: agy never ran" [ ! -e "$T/agynomktemp.marks/agy-args" ]
+check "agynomktemp: no reviewer counted (exit 4)" rc_is agynomktemp 4
 
 # 24. The default pair runs at once (2026-09-26): each reviewer sees the other start before
 #     it finishes, and the sections still print in tier order, codex first. A timings line

@@ -86,17 +86,23 @@ sub git_line_name {
 sub parse {
   my ($lines) = @_;
   my (@recs, $cur, $hdr);
-  my ($mbox, $in_msg) = (0, 0);
+  my ($mbox, $in_msg, $tail) = (0, 0, 0);
   my $n = scalar @$lines;
   for (my $i = 0; $i < $n; $i++) {
     my $l = $lines->[$i]; $l =~ s/\n\z//;
     return (undef, "colour codes (made with --color)") if $l =~ /\e\[[0-9;]*m/;
-    if ($l =~ /^From [0-9a-f]{40} /) {
+    if (!$cur && $l =~ /^From [0-9a-f]{40} /) {   # a format-patch envelope: never inside a record
+      return (undef, "text after the diff's records, which is not part of the diff (send notes with --evidence): \"" . esc(substr($l, 0, 80)) . "\"") if @recs && !$mbox;
       $mbox++; return (undef, "a format-patch series (each patch's old side is the one before's new side)") if $mbox > 1;
       ($cur, $hdr, $in_msg) = (undef, 0, 1); next;
     }
     if ($in_msg) { $in_msg = 0 if $l eq "---"; next; }   # a format-patch's message, up to its "---"
-    if ($l eq "-- ") { ($cur, $hdr) = (undef, 0); next; } # a format-patch's signature: the record ends
+    if ($l eq "-- " && !$tail) { ($cur, $hdr, $tail) = (undef, 0, 1); next; } # a format-patch's signature: the record ends
+    # After the signature only git's version line may follow (blank lines, a next record or a next envelope aside).
+    if ($tail && !$cur && length $l && $l !~ /^diff --git /) {
+      if ($tail == 1 && $l =~ /^\d+(?:\.\d+)+(?:\.windows\.\d+)?(?: \(Apple Git-\d+\))?\z/) { $tail = 2; next; }
+      return (undef, "text after a patch's signature, which is not part of the diff (send notes with --evidence): \"" . esc(substr($l, 0, 80)) . "\"");
+    }
     return (undef, "a combined diff (diff --cc), which has no single old side") if $l =~ /^diff --(?:cc|combined) /;
     if ($l =~ /^diff --git (.*)\z/) {
       my $g = $1;
@@ -122,8 +128,12 @@ sub parse {
       }
       $i++ while $i + 1 < $n && substr($lines->[$i + 1], 0, 1) eq "\\";
       $cur->{end} = $i;
+      $cur->{hunked} = 1;
       next;
     }
+    # Prose after a record's last hunk would reach the reviewers inside the diff, unchecked.
+    return (undef, "text after the last hunk of a record, which is not part of the diff (send notes with --evidence): \"" . esc(substr($l, 0, 80)) . "\"")
+      if $cur && !$hdr && $cur->{hunked} && length $l;
     next unless $cur && $hdr;
     $cur->{end} = $i;
     if    ($l =~ /^old mode ([0-7]+)\z/)          { $cur->{om} = $1; }
