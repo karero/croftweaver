@@ -19,6 +19,9 @@ For a page moved from an old site (SKILL.md, "Moving a page from an old site"), 
 must hold the "Old page" section, which is how the saved old page reaches the reviewer, on either
 path. Point 4 of the prompt applies only then.
 
+The research file's "This site's pages" section (SKILL.md, step 2) is how the site's own pages
+reach the reviewer: it checks the brief's field for competing pages against that list.
+
 Whatever the reviewer returns is a list of findings, not an order. The author fixes each one or
 lists it for the owner to accept or reject in the go (SKILL.md, steps 4 and 5).
 
@@ -46,7 +49,10 @@ someone else, and does it keep that one meaning?
 > types or asks? Does the page answer the main query in its first screen, in words an AI answer
 > could quote? Are there FAQ questions that each add something the body does not? Is it clear
 > who wrote the page and why they know (experience, expertise, authority, trust)? Check what
-> the research file says the top results cover against what this page covers.
+> the research file says the top results cover against what this page covers. Does the brief
+> name the site's pages that already aim at the main query or a related one, and say whether this
+> is a new page, an extension of one of them, or a new page that narrows one, with what keeps
+> them apart?
 > 3. ORIGINALITY. What does this page add that the top results lack: an argument, our own
 > experience or process, a result, a view of where this is going? If you cannot name it in one
 > sentence, say so. Has hedging worn the angle down to nothing?
@@ -75,8 +81,12 @@ someone else, and does it keep that one meaning?
 > answers that repeat the body; a claim in the draft
 > that is missing from the claims table; a graphic the page needs and the brief does not plan;
 > an outbound link to a commercial site with no owner sign-off; no research file, so thinness
-> cannot be judged; a claim the page itself calls its own reading, or says no source states,
-> with nothing the reader can check it against; on a moved page, a section, download, form or
+> cannot be judged; a page in the research file's "This site's pages" that aims at the main query
+> or a related one and is missing from the brief's field for pages that already aim at this search,
+> or is listed there with no decision (name the page); the page's own versions in other languages
+> and the page being rewritten do not count; no "This site's pages" section, or one that says the
+> list is incomplete, so competing pages cannot be checked; a claim the page itself calls its own
+> reading, or says no source states, with nothing the reader can check it against; on a moved page, a section, download, form or
 > embed of the saved old page with no row in the table; a section or query that earned clicks and
 > that the table marks dropped (name it and its clicks, so the owner decides it in the go); a
 > dropped row with no reason; no "Old page" section in the research file, so the table cannot be

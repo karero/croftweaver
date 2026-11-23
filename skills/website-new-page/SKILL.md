@@ -38,9 +38,18 @@ link, unless the owner reclassifies it after you have read the source itself.
 
 **2. Research.** Read the top results for the main query and ask an AI the same question. Save
 what they cover and what they miss in a research file (`docs/pages/<slug>-research.md`), with the
-address of every source you read. Read each source at the source, not through a summary. Where
-the site has Search Console data and the `search-console-insights` skill is installed, that skill
-shows what the page's neighbours already rank for; otherwise skip this.
+address of every source you read. Read each source at the source, not through a summary.
+
+Also save the site's own pages in that file, under **This site's pages**. Build the site
+(`npm run build`) and list every page in its sitemap with its path, title, H1 and description,
+then the main query of each page document in `docs/pages/`. Where the site has Search Console and
+`search-console-insights` is installed, run `gsc_query.py --site <property> --query "<query>"
+--days 90 --no-csv` for the main query and for each related one, and copy each "Pages serving"
+section there. `--query` takes one query string, so a page it does not return may still aim at the
+search. If a query's output has no such section, the lookup failed or Search Console has no data
+for the window: say so, and the check is open. If the site does
+not build, has no sitemap, or the list is incomplete for another reason, say so too, at the top of
+that section: the check is then open, and the go names it.
 
 **3. Write the page document.** The brief fills its fields in plain words: the page type (an
 article that answers a question, a home page, a product or service page, a contact or legal
@@ -48,10 +57,22 @@ page: the review judges depth and FAQ by it), reader, main query and
 two or three related ones, title, H1 and description led by the search words, the one original
 angle, the outline with what each section must teach, the graphics, four to six FAQ questions
 that each add something the body does not, the inputs with their labels, a claims table, an
-outbound-links table, and "what we will not say". Every proof point must be one the reader can
-open or understand without access: no internal ticket, pull request or repository names on a
-public page. Then write the draft copy in full, to that outline. Drafting is cheap; reviewing
-copy after it is built is not.
+outbound-links table, "what we will not say", and the site's pages that already aim at this search,
+with a decision (below). Every proof point must be one the reader can open or understand without
+access: no internal ticket, pull request or repository names on a public page. Then write the draft
+copy in full, to that outline. Drafting is cheap; reviewing copy after it is built is not.
+
+*The site's pages that already aim at this search.* From "This site's pages", list each page that
+aims at the main query or a related one, and each page a "Pages serving" table there shows drawing
+impressions for one, with what it shares. Leave out the page's own versions in other languages (its
+hreflang set) and the page being rewritten. Write one decision: *a new page*, and what keeps the
+two apart; *extend that page instead* (the document then rewrites it); or *a new page, and narrow
+that page*, with its new title, description or sentences written out. **Ask the owner before you
+write the draft** when another page (not one left out above) has a title, H1, description or main
+query that names the main query's subject (the thing the reader searches about: "TripIt" in
+"tripit alternative", not the site's own name, nor words every page of its kind shares), or when
+Search Console shows such a page drawing impressions for the main query. Overlap on a related
+query alone never triggers the question. Otherwise write your decision; the owner sees it at the go.
 
 Call the other skills for their own questions, and do not restate their rules here:
 
@@ -79,14 +100,17 @@ is a ranked list of BUG, RISK and NIT findings.
   A fix that changes the meaning of a sentence gets one more read.
 
 **5. The owner's go.** Show the owner the reviewed document and a short note of the findings still
-open, each with your recommendation. Their go covers the exact sentences, not an outline. Write
-"approved by the owner on <date>" at the top of the page document.
+open, each with your recommendation. Their go covers the exact sentences, not an outline. It also
+names the decision on competing pages (and says if the check is open, step 2), and covers any
+sentences that decision changes on another page. Write "approved by the owner on <date>" at the
+top of the page document.
 
 **6. Build** the page and everything the site wants around it: the route, `llms.txt`, the share
-card, the links the brief's Links field names, and the schema (`FAQPage` where there is a
-FAQ). Tests should check that contract, the sentences the site marks as locked (its
-`AGENTS.md` or `CLAUDE.md` says which), and the claims-table rows the owner signed off. They need
-not pin all of the body copy: the next step watches it.
+card, the links the brief's Links field names, the sentences the brief's field on competing pages
+writes for another page, and the schema (`FAQPage` where there is a FAQ). Tests should check that
+contract, the sentences the site marks as locked (its `AGENTS.md` or `CLAUDE.md` says which), and
+the claims-table rows the owner signed off. They need not pin all of the body copy: the next step
+watches it.
 
 **7. Check the build kept the text.** After the site builds, run:
 
@@ -263,5 +287,7 @@ the whole page. The section table, checked by the reviewer against the saved old
   exit status, marked "not run"; or says the site has no `scripts/check_internal_links.sh`.
 - The link sentences the build added to other pages match the brief's Links field, checked by
   reading them, and the PR says so.
+- Where the brief narrows another page, that page's changed sentences on the built site match the
+  brief, checked by reading them, and the PR says so.
 - The site's own checks and review are green.
 - You say plainly what you did not check: whether the page ranks, which only time shows.
