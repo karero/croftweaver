@@ -24,7 +24,7 @@ fi
 # domain-agnostic across sites, in lower case. Falls back to matching nothing if unset.
 # The key must start its name (`website:` is another key), read as bytes, as in scripts/ship.sh.
 SITE_HOST=$(export LC_ALL=C; hi=$'\200-\377'; ws=$'\302\240|\357\273\277|\341\232\200|\342\200[\200-\212\250\251\257]|\342\201\237|\343\200\200'; grep -oE "(^|[^[:alnum:]_\$.$hi-]|$ws)site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
-  | tr 'A-Z' 'a-z' | sed -E "s#.*://(www\.)?##; s#/.*##" | head -1)
+  | tr 'A-Z' 'a-z' | sed -E "s#.*://(www\.)?##; s#[/:].*##" | head -1)
 [ -n "$SITE_HOST" ] || SITE_HOST="__no_site_configured__"
 
 UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"

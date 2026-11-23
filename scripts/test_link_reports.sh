@@ -82,7 +82,7 @@ fi
 # The site's own links are dropped whatever their case, and by plain string: with site: 'https://Example.COM',
 # a link to EXAMPLE.com, www.example.com or example.com:8080 is the site's own, but example-com is another host.
 site own
-printf "export default { site: 'https://Example.COM' };\n" >"$S/astro.config.mjs"
+printf "export default { site: 'https://Example.COM:8443' };\n" >"$S/astro.config.mjs"
 mkdir "$S/dist"
 printf '<a href="https://EXAMPLE.com/x">a</a>\n<a href="https://www.example.com/y">b</a>\n<a href="https://example.com:8080/z">c</a>\n<a href="https://example-com/o">d</a>\n<a href="https://a.invalid/p">e</a>\n' >"$S/dist/index.html"
 run
