@@ -21,23 +21,24 @@ if [ -z "$(find dist -name '*.html' 2>/dev/null)" ]; then
 fi
 
 # Own production host, derived from `site:` in astro.config.mjs so this stays
-# domain-agnostic across sites. Falls back to matching nothing if unset.
+# domain-agnostic across sites, in lower case. Falls back to matching nothing if unset.
 # The key must start its name (`website:` is another key), read as bytes, as in scripts/ship.sh.
 SITE_HOST=$(export LC_ALL=C; hi=$'\200-\377'; ws=$'\302\240|\357\273\277|\341\232\200|\342\200[\200-\212\250\251\257]|\342\201\237|\343\200\200'; grep -oE "(^|[^[:alnum:]_\$.$hi-]|$ws)site:[[:space:]]*['\"]https?://[^'\"]+" astro.config.mjs 2>/dev/null \
-  | sed -E "s#.*://(www\.)?##; s#/.*##" | head -1)
+  | tr 'A-Z' 'a-z' | sed -E "s#.*://(www\.)?##; s#/.*##" | head -1)
 [ -n "$SITE_HOST" ] || SITE_HOST="__no_site_configured__"
 
 UA="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
 
 # Distinct external destinations from ANCHORS only (matches tests/links.spec.ts's
 # a[href] scope — excludes <link rel="dns-prefetch"> resource hints, which 404 on the
-# bare host but aren't navigable links). Decode &#x26; and &amp; to &, drop our own domain.
+# bare host but aren't navigable links). Decode &#x26; and &amp; to &, drop our own domain
+# (hosts compared as lower-case plain strings, as in check_internal_links.sh).
 URLS=()
 while IFS= read -r line; do URLS+=("$line"); done < <(
   grep -rhoE '<a [^>]*href="https?://[^"]+"' dist --include='*.html' \
     | grep -oE 'href="https?://[^"]+"' \
     | sed -E 's/^href="//; s/"$//' \
-    | grep -vE "://(www\.)?${SITE_HOST}(/|$|:)" \
+    | SITE_HOST="$SITE_HOST" awk '{ h = $0; sub(/^[^:]*:\/\//, "", h); sub(/[\/?#].*/, "", h); h = tolower(h); sub(/^www\./, "", h); sub(/:.*/, "", h); if (h != ENVIRON["SITE_HOST"]) print }' \
     | sed -E 's/&#x26;/\&/g; s/&amp;/\&/g' \
     | sort -u
 )

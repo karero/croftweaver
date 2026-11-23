@@ -655,7 +655,18 @@ describe('3: check and record', () => {
     assert.ok(s.w.calls.every((c) => c.method === 'GET'), 'record made a change');
     assert.equal(s.dirty(), '');
     assert.ok(existsSync(path.join(s.site.work, 'move-run', 'status.html')));
+    assert.match(r.text, /Status page: .*status\.html/, 'a written page is named');
     assert.ok(!existsSync(path.join(path.dirname(s.stateFile()), 'lock')), 'the lock is gone');
+  });
+
+  test('a remote that is not on GitHub stops the run, and no status page is named that was not written', async () => {
+    const s = scenario();
+    git(s.site.work, 'remote', 'set-url', 'origin', 'https://gitlab.example/lena/lenas-backstube.git');
+    const r = await s.go(['check']);
+    assert.equal(r.code, 1, r.text);
+    assert.match(r.text, /not a repository on GitHub/);
+    assert.ok(!existsSync(path.join(s.site.work, 'move-run', 'status.html')), 'the page exists: the test shows nothing');
+    assert.ok(!/Status page:/.test(r.text), r.text);
   });
 
   test('record: an exit file caught before its code is written means the build is still running, not failed', async () => {
@@ -1059,6 +1070,15 @@ describe('3: the state file, the lock and a second checkout', () => {
       writeFileSync(path.join(dir, 'lock'), `${dead}\nabc\n`);
       const at = Date.now() + 3000;
       const kids = Array.from({ length: 6 }, () => node(`import { existsSync } from 'node:fs'; while (Date.now() < ${at}); let got = false, why = ''; try { m.takeLock(${JSON.stringify(dir)}, {}, () => {}); got = true; } catch (e) { why = JSON.stringify(String(e.code ?? e.name) + ': ' + e.message); } console.log(got ? 'GOT' : 'NO ' + why); const until = Date.now() + 60000; while (!existsSync(${JSON.stringify(stop)}) && Date.now() < until) await new Promise((r) => setTimeout(r, 20));`));
+      // On Windows a freed pid is handed out again at once, and a child may get the lock's pid: that child is alive,
+      // so every run sees a live holder (CI, 2026-11-19). The children wait until `at`, so the lock can be rewritten.
+      const mine = new Set(kids.map((k) => k.pid));
+      if (mine.has(dead)) {
+        let other = deadPid();
+        for (let i = 0; mine.has(other) && i < 20; i++) other = deadPid();
+        assert.ok(!mine.has(other), 'could not find a dead pid that no child holds');
+        writeFileSync(path.join(dir, 'lock'), `${other}\nabc\n`);
+      }
       const results = kids.map((k) => outcome(k));
       const first = await Promise.all(kids.map((k) => new Promise((resolve) => k.stdout.once('data', (d) => resolve(String(d).trim())))));
       writeFileSync(stop, '');
