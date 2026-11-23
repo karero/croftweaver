@@ -847,6 +847,11 @@ describe('3: move, after and undo', () => {
       assert.equal(ok.code, 0, ok.text);
       const passed = ok.text.split('\n').find((l) => l.startsWith('After passed:'));
       assert.equal(passed, `After passed: ${list} ${serve} the Worker and ${match} the recording. The move stays open, so undo works until the Pages project is retired.`);
+      // The guide says retiring the Pages project is not tested yet, so the page must not tell her to do it.
+      const page = statusPage(s);
+      assert.match(page, /retiring it is not tested yet/);
+      assert.match(page, /Retiring the Pages project is not tested yet/);
+      assert.doesNotMatch(page, /then retire it|retired after 14 days/);
       // The move stays open, so the token line must not tell her to delete it without a word about undo.
       assert.match(ok.text, /If you will not undo soon, delete the API token now: https:\/\/dash\.cloudflare\.com\/profile\/api-tokens\. An undo later needs a new token: `node move-to-workers\.mjs token-link <your account ID>` prints the link\./);
 
