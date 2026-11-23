@@ -631,7 +631,8 @@ run agydenied WITH_ANTIGRAVITY=1 AGY_STUB=denied bash "$SCRIPT" "$T/change.diff"
 check "agydenied: exit 0 (the pair counted)" rc_is agydenied 0
 check "agydenied: summary names the empty run" has agydenied.out "reviewers: codex OK, ollama-cloud OK, antigravity FAILED (exit 0 but no output)"
 check "agydenied: quotes the auto-deny reason" has agydenied.out "headless mode cannot prompt for"
-# ...and with mktemp failing, agy is not run at all (it would run in the caller's folder).
+# ...and with mktemp failing, agy is not run at all, and the tier says why (bash 3.2 stays in the
+# caller's folder after a failed cd "", so there agy would have run there).
 mkdir -p "$T/nomktemp"; printf '#!/bin/sh\nexit 1\n' >"$T/nomktemp/mktemp"; chmod +x "$T/nomktemp/mktemp"
 run agynomktemp PATH="$T/nomktemp:$T/bin:$PATH" bash "$SCRIPT" "$T/change.diff" --base none --seat agy
 check "agynomktemp: the tier FAILED, naming mktemp" has agynomktemp.out "antigravity FAILED (could not make an empty folder for it (mktemp failed))"

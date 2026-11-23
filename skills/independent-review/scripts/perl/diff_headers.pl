@@ -91,7 +91,7 @@ sub parse {
   for (my $i = 0; $i < $n; $i++) {
     my $l = $lines->[$i]; $l =~ s/\n\z//;
     return (undef, "colour codes (made with --color)") if $l =~ /\e\[[0-9;]*m/;
-    if ($l =~ /^From [0-9a-f]{40} /) {
+    if (!$cur && $l =~ /^From [0-9a-f]{40} /) {   # a format-patch envelope: never inside a record
       $mbox++; return (undef, "a format-patch series (each patch's old side is the one before's new side)") if $mbox > 1;
       ($cur, $hdr, $in_msg) = (undef, 0, 1); next;
     }
