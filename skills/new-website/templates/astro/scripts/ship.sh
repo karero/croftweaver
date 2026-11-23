@@ -1189,7 +1189,7 @@ case "$wstate" in
           echo ""
           echo "✗ The publish went out (GitHub's production is now ${id:0:12}), but ship could not tell whether"
           echo "  the site is live: ${probe#unclear }. It did not check further. Run npm run ship again: it checks again."
-          # No HTTP status came back, so this machine may not reach the site at all: point at the marker.
+          # The probe names no HTTP status (a curl or DNS failure; probe_site drops curl's code on a failure), so point at the marker.
           case "$probe" in
             "unclear HTTP "*) ;;
             *) echo "  Or check it yourself: open $build_txt in your browser. It should show"

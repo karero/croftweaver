@@ -2205,8 +2205,10 @@ export default {};"
   want "... and names the commit id to look for" has "    $m"
   workers_case w12 github "$noroute" SHIP_T_CURL_RC=7; exits 1
   want "a refused connection is unclear" has "curl exit 7"
+  want "... and sends the owner to build.txt" has "open https://ship-test.example.invalid/build.txt in your browser"
   workers_case w13 github "$noroute" SHIP_T_CURL_RC=35; exits 1
   want "a TLS fault is unclear" has "curl exit 35"
+  want "... and sends the owner to build.txt" has "open https://ship-test.example.invalid/build.txt in your browser"
   workers_case w14 github "$noroute" SHIP_T_CODE=503; exits 1
   want "a 5xx is unclear" has "HTTP 503"
   want "... an answered 5xx needs no build.txt hint (the site did reply)" lacks "in your browser"
