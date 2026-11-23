@@ -2340,6 +2340,7 @@ for tier in codex ollama; do
   check "content, $tier: it holds the competing-pages question" has content.marks/$tier-prompt "name the site's pages that already aim at the main query or a related one, and say whether this"
   check "content, $tier: ...and the RISK for a page missing from the field" has content.marks/$tier-prompt "is missing from the brief's field for pages that already aim at this search"
   check "content, $tier: ...for a page listed with no decision" has content.marks/$tier-prompt "there with no decision (name the page)"
+  check "content, $tier: ...with the two pages that do not count" has content.marks/$tier-prompt "the page's own versions in other languages"
   check "content, $tier: ...and for a missing or incomplete page list" has content.marks/$tier-prompt "no \"This site's pages\" section, or one that says the"
   check "content, $tier: the page document is between the content markers" sh -c 'sed -n "/^--- BEGIN content ---/,/^--- END content ---/p" "$1" | grep -qF "A home baker whose first starter smells like nail polish."' _ "$f"
   check "content, $tier: the research file is between the EVIDENCE markers" sh -c 'sed -n "/^--- BEGIN EVIDENCE ---/,/^--- END EVIDENCE ---/p" "$1" | grep -qF "None gives a"' _ "$f"

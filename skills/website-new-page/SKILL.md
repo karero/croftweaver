@@ -58,8 +58,8 @@ angle, the outline with what each section must teach, the graphics, four to six 
 that each add something the body does not, the inputs with their labels, a claims table, an
 outbound-links table, "what we will not say", and the site's pages that already aim at this search,
 with a decision (below). Every proof point must be one the reader can open or understand without
-access: no internal ticket, pull request or repository names on a public page. Then write the draft copy in full, to that outline. Drafting is cheap; reviewing
-copy after it is built is not.
+access: no internal ticket, pull request or repository names on a public page. Then write the draft
+copy in full, to that outline. Drafting is cheap; reviewing copy after it is built is not.
 
 *The site's pages that already aim at this search.* From "This site's pages", list each page that
 aims at the main query or a related one, and each page a "Pages serving" table there shows drawing
@@ -67,10 +67,10 @@ impressions for one, with what it shares. Leave out the page's own versions in o
 hreflang set) and the page being rewritten. Write one decision: *a new page*, and what keeps the
 two apart; *extend that page instead* (the document then rewrites it); or *a new page, and narrow
 that page*, with its new title, description or sentences written out. **Ask the owner before you
-write the draft** when another page's title, H1, description or main query names the main query's
-subject (the thing the reader searches about: "TripIt" in "tripit alternative", not the site's own
-name, nor words every page of its kind shares), or when Search Console shows another page drawing
-impressions for the main query. Overlap on a related query alone never triggers the question.
+write the draft** when another page (not one left out above) has a title, H1, description or main
+query that names the main query's subject (the thing the reader searches about: "TripIt" in
+"tripit alternative", not the site's own name, nor words every page of its kind shares), or when
+Search Console shows such a page drawing impressions for the main query. Overlap on a related query alone never triggers the question.
 Otherwise write your decision; the owner sees it at the go.
 
 Call the other skills for their own questions, and do not restate their rules here:
@@ -100,8 +100,8 @@ is a ranked list of BUG, RISK and NIT findings.
 
 **5. The owner's go.** Show the owner the reviewed document and a short note of the findings still
 open, each with your recommendation. Their go covers the exact sentences, not an outline. It also
-names the decision on competing pages, and covers any sentences that decision changes on another
-page. Write "approved by the owner on <date>" at the top of the page document.
+names the decision on competing pages (and says if the check is open, step 2), and covers any
+sentences that decision changes on another page. Write "approved by the owner on <date>" at the top of the page document.
 
 **6. Build** the page and everything the site wants around it: the route, `llms.txt`, the share
 card, the links the brief's Links field names, the sentences the brief's field on competing pages
