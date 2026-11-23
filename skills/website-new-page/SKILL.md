@@ -45,8 +45,9 @@ Also save the site's own pages in that file, under **This site's pages**. Build 
 then the main query of each page document in `docs/pages/`. Where the site has Search Console and
 `search-console-insights` is installed, run `gsc_query.py --site <property> --query "<query>"
 --days 90 --no-csv` for the main query and for each related one, and copy each "Pages serving"
-section there. `--query` takes one exact query string, so a page it does not return may still aim
-at the search. If a query's output has no such section, its lookup failed: say so. If the site does
+section there. `--query` takes one query string, so a page it does not return may still aim at the
+search. If a query's output has no such section, the lookup failed or Search Console has no data
+for the window: say so, and the check is open. If the site does
 not build, has no sitemap, or the list is incomplete for another reason, say so too, at the top of
 that section: the check is then open, and the go names it.
 
@@ -70,8 +71,8 @@ that page*, with its new title, description or sentences written out. **Ask the 
 write the draft** when another page (not one left out above) has a title, H1, description or main
 query that names the main query's subject (the thing the reader searches about: "TripIt" in
 "tripit alternative", not the site's own name, nor words every page of its kind shares), or when
-Search Console shows such a page drawing impressions for the main query. Overlap on a related query alone never triggers the question.
-Otherwise write your decision; the owner sees it at the go.
+Search Console shows such a page drawing impressions for the main query. Overlap on a related
+query alone never triggers the question. Otherwise write your decision; the owner sees it at the go.
 
 Call the other skills for their own questions, and do not restate their rules here:
 
@@ -101,7 +102,8 @@ is a ranked list of BUG, RISK and NIT findings.
 **5. The owner's go.** Show the owner the reviewed document and a short note of the findings still
 open, each with your recommendation. Their go covers the exact sentences, not an outline. It also
 names the decision on competing pages (and says if the check is open, step 2), and covers any
-sentences that decision changes on another page. Write "approved by the owner on <date>" at the top of the page document.
+sentences that decision changes on another page. Write "approved by the owner on <date>" at the
+top of the page document.
 
 **6. Build** the page and everything the site wants around it: the route, `llms.txt`, the share
 card, the links the brief's Links field names, the sentences the brief's field on competing pages
