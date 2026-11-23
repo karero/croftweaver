@@ -661,7 +661,7 @@ test('the run is refused with exit 2, and no request is sent, for each wrong com
       ['--config names no file', ['--site', dir, '--config', 'nope.jsonc'], /--config "nope\.jsonc" is not a file/],
       ['--config without --site', ['--config', 'wrangler.jsonc'], /--config goes with --site/],
       ['--preview without --site', ['--preview', ok], /--preview goes with --site/],
-      ['--preview on a Pages site', ['--site', pagesDir, '--preview', ok], /--preview is for a Worker/],
+      ['--preview on a Pages site', ['--site', pagesDir, '--preview', ok], /--preview is for a Worker[^\n]*give it with --config <file>/],
       ['a link of another Worker', ['--site', dir, '--preview', wd.link(`0a1b2c3d-other.${ACCOUNT}`)], /its first label must be a prefix, a hyphen and the Worker's name \(lenas-site, from wrangler\.jsonc\)/],
       ['a link with no prefix', ['--site', dir, '--preview', wd.link(ADDRESS_HOST)], /its first label must be a prefix/],
       ['links of two accounts', ['--site', dir, '--preview', `${ok},${ok.replace('example-sub', 'another-sub')}`], /name two accounts/],

@@ -22,10 +22,10 @@ from html.parser import HTMLParser
 
 # Tags whose content is never visible text. "head" is read separately for the title/description.
 HIDDEN = {"script", "style", "noscript", "template", "svg", "head", "title"}
-# Tags that do not end a text block; any other tag does. An svg icon sits inside a sentence.
+# Tags that do not end a text block; any other tag does. An svg icon or an img sits inside a sentence.
 INLINE = {"a", "abbr", "b", "bdi", "bdo", "cite", "code", "data", "del", "dfn", "em", "i", "ins",
           "kbd", "mark", "q", "s", "samp", "small", "span", "strong", "sub", "sup", "time", "u",
-          "var", "wbr", "label", "svg"}
+          "var", "wbr", "label", "svg", "img", "input"}
 VOID = {"br", "hr", "img", "input", "meta", "link", "wbr", "source", "col", "area", "base", "embed"}
 # Site chrome, and the classes that hold screen-reader-only text such as "(opens in a new tab)".
 DEFAULT_SKIP = "nav,footer,aside,.vh,.sr-only,.visually-hidden"

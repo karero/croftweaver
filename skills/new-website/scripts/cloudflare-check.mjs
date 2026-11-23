@@ -1259,7 +1259,7 @@ export async function main(argv, now = () => new Date()) {
     if (parsed.opts.site !== null) {
       site = readSite(parsed.opts.site, parsed.opts.config);
       if (parsed.opts.preview !== null) {
-        if (!site.worker) throw new UsageError(`--preview is for a Worker, and the site folder holds no Workers config. ${site.note}`);
+        if (!site.worker) throw new UsageError(`--preview is for a Worker, and the site folder holds no Workers config. ${site.note} If the Workers config has another name, give it with --config <file>.`);
         preview = parsePreview(parsed.opts.preview, site.worker.name, site.worker.file);
       }
     }

@@ -155,6 +155,13 @@ bash "$S/scripts/whats-new.sh" "$R" > "$T/out" 2>&1; rc=$?
 if [ "$rc" -eq 1 ]; then printf 'ok   %s\n' "an unstamped skills folder and no tests stamp still exits 1"; else printf 'FAIL %s (exit %s)\n' "an unstamped skills folder and no tests stamp still exits 1" "$rc"; fails=$((fails+1)); fi
 has   "and still says the project predates stamping"             "error: $R/.claude/skills exists but has no SUITE-VERSION stamp — the project predates stamping."
 
+# BUGLOG 2026-11-20: with both skills folders unstamped, the note names each, not just the first.
+R2="$T/bothskills"; mkdir -p "$R2/.claude/skills" "$R2/.agents/skills" "$R2/tests"; echo v1 > "$R2/tests/a.spec.ts"
+stamp "$R2/tests/TESTS-VERSION" "$BASE"
+report "$S" "$R2" "a tests stamp and two unstamped skills folders"
+has   "the first unstamped folder is named"                      "note: $R2/.claude/skills has no SUITE-VERSION stamp, so the bundled skills were not compared. If the folder is from the kit, stamp it: scripts/whats-new.sh --stamp $R2/.claude/skills"
+has   "and so is the second"                                     "note: $R2/.agents/skills has no SUITE-VERSION stamp, so the bundled skills were not compared. If the folder is from the kit, stamp it: scripts/whats-new.sh --stamp $R2/.agents/skills"
+
 # Once the site has every file, nothing is MISSING, though the drift report still runs.
 echo v1 > "$P/scripts/verify.mjs"; echo v1 > "$P/tests/b.spec.ts"
 mkdir -p "$P/.claude/hooks" && echo v1 > "$P/.claude/hooks/git-stand.mjs"
