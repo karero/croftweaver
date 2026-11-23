@@ -365,6 +365,15 @@ class InlineElementsInsideASentence(Base):
         code, out, _ = self.run_check(self.write("d.md", doc), page, [])
         self.assertEqual(code, 0, out)
 
+    def test_an_image_or_input_between_words_does_not_cut_the_sentence(self):
+        # Why: an img or input sits inside a sentence; cutting there reads one sentence as two and
+        # shows false CHANGED and ADDED lines for a build that kept the draft's words.
+        doc = "## Draft\n\nTitle: T\nDescription: D\n\n# H\n\nSee this here.\n\nType your name now.\n"
+        page = self.write("p.html", self.HEAD + '<main><h1>H</h1><p>See <img src="a.png" alt=""> this here.</p>'
+                          '<p>Type your <input name="n"> name now.</p></main></body></html>')
+        code, out, _ = self.run_check(self.write("d.md", doc), page, [])
+        self.assertEqual(code, 0, out)
+
     def test_a_skipped_block_still_cuts_the_text_around_it(self):
         # Why: a nav sits between two blocks of copy; they must stay two blocks, or its removal would
         # glue "menu" to "after" and every sentence around a skipped block would show as changed.

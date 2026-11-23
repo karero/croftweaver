@@ -725,14 +725,15 @@ if [ -z "$STAMPS" ]; then
     process_tests_stamp "$PROJECT/tests" "$TB" "tests/TESTS-VERSION" || TESTS_ALONE=$?
     echo
   fi
+  NOTED=
   for d in "$PROJECT/.claude/skills" "$PROJECT/.agents/skills"; do
     [ -d "$d" ] || continue
     if [ "${TESTS_ALONE-}" ]; then
       # The tests channel was reported above, so the folder is a note, not a failure: it may be
-      # the site's own, not the kit's. Exit as the tests-only branch below does.
+      # the site's own, not the kit's. Name every such folder, then exit as the tests-only branch does.
       echo "note: $d has no SUITE-VERSION stamp, so the bundled skills were not compared. If the folder is from the kit, stamp it: scripts/whats-new.sh --stamp $d"
-      [ "$TESTS_ALONE" = 1 ] && exit 1
-      exit 0
+      NOTED=1
+      continue
     fi
     echo "error: $d exists but has no SUITE-VERSION stamp — the project predates stamping." >&2
     echo "Baseline unknown; compare by hand (git -C $REPO_DIR log --oneline -- skills/)," >&2
@@ -740,6 +741,10 @@ if [ -z "$STAMPS" ]; then
     echo "  scripts/whats-new.sh --stamp $d" >&2
     exit 1
   done
+  if [ -n "$NOTED" ]; then
+    [ "$TESTS_ALONE" = 1 ] && exit 1
+    exit 0
+  fi
   if [ -d "$PROJECT/tests" ] && [ ! -f "$PROJECT/tests/TESTS-VERSION" ]; then
     echo "error: $PROJECT/tests exists, but no SUITE-VERSION or tests/TESTS-VERSION stamp says" >&2
     echo "which suite commit the tests came from, so there is no baseline to compare with." >&2
