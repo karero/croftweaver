@@ -65,6 +65,14 @@ const sitePath = (href: string, base: string, own: string[]) => {
   return own.some((o) => new URL(o).origin === url.origin) ? url.pathname : url.href;
 };
 
+// What a link or manifest entry declares for a PNG's size (`sizes`), against the size the file decodes to.
+// null when it is fine: nothing declared (both are optional), or exactly the one NxN size the file has.
+const sizesProblem = (declared: string | null, size: number) => {
+  if (declared === null || declared.trim() === '') return null;
+  const tokens = declared.trim().toLowerCase().split(/\s+/);
+  return tokens.length === 1 && tokens[0] === `${size}x${size}` ? null : `declares sizes="${declared}", but the file is ${size}x${size}`;
+};
+
 // Every logo the JSON-LD gives as a URL, at any depth and on a node of any type (Organization, a
 // subtype such as LocalBusiness, or an array of types): a URL string, or the string url of an object
 // such as an ImageObject. An empty one is skipped, and so is a logo given only as an @id.
@@ -93,6 +101,15 @@ test('icons — a link on another host is not one of this site\'s files', () => 
   expect(sitePath('/icon-192.png', cdnManifest, own), "a path in another host's manifest").toBe('https://cdn.example.net/icon-192.png');
   expect(sitePath('icon-512.png', cdnManifest, own), "a relative file in another host's manifest").toBe('https://cdn.example.net/icon-512.png');
   expect(sitePath('/icon-192.png', 'http://localhost:4400/site.webmanifest', own), "a path in this site's manifest").toBe('/icon-192.png');
+});
+
+test('icons — a declared size must be the size of the PNG', () => {
+  expect(sizesProblem('192x192', 192), 'the size the file has').toBeNull();
+  expect(sizesProblem(' 192X192 ', 192), 'case and spaces').toBeNull();
+  expect(sizesProblem(null, 192), 'nothing declared').toBeNull();
+  expect(sizesProblem('512x512', 192), 'another size').not.toBeNull();
+  expect(sizesProblem('192x192 512x512', 192), 'a list: the file has one size').not.toBeNull();
+  expect(sizesProblem('any', 192), 'any: a PNG has one size').not.toBeNull();
 });
 
 test('icons — SITE.url must be a web address with a host', () => {
@@ -124,17 +141,22 @@ for (const icon of ICONS) {
     const home = page.url();
     const own = [home, live];
     let linked: string[];
+    const declared: (string | null)[] = []; // the sizes each link or entry to this file declares
     if (icon.linkedBy === 'icon') {
       linked = (await page.locator('link[rel~="icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, own));
     } else if (icon.linkedBy === 'apple') {
-      linked = (await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''))).map((h) => sitePath(h, home, own));
+      const links = await page.locator('link[rel="apple-touch-icon"]').evaluateAll((els) => els.map((e) => ({ href: e.getAttribute('href') ?? '', sizes: e.getAttribute('sizes') })));
+      linked = links.map((l) => sitePath(l.href, home, own));
+      links.forEach((l, i) => { if (linked[i] === icon.path) declared.push(l.sizes); });
     } else if (icon.linkedBy === 'manifest') {
       const hrefs = await page.locator('link[rel="manifest"]').evaluateAll((els) => els.map((e) => e.getAttribute('href') ?? ''));
       expect(hrefs, 'the home page links one manifest').toHaveLength(1);
       const manifest = new URL(hrefs[0], home).href;
       const res = await request.get(manifest);
       expect(res.ok(), `${manifest} is served`).toBe(true);
-      linked = ((await res.json()).icons as { src: string }[]).map((i) => sitePath(i.src, manifest, own));
+      const entries = (await res.json()).icons as { src: string; sizes?: string }[];
+      linked = entries.map((i) => sitePath(i.src, manifest, own));
+      entries.forEach((e, i) => { if (linked[i] === icon.path) declared.push(e.sizes ?? null); });
     } else {
       // The logo the page's structured data names. It must be on the site's own origin: a logo on
       // another host is not this file, so it shows here as its whole address and fails.
@@ -159,6 +181,7 @@ for (const icon of ICONS) {
       expect(type, `${icon.path} content type`).toContain('image/png');
       expect(body.subarray(0, 8).equals(PNG_SIGNATURE), `${icon.path} starts as a PNG (not a picture of another kind with a .png name)`).toBe(true);
       expect(await decodedSize(page, body, 'image/png'), `${icon.path} decodes to ${icon.size} x ${icon.size} pixels`).toEqual([icon.size, icon.size]);
+      for (const d of declared) expect(sizesProblem(d, icon.size!), `${icon.path}: the ${icon.linkedBy === 'apple' ? '<link rel="apple-touch-icon">' : 'manifest entry'} ${sizesProblem(d, icon.size!)}`).toBeNull();
     } else if (icon.kind === 'ico') {
       expect(type, `${icon.path} content type`).toMatch(/image\/(x-icon|vnd\.microsoft\.icon)/);
       expect(body.length, `${icon.path} holds an ICO header`).toBeGreaterThanOrEqual(6);

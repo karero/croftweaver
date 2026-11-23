@@ -1938,6 +1938,7 @@ GATE
   # the owner is sent to build.txt. L3e: a refused connection, the same. L3f: an HTTP error.
   after_verify() { LC_ALL=C awk '/^→ Verifying the live site/ { f = 1 } f' "$L"; }
   verdict_lacks() { ! grep -qF -- "$1" <<<"$(after_verify)"; }
+  verdict_has() { grep -qxF -- "$1" <<<"$(after_verify)"; } # a whole line of the verdict, not a part of one
   fixture l3c; advance 1; m="$(gh main)"
   run_ship l3c SHIP_T_STALE=1; exits 1
   want "no terminal: it never asks to ship again" lacks "Ship again?"
@@ -1954,7 +1955,7 @@ GATE
   want "... that this machine could not reach the site" has "reached from this machine: no reply in 6 minutes"
   want "... so the deploy could not be checked" has "So this could not check the deploy; it does not mean the build failed."
   want "... and sends the owner to build.txt with the commit id" has "open https://ship-test.example.invalid/build.txt in your browser. It should show"
-  want "... the full commit id on its own line" has "    $m"
+  want "... the full commit id on its own line" verdict_has "    $m"
   want "... never claims an OLD build" lacks "OLD build"
   want "... nor blames Cloudflare" verdict_lacks "Cloudflare"
   fixture l3e
@@ -1968,7 +1969,7 @@ GATE
   want "an HTTP error is named, not called an OLD build" has "⚠ Pushed OK, but after 6 minutes the live site still does not serve this build (its last answer was HTTP 503)."
   want "... and never says OLD build" lacks "OLD build"
   want "... nor blames Cloudflare: no look showed another build" verdict_lacks "Cloudflare"
-  want "... it sends the owner to build.txt with the commit id" has "    $m"
+  want "... it sends the owner to build.txt with the commit id" verdict_has "    $m"
   want "... and asks about a domain not connected yet" has "(Brand-new site whose domain isn't connected yet?"
 
   # --- L3g–L3j: an answer is an answer, and only a commit id is a build ----------------------

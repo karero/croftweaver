@@ -2079,11 +2079,12 @@ export function renderStatus(template, m) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, k) => (Object.hasOwn(fill, k) ? fill[k] : ''));
 }
 
+// Returns true when the page was written, so the caller names it only then.
 function writeStatus(ctx0, run, io, code, st, errLines) {
-  if (!run.root) return;
+  if (!run.root) return false;
   const here = path.dirname(realpathSync(fileURLToPath(import.meta.url)));
   let template;
-  try { template = readFileSync(path.join(here, 'move-status.html'), 'utf8'); } catch { return; }
+  try { template = readFileSync(path.join(here, 'move-status.html'), 'utf8'); } catch { return false; }
   const hostsList = st?.hosts ?? run.hosts ?? [];
   const m = {
     stages: STAGE_NAMES, stage: stageOf(st, run), site: st ? `${st.zone.name}: ${st.repository}` : (run.site ?? 'a Pages site'), updated: new Date(run.t0).toISOString(),
@@ -2098,7 +2099,7 @@ function writeStatus(ctx0, run, io, code, st, errLines) {
     undo: st?.open && st.direction === 'to-worker' ? 'Undo works until the Pages project is retired: node move-to-workers.mjs undo (then --confirm with its code).'
       : st?.open ? 'An undo has started: node move-to-workers.mjs undo carries it on, and node move-to-workers.mjs move goes forward again from where it stopped.' : 'There is nothing to undo yet.',
   };
-  try { writeFileSync(path.join(run.root, 'move-run', 'status.html'), renderStatus(template, m)); } catch { /* the page is a courtesy; the terminal has the report */ }
+  try { writeFileSync(path.join(run.root, 'move-run', 'status.html'), renderStatus(template, m)); return true; } catch { return false; } // the page is a courtesy; the terminal has the report
 }
 
 // ---------------------------------------------------------------- running it
@@ -2209,8 +2210,8 @@ export async function main(argv, io = {}) {
     run.release?.();
   }
   const ctx = ctxBox.ctx;
-  writeStatus(ctx, run, io, code, ctx?.state ?? run.state ?? null, errLines);
-  if (run.root && code !== 2) say(`Status page: ${path.join(run.root, 'move-run', 'status.html')}`);
+  const wrote = writeStatus(ctx, run, io, code, ctx?.state ?? run.state ?? null, errLines);
+  if (wrote && code !== 2) say(`Status page: ${path.join(run.root, 'move-run', 'status.html')}`);
   return code;
 }
 
