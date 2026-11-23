@@ -1938,7 +1938,7 @@ GATE
   # the owner is sent to build.txt. L3e: a refused connection, the same. L3f: an HTTP error.
   after_verify() { LC_ALL=C awk '/^→ Verifying the live site/ { f = 1 } f' "$L"; }
   verdict_lacks() { ! grep -qF -- "$1" <<<"$(after_verify)"; }
-  verdict_has() { grep -qF -- "$1" <<<"$(after_verify)"; }
+  verdict_has() { grep -qxF -- "$1" <<<"$(after_verify)"; } # a whole line of the verdict, not a part of one
   fixture l3c; advance 1; m="$(gh main)"
   run_ship l3c SHIP_T_STALE=1; exits 1
   want "no terminal: it never asks to ship again" lacks "Ship again?"

@@ -92,6 +92,18 @@ else
   fail "own host: exit $rc, curl was asked for [$urls], out: $out"
 fi
 
+# An IPv6 site: its own link (with a port) is dropped, another IPv6 host is not cut at its first colon.
+site own6
+printf "export default { site: 'https://[2001:db8::1]:8443' };\n" >"$S/astro.config.mjs"
+mkdir "$S/dist"
+printf '<a href="https://[2001:db8::1]:8443/x">a</a>\n<a href="https://[2001:db8::2]/e">b</a>\n' >"$S/dist/index.html"
+run
+if [ "$rc" -eq 0 ] && [ "$urls" = "https://[2001:db8::2]/e" ]; then
+  ok "an IPv6 site: its own link is dropped, another IPv6 host is kept"
+else
+  fail "IPv6 own host: exit $rc, curl was asked for [$urls], out: $out"
+fi
+
 # check_internal_links.sh on a built dist/ of six pages: "/", /about and /team (linked from "/" and
 # from each other, so /about and /team have 2 inbound links each), /lp/spring and /lp/summer
 # (exempt in orphan-exempt.txt) and /lost (not exempt); the last three have no inbound link.
