@@ -9,8 +9,9 @@
 # name reached main that way (2026-09-27). These cases pin that a worktree uses the main
 # checkout's list, that a copy with no git still skips (and says so, on its OK line too),
 # that CI's masked mode (CLEAN_MASK_NAMES=1) fails on a name without printing it,
-# that scripts/ is scanned for names without the list matching itself, that packages/ and pointer/ are
-# scanned where there is one and not missed where there is none, and that this repo's
+# that scripts/ is scanned for names without the list matching itself, that packages/, pointer/,
+# .claude-plugin/ and .gitignore are scanned where there is one and not missed where there is none,
+# that a tracked top-level path no list names fails the run, and that this repo's
 # own short name in an issue or PR reference is not a leak, under the name it has now and
 # under the one it had before the rename, and that README.md may name the maintainer, as
 # LICENSE's copyright line spells the name, while every other use of that name still fails.

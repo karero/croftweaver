@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Guard: the skill suite is a handoff artifact — no personal names, contact info, or
 # credentials may enter it. Scans skills/ + root docs (and scripts/, for names only; and
-# packages/ and pointer/, where there are any) and exits 1 (with file:line) on any hit. Wired into
+# the paths in PRESENT_PATHS, where they exist) and exits 1 (with file:line) on any hit. Wired into
 # `make check` and CI (.github/workflows/clean.yml).
 #
 # Two kinds of check:

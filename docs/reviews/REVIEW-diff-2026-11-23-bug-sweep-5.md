@@ -29,7 +29,7 @@ The fix for round 3's RISK is after the last round: it is unreviewed (a test-onl
 | R1-02 | BUG | Codex | the comment said the optional paths are not in the zip; `.gitattributes` is | fixed: "not all in" |
 | R2-01 | BUG | Codex | membership was a substring test on the joined lists: a root file named `docs scripts` passed the guard and was scanned by nothing | fixed: exact equality against each list entry; test: that file fails (fails with the round-2 guard) |
 | R2-02 | BUG | Codex | a name made only of newlines vanished in command substitution, so the guard stayed silent | fixed: a flag, not the collected text, decides the failure; names print through `printf %q`; test: such a file fails (fails with the round-2 guard) |
-| R3-01 | RISK | Codex | the two new cases staged both names, so the space case satisfied the newline case | fixed after the last round, unreviewed: each name is staged alone and the newline case requires its escaped line (`$'\n'`); with the round-2 guard restored both cases fail |
+| R3-01 | RISK | Codex | the two new cases staged both names, so the space case satisfied the newline case | fixed; round 4 (manager's session) clean: each name is staged alone and the newline case requires its escaped line (`$'\n'`); with the round-2 guard restored both cases fail |
 
 ## Test evidence
 
@@ -47,3 +47,10 @@ was restored after each mutation and compared with `cmp`.
   `.github`, `.gitignore` and `.gitattributes` among the paths scanned. `bash scripts/check_buglog_rows.sh`: ok.
 - Not run: `make check`, CI, and the other callers of `check_clean.sh` (`package.sh`; `test_check_lock.sh` stubs it).
   Git's own serialization of odd names was exercised through the test fixtures only, not byte-compared.
+
+## Manager's rounds (Croftweaver manager session)
+
+- Round 4: Codex, `--verify`, base `a96874a7`, head `ae327724`, `--earned-by test-isolation`: clean. `codex 59s (20904 tokens)`.
+- Fresh-eyes: a read-only Sonnet sub-agent on the whole diff (113,898 tokens): no BUG, no RISK; 3 NIT. Fixed: both scripts' header comments now name the new paths; the BUGLOG row no longer says tests cover `.agents/`. Left: no test runs the guard under `CLEAN_MASK_NAMES=1` (checked by hand: the folder-name line is withheld). Rare cases it listed (the zip unpacked inside another repo that tracks it; a tracked top-level symlink) are not counted.
+- The NIT fixes are comment and BUGLOG text only; no further round.
+- Manager's runs on `ae327724`: `test_clean_denylist.sh` all passed (129 cases); `check_clean.sh` exit 0; run time 27.2 s against 22.8 s for main's script in the same tree.
