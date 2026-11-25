@@ -1215,7 +1215,7 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status,prompt} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered,prompt} \
-  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full,prompt} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full,full.part,prompt} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 # ollama.hdr and melious.hdr are cleared with the stale files above: earlier versions wrote the API
 # key to them for the request, and a run stopped mid-request could leave one behind. Neither API
