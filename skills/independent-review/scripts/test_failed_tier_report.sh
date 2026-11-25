@@ -1815,6 +1815,7 @@ check "mleak: a usable marker gives no no-marker warning" lacks mleak.out "no us
 check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
 run mleaknofull MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mleaknofull: the note does not promise a melious.full it could not write" sh -c 'grep -qF "the full reply could not be saved" "$1" && ! grep -qF "is in melious.full" "$1" && grep -qF "BUG: the real finding" "$1"' _ "$T/mleaknofull.out"
+check "mleaknofull: a good run whose reply could not be saved keeps the raw reply" test -s "$T/mleaknofull.raw/melious.resp"
 run mbig MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
 run mmarkdup MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --base none --seat melious
@@ -1877,6 +1878,7 @@ check "mrawgood: a good run is a success..." has mrawgood.out "reviewers: meliou
 check "mrawgood: ...and leaves neither raw request nor raw reply" sh -c '[ ! -e "$1/melious.req" ] && [ ! -e "$1/melious.resp" ] && [ -s "$1/melious.out" ]' _ "$T/mrawgood.raw"
 run mrawbad MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mrawbad: a reply that fails in the reader keeps the raw reply" grep -qF "upstream overloaded" "$T/mrawbad.raw/melious.resp"
+check "mrawbad: ...and the raw request" test -s "$T/mrawbad.raw/melious.req"
 run mstale MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 run mstale2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mstale: the first run counted its tokens" grep -qE '^timings: melious [0-9]+s \(600 tokens\)$' "$T/mstale.out"
