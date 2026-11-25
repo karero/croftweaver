@@ -1871,6 +1871,12 @@ run mreset MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=reset bash "$SCRIPT" "$T/cha
 check "mreset: a reply that broke off is named as such" has mreset.out "reviewers: melious FAILED (curl exit 56, reply cut off)"
 check "mreset: ...not as a blocked host" sh -c '! grep -qF "network policy" "$1"' _ "$T/mreset.out"
 check "mreset: ...and the part that came is kept" grep -qF "half a reply" "$T/mreset.raw/melious.resp"
+check "mreset: ...and the request is kept too" test -s "$T/mreset.raw/melious.req"
+run mrawgood MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+check "mrawgood: a good run is a success..." has mrawgood.out "reviewers: melious OK"
+check "mrawgood: ...and leaves neither raw request nor raw reply" sh -c '[ ! -e "$1/melious.req" ] && [ ! -e "$1/melious.resp" ] && [ -s "$1/melious.out" ]' _ "$T/mrawgood.raw"
+run mrawbad MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+check "mrawbad: a reply that fails in the reader keeps the raw reply" grep -qF "upstream overloaded" "$T/mrawbad.raw/melious.resp"
 run mstale MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 run mstale2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mstale: the first run counted its tokens" grep -qE '^timings: melious [0-9]+s \(600 tokens\)$' "$T/mstale.out"

@@ -1790,6 +1790,8 @@ run_melious() {
   esac
   [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP $code but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
+  # A good run needs neither raw file (they were most of a review folder's size); failures keep them.
+  rm -f "$body" "$resp"
   printf '## Independent review — melious (%s, HTTP API)\n\n' "$MELIOUS_MODEL"
   cat "$RAW_DIR/melious.out"
 }

@@ -2195,6 +2195,7 @@ export default {};"
   unclear="but ship could not tell whether"
   workers_case w10 github "$noroute" SHIP_T_CODE=404; exits 0
   want "an HTTP 404 with no commit in it is not served" last_starts "$sent"
+  want "... and the owner is told to check a site that may still be live on Pages" last_starts "$sent If this site is still live on Pages, open it and check it."
   workers_case w11 github "$noroute" SHIP_T_CURL_RC=28; exits 1
   want "production is GitHub's main: the publish went out" eq "$(gh production)" "$m"
   want "a timeout: ship says it could not tell, and why" has "$unclear"

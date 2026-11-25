@@ -1183,7 +1183,7 @@ case "$wstate" in
       case "$probe" in
         served) ;;
         notserved)
-          finish "✓ Sent. This Worker has no domain yet ($wfile has no custom_domain route), so there is no live address to check; the change is checked at launch."
+          finish "✓ Sent. This Worker has no domain yet ($wfile has no custom_domain route), so there is no live address to check; the change is checked at launch. If this site is still live on Pages, open it and check it."
           exit 0 ;;
         *)
           echo ""
