@@ -2417,6 +2417,11 @@ check "T2: ... the section opens with the first finding line" \
 check "T2: ... the last finding line is in it" has glmb.out "- NIT — \"The change\", item 4: \"It is language-neutral\""
 check "T2: ... so is the summary line" has glmb.out "The findings above stand as ranked: 1 BUG (label scope"
 check "T2: ... and no note of the reader's" no_notes glmb
+# T2b: a save that cannot write (file-size limit 0, its signal ignored, so the write itself fails)
+# leaves no melious.full, which is what lets the shell keep the raw files.
+( trap '' XFSZ; ulimit -f 0; perl "$HERE/perl/melious_stream.pl" "$T/glma.resp" 200 /dev/null "=== FINAL REVIEW bee6cc68 ===" "$T/glmfail.full" >/dev/null 2>&1 )
+check "T2b: the same reply saved normally gives a melious.full" test -s "$T/glma.full"
+check "T2b: a save whose write fails leaves no melious.full" sh -c '[ ! -e "$1" ]' _ "$T/glmfail.full"
 # T3: through independent_review.sh as the pair runs it (the curl stub serves the capture with this run's marker).
 for c in a b; do
   eval "cap=\$CAP_$(printf %s "$c" | tr a-z A-Z)"
