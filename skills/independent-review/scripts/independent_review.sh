@@ -1215,7 +1215,7 @@ chmod 700 "$RAW_DIR" || { printf 'cannot make RAW_DIR private: %s\n' "$RAW_DIR" 
 # the dispatcher (the Antigravity opt-in, --first-success), and a per-function rm
 # misses the latter. Checked: stale files surviving silently would defeat the point.
 rm -f -- "$RAW_DIR"/codex.{out,err,section,status,prompt} "$RAW_DIR"/agy.{out,err,section,status} "$RAW_DIR"/ollama.{out,err,section,status,tokens,req,resp,hdr,filtered,prompt} \
-  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full,prompt} \
+  "$RAW_DIR"/melious.{out,err,section,status,tokens,req,resp,hdr,full,full.part,prompt} \
   || { printf 'cannot clear stale tier files in RAW_DIR: %s\n' "$RAW_DIR" >&2; exit 2; }
 # ollama.hdr and melious.hdr are cleared with the stale files above: earlier versions wrote the API
 # key to them for the request, and a run stopped mid-request could leave one behind. Neither API
@@ -1790,6 +1790,9 @@ run_melious() {
   esac
   [ -s "$RAW_DIR/melious.out" ] || { WHY="HTTP $code but no review text"; return 1; }
   looks_like_review "$(cat "$RAW_DIR/melious.out")" || { WHY="$NOT_A_REVIEW"; return 1; }
+  # A good run needs neither raw file (they were most of a review folder's size) once melious.full
+  # holds the reply; a failure, or a reply that could not be saved, keeps them.
+  if [ -f "$RAW_DIR/melious.full" ] && [ -s "$RAW_DIR/melious.full" ]; then rm -f "$body" "$resp"; fi
   printf '## Independent review — melious (%s, HTTP API)\n\n' "$MELIOUS_MODEL"
   cat "$RAW_DIR/melious.out"
 }

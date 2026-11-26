@@ -154,6 +154,15 @@ const onlyReads = (api) => assert.deepEqual(api.writes().map((e) => `${e.method}
 
 // ================================================================ the stub is the captures
 
+// The launch stop's legal names copy LEGAL_LAST_SEGMENTS in the starter's spec; the two drifted once.
+test('the launch stop knows the same legal page names as the starter\'s placeholders spec', () => {
+  const spec = STARTER_SPEC.match(/const LEGAL_LAST_SEGMENTS = \[([^\]]*)\]/);
+  const stop = readFileSync(SCRIPT, 'utf8').match(/\/\^\(([^)]*)\)\$\/\.test\(u\.split/);
+  assert.ok(spec && stop, 'both lists are found');
+  const names = (list) => list.sort().join(',');
+  assert.equal(names(stop[1].split('|')), names(spec[1].split(',').map((n) => n.trim().replace(/^'|'$/g, ''))));
+});
+
 test('the stub answers a project PATCH as Cloudflare did: what a PATCH leaves out stays (T1-048 to T1-061)', () => {
   const state = freshState();
   const p = fixture('T1-027').response.result;

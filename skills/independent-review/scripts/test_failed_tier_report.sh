@@ -1815,6 +1815,7 @@ check "mleak: a usable marker gives no no-marker warning" lacks mleak.out "no us
 check "mleak: the untrimmed reply is kept in melious.full" grep -qF "Let me think" "$T/mleak.raw/melious.full"
 run mleaknofull MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=leaknofull bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mleaknofull: the note does not promise a melious.full it could not write" sh -c 'grep -qF "the full reply could not be saved" "$1" && ! grep -qF "is in melious.full" "$1" && grep -qF "BUG: the real finding" "$1"' _ "$T/mleaknofull.out"
+check "mleaknofull: a good run whose reply could not be saved keeps the raw reply" test -s "$T/mleaknofull.raw/melious.resp"
 run mbig MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=bignomark bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mbig: a large reply without the marker is kept, with a warning" sh -c 'grep -qF "reviewers: melious OK" "$1" && grep -qF "this large reply may be leaked reasoning" "$1" && grep -qF "BUG: at the end" "$1"' _ "$T/mbig.out"
 run mmarkdup MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=markdup bash "$SCRIPT" "$T/change.diff" --base none --seat melious
@@ -1871,6 +1872,13 @@ run mreset MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=reset bash "$SCRIPT" "$T/cha
 check "mreset: a reply that broke off is named as such" has mreset.out "reviewers: melious FAILED (curl exit 56, reply cut off)"
 check "mreset: ...not as a blocked host" sh -c '! grep -qF "network policy" "$1"' _ "$T/mreset.out"
 check "mreset: ...and the part that came is kept" grep -qF "half a reply" "$T/mreset.raw/melious.resp"
+check "mreset: ...and the request is kept too" test -s "$T/mreset.raw/melious.req"
+run mrawgood MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+check "mrawgood: a good run is a success..." has mrawgood.out "reviewers: melious OK"
+check "mrawgood: ...and leaves neither raw request nor raw reply" sh -c '[ ! -e "$1/melious.req" ] && [ ! -e "$1/melious.resp" ] && [ -s "$1/melious.out" ]' _ "$T/mrawgood.raw"
+run mrawbad MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=miderr bash "$SCRIPT" "$T/change.diff" --base none --seat melious
+check "mrawbad: a reply that fails in the reader keeps the raw reply" grep -qF "upstream overloaded" "$T/mrawbad.raw/melious.resp"
+check "mrawbad: ...and the raw request" test -s "$T/mrawbad.raw/melious.req"
 run mstale MELIOUS_MODEL="$MELIOUS_OK" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 run mstale2 MELIOUS_MODEL="$MELIOUS_OK" MELIOUS_STUB=nousage REVIEW_RAW_DIR="$T/mstale.raw" bash "$SCRIPT" "$T/change.diff" --base none --seat melious
 check "mstale: the first run counted its tokens" grep -qE '^timings: melious [0-9]+s \(600 tokens\)$' "$T/mstale.out"
@@ -2409,6 +2417,11 @@ check "T2: ... the section opens with the first finding line" \
 check "T2: ... the last finding line is in it" has glmb.out "- NIT — \"The change\", item 4: \"It is language-neutral\""
 check "T2: ... so is the summary line" has glmb.out "The findings above stand as ranked: 1 BUG (label scope"
 check "T2: ... and no note of the reader's" no_notes glmb
+# T2b: a save that cannot write (file-size limit 0, its signal ignored, so the write itself fails)
+# leaves no melious.full, which is what lets the shell keep the raw files.
+( trap '' XFSZ; ulimit -f 0; perl "$HERE/perl/melious_stream.pl" "$T/glma.resp" 200 /dev/null "=== FINAL REVIEW bee6cc68 ===" "$T/glmfail.full" >/dev/null 2>&1 )
+check "T2b: the same reply saved normally gives a melious.full" test -s "$T/glma.full"
+check "T2b: a save whose write fails leaves no melious.full" sh -c '[ ! -e "$1" ]' _ "$T/glmfail.full"
 # T3: through independent_review.sh as the pair runs it (the curl stub serves the capture with this run's marker).
 for c in a b; do
   eval "cap=\$CAP_$(printf %s "$c" | tr a-z A-Z)"

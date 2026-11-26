@@ -2,7 +2,7 @@
 # Publish: promote the current preview (`main`) to the live site (`production`).
 # Two-stage sites only. Validates BEFORE doing anything so a beginner can't half-publish.
 #
-# template-version: 0.37
+# template-version: 0.38
 #   This file's own revision number, counted apart from the toolkit's release numbers. Sites get
 #   their copy at scaffold time and then diverge, so this is how you tell whether a site is current:
 #   `grep template-version scripts/ship.sh`. Bump it when this file changes, and keep
@@ -1183,7 +1183,7 @@ case "$wstate" in
       case "$probe" in
         served) ;;
         notserved)
-          finish "✓ Sent. This Worker has no domain yet ($wfile has no custom_domain route), so there is no live address to check; the change is checked at launch."
+          finish "✓ Sent. This Worker has no domain yet ($wfile has no custom_domain route), so there is no live address to check; the change is checked at launch. If this site is still live on Pages, open it and check it."
           exit 0 ;;
         *)
           echo ""

@@ -135,7 +135,7 @@ async function noteIsVisible(page: Page): Promise<boolean> {
   return false;
 }
 // Also listed in skills/new-website/scripts/cloudflare-setup.mjs (its launch stop); change both.
-const LEGAL_LAST_SEGMENTS = ['privacy', 'datenschutz', 'impressum', 'legal-notice'];
+const LEGAL_LAST_SEGMENTS = ['privacy', 'datenschutz', 'impressum', 'imprint', 'legal-notice'];
 const isLegalPage = (path: string) => LEGAL_LAST_SEGMENTS.includes(path.split('/').filter(Boolean).pop() ?? '');
 const hasLegalRecord = (readme: string) => LEGAL_RECORDS.some((re) => re.test(readme));
 

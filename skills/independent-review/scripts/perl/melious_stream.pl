@@ -73,7 +73,9 @@ if (!$n && !$done) {   # no stream at all: a whole JSON body is the server ignor
 # The reply as it came, before any check or trim, on every path that reaches the finish check
 # (melious.full). An error chunk or a non-JSON chunk stops earlier; melious.resp holds the stream.
 my $saved = 0;
-if (length $c && open my $fh, ">:encoding(UTF-8)", $full) { $saved = (print $fh $c) && close $fh }
+# Written to melious.full.part and renamed only once whole, so melious.full exists only after a
+# good save: the shell deletes the raw request and reply on that alone.
+if (length $c && open my $fh, ">:encoding(UTF-8)", "$full.part") { $saved = (print $fh $c) && close($fh) && rename("$full.part", $full) }
 # No chunk count in the message: a bare 429 there would read as a quota refusal (QUOTA_RE).
 if (!$done && !defined $fin) { print STDERR "Error: HTTP $code: the stream ended without a finish_reason or [DONE] — a truncated review\n"; exit 4 }
 # The finish_reason from the server goes on an Error: line, which the quota classifier reads: only a
