@@ -33,7 +33,7 @@
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
     "typescript": "^6.0.3",
-    "wrangler": "4.164.0"
+    "wrangler": "4.166.0"
   },
   "allowScripts": {
     "fsevents@2.3.3": true,
