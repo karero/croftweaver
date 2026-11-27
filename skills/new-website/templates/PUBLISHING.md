@@ -175,17 +175,17 @@ someone runs a command below.** (If there is no GitHub repository at all, leave 
 `git push` and `git pull` lines below: save with `git add -A` and `git commit`, then run the
 command.)
 
-The first time you run either command below on a computer where you aren't logged in to
+The first time you run either upload command below on a computer where you aren't logged in to
 Cloudflare yet, Wrangler (the tool that uploads your site) opens a Cloudflare page in your
 browser and asks for permission to work on your account. Since Wrangler 4.168 that includes a
 billing permission, which Wrangler describes as "See and change Cloudflare billing data such as
 billing profiles, payment methods, and subscriptions". Cloudflare added it so Wrangler can
 switch on products that need a subscription, such as R2 storage, which this site doesn't use.
 If you'd rather not allow it, close the page, stop the command in your terminal with Ctrl-C,
-and ask your assistant about a token you make instead; the token the kit has you make ends
-after about a week, so you make a new one when it runs out. If you allowed it and change your
-mind, run `npx wrangler logout`: it asks Cloudflare to cancel Wrangler's login and removes it
-from this computer, and the next upload asks again.
+and ask your assistant about a token you make instead. That token ends after about a week, so
+you make a new one when it runs out. If you allowed it and change your mind, run `npx wrangler
+logout`: it removes Wrangler's login from this computer and asks Cloudflare to cancel it, and
+the next upload asks again.
 
 A new site is a Worker, and has two commands. First look at your change on a **Preview**
 link, which only people who have the link can open and which search engines are told to
@@ -221,7 +221,7 @@ with an error, nothing was uploaded: ask for help rather than running the upload
 If the upload itself shows an error, part of it may have gone live anyway: ask for help
 before running it again. The first time, `npx` may ask "Ok to proceed?": type `y`. If the
 command says you aren't logged in, run `npx wrangler login` once (it opens your browser so you
-can log in to Cloudflare), then run it again. If it says "Failed to automatically retrieve
+can log in to Cloudflare, with the permission page described above), then run it again. If it says "Failed to automatically retrieve
 account IDs" (this happened with a Cloudflare token that could not look up the account), ask
 your assistant to give it your account id (`CLOUDFLARE_ACCOUNT_ID`), then run it again.
 On Windows, run it in Git Bash or WSL.
@@ -260,8 +260,8 @@ with an error, nothing was uploaded: ask for help rather than running the upload
 If the upload itself shows an error, part of it may have gone live anyway: ask for help
 before running it again. The first
 time, `npx` may ask "Ok to proceed?": type `y`. If the command says you aren't logged in, run
-`npx wrangler login` once (it opens your browser so you can log in to Cloudflare), then
-run it again. If it says "Failed to automatically retrieve account IDs" (this happened
+`npx wrangler login` once (it opens your browser so you can log in to Cloudflare, with the
+permission page described above), then run it again. If it says "Failed to automatically retrieve account IDs" (this happened
 with a Cloudflare token that could not look up the account), ask your assistant to give
 it your account id (`CLOUDFLARE_ACCOUNT_ID`), then run it again.
 On Windows, run it in Git Bash or WSL.

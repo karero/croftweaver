@@ -205,19 +205,18 @@ time and no GitHub connection.
 **Sign in to Cloudflare once,** either way:
 
 - `npx wrangler login` opens the owner's browser, and she approves Wrangler there. No token
-  to make or to delete. (The browser flow itself is not checked; the requested scopes were
-  measured on 4.168.0, from its login URL.) Since wrangler 4.168 the login also requests
-  `billing:write`, which Wrangler describes as "See and change Cloudflare billing data such as
-  billing profiles, payment methods, and subscriptions". In a terminal, `npm run deploy:*` (and
-  `wrangler pages deploy`) starts this login by itself when no login or token is present, so
-  tell the owner before her first deploy, and offer the token below if she would rather not
-  grant it. `npx wrangler logout`
-  asks Cloudflare to revoke the stored login and deletes it (whether a running access token
-  stops at once is not checked). On a login made before 4.168, `wrangler whoami` warns that
-  `billing:write` is missing and says to log in again: the kit's deploy commands don't check
-  the stored scopes (read in the code, not run) and ran without this one up to 4.167, so that
-  warning alone is no reason to log in again. If a deploy does stop over a missing scope, log
-  in again.
+  to make. (The browser flow itself is not checked; the requested scopes were measured on
+  4.168.0, from its login URL.) Since wrangler 4.168 the login also requests `billing:write`,
+  which Wrangler describes as "See and change Cloudflare billing data such as billing
+  profiles, payment methods, and subscriptions". In a terminal, `npm run deploy:preview` and
+  `npm run deploy:live` (and `wrangler pages deploy`) start this login by themselves when no
+  login or token is present, so tell the owner before her first deploy, and offer the token
+  below if she would rather not grant it. `npx wrangler logout` asks Cloudflare to revoke the
+  stored login and deletes it (whether a running access token stops at once is not checked).
+  On a login made before 4.168, `wrangler whoami` warns that `billing:write` is missing and
+  says to log in again: the kit's deploy commands don't check the stored scopes (read in the
+  code, not run) and ran without this one up to 4.167, so that warning alone is no reason to
+  log in again. If a deploy does stop over a missing scope, log in again.
 - Or a token the owner makes, for an assistant that cannot open a browser:
   1. Dashboard → **My Profile → API Tokens → Create Token**, then **Start from scratch** →
      **Start with an Account policy**, and **Add new policy** for a Zone policy where the rows
