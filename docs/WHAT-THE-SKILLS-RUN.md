@@ -209,7 +209,7 @@ an "Email Tap" event there, as a click on an email address does.
   `npm create astro@latest`, copies the templates and 29 skills into the site, and runs the
   build and tests. For Cloudflare it uses `npm run deploy:preview` and
   `npm run deploy:live` (the site's `scripts/deploy.sh`, which builds the site and runs
-  `wrangler preview` or `wrangler deploy`) with a token you make, or `npx wrangler login`. A site still on Pages uses
+  `wrangler preview` or `wrangler deploy`) with a token you make, or `npx wrangler login` (which also asks for a billing permission; see the table below). A site still on Pages uses
   `npx wrangler pages project create` (with `--force`, which stops Wrangler making a Worker instead when an AI assistant runs it) and `npx wrangler pages deploy`. Its
   `scripts/cloudflare-check.mjs` reads your site's public addresses to check the Cloudflare
   settings; it needs no token. With `--site` it also reads the Wrangler files in your site's folder. It also sends requests that carry the names of AI crawlers
@@ -362,7 +362,7 @@ Homebrew and npm alternatives. Its setup wizard asks you to paste these yourself
 | chatgpt.com, antigravity.google, ollama.com | the `curl … \| sh` install lines in `independent-review`'s setup guide, if you use them | none | reads the installers |
 | croftweaver.com | `new-website`'s footer credit step, only if you say yes | none | reads the badge code from `/partner-assets` and the badge files |
 | An image service you choose | `image`, if you use one | your own key | sends your image prompts |
-| Cloudflare | `wrangler` (`deploy`, `preview`; on a Pages site `pages deploy`, project create, deployment list) | an API token you make, or `wrangler login` | sends the built site |
+| Cloudflare | `wrangler` (`deploy`, `preview`; on a Pages site `pages deploy`, project create, deployment list) | an API token you make, or `wrangler login`, which since wrangler 4.168 also asks for a billing permission (`npx wrangler logout` removes that login and asks Cloudflare to revoke it) | sends the built site |
 | Cloudflare's API | `cloudflare-setup.mjs` | an API token you make, ending within a week | reads your zone, its records and your Worker; after your yes, attaches the domain to the Worker, deletes the host's old DNS record (saved first), and writes zone settings, Bot Management and DNS records |
 | Cloudflare's API | `move-to-workers.mjs` | an API token you make, ending within a week | reads your zone, its DNS records, the Pages project, its builds and the Worker's domains; after your yes, asks it to move each host between the Pages project and the Worker, deleting or writing its DNS record |
 | Your domain's nameservers | `cloudflare-setup.mjs` | none | asks whether a record it wrote is served |
