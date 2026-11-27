@@ -216,7 +216,7 @@ time and no GitHub connection.
   On a login made before 4.168, `wrangler whoami` warns that `billing:write` is missing and
   says to log in again: the kit's deploy commands don't check the stored scopes (read in the
   code, not run) and ran without this one up to 4.167, so that warning alone is no reason to
-  log in again. If a deploy does stop over a missing scope, log in again.
+  log in again. If Cloudflare ever refuses a deploy over a missing permission, log in again.
 - Or a token the owner makes, for an assistant that cannot open a browser:
   1. Dashboard → **My Profile → API Tokens → Create Token**, then **Start from scratch** →
      **Start with an Account policy**, and **Add new policy** for a Zone policy where the rows

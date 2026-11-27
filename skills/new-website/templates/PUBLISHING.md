@@ -180,7 +180,7 @@ Cloudflare yet, Wrangler (the tool that uploads your site) opens a Cloudflare pa
 browser and asks for permission to work on your account. Since Wrangler 4.168 that includes a
 billing permission, which Wrangler describes as "See and change Cloudflare billing data such as
 billing profiles, payment methods, and subscriptions". Cloudflare added it so Wrangler can
-switch on products that need a subscription, such as R2 storage, which this site doesn't use.
+switch on products that need a subscription, such as R2 storage, which a new site doesn't use.
 If you'd rather not allow it, close the page, stop the command in your terminal with Ctrl-C,
 and ask your assistant about a token you make instead. That token ends after about a week, so
 you make a new one when it runs out. If you allowed it and change your mind, run `npx wrangler
