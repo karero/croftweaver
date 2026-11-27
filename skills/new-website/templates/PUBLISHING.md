@@ -175,6 +175,18 @@ someone runs a command below.** (If there is no GitHub repository at all, leave 
 `git push` and `git pull` lines below: save with `git add -A` and `git commit`, then run the
 command.)
 
+The first time you run either command below on a computer where you aren't logged in to
+Cloudflare yet, Wrangler (the tool that uploads your site) opens a Cloudflare page in your
+browser and asks for permission to work on your account. Since Wrangler 4.168 that includes a
+billing permission, which Wrangler describes as "See and change Cloudflare billing data such as
+billing profiles, payment methods, and subscriptions". Cloudflare added it so Wrangler can
+switch on products that need a subscription, such as R2 storage, which this site doesn't use.
+If you'd rather not allow it, close the page, stop the command in your terminal with Ctrl-C,
+and ask your assistant about a token you make instead; the token the kit has you make ends
+after about a week, so you make a new one when it runs out. If you allowed it and change your
+mind, run `npx wrangler logout`: it asks Cloudflare to cancel Wrangler's login and removes it
+from this computer, and the next upload asks again.
+
 A new site is a Worker, and has two commands. First look at your change on a **Preview**
 link, which only people who have the link can open and which search engines are told to
 ignore:
@@ -219,6 +231,8 @@ Cloudflare) it has no preview step, and `npm run ship` is not for it either: it 
 Cloudflare to build, and on such a site Cloudflare never does. Run the
 commands below instead. They publish `main`, so first check your change locally (`npm run dev`),
 then save and upload it on `main` with `git add -A`, `git commit` and `git push` as above.
+If you aren't logged in to Cloudflare yet, the first upload opens the same permission page,
+billing permission included, as described above for a Worker.
 
 ```bash
 # Get the newest main from GitHub, build the site, then upload it to Cloudflare.
@@ -431,7 +445,7 @@ running, a zone cache rule (Cache Everything on HTML) will cache the **404**, an
 404 does not reliably self-heal: observed surviving `cf-cache-status: HIT` more than 90
 minutes past a 30-minute `max-age`, immune to plain re-requests. Only a **manual dashboard
 purge** clears it (Cloudflare dashboard → the zone → Caching → Purge Cache → custom purge by
-URL; wrangler's OAuth token has `zone (read)` only and cannot purge programmatically). So:
+URL; wrangler's login has read-only zone access (`zone:read`), so it cannot purge programmatically). So:
 
 - Until the production deployment shows **Active**, verify new pages ONLY on the version's own
   link (on Pages: the hash deployment URL `<hash>.<project>.pages.dev`) — pre-Active the live
