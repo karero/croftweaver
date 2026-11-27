@@ -29,11 +29,11 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
-    "@axe-core/playwright": "^4.14.0",
+    "@axe-core/playwright": "^4.14.1",
     "@playwright/test": "^1.65.1",
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.11",
     "typescript": "^6.0.3",
-    "wrangler": "4.164.0"
+    "wrangler": "4.167.0"
   },
   "allowScripts": {
     "fsevents@2.3.3": true,
